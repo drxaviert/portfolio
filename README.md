@@ -17,7 +17,7 @@ undecided.
 
 ## Requirements
 
-- Node `22.x` (see `.nvmrc` and the `engines` field)
+- Node `24.x` (see `.nvmrc` and the `engines` field)
 - pnpm `10.34.9` (pinned through `packageManager`; run
   `corepack enable` or use the matching pnpm version)
 
