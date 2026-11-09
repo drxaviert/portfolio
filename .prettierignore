@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+build/
+coverage/
+pnpm-lock.yaml
+pnpm-workspace.yaml
+next-env.d.ts
+.superpowers/
+docs/
+opencode.json
+.mcp.json
