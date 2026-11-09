@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 import "./globals.css";
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
   description: "Design engineer portfolio.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
