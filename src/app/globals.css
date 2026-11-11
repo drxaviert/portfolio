@@ -1,46 +1,296 @@
 /*
- * Placeholder design tokens.
+ * Material 3 role tokens for four time-of-day phases.
  *
- * Every value here is a neutral greyscale stand-in. Replace them with the
- * final design's colour, type, spacing and radius values; the semantic names
- * and the light/dark structure are what components should depend on.
+ * Values mirror docs/design-system/tokens.md (Figma "Color · Dawn/Day/Dusk/
+ * Night"). The pre-paint script in src/lib/theme-script.ts sets data-mode and
+ * data-phase on <html> before paint, so `:root` is only the no-script fallback.
+ *
+ * Rules: cards and menus never get a stroke; they use --shadow-card.
  */
 
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where([data-phase="night"], [data-phase="night"] *));
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --border: oklch(0.922 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+:root,
+[data-phase="day"] {
+  color-scheme: light;
+
+  --surface: #e5e5e5;
+  --surface-dim: #d9d9d9;
+  --surface-bright: #ffffff;
+  --surface-container-low: #ffffff;
+  --surface-container: #f2f2f2;
+  --surface-container-high: #e5e5e5;
+  --surface-container-highest: #d9d9d9;
+
+  --on-surface: #0d0d0d;
+  --on-surface-variant: #4c4c4c;
+  --outline: #999999;
+  --outline-variant: rgb(0 0 0 / 0.08);
+
+  --primary: #3687d9;
+  --on-primary: #ffffff;
+  --secondary: #3093f8;
+
+  --tracker-0: #f3f8fc;
+  --tracker-1: #e4eff9;
+  --tracker-2: #cde2f4;
+  --tracker-3: #aed0ed;
+  --tracker-4: #81b6e2;
+
+  --toggle-track: #e5e5e5;
+  --toggle-selected: #ffffff;
+
+  /* Horizon glow · "bg / stripe gradient" (Day 121:2004): flat to 70%, then a
+     tinted bottom edge. Blobs are literal 6% tints of the frame's own hues. */
+  --horizon-base: #f8fafd;
+  --horizon-mid: #f3f7fd;
+  --horizon-mid-at: 82%;
+  --horizon-end: #ecf4fd;
+  --horizon-blob-left: rgb(96 168 226 / 0.06);
+  --horizon-blob-right: rgb(0 113 193 / 0.06);
+  /* Ring hover: the same blob hues at 75% so they survive on a 1px ring. */
+  --horizon-ring-glow: linear-gradient(
+    45deg,
+    rgb(96 168 226 / 0.75) 0%,
+    rgb(0 113 193 / 0.75) 100%
+  );
+
+  /* Orb head (nav): blob-left → blob-right, bottom-left to top-right. */
+  --orb-gradient: linear-gradient(45deg, #60a8e2 0%, #0071c1 100%);
+
+  /* 1px content-column hairline at ≥1440 (frame-line/*, #E5EDF5). */
+  --frame-line: #e5edf5;
+
+  --shadow-card:
+    0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06),
+    0 2px 4px 0 rgb(0 0 0 / 0.04);
+
+  /* Play card · reference pastel: yellow into soft green, blue horizon band. */
+  --play-bg-top: #ffe97a;
+  --play-bg-mid: #a9d98b;
+  --play-base: #8fb0f0;
+  /* Kept for the original fan, which reads the bottom stop by name. */
+  --play-bg-bottom: #8fb0f0;
+  --play-strand: #fffdf4;
+  --play-glow: #fff8d4;
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+[data-phase="dawn"] {
+  color-scheme: light;
+
+  --surface: #e5e5e5;
+  --surface-dim: #d9d9d9;
+  --surface-bright: #ffffff;
+  --surface-container-low: #ffffff;
+  --surface-container: #f2f2f2;
+  --surface-container-high: #e5e5e5;
+  --surface-container-highest: #d9d9d9;
+
+  --on-surface: #0d0d0d;
+  --on-surface-variant: #4c4c4c;
+  --outline: #999999;
+  --outline-variant: rgb(0 0 0 / 0.08);
+
+  --primary: #d19ef9;
+  --on-primary: #ffffff;
+  --secondary: #edd8fc;
+
+  --tracker-0: #fbf6fe;
+  --tracker-1: #f5eafe;
+  --tracker-2: #edd8fc;
+  --tracker-3: #e1c0fb;
+  --tracker-4: #d19ef9;
+
+  --toggle-track: #e5e5e5;
+  --toggle-selected: #ffffff;
+
+  /* Horizon glow · Dawn 121:4483: pink and violet blobs, warm bottom edge. */
+  --horizon-base: #f8fafd;
+  --horizon-mid: #f9f8f7;
+  --horizon-mid-at: 82%;
+  --horizon-end: #f9f4ec;
+  --horizon-blob-left: rgb(255 144 185 / 0.06);
+  --horizon-blob-right: rgb(203 131 255 / 0.06);
+  /* Ring hover: the same blob hues at 90% so they survive on a 1px ring. */
+  --horizon-ring-glow: linear-gradient(
+    45deg,
+    rgb(255 144 185 / 0.9) 0%,
+    rgb(203 131 255 / 0.9) 100%
+  );
+
+  --orb-gradient: linear-gradient(45deg, #ff90b9 0%, #cb83ff 100%);
+
+  --frame-line: #e5edf5;
+
+  --shadow-card:
+    0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06),
+    0 2px 4px 0 rgb(0 0 0 / 0.04);
+
+  /* Play card · pink into coral, warm amber horizon band. */
+  --play-bg-top: #f2a0c8;
+  --play-bg-mid: #e9786f;
+  --play-base: #f3c46b;
+  --play-bg-bottom: #f3c46b;
+  --play-strand: #fff8f4;
+  --play-glow: #ffe3d6;
+}
+
+[data-phase="dusk"] {
+  color-scheme: light;
+
+  --surface: #e5e5e5;
+  --surface-dim: #d9d9d9;
+  --surface-bright: #ffffff;
+  --surface-container-low: #ffffff;
+  --surface-container: #f2f2f2;
+  --surface-container-high: #e5e5e5;
+  --surface-container-highest: #d9d9d9;
+
+  --on-surface: #0d0d0d;
+  --on-surface-variant: #4c4c4c;
+  --outline: #999999;
+  --outline-variant: rgb(0 0 0 / 0.08);
+
+  --primary: #f0b075;
+  --on-primary: #ffffff;
+  --secondary: #f9e0c8;
+
+  --tracker-0: #fef8f2;
+  --tracker-1: #fceee1;
+  --tracker-2: #f9e0c8;
+  --tracker-3: #f5cca6;
+  --tracker-4: #f0b075;
+
+  --toggle-track: #e5e5e5;
+  --toggle-selected: #ffffff;
+
+  /* Horizon glow · Dusk 121:5722: cool blue blob, amber blob, 80% mid stop. */
+  --horizon-base: #f8fafd;
+  --horizon-mid: #f5f8fd;
+  --horizon-mid-at: 80%;
+  --horizon-end: #f9f7f3;
+  --horizon-blob-left: rgb(180 216 255 / 0.06);
+  --horizon-blob-right: rgb(255 180 81 / 0.06);
+  /* Ring hover: Dusk's accent into a deeper amber, not the horizon blobs, so
+     the 1px ring keeps real contrast on the pale surface. */
+  --horizon-ring-glow: linear-gradient(
+    45deg,
+    rgb(240 176 117 / 0.9) 0%,
+    rgb(224 128 48 / 0.9) 100%
+  );
+
+  --orb-gradient: linear-gradient(45deg, #b4d8ff 0%, #f7c1d9 50%, #ffb451 100%);
+
+  --frame-line: #e5edf5;
+
+  --shadow-card:
+    0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06),
+    0 2px 4px 0 rgb(0 0 0 / 0.04);
+
+  /* Play card · lilac into violet, muted teal horizon band. */
+  --play-bg-top: #9b8be0;
+  --play-bg-mid: #b49ae6;
+  --play-base: #8fc3c9;
+  --play-bg-bottom: #8fc3c9;
+  --play-strand: #fdfbff;
+  --play-glow: #efe7ff;
+}
+
+[data-phase="night"] {
+  color-scheme: dark;
+
+  --surface: #0d0d0d;
+  --surface-dim: #000000;
+  --surface-bright: #333333;
+  --surface-container-low: #191919;
+  --surface-container: #262626;
+  --surface-container-high: #333333;
+  --surface-container-highest: #404040;
+
+  --on-surface: #f2f2f2;
+  --on-surface-variant: #b2b2b2;
+  --outline: #666666;
+  --outline-variant: rgb(255 255 255 / 0.08);
+
+  --primary: #fd6850;
+  --on-primary: #0d0d0d;
+  --secondary: #f73131;
+
+  --tracker-0: #241d1c;
+  --tracker-1: #342220;
+  --tracker-2: #4b2a25;
+  --tracker-3: #6b352d;
+  --tracker-4: #9d4739;
+
+  --toggle-track: #0d0d0d;
+  --toggle-selected: #333333;
+
+  /* Horizon glow · Night 121:3244: near-black, a violet cast at 90%. */
+  --horizon-base: #0d0d0d;
+  --horizon-mid: #0f0f13;
+  --horizon-mid-at: 90%;
+  --horizon-end: #111116;
+  --horizon-blob-left: rgb(103 99 228 / 0.06);
+  --horizon-blob-right: rgb(175 255 234 / 0.03);
+  /* Ring hover: the orb hues at 55% so they survive on a 1px ring; the night
+     ring follows the nav orb rather than the cool horizon blobs. */
+  --horizon-ring-glow: linear-gradient(
+    45deg,
+    rgb(214 180 157 / 0.55) 0%,
+    rgb(253 104 80 / 0.55) 45%,
+    rgb(253 104 80 / 0.55) 100%
+  );
+
+  --orb-gradient: linear-gradient(45deg, #d6b49d 0%, #fd6850 45%, #fd6850 100%);
+
+  --frame-line: rgb(255 255 255 / 0.08);
+
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.08);
+
+  /* Play card · periwinkle into indigo, pink horizon. Rendered ~25% deeper. */
+  --play-bg-top: #7f9bea;
+  --play-bg-mid: #6670e0;
+  --play-base: #e7a6e0;
+  --play-bg-bottom: #e7a6e0;
+  --play-strand: #eef0ff;
+  --play-glow: #c9ccff;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-border: var(--border);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
+  --color-surface: var(--surface);
+  --color-surface-dim: var(--surface-dim);
+  --color-surface-bright: var(--surface-bright);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-secondary: var(--secondary);
+  --color-tracker-0: var(--tracker-0);
+  --color-tracker-1: var(--tracker-1);
+  --color-tracker-2: var(--tracker-2);
+  --color-tracker-3: var(--tracker-3);
+  --color-tracker-4: var(--tracker-4);
+  --color-toggle-track: var(--toggle-track);
+  --color-toggle-selected: var(--toggle-selected);
+  --color-frame-line: var(--frame-line);
+  --color-horizon-blob-left: var(--horizon-blob-left);
+  --color-horizon-blob-right: var(--horizon-blob-right);
+
   --font-sans:
-    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
-    "Segoe UI Symbol", "Noto Color Emoji";
+    var(--font-work-sans), ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+@utility shadow-card {
+  box-shadow: var(--shadow-card);
 }
 
 @theme {
@@ -55,6 +305,15 @@
   --text-3xl: 1.875rem;
   --text-4xl: 2.25rem;
 
+  /* Display steps for the highlight card title (Figma: 40/44 at ≥768,
+     32/35.2 at 375, tracking -0.4px at both). */
+  --text-title: 2.5rem;
+  --text-title--line-height: 2.75rem;
+  --text-title--letter-spacing: -0.4px;
+  --text-title-sm: 2rem;
+  --text-title-sm--line-height: 2.2rem;
+  --text-title-sm--letter-spacing: -0.4px;
+
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
@@ -62,7 +321,7 @@
 
 @layer base {
   body {
-    background-color: var(--background);
-    color: var(--foreground);
+    background-color: var(--surface);
+    color: var(--on-surface);
   }
 }

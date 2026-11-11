@@ -1,0 +1,254 @@
+{
+  "section": "147:16070",
+  "cells": [
+    {
+      "row": "A",
+      "phase": "Day",
+      "cell": "147:16082",
+      "card": "147:16077",
+      "chip": "147:16079"
+    },
+    {
+      "row": "A",
+      "phase": "Night",
+      "cell": "147:16088",
+      "card": "147:16083",
+      "chip": "147:16085"
+    },
+    {
+      "row": "B",
+      "phase": "Day",
+      "cell": "147:16095",
+      "card": "147:16090",
+      "chip": "147:16092"
+    },
+    {
+      "row": "B",
+      "phase": "Night",
+      "cell": "147:16101",
+      "card": "147:16096",
+      "chip": "147:16098"
+    },
+    {
+      "row": "C",
+      "phase": "Day",
+      "cell": "147:16107",
+      "card": "147:16103",
+      "chip": "147:16105"
+    },
+    {
+      "row": "C",
+      "phase": "Night",
+      "cell": "147:16112",
+      "card": "147:16108",
+      "chip": "147:16110"
+    },
+    {
+      "row": "D",
+      "phase": "Day",
+      "cell": "147:16120",
+      "card": "147:16114",
+      "chip": "147:16116"
+    },
+    {
+      "row": "D",
+      "phase": "Night",
+      "cell": "147:16127",
+      "card": "147:16121",
+      "chip": "147:16123"
+    }
+  ],
+  "source": {
+    "Day": "102:1766",
+    "Night": "102:1223"
+  },
+  "hover": {
+    "icon": "147:16128",
+    "caption": "147:16130"
+  },
+  "placement": {
+    "page": "Exploration (127:9124)",
+    "x": 8000,
+    "y": 1600,
+    "width": 1682,
+    "height": 4694,
+    "note": "Chip vertical position is the card's 32px top inset, not the title's first line (the source card's title sits bottom-left; coordinator ruled the title-alignment rule out). Section grew to 2704 for row E, 3708 for rows E2 and 4694 for row C Final."
+  },
+  "tokens": {
+    "Day": {
+      "accent": "#3687D9",
+      "on-surface": "#0D0D0D",
+      "on-surface-variant": "#4C4C4C",
+      "surface-container-high": "#E5E5E5",
+      "shadow": "shadow-light"
+    },
+    "Night": {
+      "accent": "#FD6850",
+      "on-surface": "#F2F2F2",
+      "on-surface-variant": "#B2B2B2",
+      "surface-container-high": "#333333",
+      "shadow": "shadow-dark"
+    },
+    "fallbacks": [
+      "corner/sm is not in docs/design-system/tokens.md -> used radius 8 for A",
+      "label/medium size is not defined in tokens.md or the Figma type scale (all specimens are 16px) -> used Material 3 label/medium: 12px / 16 line height / 0.5 tracking, Work Sans Medium",
+      "chips use literal accent hex at 10% opacity (composite paint); no variable alias could carry the 10%"
+    ]
+  },
+  "export": "docs/handoffs/work-card/corner-button-variations.png",
+  "eRow": {
+    "plate": "148:16355",
+    "label": "148:16356",
+    "export": "docs/handoffs/work-card/corner-button-E.png",
+    "geometry": {
+      "path": "one open vector path: horizontal arm, 7.25px centreline radius bend, vertical arm; 24x24 stroke extent",
+      "inset": "outer edge of bend 16px from card top and right",
+      "stroke": "1.5px, round caps, no fill, accent at 40% opacity"
+    },
+    "cells": [
+      {
+        "row": "E",
+        "phase": "Day",
+        "cell": "148:16361",
+        "card": "148:16357",
+        "chip": "148:16359",
+        "vector": "148:16360"
+      },
+      {
+        "row": "E",
+        "phase": "Night",
+        "cell": "148:16366",
+        "card": "148:16362",
+        "chip": "148:16364",
+        "vector": "148:16365"
+      }
+    ]
+  },
+  "e2": {
+    "plate": "148:16402",
+    "export": "docs/handoffs/work-card/corner-button-E2.png",
+    "geometry": {
+      "path": "one open vector path: horizontal arm, 6px centreline radius bend, vertical arm; 26.5x26.5 stroke extent",
+      "inset": "stroke centreline 8px in from card top and right (outer edge 6.75px in)",
+      "arms": "24px per arm from the bend corner",
+      "stroke": "2.5px, round caps, no fill",
+      "radius_note": "true concentric offset of the 12px card corner at 8px inset would be 4px, below the 6px floor, so the bend uses 6px - the closest permitted and the tightest echo of the 12px corner"
+    },
+    "paints": {
+      "E2 · Accent": "accent @40% (#3687D9 Day / #FD6850 Night)",
+      "E2 · Grayscale": "on-surface @25% (#0D0D0D Day / #F2F2F2 Night)"
+    },
+    "roles": [
+      {
+        "row": "E2 · Accent",
+        "label": "148:16403"
+      },
+      {
+        "row": "E2 · Grayscale",
+        "label": "148:16414"
+      }
+    ],
+    "cells": [
+      {
+        "row": "E2 · Accent",
+        "phase": "Day",
+        "cell": "148:16408",
+        "card": "148:16404",
+        "chip": "148:16406",
+        "vector": "148:16407"
+      },
+      {
+        "row": "E2 · Accent",
+        "phase": "Night",
+        "cell": "148:16413",
+        "card": "148:16409",
+        "chip": "148:16411",
+        "vector": "148:16412"
+      },
+      {
+        "row": "E2 · Grayscale",
+        "phase": "Day",
+        "cell": "148:16419",
+        "card": "148:16415",
+        "chip": "148:16417",
+        "vector": "148:16418"
+      },
+      {
+        "row": "E2 · Grayscale",
+        "phase": "Night",
+        "cell": "148:16424",
+        "card": "148:16420",
+        "chip": "148:16422",
+        "vector": "148:16423"
+      }
+    ]
+  },
+  "cFinal": {
+    "plate": "149:16488",
+    "export": "docs/handoffs/work-card/corner-button-C-final.png",
+    "geometry": {
+      "icon": "24x24 frame, one vector path, 2px stroke, round caps and joins, no fill",
+      "path": "shaft (4,20)->(20,4); head (10,4)->(20,4)->(20,14) = 10px arms, about 44% of the 22.6px shaft",
+      "position": "arrow's visual corner (local 20,4) on the card's 32px inset; frame at (701,28) inside the card",
+      "hover": "icon nudged 2px up and right (card does not move)"
+    },
+    "paints": {
+      "rest": "on-surface-variant (#4C4C4C Day / #B2B2B2 Night)",
+      "hover": "accent (#3687D9 Day / #FD6850 Night)"
+    },
+    "layout": "per column: rest card on top, 'hover' caption, hover card below (coordinator chose this over a 3-card row)",
+    "plate": "149:16488",
+    "labels": [
+      {
+        "row": "C · Final",
+        "label": "149:16489"
+      },
+      {
+        "row": "hover caption Day",
+        "label": "149:16490"
+      },
+      {
+        "row": "hover caption Night",
+        "label": "149:16501"
+      }
+    ],
+    "cells": [
+      {
+        "row": "C · Final",
+        "state": "rest",
+        "phase": "Day",
+        "cell": "149:16495",
+        "card": "149:16491",
+        "chip": "149:16493",
+        "vector": "149:16494"
+      },
+      {
+        "row": "C · Final",
+        "state": "hover",
+        "phase": "Day",
+        "cell": "149:16500",
+        "card": "149:16496",
+        "chip": "149:16498",
+        "vector": "149:16499"
+      },
+      {
+        "row": "C · Final",
+        "state": "rest",
+        "phase": "Night",
+        "cell": "149:16506",
+        "card": "149:16502",
+        "chip": "149:16504",
+        "vector": "149:16505"
+      },
+      {
+        "row": "C · Final",
+        "state": "hover",
+        "phase": "Night",
+        "cell": "149:16511",
+        "card": "149:16507",
+        "chip": "149:16509",
+        "vector": "149:16510"
+      }
+    ]
+  }
+}

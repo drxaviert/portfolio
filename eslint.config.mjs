@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Generated and tooling output:
     "coverage/**",
     ".superpowers/**",
+    // Figma console tooling, kept for the design handoffs.
+    "docs/handoffs/figma-scripts/**",
   ]),
 ]);
 
