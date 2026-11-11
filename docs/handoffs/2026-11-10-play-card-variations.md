@@ -14,7 +14,7 @@ Follows `2026-11-10-phases-code-and-play-card.md`. Orca run `run_90f0a459a8ff`. 
   - Depth: 135:14215 / 14237 / 14259 / 14281
   - Silk wave: 136:14303 / 14323 / 14343 / 14363
 - Colours: Dawn #DDBDF8→#C79BF0, band #A974D8. Day #A9CAEA→#6FA3DC, band #3687D9. Dusk #F6DCC0→#EFBE8C, band #DE9750. Night #1C1C1E→#131316 on a #262626 surface, band #B85343, warm strands #FFF2EA.
-- Export: `docs/handoffs/play-cards/play-card-variations-0.5x.png`. Generator scripts are in `docs/handoffs/figma-scripts/` (gen.cjs, buildRow.cjs).
+- Export: `C:/Users/Dat/orca/portfolio-handoff-images/play-cards/play-card-variations-0.5x.png`. Generator scripts are in `docs/handoffs/figma-scripts/` (gen.cjs, buildRow.cjs).
 
 ## Opus review of the recolour
 - It reads as the phase palette now. The horizon band is heavy and saturated against the "extremely subtle" horizon-glow rule; consider softening or dropping it.

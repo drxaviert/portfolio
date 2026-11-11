@@ -9,8 +9,8 @@ Follows `2026-11-11-faithful-v4-and-corner-button.md`. Orca run `run_90f0a459a8f
 - Figma label captions (`#1a1a1f` / `#6b6b78`): unimportant, so leave them unbound.
 
 ## State
-- **v6 Day** built (card 149:16512) and rejected. Export: docs/handoffs/play-cards/faithful-v6-day.png.
-- **v7 Day IN PROGRESS** on DeepSeek worker dispatch `ctx_1bf3f3cf63f9`, building a new row below v6 in section 133:13342. Export target: docs/handoffs/play-cards/faithful-v7-day.png. It may need the user to switch Figma to the Exploration page.
+- **v6 Day** built (card 149:16512) and rejected. Export: C:/Users/Dat/orca/portfolio-handoff-images/play-cards/faithful-v6-day.png.
+- **v7 Day IN PROGRESS** on DeepSeek worker dispatch `ctx_1bf3f3cf63f9`, building a new row below v6 in section 133:13342. Export target: C:/Users/Dat/orca/portfolio-handoff-images/play-cards/faithful-v7-day.png. It may need the user to switch Figma to the Exploration page.
 - **Variable binding DONE** (Sonnet with figma-console): 55 fills and strokes in the play-card v3–v5 rows and the work-card section, all with unchanged colours. Day and Night are separate collections ("Color · Light" / "Color · Dark"), so no modes were needed. Left as literals: gradients, strand art, Night `#fff2ea` art strokes, 0%-opacity fills, labels.
 - **Prototype DONE** at `/dev/prototype` (src/app/dev/prototype/: page.tsx, horizon-background.tsx, prototype-nav.tsx, tracker-widget.tsx), built from the Design page's 1440 Day/Night frames with an empty top-right play-card shell. Typecheck, lint, 45/45 tests and HTTP 200 all pass. eslint.config.mjs now ignores `docs/handoffs/figma-scripts/**`. Known gaps: Work Sans isn't loaded; the title is 40px against the 36px token step; the horizon blob hues were mapped to tokens.
 
