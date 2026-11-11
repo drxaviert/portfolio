@@ -10,8 +10,9 @@
  * differ per host are the geometry vars below.
  *
  * The glow colour is --horizon-ring-glow (globals.css, per phase). The
- * --horizon-* blobs are 6% and vanish on a 1px ring, so the token is the same
- * two hues at 55%.
+ * --horizon-* blobs are 6% and vanish on a 1px ring, so the token lifts the
+ * blob hues (Day 75%, Dawn 90%); Dusk pairs its accent with a deeper amber,
+ * and Night switches to the nav orb's hues instead.
  */
 
 .ring-host {

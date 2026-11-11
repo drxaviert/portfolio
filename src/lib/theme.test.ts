@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyMode,
+  applyPhase,
   MODE_STORAGE_KEY,
   parseStoredMode,
   phaseFor,
@@ -129,6 +130,25 @@ describe("writeStoredMode", () => {
     });
 
     expect(() => writeStoredMode("day")).not.toThrow();
+  });
+});
+
+describe("applyPhase", () => {
+  it("pins the phase and the dark class for night", () => {
+    applyPhase("night");
+
+    expect(document.documentElement.dataset.phase).toBe("night");
+    expect(document.documentElement).toHaveClass("dark");
+  });
+
+  it("leaves the mode and clears the dark class for light phases", () => {
+    document.documentElement.dataset.mode = "auto";
+
+    applyPhase("dusk");
+
+    expect(document.documentElement.dataset.phase).toBe("dusk");
+    expect(document.documentElement.dataset.mode).toBe("auto");
+    expect(document.documentElement).not.toHaveClass("dark");
   });
 });
 

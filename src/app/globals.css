@@ -50,11 +50,11 @@
   --horizon-end: #ecf4fd;
   --horizon-blob-left: rgb(96 168 226 / 0.06);
   --horizon-blob-right: rgb(0 113 193 / 0.06);
-  /* Ring hover: the same blob hues at 55% so they survive on a 1px ring. */
+  /* Ring hover: the same blob hues at 75% so they survive on a 1px ring. */
   --horizon-ring-glow: linear-gradient(
     45deg,
-    rgb(96 168 226 / 0.55) 0%,
-    rgb(0 113 193 / 0.55) 100%
+    rgb(96 168 226 / 0.75) 0%,
+    rgb(0 113 193 / 0.75) 100%
   );
 
   /* Orb head (nav): blob-left → blob-right, bottom-left to top-right. */
@@ -113,11 +113,11 @@
   --horizon-end: #f9f4ec;
   --horizon-blob-left: rgb(255 144 185 / 0.06);
   --horizon-blob-right: rgb(203 131 255 / 0.06);
-  /* Ring hover: the same blob hues at 55% so they survive on a 1px ring. */
+  /* Ring hover: the same blob hues at 90% so they survive on a 1px ring. */
   --horizon-ring-glow: linear-gradient(
     45deg,
-    rgb(255 144 185 / 0.55) 0%,
-    rgb(203 131 255 / 0.55) 100%
+    rgb(255 144 185 / 0.9) 0%,
+    rgb(203 131 255 / 0.9) 100%
   );
 
   --orb-gradient: linear-gradient(45deg, #ff90b9 0%, #cb83ff 100%);
@@ -173,11 +173,12 @@
   --horizon-end: #f9f7f3;
   --horizon-blob-left: rgb(180 216 255 / 0.06);
   --horizon-blob-right: rgb(255 180 81 / 0.06);
-  /* Ring hover: the same blob hues at 55% so they survive on a 1px ring. */
+  /* Ring hover: Dusk's accent into a deeper amber, not the horizon blobs, so
+     the 1px ring keeps real contrast on the pale surface. */
   --horizon-ring-glow: linear-gradient(
     45deg,
-    rgb(180 216 255 / 0.55) 0%,
-    rgb(255 180 81 / 0.55) 100%
+    rgb(240 176 117 / 0.9) 0%,
+    rgb(224 128 48 / 0.9) 100%
   );
 
   --orb-gradient: linear-gradient(45deg, #b4d8ff 0%, #f7c1d9 50%, #ffb451 100%);

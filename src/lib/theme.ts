@@ -109,6 +109,18 @@ export function writeStoredMode(mode: Mode): void {
 }
 
 /**
+ * Applies one phase to the document without consulting the clock, deriving
+ * `.dark` so anything still keyed off the class follows. Dev previews use this
+ * to pin a phase; production code goes through `applyMode`.
+ */
+export function applyPhase(phase: Phase): void {
+  const root = document.documentElement;
+
+  root.dataset.phase = phase;
+  root.classList.toggle("dark", phase === "night");
+}
+
+/**
  * Applies a mode to the document: data-mode and data-phase drive the tokens,
  * and `.dark` stays for anything still keyed off the class. Returns the phase.
  */
