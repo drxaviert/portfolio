@@ -65,29 +65,44 @@ Routes live in `src/app`; `page.tsx` is the placeholder home page, and any
 ## Design tokens
 
 All tokens are CSS custom properties in
-[`src/app/globals.css`](src/app/globals.css). They are placeholder values —
-neutral greyscale, system fonts, default-looking type scale, spacing and
-radius — and are meant to be replaced with the final design.
+[`src/app/globals.css`](src/app/globals.css), named after Material 3 roles. Each
+of the four time-of-day phases (dawn, day, dusk, night) sets a full palette
+under `[data-phase="…"]` on `<html>`; `:root` is the no-script Day fallback.
 
-- Semantic colour tokens: `--background`, `--foreground`, `--muted`,
-  `--muted-foreground`, `--border`, `--accent`, `--accent-foreground`.
-- Light values live in `:root`; dark values live under `.dark`.
-- `@theme inline` exposes the tokens to Tailwind as `--color-*`, so utilities
-  such as `bg-background` and `text-muted-foreground` follow the theme.
+- Colour roles: `--surface`, `--surface-container-low` …
+  `--surface-container-highest`, `--on-surface`, `--on-surface-variant`,
+  `--outline`, `--outline-variant`, `--primary`, `--on-primary`, `--secondary`,
+  `--tracker-0`–`--tracker-4`, `--toggle-track`, `--toggle-selected`.
+- `@theme inline` exposes them to Tailwind, so utilities such as `bg-surface`
+  and `text-on-surface-variant` follow the active phase.
+- Cards and menus take `--shadow-card` through the `shadow-card` utility: three
+  soft black layers on Dawn, Day and Dusk, a 1px white ring at 8% on Night.
+  They never get a border.
 - Type scale (`--text-xs` to `--text-4xl`), radius (`--radius-sm` to
   `--radius-lg`) and the spacing base (`--spacing`) sit in `@theme`.
+- `/dev/system` renders every token, the tracker ramps, the shadows and the
+  toggle in all four phases. It is dev-only and returns 404 in production.
 
 ## Theme
 
-The theme is class-based: `.dark` on `<html>` selects the dark values.
+`data-mode` and `data-phase` on `<html>` drive the tokens; `.dark` stays in sync
+for Night.
 
-- `src/lib/theme.ts` holds the storage contract (`readStoredTheme`,
-  `writeStoredTheme`, `resolveTheme`). Storage failures are swallowed.
+- `Mode = "day" | "night" | "auto"`, `Phase = "dawn" | "day" | "dusk" | "night"`.
+- Auto follows the local clock: dawn 5–8, day 8–17, dusk 17–20, night 20–5.
+  Day follows the same clock but mirrors the night hours back onto their
+  neighbours — 20–2 reads as day, 2–5 as dawn — so it never shows night. Night
+  is always Night. The default, on a first visit, is Auto.
+- `src/lib/theme.ts` holds `phaseFor`, the storage contract
+  (`readStoredMode`, `writeStoredMode`) and the migration of the old
+  `light`/`dark` values.
 - `src/lib/theme-script.ts` is an inline pre-paint script, rendered in the
-  layout's `<head>`, that applies the right class before React hydrates so
-  there is no flash of the wrong theme.
-- `src/components/theme/` contains the provider and an accessible toggle. A
-  stored choice wins; otherwise the theme follows `prefers-color-scheme`.
+  layout's `<head>`, that mirrors the same logic so there is no flash of the
+  wrong phase. The provider re-checks the hour every 60 s and on
+  `visibilitychange`.
+- `src/components/theme/` contains the provider and the 3-segment toggle
+  (Day · Night · Auto). At 768 and up it is an icon-only 104×32 radiogroup with
+  tooltips; below that it is a 32×32 button that opens a menu above it.
 
 ## Testing
 

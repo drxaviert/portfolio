@@ -1,0 +1,185 @@
+/*
+ * Ring hover — promoted from /dev/proto/card-hover ("Ring + nav bar").
+ *
+ * Every host is one ring surface: a frame (the 1px edge, clipped to the rest
+ * inset), a glow inside that frame, and the host's fill one pixel inside the
+ * frame. On hover the frame opens to the host's box, so the card grows into
+ * the space it already occupies; the glow trails the cursor.
+ *
+ * Numbers are the decided defaults from the decision doc; the only values that
+ * differ per host are the geometry vars below.
+ *
+ * The glow colour is --horizon-ring-glow (globals.css, per phase). The
+ * --horizon-* blobs are 6% and vanish on a 1px ring, so the token is the same
+ * two hues at 55%.
+ */
+
+.ring-host {
+  --ring-rest-y: 6px;
+  --ring-rest-x: 3.5px;
+  --ring-radius: 12px;
+  --ring-inner-radius: 11px;
+  --ring-glow-size: 614px;
+  --ring-grow: 800ms;
+  --ring-follow: 1000ms;
+  --ring-fade: 250ms;
+  --ring-ease: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --ring-follow-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ring-shift-x: 5px;
+  --ring-shift-y: 4px;
+  --ring-line: var(--frame-line);
+  --ring-glow: var(--horizon-ring-glow);
+
+  position: relative;
+  isolation: isolate;
+  /* The fill and the edge move to the layers. */
+  background-color: transparent;
+  box-shadow: none;
+  transition: z-index 100ms steps(1);
+}
+
+.ring-frame {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: var(--ring-radius);
+  background-color: var(--ring-line);
+  clip-path: inset(var(--ring-rest-y) var(--ring-rest-x) round var(--ring-radius));
+  transition: clip-path var(--ring-grow) var(--ring-ease);
+}
+
+.ring-glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--ring-glow-size);
+  height: var(--ring-glow-size);
+  margin: calc(var(--ring-glow-size) / -2) 0 0 calc(var(--ring-glow-size) / -2);
+  background-image: var(--ring-glow);
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 50%,
+    #000 0%,
+    #000 33%,
+    transparent 66%
+  );
+  mask-image: radial-gradient(
+    circle at 50% 50%,
+    #000 0%,
+    #000 33%,
+    transparent 66%
+  );
+  opacity: 0;
+  transform: translate3d(var(--ring-mx, 0px), var(--ring-my, 0px), 0);
+  transition:
+    transform var(--ring-follow) var(--ring-follow-ease),
+    opacity var(--ring-fade) linear;
+}
+
+.ring-surface {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--ring-radius);
+  clip-path: inset(
+    calc(var(--ring-rest-y) + 1px) calc(var(--ring-rest-x) + 1px) round
+      var(--ring-inner-radius)
+  );
+  transition: clip-path var(--ring-grow) var(--ring-ease);
+}
+
+.ring-title {
+  transition: transform var(--ring-grow) var(--ring-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ring-host:hover {
+    z-index: 1;
+  }
+
+  .ring-host:hover .ring-frame {
+    clip-path: inset(0 round var(--ring-radius));
+  }
+
+  .ring-host:hover .ring-surface {
+    clip-path: inset(1px round var(--ring-inner-radius));
+  }
+
+  .ring-host:hover .ring-glow {
+    opacity: 1;
+    will-change: transform;
+  }
+
+  .ring-host:hover .ring-title {
+    transform: translate(
+      calc(var(--ring-shift-x) * -1),
+      calc(var(--ring-shift-y) * -1)
+    );
+  }
+}
+
+/* Keyboard: a focusable host, or keyboard focus inside a host (the nav bar). */
+.ring-host:focus-visible,
+.ring-host:has(:focus-visible) {
+  z-index: 1;
+}
+
+.ring-host:focus-visible .ring-frame,
+.ring-host:has(:focus-visible) .ring-frame {
+  clip-path: inset(0 round var(--ring-radius));
+}
+
+.ring-host:focus-visible .ring-surface,
+.ring-host:has(:focus-visible) .ring-surface {
+  clip-path: inset(1px round var(--ring-inner-radius));
+}
+
+.ring-host:focus-visible .ring-glow,
+.ring-host:has(:focus-visible) .ring-glow {
+  opacity: 1;
+  will-change: transform;
+}
+
+.ring-host:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring-host {
+    transition: none;
+  }
+
+  /* No growth: every host rests at its open geometry. */
+  .ring-frame,
+  .ring-host:hover .ring-frame,
+  .ring-host:focus-visible .ring-frame,
+  .ring-host:has(:focus-visible) .ring-frame {
+    clip-path: inset(0 round var(--ring-radius));
+    transition: none;
+  }
+
+  .ring-surface,
+  .ring-host:hover .ring-surface,
+  .ring-host:focus-visible .ring-surface,
+  .ring-host:has(:focus-visible) .ring-surface {
+    clip-path: inset(1px round var(--ring-inner-radius));
+    transition: none;
+  }
+
+  /* Glow fades only: no trailing movement, it stays centred. */
+  .ring-glow {
+    transform: none;
+    transition: opacity var(--ring-fade) linear;
+  }
+
+  .ring-title,
+  .ring-host:hover .ring-title {
+    transform: none;
+  }
+
+  .ring-host:hover,
+  .ring-host:focus-visible,
+  .ring-host:has(:focus-visible) {
+    z-index: auto;
+  }
+}
