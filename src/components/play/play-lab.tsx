@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { PlayCard } from "@/components/play/play-card";
+import { pinPhase, unpinPhase } from "@/lib/theme";
 import {
   createVariantDefaults,
   VARIANTS,
@@ -145,7 +146,6 @@ export function PlayLab() {
   const [settings, setSettings] = useState<VariantSettings>(() =>
     createVariantDefaults(),
   );
-  const initialPhase = useRef<string | null>(null);
 
   const active = VARIANTS.find((entry) => entry.id === variant) ?? VARIANTS[0];
   const sliders = VARIANT_SLIDERS[variant];
@@ -153,27 +153,12 @@ export function PlayLab() {
   // Pin the previewed phase on <html>; the theme provider yields while
   // data-phase-preview is set, so the clock cannot fight the picker.
   useEffect(() => {
-    const root = document.documentElement;
-
-    if (initialPhase.current === null) {
-      initialPhase.current = root.dataset.phase ?? "day";
-    }
-
-    root.dataset.phasePreview = "true";
-    root.dataset.phase = phase;
-    root.classList.toggle("dark", phase === "night");
+    pinPhase(phase);
   }, [phase]);
 
   useEffect(() => {
-    const root = document.documentElement;
-
     return () => {
-      delete root.dataset.phasePreview;
-      root.dataset.phase = initialPhase.current ?? "day";
-      root.classList.toggle(
-        "dark",
-        (initialPhase.current ?? "day") === "night",
-      );
+      unpinPhase();
     };
   }, []);
 

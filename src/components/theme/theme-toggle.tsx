@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent } from "react";
+import type { FocusEvent, KeyboardEvent } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
 import type { Mode } from "@/lib/theme";
 
@@ -148,25 +148,52 @@ export function ThemeToggle() {
   }
 
   function onMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
-      return;
-    }
-
-    event.preventDefault();
-
     const items = Array.from(
       menuRef.current?.querySelectorAll<HTMLElement>(
         '[role="menuitemradio"]',
       ) ?? [],
     );
-    const current = items.indexOf(document.activeElement as HTMLElement);
 
-    if (current === -1) {
+    switch (event.key) {
+      case "Home":
+        event.preventDefault();
+        items[0]?.focus();
+        return;
+      case "End":
+        event.preventDefault();
+        items[items.length - 1]?.focus();
+        return;
+      case "ArrowDown":
+      case "ArrowUp": {
+        event.preventDefault();
+
+        const current = items.indexOf(document.activeElement as HTMLElement);
+
+        if (current === -1) {
+          return;
+        }
+
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        items[(current + step + items.length) % items.length]?.focus();
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
+  /** Tabbing out of the menu closes it; the trigger still counts as inside. */
+  function onMenuBlur(event: FocusEvent<HTMLDivElement>) {
+    const next = event.relatedTarget as Node | null;
+
+    if (
+      next &&
+      (menuRef.current?.contains(next) || triggerRef.current?.contains(next))
+    ) {
       return;
     }
 
-    const step = event.key === "ArrowDown" ? 1 : -1;
-    items[(current + step + items.length) % items.length]?.focus();
+    setMenuOpen(false);
   }
 
   return (
@@ -204,7 +231,7 @@ export function ThemeToggle() {
         })}
       </div>
 
-      {/* Below 768px: a 32x32 button that opens the menu above it. */}
+      {/* Below 768px: a 32x32 button that opens the menu below it. */}
       <div className="relative md:hidden">
         <button
           ref={triggerRef}
@@ -224,7 +251,8 @@ export function ThemeToggle() {
             role="menu"
             aria-label="Theme"
             onKeyDown={onMenuKeyDown}
-            className="absolute right-0 bottom-full z-50 mb-2 w-[168px] rounded-lg bg-surface-container-low p-1 shadow-card"
+            onBlur={onMenuBlur}
+            className="absolute top-full right-0 z-50 mt-2 w-[168px] rounded-lg bg-surface-container-low p-1 shadow-card"
           >
             {OPTIONS.map((option) => {
               const selected = option.mode === mode;

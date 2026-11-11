@@ -13,6 +13,7 @@ import { ringHorizon } from "./variants/ring-horizon";
 import { ringNavBar } from "./variants/ring-nav-bar";
 import { ringNavItems } from "./variants/ring-nav-items";
 import type { Control, Values, Variant } from "./variants/types";
+import { pinPhase, unpinPhase } from "@/lib/theme";
 
 /**
  * Round 2 (riff on Ring): Lift, Spotlight, Focus and Ring·subtle are out of the
@@ -462,14 +463,15 @@ export function CardHoverHarness() {
   useEffect(() => {
     if (!phase) return;
 
-    const root = document.documentElement;
-
-    root.dataset.phase = phase;
-    root.dataset.mode = phase === "night" ? "night" : "day";
-    // Tells ThemeProvider not to undo a pinned phase on its clock tick.
-    root.dataset.phasePreview = "true";
-    root.classList.toggle("dark", phase === "night");
+    pinPhase(phase);
   }, [phase]);
+
+  // Leaving the route must not carry the pin to another page.
+  useEffect(() => {
+    return () => {
+      unpinPhase();
+    };
+  }, []);
 
   // Controls write CSS variables on the stage root, never React state alone.
   // Clear the previous variant's vars first: a stale --ch-glow-image from the

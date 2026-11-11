@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import type { KeyboardEvent } from "react";
-import { applyMode, applyPhase, readStoredMode } from "@/lib/theme";
+import { pinPhase, unpinPhase } from "@/lib/theme";
 import type { Phase } from "@/lib/theme";
 
 /**
@@ -12,7 +12,7 @@ import type { Phase } from "@/lib/theme";
  * exactly the contract the other dev labs use, so tokens, the horizon
  * background, the nav orb and the ring hover glow recolour together and the
  * theme provider's clock leaves it alone. Clock removes the pin and re-applies
- * the stored mode at the current local time.
+ * the current mode at the current local time.
  *
  * `?phase=night` deep-links a phase, and picking one rewrites the URL so the
  * current preview is always linkable.
@@ -85,14 +85,10 @@ function writePhaseParam(selection: Selection): void {
 }
 
 function select(selection: Selection): void {
-  const root = document.documentElement;
-
   if (selection === "clock") {
-    delete root.dataset.phasePreview;
-    applyMode(readStoredMode());
+    unpinPhase();
   } else {
-    root.dataset.phasePreview = "true";
-    applyPhase(selection);
+    pinPhase(selection);
   }
 
   writePhaseParam(selection);
@@ -121,18 +117,12 @@ export function PhasePicker() {
   useEffect(() => {
     const pinned = phaseParam();
 
-    if (pinned) {
-      document.documentElement.dataset.phasePreview = "true";
-      applyPhase(pinned);
-    }
+    if (pinned) pinPhase(pinned);
 
     return () => {
-      const root = document.documentElement;
+      if (document.documentElement.dataset.phasePreview !== "true") return;
 
-      if (root.dataset.phasePreview !== "true") return;
-
-      delete root.dataset.phasePreview;
-      applyMode(readStoredMode());
+      unpinPhase();
     };
   }, []);
 

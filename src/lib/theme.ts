@@ -120,6 +120,20 @@ export function applyPhase(phase: Phase): void {
   root.classList.toggle("dark", phase === "night");
 }
 
+/** Event every theme mutation dispatches; ThemeProvider subscribes to it. */
+export const THEME_CHANGE_EVENT = "portfolio:theme-change";
+
+/**
+ * The last mode applied to the document. Storage writes can fail (private
+ * mode), so the in-memory choice has to survive on its own.
+ */
+let activeMode: Mode | null = null;
+
+/** The mode the document follows when no dev preview is pinned. */
+export function getActiveMode(): Mode {
+  return activeMode ?? readStoredMode();
+}
+
 /**
  * Applies a mode to the document: data-mode and data-phase drive the tokens,
  * and `.dark` stays for anything still keyed off the class. Returns the phase.
@@ -128,9 +142,41 @@ export function applyMode(mode: Mode, date: Date = new Date()): Phase {
   const phase = phaseFor(date, mode);
   const root = document.documentElement;
 
+  activeMode = mode;
   root.dataset.mode = mode;
   root.dataset.phase = phase;
   root.classList.toggle("dark", phase === "night");
 
   return phase;
+}
+
+/**
+ * Pins one phase on <html> for a dev preview, ignoring the clock. The mode is
+ * derived from the phase so `data-mode` and `.dark` stay consistent, and the
+ * theme-change event tells ThemeProvider to re-read the attributes.
+ */
+export function pinPhase(phase: Phase): void {
+  const root = document.documentElement;
+
+  // Remember the mode the pin is about to overwrite so unpin can restore it.
+  activeMode ??= readStoredMode();
+
+  root.dataset.phasePreview = "true";
+  root.dataset.phase = phase;
+  root.dataset.mode = phase === "night" ? "night" : "day";
+  root.classList.toggle("dark", phase === "night");
+
+  window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+}
+
+/**
+ * Drops the pin and puts the document back on the current mode, not on the
+ * phase that happened to be pinned last.
+ */
+export function unpinPhase(): void {
+  delete document.documentElement.dataset.phasePreview;
+
+  applyMode(getActiveMode());
+
+  window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { pinPhase, unpinPhase } from "@/lib/theme";
 import { PANEL_CSS } from "./panel-css";
 
 export type EaseKey = "stripe" | "quint" | "quart" | "soft" | "inout";
@@ -93,13 +94,14 @@ export function Controls({
   useEffect(() => {
     if (!phase) return;
 
-    const root = document.documentElement;
-
-    root.dataset.phase = phase;
-    root.dataset.mode = phase === "night" ? "night" : "day";
-    root.dataset.phasePreview = "true";
-    root.classList.toggle("dark", phase === "night");
+    pinPhase(phase);
   }, [phase]);
+
+  useEffect(() => {
+    return () => {
+      unpinPhase();
+    };
+  }, []);
 
   useEffect(() => {
     return () => {

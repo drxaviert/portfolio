@@ -6,12 +6,16 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useSyncExternalStore,
 } from "react";
-import { applyMode, readStoredMode, writeStoredMode } from "@/lib/theme";
+import {
+  applyMode,
+  readStoredMode,
+  THEME_CHANGE_EVENT,
+  writeStoredMode,
+} from "@/lib/theme";
 import type { Mode, Phase } from "@/lib/theme";
-
-const THEME_CHANGE_EVENT = "portfolio:theme-change";
 
 /** Auto re-reads the clock once a minute; a minute boundary is all a phase needs. */
 const CLOCK_CHECK_INTERVAL_MS = 60_000;
@@ -58,8 +62,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     () => SERVER_SNAPSHOT,
   );
   const [mode, phase] = snapshot.split(":") as [Mode, Phase];
+  const modeRef = useRef<Mode | null>(null);
 
   const setMode = useCallback((next: Mode) => {
+    // Remember the choice even when localStorage rejects the write.
+    modeRef.current = next;
+
     applyMode(next);
     writeStoredMode(next);
     window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
@@ -76,7 +84,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
       const before = readSnapshot();
 
-      applyMode(readStoredMode());
+      // Re-apply the mode held in memory, not the stored one: a blocked
+      // storage write must not turn a Night/Day choice back into Auto.
+      modeRef.current ??= readStoredMode();
+      applyMode(modeRef.current);
 
       if (readSnapshot() !== before) {
         window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
