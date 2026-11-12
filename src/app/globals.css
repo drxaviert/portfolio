@@ -12,6 +12,212 @@
 
 @custom-variant dark (&:where([data-phase="night"], [data-phase="night"] *));
 
+/*
+ * Horizon glow tokens are registered so a phase switch interpolates them: the
+ * page gradient and the blob tints recompute from the animated values instead
+ * of snapping. / and /dev/prototype both render the horizon background, and
+ * the 400ms crossfade below is skipped under prefers-reduced-motion.
+ */
+@property --horizon-base {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #f8fafd;
+}
+@property --horizon-mid {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #f3f7fd;
+}
+@property --horizon-mid-at {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 82%;
+}
+@property --horizon-1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #60a8e2;
+}
+@property --horizon-1-alpha {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.06;
+}
+@property --horizon-2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #0071c1;
+}
+@property --horizon-2-alpha {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.06;
+}
+@property --horizon-3 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ecf4fd;
+}
+
+/*
+ * Nav orb stops, also registered so data-phase interpolates the gradient
+ * instead of swapping it. Day values as initials; each phase block overrides.
+ */
+@property --orb-1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #60a8e2;
+}
+@property --orb-2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #0071c1;
+}
+@property --orb-3 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #0071c1;
+}
+@property --orb-2-at {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 100%;
+}
+
+:root {
+  transition:
+    --horizon-base var(--horizon-transition-duration)
+      var(--horizon-transition-ease),
+    --horizon-mid var(--horizon-transition-duration)
+      var(--horizon-transition-ease),
+    --horizon-mid-at var(--horizon-transition-duration)
+      var(--horizon-transition-ease),
+    --horizon-1 var(--horizon-transition-duration)
+      var(--horizon-transition-ease),
+    --horizon-1-alpha var(--horizon-transition-duration)
+      var(--horizon-transition-ease),
+    --horizon-2 var(--horizon-transition-duration)
+      var(--horizon-transition-ease),
+    --horizon-2-alpha var(--horizon-transition-duration)
+      var(--horizon-transition-ease),
+    --horizon-3 var(--horizon-transition-duration)
+      var(--horizon-transition-ease),
+    --orb-1 var(--horizon-transition-duration) var(--horizon-transition-ease),
+    --orb-2 var(--horizon-transition-duration) var(--horizon-transition-ease),
+    --orb-3 var(--horizon-transition-duration) var(--horizon-transition-ease),
+    --orb-2-at var(--horizon-transition-duration)
+      var(--horizon-transition-ease);
+}
+
+/*
+ * One-piece phase switch: theme.ts marks <html> with data-phase-switching for
+ * one fade, then removes it. Only colour-like properties transition, so normal
+ * hover/press motion is untouched the rest of the time.
+ */
+:root[data-phase-switching] *,
+:root[data-phase-switching] *::before,
+:root[data-phase-switching] *::after {
+  transition-property:
+    background-color, border-color, outline-color, text-decoration-color, fill,
+    stroke, box-shadow, transform, clip-path, opacity;
+  transition-duration: var(--horizon-transition-duration);
+  transition-timing-function: var(--horizon-transition-ease);
+}
+
+/*
+ * `color` is inherited. Transitioning it on containers makes descendant colour
+ * transitions restart every frame, and transitioning it on every node forces a
+ * style recalc and text repaint for the whole tree (measured ~4x slower on the
+ * prototype's 531 nodes). Give text elements their own colour transition and
+ * leave containers (body, main, cards) out so nothing nests.
+ */
+:root[data-phase-switching]
+  :where(
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    p,
+    a,
+    button,
+    label,
+    output,
+    summary,
+    li,
+    dt,
+    dd,
+    blockquote,
+    figcaption,
+    select,
+    option,
+    span:not(.tracker-cell)
+  ) {
+  transition-property:
+    color, background-color, border-color, outline-color, text-decoration-color,
+    fill, stroke, box-shadow, transform, clip-path, opacity;
+}
+
+/* Clock-driven switches (Auto mode, dev preview) use the auto tokens. */
+:root[data-phase-switching="auto"] *,
+:root[data-phase-switching="auto"] *::before,
+:root[data-phase-switching="auto"] *::after {
+  transition-duration: var(--phase-auto-transition-duration);
+  transition-timing-function: var(--phase-auto-transition-ease);
+}
+
+:root[data-phase-switching="auto"] {
+  transition-duration: var(--phase-auto-transition-duration);
+  transition-timing-function: var(--phase-auto-transition-ease);
+}
+
+:root {
+  /*
+   * Horizon glow geometry (Figma 1440 frame): phase-independent and tunable
+   * from the /dev/prototype glow panel. --horizon-blob-blur is the 1440 value;
+   * the background scales it down at smaller breakpoints.
+   */
+  --horizon-blob-1-top: 84%;
+  --horizon-blob-1-left: -14%;
+  --horizon-blob-1-width: 63%;
+  --horizon-blob-1-height: 41%;
+  --horizon-blob-2-top: 80%;
+  --horizon-blob-2-left: 49%;
+  --horizon-blob-2-width: 69%;
+  --horizon-blob-2-height: 45%;
+  --horizon-blob-blur: 180px;
+
+  /* Horizon phase crossfade when the theme is clicked; tunable from the glow
+     panel. */
+  --horizon-transition-duration: 400ms;
+  --horizon-transition-ease: ease-in-out;
+
+  /* Clock-driven (Auto) phase switches; defaults to the click values. */
+  --phase-auto-transition-duration: 400ms;
+  --phase-auto-transition-ease: ease-in-out;
+
+  /*
+   * Nav orb: the same gradient shape in every phase, composed from the
+   * registered stop tokens, so a switch interpolates the colours and the
+   * middle stop instead of swapping the image.
+   */
+  --orb-gradient: linear-gradient(
+    45deg,
+    var(--orb-1) 0%,
+    var(--orb-2) var(--orb-2-at),
+    var(--orb-3) 100%
+  );
+}
+
+/* Reduced motion keeps the change legible without a full crossfade. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --horizon-transition-duration: 150ms !important;
+    --phase-auto-transition-duration: 150ms !important;
+  }
+}
+
 :root,
 [data-phase="day"] {
   color-scheme: light;
@@ -43,13 +249,16 @@
   --toggle-selected: #ffffff;
 
   /* Horizon glow · "bg / stripe gradient" (Day 121:2004): flat to 70%, then a
-     tinted bottom edge. Blobs are literal 6% tints of the frame's own hues. */
+     tinted bottom edge. --horizon-1/2 are the bottom-corner blob hues with
+     their own alphas; --horizon-3 is the tinted edge. */
   --horizon-base: #f8fafd;
   --horizon-mid: #f3f7fd;
   --horizon-mid-at: 82%;
-  --horizon-end: #ecf4fd;
-  --horizon-blob-left: rgb(96 168 226 / 0.06);
-  --horizon-blob-right: rgb(0 113 193 / 0.06);
+  --horizon-3: #ecf4fd;
+  --horizon-1: #60a8e2;
+  --horizon-1-alpha: 0.06;
+  --horizon-2: #0071c1;
+  --horizon-2-alpha: 0.06;
   /* Ring hover: the same blob hues at 75% so they survive on a 1px ring. */
   --horizon-ring-glow: linear-gradient(
     45deg,
@@ -58,7 +267,10 @@
   );
 
   /* Orb head (nav): blob-left → blob-right, bottom-left to top-right. */
-  --orb-gradient: linear-gradient(45deg, #60a8e2 0%, #0071c1 100%);
+  --orb-1: #60a8e2;
+  --orb-2: #0071c1;
+  --orb-2-at: 100%;
+  --orb-3: #0071c1;
 
   /* 1px content-column hairline at ≥1440 (frame-line/*, #E5EDF5). */
   --frame-line: #e5edf5;
@@ -110,9 +322,11 @@
   --horizon-base: #f8fafd;
   --horizon-mid: #f9f8f7;
   --horizon-mid-at: 82%;
-  --horizon-end: #f9f4ec;
-  --horizon-blob-left: rgb(255 144 185 / 0.06);
-  --horizon-blob-right: rgb(203 131 255 / 0.06);
+  --horizon-3: #f9f4ec;
+  --horizon-1: #ff90b9;
+  --horizon-1-alpha: 0.06;
+  --horizon-2: #cb83ff;
+  --horizon-2-alpha: 0.06;
   /* Ring hover: the same blob hues at 90% so they survive on a 1px ring. */
   --horizon-ring-glow: linear-gradient(
     45deg,
@@ -120,7 +334,10 @@
     rgb(203 131 255 / 0.9) 100%
   );
 
-  --orb-gradient: linear-gradient(45deg, #ff90b9 0%, #cb83ff 100%);
+  --orb-1: #ff90b9;
+  --orb-2: #cb83ff;
+  --orb-2-at: 100%;
+  --orb-3: #cb83ff;
 
   --frame-line: #e5edf5;
 
@@ -170,9 +387,11 @@
   --horizon-base: #f8fafd;
   --horizon-mid: #f5f8fd;
   --horizon-mid-at: 80%;
-  --horizon-end: #f9f7f3;
-  --horizon-blob-left: rgb(180 216 255 / 0.06);
-  --horizon-blob-right: rgb(255 180 81 / 0.06);
+  --horizon-3: #f9f7f3;
+  --horizon-1: #b4d8ff;
+  --horizon-1-alpha: 0.06;
+  --horizon-2: #ffb451;
+  --horizon-2-alpha: 0.06;
   /* Ring hover: Dusk's accent into a deeper amber, not the horizon blobs, so
      the 1px ring keeps real contrast on the pale surface. */
   --horizon-ring-glow: linear-gradient(
@@ -181,7 +400,10 @@
     rgb(224 128 48 / 0.9) 100%
   );
 
-  --orb-gradient: linear-gradient(45deg, #b4d8ff 0%, #f7c1d9 50%, #ffb451 100%);
+  --orb-1: #b4d8ff;
+  --orb-2: #f7c1d9;
+  --orb-2-at: 50%;
+  --orb-3: #ffb451;
 
   --frame-line: #e5edf5;
 
@@ -231,9 +453,11 @@
   --horizon-base: #0d0d0d;
   --horizon-mid: #0f0f13;
   --horizon-mid-at: 90%;
-  --horizon-end: #111116;
-  --horizon-blob-left: rgb(103 99 228 / 0.06);
-  --horizon-blob-right: rgb(175 255 234 / 0.03);
+  --horizon-3: #111116;
+  --horizon-1: #6763e4;
+  --horizon-1-alpha: 0.06;
+  --horizon-2: #afffea;
+  --horizon-2-alpha: 0.03;
   /* Ring hover: the orb hues at 55% so they survive on a 1px ring; the night
      ring follows the nav orb rather than the cool horizon blobs. */
   --horizon-ring-glow: linear-gradient(
@@ -243,7 +467,10 @@
     rgb(253 104 80 / 0.55) 100%
   );
 
-  --orb-gradient: linear-gradient(45deg, #d6b49d 0%, #fd6850 45%, #fd6850 100%);
+  --orb-1: #d6b49d;
+  --orb-2: #fd6850;
+  --orb-2-at: 45%;
+  --orb-3: #fd6850;
 
   --frame-line: rgb(255 255 255 / 0.08);
 
@@ -281,8 +508,6 @@
   --color-toggle-track: var(--toggle-track);
   --color-toggle-selected: var(--toggle-selected);
   --color-frame-line: var(--frame-line);
-  --color-horizon-blob-left: var(--horizon-blob-left);
-  --color-horizon-blob-right: var(--horizon-blob-right);
 
   --font-sans:
     var(--font-work-sans), ui-sans-serif, system-ui, sans-serif,

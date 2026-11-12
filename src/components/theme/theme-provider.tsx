@@ -6,19 +6,22 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useSyncExternalStore,
 } from "react";
 import {
   applyMode,
+  msUntilNextPhaseBoundary,
   readStoredMode,
   THEME_CHANGE_EVENT,
   writeStoredMode,
 } from "@/lib/theme";
 import type { Mode, Phase } from "@/lib/theme";
 
-/** Auto re-reads the clock once a minute; a minute boundary is all a phase needs. */
-const CLOCK_CHECK_INTERVAL_MS = 60_000;
+/** Fire just after a boundary so the new phase is definitely current. */
+const PHASE_BOUNDARY_BUFFER_MS = 250;
+
+/** Cap one timer so sleep and clock drift are re-checked at least every 6h. */
+const MAX_PHASE_TIMER_MS = 6 * 60 * 60 * 1000;
 
 type ThemeContextValue = {
   mode: Mode;
@@ -62,46 +65,102 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     () => SERVER_SNAPSHOT,
   );
   const [mode, phase] = snapshot.split(":") as [Mode, Phase];
-  const modeRef = useRef<Mode | null>(null);
 
   const setMode = useCallback((next: Mode) => {
-    // Remember the choice even when localStorage rejects the write.
-    modeRef.current = next;
-
     applyMode(next);
     writeStoredMode(next);
+    // The theme-change listener below reschedules the boundary timer; it is the
+    // single path for mode changes, dev previews and other theme mutations, so
+    // a mode change never schedules twice.
     window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   }, []);
 
-  // Auto and day both follow the clock: re-apply on a timer and whenever the
-  // tab comes back, so a phase change lands without a reload.
+  // Auto and Day follow the clock (see phaseFor). One timer targets the next
+  // phase boundary instead of polling every minute; visibility and focus
+  // re-evaluate after sleep or a throttled timer.
   useEffect(() => {
-    const refresh = () => {
+    let timer: number | null = null;
+
+    function clearTimer() {
+      if (timer !== null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+    }
+
+    function currentMode(): Mode {
+      const value = document.documentElement.dataset.mode;
+
+      return value === "day" || value === "night" || value === "auto"
+        ? value
+        : readStoredMode();
+    }
+
+    function refresh() {
+      // Timers are suspended in hidden tabs; skip the work and the timer.
+      if (document.hidden) {
+        clearTimer();
+        return;
+      }
+
       // Dev preview routes pin a phase on <html>; the clock must not undo it.
       if (document.documentElement.dataset.phasePreview === "true") {
+        clearTimer();
         return;
       }
 
       const before = readSnapshot();
 
-      // Re-apply the mode held in memory, not the stored one: a blocked
-      // storage write must not turn a Night/Day choice back into Auto.
-      modeRef.current ??= readStoredMode();
-      applyMode(modeRef.current);
+      applyMode(currentMode(), new Date(), "auto");
 
       if (readSnapshot() !== before) {
         window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
       }
+
+      schedule();
+    }
+
+    function schedule() {
+      clearTimer();
+
+      if (document.hidden) return;
+      if (document.documentElement.dataset.phasePreview === "true") return;
+
+      const nextMode = currentMode();
+
+      // Night never leaves night; only Auto and Day follow the clock.
+      if (nextMode === "night") return;
+
+      const delay = Math.min(
+        msUntilNextPhaseBoundary(new Date(), nextMode) +
+          PHASE_BOUNDARY_BUFFER_MS,
+        MAX_PHASE_TIMER_MS,
+      );
+
+      timer = window.setTimeout(() => {
+        timer = null;
+        refresh();
+      }, delay);
+    }
+
+    const onVisibilityChange = () => {
+      if (document.hidden) clearTimer();
+      else refresh();
     };
+    const onFocus = () => refresh();
+    const onThemeChange = () => schedule();
 
     refresh();
 
-    const interval = window.setInterval(refresh, CLOCK_CHECK_INTERVAL_MS);
-    document.addEventListener("visibilitychange", refresh);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener(THEME_CHANGE_EVENT, onThemeChange);
 
     return () => {
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", refresh);
+      clearTimer();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener(THEME_CHANGE_EVENT, onThemeChange);
     };
   }, []);
 
