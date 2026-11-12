@@ -15,8 +15,11 @@
 /*
  * Horizon glow tokens are registered so a phase switch interpolates them: the
  * page gradient and the blob tints recompute from the animated values instead
- * of snapping. / and /dev/prototype both render the horizon background, and
- * the 400ms crossfade below is skipped under prefers-reduced-motion.
+ * of snapping. / and /dev/prototype both render the horizon background.
+ *
+ * A phase switch is a colour change, not motion, so prefers-reduced-motion
+ * keeps a crossfade but shortens it to 150ms (see the media query below)
+ * rather than skipping it. That keeps the phase readable without a long fade.
  */
 @property --horizon-base {
   syntax: "<color>";
