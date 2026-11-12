@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { HorizonBackground } from "@/components/horizon/horizon-background";
+import { HorizonLive } from "@/components/horizon/horizon-live";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
 import { HomeNav } from "./home-nav";
@@ -33,7 +33,7 @@ const frameGapStyle = {
 export function HomeLayout() {
   return (
     <main className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface">
-      <HorizonBackground position="fixed" />
+      <HorizonLive />
       <RingHoverPointer />
 
       <div
