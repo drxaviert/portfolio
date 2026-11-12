@@ -5,6 +5,7 @@ import {
   HORIZON_MOTION_DEFAULTS,
   HorizonBackground,
 } from "@/components/horizon/horizon-background";
+import { HorizonShader } from "@/components/horizon/horizon-shader";
 import type {
   HorizonDitherBlend,
   HorizonGradientMode,
@@ -36,22 +37,34 @@ const GRADIENTS: { value: HorizonGradientMode; label: string }[] = [
   { value: "oklab", label: "oklab + eased stops" },
 ];
 
+type Renderer = "css" | "css-dither" | "webgl";
+
+const RENDERERS: { value: Renderer; label: string }[] = [
+  { value: "css", label: "CSS" },
+  { value: "css-dither", label: "CSS + dither" },
+  { value: "webgl", label: "WebGL" },
+];
+
 type ProtoState = {
   variant: HorizonMotionVariant;
   tuning: HorizonMotionTuning;
-  dither: boolean;
+  renderer: Renderer;
   ditherStrength: number;
   ditherBlend: HorizonDitherBlend;
   gradient: HorizonGradientMode;
+  webglDither: number;
+  webglDpr: number;
 };
 
 const DEFAULT_STATE: ProtoState = {
   variant: "drift-breathe",
   tuning: HORIZON_MOTION_DEFAULTS,
-  dither: true,
+  renderer: "css-dither",
   ditherStrength: 3,
   ditherBlend: "normal",
   gradient: "srgb",
+  webglDither: 1.5,
+  webglDpr: 1.5,
 };
 
 /** Drift keeps the Figma ratio: 1.5% across for every 1% down. */
@@ -75,10 +88,13 @@ function readStoredState(): ProtoState | null {
     const parsed = JSON.parse(raw) as {
       variant?: unknown;
       tuning?: Record<string, unknown>;
+      renderer?: unknown;
       dither?: unknown;
       ditherStrength?: unknown;
       ditherBlend?: unknown;
       gradient?: unknown;
+      webglDither?: unknown;
+      webglDpr?: unknown;
     };
     const variant = VARIANTS.find(
       (entry) => entry.value === parsed?.variant,
@@ -90,13 +106,20 @@ function readStoredState(): ProtoState | null {
     const gradient = GRADIENTS.find(
       (entry) => entry.value === parsed?.gradient,
     )?.value;
+    const renderer = RENDERERS.find(
+      (entry) => entry.value === parsed?.renderer,
+    )?.value;
+    // Older saves only knew the dither checkbox.
+    const legacyRenderer =
+      typeof parsed?.dither === "boolean"
+        ? parsed.dither
+          ? "css-dither"
+          : "css"
+        : undefined;
 
     return {
       variant: variant ?? DEFAULT_STATE.variant,
-      dither:
-        typeof parsed?.dither === "boolean"
-          ? parsed.dither
-          : DEFAULT_STATE.dither,
+      renderer: renderer ?? legacyRenderer ?? DEFAULT_STATE.renderer,
       ditherStrength: clamp(
         numberOr(parsed?.ditherStrength, DEFAULT_STATE.ditherStrength),
         0,
@@ -104,6 +127,12 @@ function readStoredState(): ProtoState | null {
       ),
       ditherBlend: ditherBlend ?? DEFAULT_STATE.ditherBlend,
       gradient: gradient ?? DEFAULT_STATE.gradient,
+      webglDither: clamp(
+        numberOr(parsed?.webglDither, DEFAULT_STATE.webglDither),
+        0,
+        2,
+      ),
+      webglDpr: clamp(numberOr(parsed?.webglDpr, DEFAULT_STATE.webglDpr), 1, 2),
       tuning: {
         driftPeriod: clamp(
           numberOr(tuning.driftPeriod, HORIZON_MOTION_DEFAULTS.driftPeriod),
@@ -180,6 +209,8 @@ export function HorizonProto() {
   const [open, setOpen] = useState(true);
   const [phase, setPhase] = useState<Phase | null>(null);
   const [copied, setCopied] = useState(false);
+  const [webglFailed, setWebglFailed] = useState(false);
+  const [webglError, setWebglError] = useState<string | null>(null);
   const copyTimer = useRef<number | null>(null);
 
   // Stored values are read after mount so server and client markup match: a
@@ -233,10 +264,11 @@ export function HorizonProto() {
     VARIANTS.find((entry) => entry.value === state.variant)?.label ?? "Static";
 
   const summary = [
-    `/dev/proto/horizon · variant: ${state.variant}`,
+    `/dev/proto/horizon · renderer: ${state.renderer} · variant: ${state.variant}`,
     `drift: ${tuning.driftPeriod}s · travel ${tuning.driftTravelX}% x / ${tuning.driftTravelY}% y`,
     `breathe: ${tuning.breathePeriod}s · scale ${(1 + tuning.breatheScale / 100).toFixed(2)} · opacity 1 → ${(1 - tuning.breatheDepth / 100).toFixed(2)}`,
-    `deband: dither ${state.dither ? `on · ${state.ditherStrength}% ${state.ditherBlend}` : "off"} · gradient ${state.gradient}`,
+    `css deband: dither ${state.ditherStrength}% ${state.ditherBlend} · gradient ${state.gradient}`,
+    `webgl: dither ${state.webglDither} LSB · dpr cap ${state.webglDpr}${webglFailed ? " · unavailable, CSS fallback" : ""}`,
   ].join("\n");
 
   async function copyValues() {
@@ -258,17 +290,31 @@ export function HorizonProto() {
 
   return (
     <main className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface">
-      <HorizonBackground
-        position="fixed"
-        motion={state.variant}
-        tuning={tuning}
-        dither={{
-          enabled: state.dither,
-          strength: state.ditherStrength,
-          blend: state.ditherBlend,
-        }}
-        gradient={state.gradient}
-      />
+      {state.renderer === "webgl" ? (
+        <HorizonShader
+          motion={state.variant}
+          tuning={tuning}
+          ditherLsb={state.webglDither}
+          dprCap={state.webglDpr}
+          onFallback={(reason) => {
+            setWebglError(reason);
+            setWebglFailed(true);
+            patch({ renderer: "css-dither" });
+          }}
+        />
+      ) : (
+        <HorizonBackground
+          position="fixed"
+          motion={state.variant}
+          tuning={tuning}
+          dither={{
+            enabled: state.renderer === "css-dither",
+            strength: state.ditherStrength,
+            blend: state.ditherBlend,
+          }}
+          gradient={state.gradient}
+        />
+      )}
 
       <header className="hz-head">
         <p className="hz-kicker">Dev prototype · not shipped</p>
@@ -287,7 +333,7 @@ export function HorizonProto() {
         <header className="hz-panel-head">
           <div>
             <p className="hz-panel-title">Ambient glow</p>
-            <p className="hz-panel-axis">transform + opacity only</p>
+            <p className="hz-panel-axis">motion · debanding · renderer</p>
           </div>
           <div className="hz-panel-actions">
             {open ? (
@@ -457,17 +503,31 @@ export function HorizonProto() {
               />
             </Row>
 
-            <p className="hz-group">Debanding</p>
+            <p className="hz-group">Renderer</p>
 
-            <label className="hz-check" htmlFor="hz-dither">
-              <input
-                id="hz-dither"
-                type="checkbox"
-                checked={state.dither}
-                onChange={(event) => patch({ dither: event.target.checked })}
-              />
-              Dither grain
-            </label>
+            <div className="hz-renderers" role="group" aria-label="Renderer">
+              {RENDERERS.map((entry) => (
+                <button
+                  key={entry.value}
+                  type="button"
+                  className="hz-variant"
+                  data-active={state.renderer === entry.value ? "" : undefined}
+                  aria-pressed={state.renderer === entry.value}
+                  onClick={() => patch({ renderer: entry.value })}
+                >
+                  {entry.label}
+                </button>
+              ))}
+            </div>
+
+            {webglFailed ? (
+              <p className="hz-warn">
+                WebGL unavailable — the CSS renderer took over.
+                {webglError ? ` (${webglError})` : ""}
+              </p>
+            ) : null}
+
+            <p className="hz-group">Debanding · CSS</p>
 
             <Row
               id="hz-dither-strength"
@@ -524,6 +584,42 @@ export function HorizonProto() {
                   </option>
                 ))}
               </select>
+            </Row>
+
+            <p className="hz-group">Debanding · WebGL</p>
+
+            <Row
+              id="hz-webgl-dither"
+              label="Dither"
+              value={`${state.webglDither} LSB`}
+            >
+              <input
+                id="hz-webgl-dither"
+                className="hz-range"
+                type="range"
+                min={0}
+                max={2}
+                step={0.1}
+                value={state.webglDither}
+                onChange={(event) =>
+                  patch({ webglDither: Number(event.target.value) })
+                }
+              />
+            </Row>
+
+            <Row id="hz-webgl-dpr" label="DPR cap" value={`${state.webglDpr}×`}>
+              <input
+                id="hz-webgl-dpr"
+                className="hz-range"
+                type="range"
+                min={1}
+                max={2}
+                step={0.25}
+                value={state.webglDpr}
+                onChange={(event) =>
+                  patch({ webglDpr: Number(event.target.value) })
+                }
+              />
             </Row>
 
             <div className="hz-footer">

@@ -132,6 +132,7 @@
 }
 
 .hz-variants,
+.hz-renderers,
 .hz-phases {
   display: grid;
   gap: 2px;
@@ -144,8 +145,18 @@
   grid-template-columns: repeat(2, 1fr);
 }
 
+.hz-renderers {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .hz-phases {
   grid-template-columns: repeat(4, 1fr);
+}
+
+.hz-warn {
+  margin: 0;
+  color: rgba(255, 196, 120, 0.85);
+  font-size: 10px;
 }
 
 .hz-variant {
@@ -231,21 +242,6 @@
 .hz-select:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.4);
   outline-offset: 2px;
-}
-
-.hz-check {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: rgba(255, 255, 255, 0.6);
-  cursor: pointer;
-}
-
-.hz-check input {
-  width: 12px;
-  height: 12px;
-  margin: 0;
-  accent-color: rgba(255, 255, 255, 0.8);
 }
 
 .hz-footer {
