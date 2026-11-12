@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { HorizonBackground } from "@/components/horizon/horizon-background";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
@@ -5,6 +6,16 @@ import { HomeNav } from "./home-nav";
 import { RingHoverPointer } from "./ring-pointer";
 import { TrackerWidget } from "./tracker-widget";
 import "./ring-hover.css";
+
+/*
+ * Nominal frame: 780px content + 2 x 64px gaps = 908px. A 900px-tall viewport
+ * overflows that by 8px, so the horizontal lines fall outside the frame and
+ * are clipped. Shrink the gaps to the space available; 64px is kept as soon
+ * as 100dvh leaves room (1920x1080 is unchanged).
+ */
+const frameGapStyle = {
+  "--frame-gap": "clamp(0px, calc((100dvh - 780px) / 2), 64px)",
+} as CSSProperties;
 
 /**
  * The home page layout, shared by / and /dev/prototype so both routes render
@@ -25,7 +36,10 @@ export function HomeLayout() {
       <HorizonBackground position="fixed" />
       <RingHoverPointer />
 
-      <div className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-12 xl:py-[60px]">
+      <div
+        className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-12 xl:py-[60px]"
+        style={frameGapStyle}
+      >
         {/* Vertical frame lines: 1px hairlines on the content-column edges,
             full frame height (Figma 121:2009/121:2010). */}
         <span
@@ -45,12 +59,14 @@ export function HomeLayout() {
           <span
             aria-hidden="true"
             data-frame-line="h"
-            className="pointer-events-none absolute -inset-x-8 -top-16 hidden h-px bg-frame-line min-[1440px]:block"
+            className="pointer-events-none absolute -inset-x-8 hidden h-px bg-frame-line min-[1440px]:block"
+            style={{ top: "calc(var(--frame-gap) * -1)" }}
           />
           <span
             aria-hidden="true"
             data-frame-line="h"
-            className="pointer-events-none absolute -inset-x-8 -bottom-16 hidden h-px bg-frame-line min-[1440px]:block"
+            className="pointer-events-none absolute -inset-x-8 hidden h-px bg-frame-line min-[1440px]:block"
+            style={{ bottom: "calc(var(--frame-gap) * -1)" }}
           />
 
           {/* Top band: the widget card, then the Play card's empty shell at
