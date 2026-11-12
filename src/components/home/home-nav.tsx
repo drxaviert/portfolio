@@ -42,10 +42,10 @@ export function HomeNav() {
 
       <div className="flex items-center gap-6 md:gap-0">
         <div className="flex items-center">
+          {/* aria-current moves onto the real link once these routes exist. */}
           {LINKS.map((link) => (
             <span
               key={link.label}
-              aria-current={link.active ? "page" : undefined}
               className={
                 link.active
                   ? "flex h-8 items-center rounded-md bg-surface-container px-2 text-base leading-5 font-medium text-on-surface"
