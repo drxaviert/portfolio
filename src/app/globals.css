@@ -24,12 +24,12 @@
 @property --horizon-base {
   syntax: "<color>";
   inherits: true;
-  initial-value: #f8fafd;
+  initial-value: #f1f3f6;
 }
 @property --horizon-mid {
   syntax: "<color>";
   inherits: true;
-  initial-value: #f3f7fd;
+  initial-value: #ecf0f6;
 }
 @property --horizon-mid-at {
   syntax: "<percentage>";
@@ -59,7 +59,7 @@
 @property --horizon-3 {
   syntax: "<color>";
   inherits: true;
-  initial-value: #ecf4fd;
+  initial-value: #e5edf6;
 }
 
 /*
@@ -265,11 +265,13 @@
 
   /* Horizon glow · "bg / stripe gradient" (Day 121:2004): flat to 70%, then a
      tinted bottom edge. --horizon-1/2 are the bottom-corner blob hues with
-     their own alphas; --horizon-3 is the tinted edge. */
-  --horizon-base: #f8fafd;
-  --horizon-mid: #f3f7fd;
+     their own alphas; --horizon-3 is the tinted edge. The three stops sit
+     -0.020 OKLCH L below the Figma colours so the #ffffff cards read against
+     the page. */
+  --horizon-base: #f1f3f6;
+  --horizon-mid: #ecf0f6;
   --horizon-mid-at: 82%;
-  --horizon-3: #ecf4fd;
+  --horizon-3: #e5edf6;
   --horizon-1: #60a8e2;
   --horizon-1-alpha: 0.06;
   --horizon-2: #0071c1;
@@ -340,10 +342,10 @@
   --toggle-selected: #ffffff;
 
   /* Horizon glow · Dawn 121:4483: pink and violet blobs, warm bottom edge. */
-  --horizon-base: #f8fafd;
-  --horizon-mid: #f9f8f7;
+  --horizon-base: #f1f3f6;
+  --horizon-mid: #f2f1f0;
   --horizon-mid-at: 82%;
-  --horizon-3: #f9f4ec;
+  --horizon-3: #f2ede5;
   --horizon-1: #ff90b9;
   --horizon-1-alpha: 0.06;
   --horizon-2: #cb83ff;
@@ -408,10 +410,10 @@
   --toggle-selected: #ffffff;
 
   /* Horizon glow · Dusk 121:5722: cool blue blob, amber blob, 80% mid stop. */
-  --horizon-base: #f8fafd;
-  --horizon-mid: #f5f8fd;
+  --horizon-base: #f1f3f6;
+  --horizon-mid: #eef1f6;
   --horizon-mid-at: 80%;
-  --horizon-3: #f9f7f3;
+  --horizon-3: #f2f0ec;
   --horizon-1: #b4d8ff;
   --horizon-1-alpha: 0.06;
   --horizon-2: #ffb451;
@@ -477,10 +479,10 @@
   --toggle-selected: #333333;
 
   /* Horizon glow · Night 121:3244: near-black, a violet cast at 90%. */
-  --horizon-base: #0d0d0d;
-  --horizon-mid: #0f0f13;
+  --horizon-base: #090909;
+  --horizon-mid: #0b0b0f;
   --horizon-mid-at: 90%;
-  --horizon-3: #111116;
+  --horizon-3: #0d0d12;
   --horizon-1: #6763e4;
   --horizon-1-alpha: 0.06;
   --horizon-2: #afffea;
