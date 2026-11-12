@@ -75,6 +75,57 @@ export function phaseFor(date: Date = new Date(), mode: Mode = "auto"): Phase {
   return phaseForHour(date.getHours(), mode);
 }
 
+/** Hours where the Auto phase can change. */
+const PHASE_BOUNDARY_HOURS = [
+  PHASE_STARTS.dawn,
+  PHASE_STARTS.day,
+  PHASE_STARTS.dusk,
+  PHASE_STARTS.night,
+];
+
+/** Day mode also mirrors 20–2 back to day, so 2:00 hands day back to dawn. */
+const DAY_BOUNDARY_HOURS = [
+  DAY_MIRROR_DAWN_START,
+  PHASE_STARTS.day,
+  PHASE_STARTS.dusk,
+  PHASE_STARTS.night,
+];
+
+/**
+ * Milliseconds until the next phase boundary on the local clock.
+ *
+ * The boundary is built as a local `Date`, so DST shifts are included instead
+ * of adding a fixed number of hours. At an exact boundary the following one is
+ * returned. Day mode has its own boundary set because of the 2:00 mirror.
+ */
+export function msUntilNextPhaseBoundary(
+  date: Date = new Date(),
+  mode: Mode = "auto",
+): number {
+  const hours = mode === "day" ? DAY_BOUNDARY_HOURS : PHASE_BOUNDARY_HOURS;
+
+  for (let dayOffset = 0; dayOffset <= 1; dayOffset += 1) {
+    for (const hour of hours) {
+      const boundary = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate() + dayOffset,
+        hour,
+        0,
+        0,
+        0,
+      );
+
+      if (boundary.getTime() > date.getTime()) {
+        return boundary.getTime() - date.getTime();
+      }
+    }
+  }
+
+  // Tomorrow always has a later boundary; kept for exhaustiveness.
+  return 0;
+}
+
 /** Maps a raw storage value onto a mode, migrating the old light/dark pair. */
 export function parseStoredMode(value: unknown): Mode {
   if (typeof value !== "string" || !isMode(value)) {

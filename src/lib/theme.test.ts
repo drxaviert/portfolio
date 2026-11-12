@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   applyMode,
   applyPhase,
   MODE_STORAGE_KEY,
+  msUntilNextPhaseBoundary,
   parseStoredMode,
   phaseFor,
   phaseForHour,
@@ -77,6 +78,57 @@ describe("phaseFor", () => {
       expect(phaseFor(at(hour), "night")).toBe("night");
       expect(phaseForHour(hour, "night")).toBe("night");
     }
+  });
+});
+
+describe("msUntilNextPhaseBoundary", () => {
+  const originalTz = process.env.TZ;
+
+  beforeAll(() => {
+    // DST cases below need a zone with a spring-forward and fall-back.
+    process.env.TZ = "America/New_York";
+  });
+
+  afterAll(() => {
+    if (originalTz === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTz;
+  });
+
+  it("returns the next boundary just before, at and just after it", () => {
+    expect(msUntilNextPhaseBoundary(at(4, 59))).toBe(60_000);
+    expect(msUntilNextPhaseBoundary(at(5, 0))).toBe(3 * 60 * 60 * 1000);
+    expect(msUntilNextPhaseBoundary(new Date(2026, 0, 1, 8, 0, 0, 1))).toBe(
+      8 * 60 * 60 * 1000 + 59 * 60 * 1000 + 59 * 1000 + 999,
+    );
+  });
+
+  it("wraps past midnight", () => {
+    expect(msUntilNextPhaseBoundary(at(22, 0))).toBe(7 * 60 * 60 * 1000);
+  });
+
+  it("uses Day mode's 2:00 mirror boundary", () => {
+    expect(msUntilNextPhaseBoundary(at(1, 0), "day")).toBe(60 * 60 * 1000);
+    expect(msUntilNextPhaseBoundary(at(2, 0), "day")).toBe(
+      6 * 60 * 60 * 1000,
+    );
+  });
+
+  it("handles spring-forward", () => {
+    // 2026-03-08 02:00 EST jumps to 03:00 EDT, so 05:00 is 2.5h away.
+    expect(msUntilNextPhaseBoundary(new Date(2026, 2, 8, 1, 30))).toBe(
+      2.5 * 60 * 60 * 1000,
+    );
+    // Day mode's 02:00 boundary normalizes to 03:00 EDT, 30 real minutes away.
+    expect(msUntilNextPhaseBoundary(new Date(2026, 2, 8, 1, 30), "day")).toBe(
+      0.5 * 60 * 60 * 1000,
+    );
+  });
+
+  it("handles fall-back", () => {
+    // 2026-11-01 02:00 EDT falls back to 01:00 EST, so 05:00 is 5.5h away.
+    expect(msUntilNextPhaseBoundary(new Date(2026, 10, 1, 0, 30))).toBe(
+      5.5 * 60 * 60 * 1000,
+    );
   });
 });
 
