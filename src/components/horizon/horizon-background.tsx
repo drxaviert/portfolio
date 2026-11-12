@@ -118,6 +118,7 @@ function HorizonBlob({
 }) {
   const visual = (
     <div
+      data-horizon-blob=""
       className={BLOB_CLASS}
       style={{ ...blobBox(blob), backgroundColor: blobTint(blob) }}
     />

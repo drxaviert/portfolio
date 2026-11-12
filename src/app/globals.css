@@ -105,8 +105,7 @@
     --orb-1 var(--horizon-transition-duration) var(--horizon-transition-ease),
     --orb-2 var(--horizon-transition-duration) var(--horizon-transition-ease),
     --orb-3 var(--horizon-transition-duration) var(--horizon-transition-ease),
-    --orb-2-at var(--horizon-transition-duration)
-      var(--horizon-transition-ease);
+    --orb-2-at var(--horizon-transition-duration) var(--horizon-transition-ease);
 }
 
 /*
@@ -172,6 +171,18 @@
   transition-timing-function: var(--phase-auto-transition-ease);
 }
 
+/*
+ * The blob tint is derived from the animated --horizon-* tokens, so it already
+ * crossfades with them. The switch rule above also transitions the blob's own
+ * background-color, which makes it chase the tokens and then run a second full
+ * fade once they land (measured 8s at a 4s token). Opt the blobs out so their
+ * colour follows the tokens frame by frame.
+ */
+:root[data-phase-switching] [data-horizon-blob] {
+  transition-property: none;
+  transition-duration: 0s;
+}
+
 :root {
   /*
    * Horizon glow geometry (Figma 1440 frame): phase-independent and tunable
@@ -189,12 +200,13 @@
   --horizon-blob-blur: 180px;
 
   /* Horizon phase crossfade when the theme is clicked; tunable from the glow
-     panel. */
+     panel. A click is a direct answer to the user, so it stays quick. */
   --horizon-transition-duration: 400ms;
   --horizon-transition-ease: ease-in-out;
 
-  /* Clock-driven (Auto) phase switches; defaults to the click values. */
-  --phase-auto-transition-duration: 400ms;
+  /* Clock-driven (Auto / Day) phase switches. Nobody asked for these, so they
+     arrive slowly enough to read as a change in light, not a repaint. */
+  --phase-auto-transition-duration: 4000ms;
   --phase-auto-transition-ease: ease-in-out;
 
   /*
