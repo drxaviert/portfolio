@@ -73,6 +73,38 @@ Both styles already existed with these values (no styles were created). Style id
 
 Toggle: 104×32, segments Day · Night · Auto, 16px icons at stroke 1.4, radius 8. Button: 32×32. Menu: 168×132, radius 12, no stroke.
 
+## Card and nav surface (ring hover)
+
+Every card and the nav bar is one ring surface: a fill plus a 1px edge. The fill
+uses `surface-container-low`; the edge uses `frame-line`. Figma defines the
+resting card at its full layout box, so that is what the code paints at rest.
+
+| Property | Value |
+| --- | --- |
+| Rest surface | the full Figma layout box (no inset) |
+| Radius | 12px outer, 11px inner fill; no per-corner overrides |
+| Rest stroke | none (the 1px edge is transparent at rest) |
+| Hover growth | outward past the Figma box by 6px vertical / 3.5px horizontal per side, into the 12px gutters |
+| Transition | 800ms `cubic-bezier(0.165, 0.84, 0.44, 1)`, clip-path only |
+| Edge | 1px `frame-line`, held 1px outside the fill for the whole grow; fades in over 100ms on hover/focus and out 100ms after the 800ms clip closes |
+| Glow | 614px radial in the phase horizon palette; follows the pointer over 1000ms, fades over 250ms |
+| Raise | `z-index: 1` on the hovered host, 100ms `steps(1)`, so it paints over neighbours |
+| Focus | `:focus-visible` on a link host and `:has(:focus-visible)` in the nav bar; 2px `primary` outline, 2px offset |
+| Reduced motion | outer box stays the Figma box; no growth, title shift or z-index jump; the edge is revealed inside the box and the glow only fades |
+
+### Theme menu at 375
+
+| Property | Value |
+| --- | --- |
+| Surface | 168×132, radius 12, no stroke, `surface-container-low`, `shadow-card` |
+| Padding | 4px around the rows |
+| Row | 40px high, 2px gap between rows, 12px horizontal padding, radius 8 |
+| Row fill | selected `surface-container-high`; hover `surface-container` |
+| Icon → label | 8px gap, 16px icon |
+| Label | 16px / 20px, weight 500; `on-surface` selected, `on-surface-variant` otherwise |
+| Anchor | opens upward, 8px above the 32×32 button, right-aligned to it |
+| Position | y 716–848 in the 375×920 frame, fully on screen and unclipped |
+
 ## Design System page 102:1322
 
 Rows at x=0, 400px gaps: phase colour table (y 4444, 84 swatches bound to the four collections), shadow specimens (y 6556), theme controls (y 7336).
