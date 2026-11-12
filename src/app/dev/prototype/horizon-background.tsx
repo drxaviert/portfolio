@@ -1,12 +1,31 @@
+import type { CSSProperties } from "react";
+
 /**
  * Prototype-only "horizon glow" page background.
  *
  * Mirrors the bg / stripe gradient in the Figma 1440 frames (Day 121:2004,
  * Night 121:3244, Dawn 121:4483, Dusk 121:5722): a flat surface that holds to
  * 70%, then lifts into a phase tint at the bottom edge, with two blurred
- * ellipses tucked below the fold. Stops, blob hues, sizes and alphas are the
- * per-phase horizon tokens, so data-phase alone recolours every layer.
+ * ellipses tucked below the fold. Every colour and the blob geometry come from
+ * per-phase --horizon-* tokens (globals.css), so data-phase alone recolours
+ * every layer and the dev glow panel can tune the current phase.
+ *
+ * Bottom-corner blob tint: the phase hue at the phase's own alpha.
  */
+function blobTint(blob: 1 | 2): string {
+  return `color-mix(in srgb, var(--horizon-${blob}) calc(var(--horizon-${blob}-alpha) * 100%), transparent)`;
+}
+
+/** 900x420 at -200/860 and 1000x460 at 700/820 in the 1440 frame. */
+function blobBox(blob: 1 | 2): CSSProperties {
+  return {
+    top: `var(--horizon-blob-${blob}-top)`,
+    left: `var(--horizon-blob-${blob}-left)`,
+    width: `var(--horizon-blob-${blob}-width)`,
+    height: `var(--horizon-blob-${blob}-height)`,
+  };
+}
+
 export function HorizonBackground() {
   return (
     <div
@@ -17,13 +36,19 @@ export function HorizonBackground() {
         className="absolute inset-0"
         style={{
           backgroundImage:
-            "linear-gradient(180deg, var(--horizon-base) 0%, var(--horizon-base) 70%, var(--horizon-mid) var(--horizon-mid-at), var(--horizon-end) 100%)",
+            "linear-gradient(180deg, var(--horizon-base) 0%, var(--horizon-base) 70%, var(--horizon-mid) var(--horizon-mid-at), var(--horizon-3) 100%)",
         }}
       />
 
-      {/* 900x420 at -200/860 and 1000x460 at 700/820 in the 1440 frame. */}
-      <div className="absolute top-[84%] -left-[14%] h-[41%] w-[63%] rounded-full bg-horizon-blob-left blur-[81px] md:blur-[96px] lg:blur-[128px] xl:blur-[180px]" />
-      <div className="absolute top-[80%] left-[49%] h-[45%] w-[69%] rounded-full bg-horizon-blob-right blur-[81px] md:blur-[96px] lg:blur-[128px] xl:blur-[180px]" />
+      {/* Blur is the 1440 token scaled down at smaller breakpoints. */}
+      <div
+        className="absolute rounded-full blur-[calc(var(--horizon-blob-blur)*0.45)] md:blur-[calc(var(--horizon-blob-blur)*0.5333)] lg:blur-[calc(var(--horizon-blob-blur)*0.7111)] xl:blur-[var(--horizon-blob-blur)]"
+        style={{ ...blobBox(1), backgroundColor: blobTint(1) }}
+      />
+      <div
+        className="absolute rounded-full blur-[calc(var(--horizon-blob-blur)*0.45)] md:blur-[calc(var(--horizon-blob-blur)*0.5333)] lg:blur-[calc(var(--horizon-blob-blur)*0.7111)] xl:blur-[var(--horizon-blob-blur)]"
+        style={{ ...blobBox(2), backgroundColor: blobTint(2) }}
+      />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { GlowTuner } from "./glow-tuner";
 import { HorizonBackground } from "./horizon-background";
 import { PhasePicker } from "./phase-picker";
 import { PrototypeNav } from "./prototype-nav";
@@ -110,6 +111,7 @@ export default function PrototypePage() {
       </main>
 
       <PhasePicker />
+      <GlowTuner />
     </>
   );
 }
