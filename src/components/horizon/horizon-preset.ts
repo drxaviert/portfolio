@@ -7,17 +7,17 @@ import type {
 /**
  * The one place the home page's horizon preset lives.
  *
- * These are the values picked in /dev/proto/horizon: a very slow drift and
- * breathe, the CSS dither grain for the fallback, and the shader's 1.5 LSB
- * per-pixel dither at a 1.5x device-pixel cap. The CSS layer and the WebGL
- * layer both read this object, so the fallback is the same picture, not an
- * approximation of it.
+ * These are the values picked in /dev/proto/horizon: a slow-but-readable
+ * drift and breathe (a 30s loop across 15% x / 10% y), the CSS dither grain
+ * for the fallback, and the shader's 1.5 LSB per-pixel dither at a 1.5x
+ * device-pixel cap. The CSS layer and the WebGL layer both read this object,
+ * so the fallback is the same picture, not an approximation of it.
  */
 export const HORIZON_HOME_MOTION: Required<HorizonMotionTuning> = {
-  driftPeriod: 240,
-  driftTravelX: 5,
-  driftTravelY: 3.33,
-  breathePeriod: 40,
+  driftPeriod: 30,
+  driftTravelX: 15,
+  driftTravelY: 10,
+  breathePeriod: 6,
   breatheScale: 6,
   breatheDepth: 30,
 };
