@@ -1,4 +1,5 @@
 import { HorizonBackground } from "@/components/horizon/horizon-background";
+import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
 import { HomeNav } from "./home-nav";
 import { RingHoverPointer } from "./ring-pointer";
@@ -29,10 +30,12 @@ export function HomeLayout() {
             full frame height (Figma 121:2009/121:2010). */}
         <span
           aria-hidden="true"
+          data-frame-line="v"
           className="pointer-events-none absolute inset-y-0 left-0 hidden w-px bg-frame-line min-[1440px]:block"
         />
         <span
           aria-hidden="true"
+          data-frame-line="v"
           className="pointer-events-none absolute inset-y-0 right-0 hidden w-px bg-frame-line min-[1440px]:block"
         />
 
@@ -41,10 +44,12 @@ export function HomeLayout() {
               the content column (Figma 121:2007/121:2008). */}
           <span
             aria-hidden="true"
+            data-frame-line="h"
             className="pointer-events-none absolute -inset-x-8 -top-16 hidden h-px bg-frame-line min-[1440px]:block"
           />
           <span
             aria-hidden="true"
+            data-frame-line="h"
             className="pointer-events-none absolute -inset-x-8 -bottom-16 hidden h-px bg-frame-line min-[1440px]:block"
           />
 
@@ -62,6 +67,8 @@ export function HomeLayout() {
 
           <HomeNav />
         </div>
+
+        <FrameLineSpotlight />
       </div>
     </main>
   );

@@ -1,0 +1,40 @@
+/*
+ * Frame-line spotlight: a single primary-coloured pool of light that bleeds
+ * across the four 1px page frame lines. The component writes the radial chord
+ * mask inline; this file owns the layer, colour and opacity fade.
+ */
+
+.frame-spot-root {
+  position: absolute;
+  inset: 0;
+  display: none;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Same visibility rule as the frame lines themselves, plus hover capability. */
+@media (min-width: 1440px) and (hover: hover) and (pointer: fine) {
+  .frame-spot-root {
+    display: block;
+  }
+}
+
+.frame-spot-line {
+  position: absolute;
+}
+
+.frame-spot-glow {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: var(--primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame-spot-glow {
+    transition-duration: 150ms;
+  }
+}
