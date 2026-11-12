@@ -1,4 +1,6 @@
 import type { CSSProperties } from "react";
+import { HorizonPauseScope } from "./horizon-pause-scope";
+import "./horizon-motion.css";
 
 /**
  * "Horizon glow" page background.
@@ -14,6 +16,10 @@ import type { CSSProperties } from "react";
  * container it sits in (the prototype). Both are decorative and stay behind
  * the content: the caller places the content in a positioned element after
  * this one, so no stacking hack is needed.
+ *
+ * Motion is opt-in. With the default "none" the DOM is the static gradient and
+ * two blobs, exactly as before; the ambient wrappers and the visibility
+ * listener only exist when a prototype asks for them.
  *
  * Bottom-corner blob tint: the phase hue at the phase's own alpha.
  */
@@ -31,12 +37,128 @@ function blobBox(blob: 1 | 2): CSSProperties {
   };
 }
 
+/** Blur is the 1440 token scaled down at smaller breakpoints. */
+const BLOB_CLASS =
+  "absolute rounded-full blur-[calc(var(--horizon-blob-blur)*0.45)] md:blur-[calc(var(--horizon-blob-blur)*0.5333)] lg:blur-[calc(var(--horizon-blob-blur)*0.7111)] xl:blur-[var(--horizon-blob-blur)]";
+
+export type HorizonMotionVariant =
+  "none" | "drift" | "breathe" | "drift-breathe";
+
+/** Prototype tuning. All values are plain numbers so sliders can drive them. */
+export type HorizonMotionTuning = {
+  /** Seconds for blob 1's drift loop; blob 2 runs ~18% faster. */
+  driftPeriod?: number;
+  /** Horizontal drift travel, percent of the viewport. */
+  driftTravelX?: number;
+  /** Vertical drift travel, percent of the viewport. */
+  driftTravelY?: number;
+  /** Seconds for one breathe cycle. */
+  breathePeriod?: number;
+  /** Scale at the top of the breath, in percent (2 = 1.02). */
+  breatheScale?: number;
+  /** Opacity drop at the bottom of the breath, in percent (13 = 0.87). */
+  breatheDepth?: number;
+};
+
+export const HORIZON_MOTION_DEFAULTS: Required<HorizonMotionTuning> = {
+  driftPeriod: 110,
+  driftTravelX: 1.5,
+  driftTravelY: 1,
+  breathePeriod: 16,
+  breatheScale: 2,
+  breatheDepth: 13,
+};
+
+/** Blob 2's loop is deliberately a different length, so the pair never syncs. */
+const SECOND_BLOB_PERIOD_RATIO = 0.82;
+/** Start blob 2 partway round, not at zero, for the same reason. */
+const SECOND_BLOB_DELAY_RATIO = 0.37;
+
+function withDefaults(tuning?: HorizonMotionTuning) {
+  return { ...HORIZON_MOTION_DEFAULTS, ...tuning };
+}
+
+function driftStyle(blob: 1 | 2, tuning?: HorizonMotionTuning): CSSProperties {
+  const { driftPeriod, driftTravelX, driftTravelY } = withDefaults(tuning);
+  const period =
+    blob === 1 ? driftPeriod : driftPeriod * SECOND_BLOB_PERIOD_RATIO;
+  const delay = blob === 1 ? 0 : -period * SECOND_BLOB_DELAY_RATIO;
+
+  return {
+    "--horizon-drift-period": `${period}s`,
+    "--horizon-drift-delay": `${delay}s`,
+    "--horizon-drift-x": `${driftTravelX}%`,
+    "--horizon-drift-y": `${driftTravelY}%`,
+  } as CSSProperties;
+}
+
+function breatheStyle(
+  blob: 1 | 2,
+  tuning?: HorizonMotionTuning,
+): CSSProperties {
+  const { breathePeriod, breatheScale, breatheDepth } = withDefaults(tuning);
+
+  return {
+    "--horizon-breathe-period": `${breathePeriod}s`,
+    // Half a cycle apart, so one blob inhales while the other exhales.
+    "--horizon-breathe-delay": `${blob === 1 ? 0 : -breathePeriod / 2}s`,
+    "--horizon-breathe-scale": `${1 + breatheScale / 100}`,
+    "--horizon-breathe-depth": `${breatheDepth / 100}`,
+  } as CSSProperties;
+}
+
+function HorizonBlob({
+  blob,
+  motion,
+  tuning,
+}: {
+  blob: 1 | 2;
+  motion: HorizonMotionVariant;
+  tuning?: HorizonMotionTuning;
+}) {
+  const visual = (
+    <div
+      className={BLOB_CLASS}
+      style={{ ...blobBox(blob), backgroundColor: blobTint(blob) }}
+    />
+  );
+
+  if (motion === "none") return visual;
+
+  return (
+    <div
+      className="horizon-motion-drift"
+      data-blob={blob}
+      style={driftStyle(blob, tuning)}
+    >
+      <div
+        className="horizon-motion-breathe"
+        data-blob={blob}
+        style={breatheStyle(blob, tuning)}
+      >
+        {visual}
+      </div>
+    </div>
+  );
+}
+
 export function HorizonBackground({
   position = "absolute",
+  motion = "none",
+  tuning,
 }: {
   position?: "absolute" | "fixed";
+  motion?: HorizonMotionVariant;
+  tuning?: HorizonMotionTuning;
 }) {
   const placement = position === "fixed" ? "fixed" : "absolute";
+
+  const blobs = (
+    <>
+      <HorizonBlob blob={1} motion={motion} tuning={tuning} />
+      <HorizonBlob blob={2} motion={motion} tuning={tuning} />
+    </>
+  );
 
   return (
     <div
@@ -51,15 +173,11 @@ export function HorizonBackground({
         }}
       />
 
-      {/* Blur is the 1440 token scaled down at smaller breakpoints. */}
-      <div
-        className="absolute rounded-full blur-[calc(var(--horizon-blob-blur)*0.45)] md:blur-[calc(var(--horizon-blob-blur)*0.5333)] lg:blur-[calc(var(--horizon-blob-blur)*0.7111)] xl:blur-[var(--horizon-blob-blur)]"
-        style={{ ...blobBox(1), backgroundColor: blobTint(1) }}
-      />
-      <div
-        className="absolute rounded-full blur-[calc(var(--horizon-blob-blur)*0.45)] md:blur-[calc(var(--horizon-blob-blur)*0.5333)] lg:blur-[calc(var(--horizon-blob-blur)*0.7111)] xl:blur-[var(--horizon-blob-blur)]"
-        style={{ ...blobBox(2), backgroundColor: blobTint(2) }}
-      />
+      {motion === "none" ? (
+        blobs
+      ) : (
+        <HorizonPauseScope motion={motion}>{blobs}</HorizonPauseScope>
+      )}
     </div>
   );
 }

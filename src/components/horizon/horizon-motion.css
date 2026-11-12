@@ -1,0 +1,101 @@
+/*
+ * Ambient glow motion.
+ *
+ * Optional and opt-in: HorizonBackground only renders these wrappers for a
+ * non-"none" motion variant, so / ships the same background it always has.
+ *
+ * Each blob gets two nested wrappers, both full-bleed, so a transform on the
+ * wrapper never touches the blob's own geometry (top/left/width/height) or its
+ * blur filter. Drift lives on the outer wrapper, breathe on the inner one, so
+ * the two transforms compose instead of overwriting each other.
+ *
+ * Only transform and opacity animate: both run on the compositor, so the
+ * blurred blob layer is rasterised once and then moved/scaled as a texture.
+ * No will-change: the running animations promote their own layers, and a
+ * permanent hint would keep two oversized layers alive on every route.
+ */
+
+.horizon-motion-layer,
+.horizon-motion-drift,
+.horizon-motion-breathe {
+  position: absolute;
+  inset: 0;
+}
+
+/*
+ * Drift: slow, out-of-sync back-and-forth travel. Blob 2 runs a shorter loop
+ * and a negative delay, so the two never line up. Travel is a percentage of
+ * the viewport (the wrapper is viewport-sized).
+ */
+.horizon-motion-layer[data-motion="drift"] .horizon-motion-drift,
+.horizon-motion-layer[data-motion="drift-breathe"] .horizon-motion-drift {
+  animation: horizon-drift-a var(--horizon-drift-period, 110s) ease-in-out
+    var(--horizon-drift-delay, 0s) infinite alternate;
+}
+
+.horizon-motion-layer[data-motion="drift"] .horizon-motion-drift[data-blob="2"],
+.horizon-motion-layer[data-motion="drift-breathe"]
+  .horizon-motion-drift[data-blob="2"] {
+  animation-name: horizon-drift-b;
+}
+
+/*
+ * Breathe: a barely-there swell. Opacity tops out at 1 and the baseline sits
+ * at 0.87, so the glow never exceeds the phase's own alpha.
+ */
+.horizon-motion-layer[data-motion="breathe"] .horizon-motion-breathe,
+.horizon-motion-layer[data-motion="drift-breathe"] .horizon-motion-breathe {
+  animation: horizon-breathe var(--horizon-breathe-period, 16s) ease-in-out
+    var(--horizon-breathe-delay, 0s) infinite alternate;
+}
+
+/* Hidden tab: freeze in place instead of burning frames nobody sees. */
+.horizon-motion-layer[data-paused="true"] .horizon-motion-drift,
+.horizon-motion-layer[data-paused="true"] .horizon-motion-breathe {
+  animation-play-state: paused;
+}
+
+@keyframes horizon-drift-a {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(
+      var(--horizon-drift-x, 1.5%),
+      calc(var(--horizon-drift-y, 1%) * -1),
+      0
+    );
+  }
+}
+
+@keyframes horizon-drift-b {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(
+      calc(var(--horizon-drift-x, 1.5%) * -1),
+      var(--horizon-drift-y, 1%),
+      0
+    );
+  }
+}
+
+@keyframes horizon-breathe {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(var(--horizon-breathe-scale, 1.02));
+    opacity: calc(1 - var(--horizon-breathe-depth, 0.13));
+  }
+}
+
+/* Ambient motion is decoration; reduced motion gets the static glow. */
+@media (prefers-reduced-motion: reduce) {
+  .horizon-motion-layer .horizon-motion-drift,
+  .horizon-motion-layer .horizon-motion-breathe {
+    animation: none !important;
+  }
+}
