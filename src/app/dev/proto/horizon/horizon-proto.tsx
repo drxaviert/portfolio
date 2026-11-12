@@ -1,10 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  HORIZON_MOTION_DEFAULTS,
-  HorizonBackground,
-} from "@/components/horizon/horizon-background";
+import { HorizonBackground } from "@/components/horizon/horizon-background";
+import { HORIZON_HOME_MOTION } from "@/components/horizon/horizon-preset";
 import { HorizonShader } from "@/components/horizon/horizon-shader";
 import type {
   HorizonDitherBlend,
@@ -56,9 +54,15 @@ type ProtoState = {
   webglDpr: number;
 };
 
+/**
+ * The panel opens on the shipped preset, not on the component fallbacks, so
+ * whatever is tuned here starts from the picture the home page actually shows.
+ */
+const DEFAULT_TUNING: Required<HorizonMotionTuning> = HORIZON_HOME_MOTION;
+
 const DEFAULT_STATE: ProtoState = {
   variant: "drift-breathe",
-  tuning: HORIZON_MOTION_DEFAULTS,
+  tuning: DEFAULT_TUNING,
   renderer: "css-dither",
   ditherStrength: 3,
   ditherBlend: "normal",
@@ -67,8 +71,22 @@ const DEFAULT_STATE: ProtoState = {
   webglDpr: 1.5,
 };
 
-/** Drift keeps the Figma ratio: 1.5% across for every 1% down. */
-const DRIFT_TRAVEL_RATIO = 1.5;
+/**
+ * One source of truth for what the sliders can reach and what a stored value is
+ * clamped to. Widen here and both follow: a stale stored value can never come
+ * back smaller than the slider allows.
+ */
+const TUNING_RANGE = {
+  driftPeriod: { min: 30, max: 480 },
+  driftTravelX: { min: 0, max: 15 },
+  driftTravelY: { min: 0, max: 10 },
+  breathePeriod: { min: 6, max: 80 },
+  breatheScale: { min: 0, max: 20 },
+  breatheDepth: { min: 0, max: 70 },
+} satisfies Record<
+  keyof Required<HorizonMotionTuning>,
+  { min: number; max: number }
+>;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -135,34 +153,34 @@ function readStoredState(): ProtoState | null {
       webglDpr: clamp(numberOr(parsed?.webglDpr, DEFAULT_STATE.webglDpr), 1, 2),
       tuning: {
         driftPeriod: clamp(
-          numberOr(tuning.driftPeriod, HORIZON_MOTION_DEFAULTS.driftPeriod),
-          30,
-          240,
+          numberOr(tuning.driftPeriod, DEFAULT_TUNING.driftPeriod),
+          TUNING_RANGE.driftPeriod.min,
+          TUNING_RANGE.driftPeriod.max,
         ),
         driftTravelX: clamp(
-          numberOr(tuning.driftTravelX, HORIZON_MOTION_DEFAULTS.driftTravelX),
-          0,
-          5,
+          numberOr(tuning.driftTravelX, DEFAULT_TUNING.driftTravelX),
+          TUNING_RANGE.driftTravelX.min,
+          TUNING_RANGE.driftTravelX.max,
         ),
         driftTravelY: clamp(
-          numberOr(tuning.driftTravelY, HORIZON_MOTION_DEFAULTS.driftTravelY),
-          0,
-          3.4,
+          numberOr(tuning.driftTravelY, DEFAULT_TUNING.driftTravelY),
+          TUNING_RANGE.driftTravelY.min,
+          TUNING_RANGE.driftTravelY.max,
         ),
         breathePeriod: clamp(
-          numberOr(tuning.breathePeriod, HORIZON_MOTION_DEFAULTS.breathePeriod),
-          6,
-          40,
+          numberOr(tuning.breathePeriod, DEFAULT_TUNING.breathePeriod),
+          TUNING_RANGE.breathePeriod.min,
+          TUNING_RANGE.breathePeriod.max,
         ),
         breatheScale: clamp(
-          numberOr(tuning.breatheScale, HORIZON_MOTION_DEFAULTS.breatheScale),
-          0,
-          6,
+          numberOr(tuning.breatheScale, DEFAULT_TUNING.breatheScale),
+          TUNING_RANGE.breatheScale.min,
+          TUNING_RANGE.breatheScale.max,
         ),
         breatheDepth: clamp(
-          numberOr(tuning.breatheDepth, HORIZON_MOTION_DEFAULTS.breatheDepth),
-          0,
-          30,
+          numberOr(tuning.breatheDepth, DEFAULT_TUNING.breatheDepth),
+          TUNING_RANGE.breatheDepth.min,
+          TUNING_RANGE.breatheDepth.max,
         ),
       },
     };
@@ -259,7 +277,7 @@ export function HorizonProto() {
     state.variant === "drift" || state.variant === "drift-breathe";
   const breatheOn =
     state.variant === "breathe" || state.variant === "drift-breathe";
-  const tuning = { ...HORIZON_MOTION_DEFAULTS, ...state.tuning };
+  const tuning = { ...DEFAULT_TUNING, ...state.tuning };
   const variantLabel =
     VARIANTS.find((entry) => entry.value === state.variant)?.label ?? "Static";
 
@@ -285,7 +303,7 @@ export function HorizonProto() {
   }
 
   function reset() {
-    setState({ ...DEFAULT_STATE, tuning: HORIZON_MOTION_DEFAULTS });
+    setState({ ...DEFAULT_STATE, tuning: DEFAULT_TUNING });
   }
 
   return (
@@ -408,8 +426,7 @@ export function HorizonProto() {
                 id="hz-drift-period"
                 className="hz-range"
                 type="range"
-                min={30}
-                max={240}
+                {...TUNING_RANGE.driftPeriod}
                 step={5}
                 value={tuning.driftPeriod}
                 onChange={(event) =>
@@ -419,27 +436,38 @@ export function HorizonProto() {
             </Row>
 
             <Row
-              id="hz-drift-travel"
-              label="Travel"
-              value={`${tuning.driftTravelX}% x · ${tuning.driftTravelY}% y`}
+              id="hz-drift-travel-x"
+              label="Travel X"
+              value={`${tuning.driftTravelX}%`}
             >
               <input
-                id="hz-drift-travel"
+                id="hz-drift-travel-x"
                 className="hz-range"
                 type="range"
-                min={0}
-                max={5}
-                step={0.1}
+                {...TUNING_RANGE.driftTravelX}
+                step={0.25}
                 value={tuning.driftTravelX}
-                onChange={(event) => {
-                  const travelX = Number(event.target.value);
+                onChange={(event) =>
+                  patchTuning({ driftTravelX: Number(event.target.value) })
+                }
+              />
+            </Row>
 
-                  patchTuning({
-                    driftTravelX: travelX,
-                    driftTravelY:
-                      Math.round((travelX / DRIFT_TRAVEL_RATIO) * 100) / 100,
-                  });
-                }}
+            <Row
+              id="hz-drift-travel-y"
+              label="Travel Y"
+              value={`${tuning.driftTravelY}%`}
+            >
+              <input
+                id="hz-drift-travel-y"
+                className="hz-range"
+                type="range"
+                {...TUNING_RANGE.driftTravelY}
+                step={0.25}
+                value={tuning.driftTravelY}
+                onChange={(event) =>
+                  patchTuning({ driftTravelY: Number(event.target.value) })
+                }
               />
             </Row>
 
@@ -456,8 +484,7 @@ export function HorizonProto() {
                 id="hz-breathe-period"
                 className="hz-range"
                 type="range"
-                min={6}
-                max={40}
+                {...TUNING_RANGE.breathePeriod}
                 step={1}
                 value={tuning.breathePeriod}
                 onChange={(event) =>
@@ -469,15 +496,14 @@ export function HorizonProto() {
             <Row
               id="hz-breathe-scale"
               label="Scale"
-              value={`1.0 → ${(1 + tuning.breatheScale / 100).toFixed(2)}`}
+              value={`1.00 → ${(1 + tuning.breatheScale / 100).toFixed(2)}`}
             >
               <input
                 id="hz-breathe-scale"
                 className="hz-range"
                 type="range"
-                min={0}
-                max={6}
-                step={0.5}
+                {...TUNING_RANGE.breatheScale}
+                step={1}
                 value={tuning.breatheScale}
                 onChange={(event) =>
                   patchTuning({ breatheScale: Number(event.target.value) })
@@ -488,14 +514,13 @@ export function HorizonProto() {
             <Row
               id="hz-breathe-depth"
               label="Opacity depth"
-              value={`1 → ${(1 - tuning.breatheDepth / 100).toFixed(2)}`}
+              value={`1.00 → ${(1 - tuning.breatheDepth / 100).toFixed(2)}`}
             >
               <input
                 id="hz-breathe-depth"
                 className="hz-range"
                 type="range"
-                min={0}
-                max={30}
+                {...TUNING_RANGE.breatheDepth}
                 step={1}
                 value={tuning.breatheDepth}
                 onChange={(event) =>
