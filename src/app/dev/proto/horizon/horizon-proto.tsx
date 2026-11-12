@@ -296,6 +296,7 @@ export function HorizonProto() {
           tuning={tuning}
           ditherLsb={state.webglDither}
           dprCap={state.webglDpr}
+          fadeIn={false}
           onFallback={(reason) => {
             setWebglError(reason);
             setWebglFailed(true);

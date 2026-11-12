@@ -23,6 +23,26 @@
 }
 
 /*
+ * The shader layer fades in over the CSS background once it has drawn its first
+ * frame. The two pictures are the same preset, in phase, so this is a safety
+ * net against a one-frame flash rather than a visible transition.
+ */
+.horizon-canvas-layer {
+  opacity: 0;
+  transition: opacity 300ms ease-out;
+}
+
+.horizon-canvas-layer[data-ready="true"] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .horizon-canvas-layer {
+    transition-duration: 0ms;
+  }
+}
+
+/*
  * Drift: slow, out-of-sync back-and-forth travel. Blob 2 runs a shorter loop
  * and a negative delay, so the two never line up. Travel is a percentage of
  * the viewport (the wrapper is viewport-sized).

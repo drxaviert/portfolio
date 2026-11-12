@@ -10,20 +10,29 @@ import type {
  * WebGL twin of HorizonBackground.
  *
  * One full-screen quad and one fragment shader: the backdrop gradient and the
- * two glow ellipses are evaluated per pixel instead of being rasterised and
- * blurred by the compositor. The point of the prototype is the final step:
- * the colour is computed in highp float and dithered by a fraction of an 8-bit
- * LSB before it is written, so the Night glow never has to step between two
- * quantised values. CSS can only approximate that with a visible grain layer.
+ * two glow ellipses are composited per pixel, then the colour is computed in
+ * highp float and dithered by a fraction of an 8-bit LSB before it is written.
  *
- * The shader reads the same computed --horizon-* tokens as the CSS background,
- * so phase colours, blob geometry and alphas stay single-sourced. During a
- * phase switch the tokens are re-read every frame while data-phase-switching
- * is set, which reproduces the CSS crossfade.
+ * The blurred blob alphas are not approximated in the shader. They are rendered
+ * once into a small 2D canvas with the browser's own canvas blur (half scale,
+ * plus a three-blur-radius margin so the viewport edge keeps the mass CSS would
+ * blur in from outside), then sampled as one RGBA texture (R = blob 1,
+ * G = blob 2). That makes the shader's soft edge the same blurred shape the CSS
+ * renderer paints, including the curvature of the ellipses, instead of an
+ * analytic falloff that misses the CSS alpha by a couple of levels.
+ *
+ * Phase colours, alphas and geometry still come from the computed --horizon-*
+ * tokens, re-read every frame while data-phase-switching is set (so the shader
+ * follows the browser's interpolated custom properties), and on mutation
+ * otherwise.
+ *
+ * The motion clock starts from the CSS layer's own animation time so the two
+ * renderers are in phase when the canvas fades in, and it advances only while
+ * frames run (hidden tabs and static mode freeze it, like animation-play-state).
  *
  * The rAF loop is demand-driven: it runs while a motion variant is active, is
  * cancelled while the tab is hidden, and in static mode only renders when a
- * token or resize change asks for a frame.
+ * token, resize or parameter change asks for a frame.
  */
 
 const DEFAULT_TUNING = {
@@ -39,11 +48,10 @@ const DEFAULT_TUNING = {
 const SECOND_BLOB_PERIOD_RATIO = 0.82;
 const SECOND_BLOB_DELAY_RATIO = 0.37;
 
-/**
- * CSS blur(radius) behaves like a gaussian with sigma close to the radius; the
- * 1.0 factor was calibrated against the Night profile of the CSS renderer.
- */
-const BLUR_SIGMA_FACTOR = 1;
+/** The blurred coverage texture is built at half CSS resolution. */
+const TEXTURE_SCALE = 0.5;
+/** Margin around the viewport so the blur keeps the mass CSS sees off-screen. */
+const TEXTURE_MARGIN_SIGMAS = 3;
 
 const VERTEX_SOURCE = `
 attribute vec2 aPos;
@@ -60,13 +68,13 @@ uniform vec3 uBase;
 uniform vec3 uMid;
 uniform vec3 uHorizon3;
 uniform float uMidAt;
-uniform vec4 uBlob1;
-uniform vec4 uBlob2;
+uniform sampler2D uBlurTex;
+uniform vec2 uBlobUvScale;
+uniform vec2 uBlobUvOffset;
 uniform vec3 uBlobColor1;
 uniform vec3 uBlobColor2;
 uniform float uAlpha1;
 uniform float uAlpha2;
-uniform float uSigma;
 uniform vec2 uDrift1;
 uniform vec2 uDrift2;
 uniform float uScale1;
@@ -81,22 +89,10 @@ float hash21(vec2 p) {
   return fract(p.x * p.y);
 }
 
-/*
- * A CSS-blurred ellipse is a sharp ellipse convolved with a gaussian, so the
- * coverage at the ellipse edge is 0.5 and settles to 1/0 a few sigma away. The
- * logistic below is the gaussian step response (0.846 / 0.5 / 0.154 at
- * -1 / 0 / +1 sigma), which is indistinguishable from the blurred edge here.
- */
-float blobCoverage(vec2 world, vec4 box, float scale, vec2 drift) {
+vec2 blobUv(vec2 world, float scale, vec2 drift) {
   vec2 center = uRes * 0.5;
   vec2 local = center + (world - drift - center) / max(scale, 0.0001);
-  vec2 d = local - box.xy;
-  vec2 halfSize = max(box.zw, vec2(1.0));
-  float k = length(d / halfSize);
-  float gradientLength = length(d / (halfSize * halfSize)) / max(k, 0.00001);
-  float edgeDistance = (k - 1.0) / max(gradientLength, 0.00001);
-  float x = clamp(1.702 * edgeDistance / max(uSigma, 0.001), -30.0, 30.0);
-  return 1.0 / (1.0 + exp(x));
+  return local * uBlobUvScale + uBlobUvOffset;
 }
 
 void main() {
@@ -114,11 +110,9 @@ void main() {
     }
   }
 
-  float a1 = uAlpha1 * uOpacity1 * blobCoverage(world, uBlob1, uScale1, uDrift1);
-  color = mix(color, uBlobColor1, a1);
-
-  float a2 = uAlpha2 * uOpacity2 * blobCoverage(world, uBlob2, uScale2, uDrift2);
-  color = mix(color, uBlobColor2, a2);
+  vec2 blurred = texture2D(uBlurTex, blobUv(world, uScale1, uDrift1)).rg;
+  color = mix(color, uBlobColor1, uAlpha1 * uOpacity1 * blurred.r);
+  color = mix(color, uBlobColor2, uAlpha2 * uOpacity2 * blurred.g);
 
   // Triangular noise (+-1 LSB at amount 1) breaks the 8-bit steps invisibly.
   float ditherNoise = hash21(frag) + hash21(frag + vec2(37.0, 17.0)) - 1.0;
@@ -141,7 +135,8 @@ type Tokens = {
   color2: [number, number, number];
   alpha1: number;
   alpha2: number;
-  sigma: number;
+  /** CSS blur radius in px after the responsive scale. */
+  blur: number;
 };
 
 function parseColor(value: string): [number, number, number] {
@@ -198,8 +193,7 @@ function readTokens(): Tokens {
     color2: parseColor(style.getPropertyValue("--horizon-2")),
     alpha1: num("--horizon-1-alpha", 0.06),
     alpha2: num("--horizon-2-alpha", 0.06),
-    sigma:
-      effectiveBlur(num("--horizon-blob-blur", 180), width) * BLUR_SIGMA_FACTOR,
+    blur: effectiveBlur(num("--horizon-blob-blur", 180), width),
   };
 }
 
@@ -233,15 +227,66 @@ type MotionUniforms = {
   opacity2: number;
 };
 
-function tri(progress: number): number {
-  const f = progress - Math.floor(progress);
+/**
+ * CSS ease-in-out, sampled as x -> y. The y curve is smoothstep in the bezier
+ * parameter, but x is solved for; treating x as the parameter would be a
+ * different (faster) easing than the CSS layer uses.
+ */
+const EASE_STEPS = 256;
+const EASE_IN_OUT_TABLE = (() => {
+  const table = new Float32Array(EASE_STEPS + 1);
+  const x1 = 0.42;
+  const x2 = 0.58;
+  const curve = (t: number, a1: number, a2: number) =>
+    3 * (1 - t) * (1 - t) * t * a1 + 3 * (1 - t) * t * t * a2 + t * t * t;
 
-  return 1 - Math.abs(2 * f - 1);
+  for (let index = 0; index <= EASE_STEPS; index += 1) {
+    const x = index / EASE_STEPS;
+    let low = 0;
+    let high = 1;
+
+    for (let step = 0; step < 20; step += 1) {
+      const mid = (low + high) / 2;
+
+      if (curve(mid, x1, x2) < x) low = mid;
+      else high = mid;
+    }
+
+    const t = (low + high) / 2;
+
+    table[index] = 3 * t * t - 2 * t * t * t;
+  }
+
+  return table;
+})();
+
+function easeInOut(value: number): number {
+  const x = Math.min(1, Math.max(0, value)) * EASE_STEPS;
+  const index = Math.floor(x);
+  const fraction = x - index;
+  const a = EASE_IN_OUT_TABLE[index];
+  const b = EASE_IN_OUT_TABLE[Math.min(index + 1, EASE_STEPS)];
+
+  return a + (b - a) * fraction;
 }
 
-/** CSS ease-in-out is close enough to smoothstep over a 30s+ ambient loop. */
-function easeInOut(t: number): number {
-  return t * t * (3 - 2 * t);
+/**
+ * The value of an `alternate` CSS animation at `time` seconds. Each iteration
+ * runs 0 -> 1 through the timing function, and every other iteration runs it
+ * backwards; modelling it as one triangle over the duration would make the
+ * shader twice as fast as the CSS it has to match.
+ */
+function alternateProgress(
+  time: number,
+  period: number,
+  delay: number,
+): number {
+  const g = (time - delay) / period;
+  const iteration = Math.floor(g);
+  const progress = g - iteration;
+  const eased = easeInOut(progress);
+
+  return iteration % 2 === 0 ? eased : 1 - eased;
 }
 
 function motionUniforms(
@@ -258,18 +303,17 @@ function motionUniforms(
   const driftDelay2 = -driftPeriod2 * SECOND_BLOB_DELAY_RATIO;
   const breatheDelay2 = -t.breathePeriod / 2;
 
-  const driftProgress = (period: number, delay: number) =>
-    easeInOut(tri((time - delay) / period));
-  const breatheProgress = (delay: number) =>
-    easeInOut(tri((time - delay) / t.breathePeriod));
-
   const travelX = (t.driftTravelX / 100) * width;
   const travelY = (t.driftTravelY / 100) * height;
 
-  const drift1 = driftOn ? driftProgress(t.driftPeriod, 0) : 0;
-  const drift2 = driftOn ? driftProgress(driftPeriod2, driftDelay2) : 0;
-  const breathe1 = breatheOn ? breatheProgress(0) : 0;
-  const breathe2 = breatheOn ? breatheProgress(breatheDelay2) : 0;
+  const drift1 = driftOn ? alternateProgress(time, t.driftPeriod, 0) : 0;
+  const drift2 = driftOn
+    ? alternateProgress(time, driftPeriod2, driftDelay2)
+    : 0;
+  const breathe1 = breatheOn ? alternateProgress(time, t.breathePeriod, 0) : 0;
+  const breathe2 = breatheOn
+    ? alternateProgress(time, t.breathePeriod, breatheDelay2)
+    : 0;
 
   return {
     drift1: [travelX * drift1, -travelY * drift1],
@@ -281,27 +325,130 @@ function motionUniforms(
   };
 }
 
+/**
+ * The CSS layer is already animating when the canvas mounts; starting the
+ * shader from that animation's clock keeps the two pictures in phase through
+ * the 300ms fade.
+ */
+function readCssMotionOffset(): number {
+  const wrapper = document.querySelector<HTMLElement>(".horizon-motion-drift");
+  const current = wrapper?.getAnimations()[0]?.currentTime;
+
+  return typeof current === "number" ? current / 1000 : 0;
+}
+
+type BlurTexture = {
+  texture: WebGLTexture;
+  worldWidth: number;
+  worldHeight: number;
+  margin: number;
+};
+
+/**
+ * Rasterise both ellipses into one blurred RGBA texture: R is blob 1's
+ * coverage, G is blob 2's. The canvas blur is the same implementation the CSS
+ * filter uses, so the shader gets the exact soft edge instead of an analytic
+ * approximation of it.
+ */
+function buildBlurTexture(
+  gl: WebGLRenderingContext,
+  tokens: Tokens,
+  width: number,
+  height: number,
+): BlurTexture | { error: string } {
+  const margin = Math.ceil(tokens.blur * TEXTURE_MARGIN_SIGMAS);
+  const worldWidth = width + margin * 2;
+  const worldHeight = height + margin * 2;
+  const canvasWidth = Math.max(8, Math.round(worldWidth * TEXTURE_SCALE));
+  const canvasHeight = Math.max(8, Math.round(worldHeight * TEXTURE_SCALE));
+  const canvas = document.createElement("canvas");
+
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) return { error: "A 2D canvas is not available." };
+
+  ctx.filter = "blur(1px)";
+
+  if (ctx.filter !== "blur(1px)") {
+    return { error: "Canvas blur is not supported." };
+  }
+
+  ctx.filter = "none";
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.globalCompositeOperation = "lighter";
+
+  const scaleX = canvasWidth / worldWidth;
+  const scaleY = canvasHeight / worldHeight;
+
+  const drawBlob = (box: BlobBox, color: string) => {
+    ctx.save();
+    ctx.filter = `blur(${tokens.blur * scaleX}px)`;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(
+      (box.cx + margin) * scaleX,
+      (box.cy + margin) * scaleY,
+      box.hw * scaleX,
+      box.hh * scaleY,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+    ctx.restore();
+  };
+
+  drawBlob(tokens.blob1, "#ff0000");
+  drawBlob(tokens.blob2, "#00ff00");
+
+  const texture = gl.createTexture();
+
+  if (!texture) return { error: "Could not create the blur texture." };
+
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  return { texture, worldWidth, worldHeight, margin };
+}
+
 export function HorizonShader({
   motion,
   tuning,
   ditherLsb = 1,
   dprCap = 1.5,
+  fadeIn = true,
   onFallback,
 }: {
   motion: HorizonMotionVariant;
   tuning?: HorizonMotionTuning;
   ditherLsb?: number;
   dprCap?: number;
+  fadeIn?: boolean;
   onFallback?: (reason: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const layerRef = useRef<HTMLDivElement | null>(null);
   const requestFrameRef = useRef<() => void>(() => {});
   const paramsRef = useRef({ motion, tuning, ditherLsb, dprCap });
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const layer = layerRef.current;
 
-    if (!canvas) return;
+    if (!canvas || !layer) return;
+
+    // jsdom and very old engines have no WebGL global at all; leave the CSS
+    // layer in place silently instead of asking for a context they cannot make.
+    if (typeof WebGLRenderingContext === "undefined") return;
 
     const gl = canvas.getContext("webgl", {
       alpha: false,
@@ -316,6 +463,7 @@ export function HorizonShader({
       onFallback?.("WebGL is not available in this browser.");
       return;
     }
+
     const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX_SOURCE);
     const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SOURCE);
     const program = gl.createProgram();
@@ -364,13 +512,13 @@ export function HorizonShader({
       mid: uniform("uMid"),
       horizon3: uniform("uHorizon3"),
       midAt: uniform("uMidAt"),
-      blob1: uniform("uBlob1"),
-      blob2: uniform("uBlob2"),
+      blurTex: uniform("uBlurTex"),
+      uvScale: uniform("uBlobUvScale"),
+      uvOffset: uniform("uBlobUvOffset"),
       color1: uniform("uBlobColor1"),
       color2: uniform("uBlobColor2"),
       alpha1: uniform("uAlpha1"),
       alpha2: uniform("uAlpha2"),
-      sigma: uniform("uSigma"),
       drift1: uniform("uDrift1"),
       drift2: uniform("uDrift2"),
       scale1: uniform("uScale1"),
@@ -383,9 +531,44 @@ export function HorizonShader({
     const root = document.documentElement;
     const reduceQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     let tokens = readTokens();
+    let blurTexture: BlurTexture | null = null;
+    let textureTimer: number | null = null;
     let dirty = true;
     let frame = 0;
     let disposed = false;
+    let clock = readCssMotionOffset();
+    let lastTimestamp: number | null = null;
+
+    const rebuildTexture = () => {
+      tokens = readTokens();
+
+      const next = buildBlurTexture(
+        gl,
+        tokens,
+        window.innerWidth,
+        window.innerHeight,
+      );
+
+      if ("error" in next) {
+        onFallback?.(next.error);
+        return;
+      }
+
+      if (blurTexture) gl.deleteTexture(blurTexture.texture);
+
+      blurTexture = next;
+      dirty = true;
+    };
+
+    const scheduleTexture = () => {
+      if (textureTimer !== null) window.clearTimeout(textureTimer);
+
+      textureTimer = window.setTimeout(() => {
+        textureTimer = null;
+        rebuildTexture();
+        requestFrame();
+      }, 120);
+    };
 
     const resize = () => {
       const dpr = Math.min(
@@ -403,8 +586,8 @@ export function HorizonShader({
       dirty = true;
     };
 
-    const draw = (timestamp: number) => {
-      if (disposed) return;
+    const draw = () => {
+      if (disposed || !blurTexture) return;
 
       if (dirty || root.dataset.phaseSwitching) {
         tokens = readTokens();
@@ -418,7 +601,7 @@ export function HorizonShader({
       const animated = motionUniforms(
         params.motion,
         params.tuning,
-        timestamp / 1000,
+        clock,
         window.innerWidth,
         window.innerHeight,
       );
@@ -428,25 +611,20 @@ export function HorizonShader({
       gl.uniform3fv(uniforms.mid, tokens.mid);
       gl.uniform3fv(uniforms.horizon3, tokens.horizon3);
       gl.uniform1f(uniforms.midAt, tokens.midAt);
-      gl.uniform4f(
-        uniforms.blob1,
-        tokens.blob1.cx * dpr,
-        tokens.blob1.cy * dpr,
-        tokens.blob1.hw * dpr,
-        tokens.blob1.hh * dpr,
-      );
-      gl.uniform4f(
-        uniforms.blob2,
-        tokens.blob2.cx * dpr,
-        tokens.blob2.cy * dpr,
-        tokens.blob2.hw * dpr,
-        tokens.blob2.hh * dpr,
-      );
       gl.uniform3fv(uniforms.color1, tokens.color1);
       gl.uniform3fv(uniforms.color2, tokens.color2);
       gl.uniform1f(uniforms.alpha1, tokens.alpha1);
       gl.uniform1f(uniforms.alpha2, tokens.alpha2);
-      gl.uniform1f(uniforms.sigma, tokens.sigma * dpr);
+      gl.uniform2f(
+        uniforms.uvScale,
+        1 / (blurTexture.worldWidth * dpr),
+        1 / (blurTexture.worldHeight * dpr),
+      );
+      gl.uniform2f(
+        uniforms.uvOffset,
+        blurTexture.margin / blurTexture.worldWidth,
+        blurTexture.margin / blurTexture.worldHeight,
+      );
       gl.uniform2f(
         uniforms.drift1,
         animated.drift1[0] * dpr,
@@ -463,13 +641,24 @@ export function HorizonShader({
       gl.uniform1f(uniforms.opacity2, animated.opacity2);
       gl.uniform1f(uniforms.dither, params.ditherLsb);
 
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, blurTexture.texture);
+      gl.uniform1i(uniforms.blurTex, 0);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
 
     const tick = (timestamp: number) => {
       frame = 0;
+
+      if (lastTimestamp !== null) {
+        // A long gap means the tab was hidden or the loop was idle; the CSS
+        // animation was frozen then too, so do not jump the shader clock.
+        clock += Math.min(Math.max((timestamp - lastTimestamp) / 1000, 0), 0.1);
+      }
+
+      lastTimestamp = timestamp;
       resize();
-      draw(timestamp);
+      draw();
 
       const animating =
         !document.hidden &&
@@ -479,11 +668,25 @@ export function HorizonShader({
       // Keep going while the ambient loop runs or a phase fade is in flight.
       if (animating || root.dataset.phaseSwitching) {
         frame = requestAnimationFrame(tick);
+      } else {
+        lastTimestamp = null;
       }
     };
 
     const requestFrame = () => {
       if (!frame && !document.hidden) frame = requestAnimationFrame(tick);
+    };
+
+    const onFirstFrame = () => {
+      if (fadeIn) {
+        // Let the 0-opacity state paint once so the fade has a start value.
+        requestAnimationFrame(() => {
+          layer.dataset.ready = "true";
+        });
+        return;
+      }
+
+      layer.dataset.ready = "true";
     };
 
     const observer = new MutationObserver(() => {
@@ -505,23 +708,36 @@ export function HorizonShader({
       if (document.hidden) {
         if (frame) cancelAnimationFrame(frame);
         frame = 0;
+        lastTimestamp = null;
         return;
       }
 
       requestFrame();
     };
 
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      onFallback?.("The WebGL context was lost.");
+    };
+
     const onReducedMotion = () => requestFrame();
     const onResize = () => {
       resize();
+      scheduleTexture();
       requestFrame();
     };
 
+    rebuildTexture();
+
+    if (!blurTexture) return;
+
     resize();
-    draw(performance.now());
+    draw();
+    onFirstFrame();
     requestFrameRef.current = requestFrame;
     requestFrame();
 
+    canvas.addEventListener("webglcontextlost", onContextLost);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("resize", onResize);
     reduceQuery.addEventListener("change", onReducedMotion);
@@ -531,8 +747,10 @@ export function HorizonShader({
       requestFrameRef.current = () => {};
 
       if (frame) cancelAnimationFrame(frame);
+      if (textureTimer !== null) window.clearTimeout(textureTimer);
 
       observer.disconnect();
+      canvas.removeEventListener("webglcontextlost", onContextLost);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("resize", onResize);
       reduceQuery.removeEventListener("change", onReducedMotion);
@@ -540,6 +758,8 @@ export function HorizonShader({
       gl.deleteProgram(program);
       gl.deleteShader(vertex.shader);
       gl.deleteShader(fragment.shader);
+
+      if (blurTexture) gl.deleteTexture(blurTexture.texture);
 
       // React's dev double-mount runs cleanup between two setups on the same
       // canvas; losing the context there would poison the remount (and a lost
@@ -563,7 +783,13 @@ export function HorizonShader({
   }, [motion, tuning, ditherLsb, dprCap]);
 
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0">
+    <div
+      ref={layerRef}
+      aria-hidden="true"
+      className={`pointer-events-none fixed inset-0${
+        fadeIn ? " horizon-canvas-layer" : ""
+      }`}
+    >
       <canvas ref={canvasRef} className="block h-full w-full" />
     </div>
   );
