@@ -24,7 +24,7 @@ export function HomeLayout() {
       <HorizonBackground position="fixed" />
       <RingHoverPointer />
 
-      <div className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-12 xl:py-16">
+      <div className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-12 xl:py-[60px]">
         {/* Vertical frame lines: 1px hairlines on the content-column edges,
             full frame height (Figma 121:2009/121:2010). */}
         <span
