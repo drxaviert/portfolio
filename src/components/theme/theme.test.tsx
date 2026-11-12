@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
@@ -40,6 +40,7 @@ beforeEach(() => {
 afterEach(() => {
   delete root().dataset.phaseSwitching;
   delete root().dataset.phasePreview;
+  Reflect.deleteProperty(document, "hidden");
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -204,5 +205,110 @@ describe("ThemeToggle", () => {
     });
 
     expect(root().dataset.phase).toBe("day");
+  });
+
+  it("reschedules the boundary timer once when the mode changes", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 7, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "night");
+    renderToggle();
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(root().dataset.phase).toBe("night");
+    expect(vi.mocked(msUntilNextPhaseBoundary)).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Auto" }));
+
+    expect(root().dataset.mode).toBe("auto");
+    expect(root().dataset.phase).toBe("dawn");
+    // The theme-change listener is the single schedule path; a second call
+    // would clear and reset the same boundary timer twice per mode change.
+    expect(vi.mocked(msUntilNextPhaseBoundary)).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels the boundary timer while hidden and reschedules when visible", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 7, 0));
+    renderToggle();
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(root().dataset.phase).toBe("dawn");
+    expect(vi.getTimerCount()).toBe(1); // the 08:00 boundary
+
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => true,
+    });
+
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(vi.getTimerCount()).toBe(0);
+
+    // Time passes while hidden; with no timer the phase must stay put.
+    vi.setSystemTime(new Date(2026, 0, 1, 9, 0));
+    act(() => {
+      vi.advanceTimersByTime(2 * 60 * 60 * 1000);
+    });
+    expect(root().dataset.phase).toBe("dawn");
+
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => false,
+    });
+
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(root().dataset.phase).toBe("day");
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+    act(() => {
+      vi.advanceTimersByTime(8 * 60 * 60 * 1000 + 250);
+    });
+    expect(root().dataset.phase).toBe("dusk");
+  });
+
+  it("clears the boundary timer in Night mode and schedules it again in Auto", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 7, 0));
+    renderToggle();
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(root().dataset.phase).toBe("dawn");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Night" }));
+    expect(root().dataset.phase).toBe("night");
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    // Night never leaves night, so the Auto boundary timer is gone.
+    expect(vi.getTimerCount()).toBe(0);
+
+    act(() => {
+      vi.advanceTimersByTime(2 * 60 * 60 * 1000);
+    });
+    expect(root().dataset.phase).toBe("night");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Auto" }));
+    expect(root().dataset.phase).toBe("day"); // the clock is now 09:00
+
+    act(() => {
+      vi.advanceTimersByTime(8 * 60 * 60 * 1000 + 250);
+    });
+    expect(root().dataset.phase).toBe("dusk");
   });
 });

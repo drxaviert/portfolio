@@ -6,7 +6,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useSyncExternalStore,
 } from "react";
 import {
@@ -66,13 +65,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     () => SERVER_SNAPSHOT,
   );
   const [mode, phase] = snapshot.split(":") as [Mode, Phase];
-  const rescheduleRef = useRef<(() => void) | null>(null);
 
   const setMode = useCallback((next: Mode) => {
     applyMode(next);
     writeStoredMode(next);
+    // The theme-change listener below reschedules the boundary timer; it is the
+    // single path for mode changes, dev previews and other theme mutations, so
+    // a mode change never schedules twice.
     window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
-    rescheduleRef.current?.();
   }, []);
 
   // Auto and Day follow the clock (see phaseFor). One timer targets the next
@@ -150,7 +150,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const onFocus = () => refresh();
     const onThemeChange = () => schedule();
 
-    rescheduleRef.current = schedule;
     refresh();
 
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -158,7 +157,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener(THEME_CHANGE_EVENT, onThemeChange);
 
     return () => {
-      rescheduleRef.current = null;
       clearTimer();
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("focus", onFocus);
