@@ -41,7 +41,9 @@ const CELLS = Array.from({ length: WEEKS * DAYS }, (_, index) =>
 
 function Cell({ level }: { level: number }) {
   return (
-    <span className={`aspect-square rounded-[2px] ${LEVEL_CLASSES[level]}`} />
+    <span
+      className={`tracker-cell aspect-square rounded-[2px] ${LEVEL_CLASSES[level]}`}
+    />
   );
 }
 

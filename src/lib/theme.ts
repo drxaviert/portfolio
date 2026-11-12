@@ -113,8 +113,18 @@ export function writeStoredMode(mode: Mode): void {
  * `.dark` so anything still keyed off the class follows. Dev previews use this
  * to pin a phase; production code goes through `applyMode`.
  */
-export function applyPhase(phase: Phase): void {
+export function applyPhase(
+  phase: Phase,
+  kind: PhaseSwitchKind = "click",
+): void {
   const root = document.documentElement;
+  const changed = root.dataset.phase !== phase;
+
+  // Mark before writing data-phase: markPhaseSwitch reads the duration token
+  // with getComputedStyle, which flushes styles. Doing that after the phase
+  // write would commit the new colours with no switch rule, then the rule
+  // arrives too late to animate them.
+  if (changed) markPhaseSwitch(kind);
 
   root.dataset.phase = phase;
   root.classList.toggle("dark", phase === "night");
@@ -122,6 +132,122 @@ export function applyPhase(phase: Phase): void {
 
 /** Event every theme mutation dispatches; ThemeProvider subscribes to it. */
 export const THEME_CHANGE_EVENT = "portfolio:theme-change";
+
+/** Click switches use the glow tokens; clock-driven switches the auto tokens. */
+export type PhaseSwitchKind = "click" | "auto";
+
+const DEFAULT_PHASE_SWITCH_MS = 400;
+
+/** Colour-like transitions the switch rule starts; used to tell when the fade ended. */
+const PHASE_FADE_PROPERTIES = new Set([
+  "color",
+  "background-color",
+  "border-color",
+  "outline-color",
+  "text-decoration-color",
+  "fill",
+  "stroke",
+  "box-shadow",
+]);
+
+let phaseSwitchFrame: number | null = null;
+let phaseSwitchFallback: number | null = null;
+
+/** Cancels a pending end-of-switch watch. */
+function stopPhaseSwitchWatch(): void {
+  if (phaseSwitchFrame !== null) {
+    window.cancelAnimationFrame(phaseSwitchFrame);
+    phaseSwitchFrame = null;
+  }
+
+  if (phaseSwitchFallback !== null) {
+    window.clearTimeout(phaseSwitchFallback);
+    phaseSwitchFallback = null;
+  }
+}
+
+/** Reads a `400ms` / `0.4s` duration token; falls back to the default. */
+function readPhaseSwitchMs(kind: PhaseSwitchKind): number {
+  const token =
+    kind === "auto"
+      ? "--phase-auto-transition-duration"
+      : "--horizon-transition-duration";
+  const raw = window
+    .getComputedStyle(document.documentElement)
+    .getPropertyValue(token)
+    .trim();
+  const match = /^([\d.]+)(ms|s)$/.exec(raw);
+
+  if (!match) return DEFAULT_PHASE_SWITCH_MS;
+
+  const value = Number(match[1]);
+
+  return match[2] === "s" ? value * 1000 : value;
+}
+
+/**
+ * Marks a phase change on <html> so every theme colour fades as one piece.
+ * globals.css only applies the colour transition while data-phase-switching is
+ * present, so ordinary hover/press transitions are untouched afterwards.
+ *
+ * The attribute is removed when the colour transitions have actually finished,
+ * not after a wall-clock delay: a throttled, occluded or background page can
+ * render its first frame later than the fade duration, and dropping the rule on
+ * a timer would cancel the transition before it starts and snap every colour.
+ * Engines without the Web Animations API fall back to the timer.
+ */
+export function markPhaseSwitch(kind: PhaseSwitchKind = "click"): void {
+  const root = document.documentElement;
+  const duration = readPhaseSwitchMs(kind);
+
+  stopPhaseSwitchWatch();
+
+  if (duration <= 0) {
+    delete root.dataset.phaseSwitching;
+    return;
+  }
+
+  root.dataset.phaseSwitching = kind;
+
+  const remove = () => {
+    delete root.dataset.phaseSwitching;
+    stopPhaseSwitchWatch();
+  };
+
+  if (
+    typeof document.getAnimations !== "function" ||
+    typeof window.requestAnimationFrame !== "function"
+  ) {
+    phaseSwitchFallback = window.setTimeout(remove, duration + 50);
+    return;
+  }
+
+  // Hard cap: an unrelated colour transition (repeated hovers) or a
+  // never-ending one must not keep the switch rule alive indefinitely.
+  phaseSwitchFallback = window.setTimeout(remove, Math.max(duration * 4, 2000));
+
+  const check = () => {
+    phaseSwitchFrame = null;
+
+    const running = document.getAnimations().some(
+      (animation) =>
+        "transitionProperty" in animation &&
+        PHASE_FADE_PROPERTIES.has(
+          String((animation as CSSTransition).transitionProperty),
+        ) &&
+        animation.playState === "running",
+    );
+
+    if (running) {
+      phaseSwitchFrame = window.requestAnimationFrame(check);
+      return;
+    }
+
+    remove();
+  };
+
+  phaseSwitchFrame = window.requestAnimationFrame(check);
+}
 
 /**
  * The last mode applied to the document. Storage writes can fail (private
@@ -138,9 +264,18 @@ export function getActiveMode(): Mode {
  * Applies a mode to the document: data-mode and data-phase drive the tokens,
  * and `.dark` stays for anything still keyed off the class. Returns the phase.
  */
-export function applyMode(mode: Mode, date: Date = new Date()): Phase {
+export function applyMode(
+  mode: Mode,
+  date: Date = new Date(),
+  kind: PhaseSwitchKind = "click",
+): Phase {
   const phase = phaseFor(date, mode);
   const root = document.documentElement;
+  const changed = root.dataset.phase !== phase;
+
+  // See applyPhase: mark before the colour attributes change so the style
+  // flush from reading the duration token cannot commit the new colours first.
+  if (changed) markPhaseSwitch(kind);
 
   activeMode = mode;
   root.dataset.mode = mode;
@@ -155,8 +290,15 @@ export function applyMode(mode: Mode, date: Date = new Date()): Phase {
  * derived from the phase so `data-mode` and `.dark` stay consistent, and the
  * theme-change event tells ThemeProvider to re-read the attributes.
  */
-export function pinPhase(phase: Phase): void {
+export function pinPhase(
+  phase: Phase,
+  kind: PhaseSwitchKind = "click",
+): void {
   const root = document.documentElement;
+  const changed = root.dataset.phase !== phase;
+
+  // See applyPhase: mark before the phase attribute changes.
+  if (changed) markPhaseSwitch(kind);
 
   // Remember the mode the pin is about to overwrite so unpin can restore it.
   activeMode ??= readStoredMode();
