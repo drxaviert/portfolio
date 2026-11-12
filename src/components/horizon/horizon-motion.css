@@ -43,6 +43,54 @@
 }
 
 /*
+ * How far the current phase has faded towards Night, 0..1. Registered so it
+ * interpolates, and transitioned on the element that carries the class: the
+ * horizon surface in the CSS renderer, the canvas in the WebGL one. The shader
+ * reads this same number instead of re-deriving a curve, and the CSS fallback
+ * uses it to damp the intensity pulse. Duration rides the existing phase fade
+ * tokens, so no new timing is introduced.
+ */
+@property --horizon-night-blend {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+.horizon-night-scope {
+  --horizon-night-blend: 0;
+  /*
+   * Rest strength: base in the day phases, eased to the night base as the phase
+   * fades. Mirrors baseStrength() in horizon-intensity.ts.
+   */
+  --horizon-base-strength: calc(
+    var(--horizon-base-intensity, 1) +
+      (var(--horizon-night-base-intensity, 1) - var(--horizon-base-intensity, 1)) *
+      var(--horizon-night-blend)
+  );
+  transition: --horizon-night-blend var(--horizon-transition-duration, 400ms)
+    var(--horizon-transition-ease, ease-in-out);
+}
+
+:root[data-phase="night"] .horizon-night-scope {
+  --horizon-night-blend: 1;
+}
+
+/*
+ * The phase-switch rule in globals.css replaces transition-property on every
+ * element for the length of the fade, which would drop the blend and snap it.
+ * Put it back for the scope, at the same higher specificity, so the damping
+ * follows the colours instead of jumping ahead of them.
+ */
+:root[data-phase-switching] .horizon-night-scope {
+  transition-property: --horizon-night-blend;
+}
+
+/* Clock-driven switches fade over seconds, not the click duration. */
+:root[data-phase-switching="auto"] .horizon-night-scope {
+  transition-duration: var(--phase-auto-transition-duration, 4000ms);
+}
+
+/*
  * Drift: slow, out-of-sync back-and-forth travel. Blob 2 runs a shorter loop
  * and a negative delay, so the two never line up. Travel is a percentage of
  * the viewport (the wrapper is viewport-sized).
@@ -69,9 +117,62 @@
     var(--horizon-breathe-delay, 0s) infinite alternate;
 }
 
+/*
+ * Intensity: the glow's strength rides the breath.
+ *
+ * A second copy of the blob, inside the breathe wrapper, so it inherits the
+ * breathe scale and the wrapper's opacity exactly as the shader multiplies its
+ * own opacity into the alpha. Only its own opacity animates: no filter, no
+ * repaint of the blurred layer, no layout. The envelope peaks on the same
+ * keyframe the breathe does, with the same period, delay and easing, so the two
+ * cannot drift: `core` starts at the peak (the breathe `from`, opacity 1) and
+ * `expand` flips the direction so it peaks at the breathe `to` (scale max).
+ * Direction, not name, carries the A/B switch so toggling it does not restart
+ * the animation and change its phase.
+ *
+ * Peak strength = amp, damped towards amp * night scale as the phase fades to
+ * night, and multiplied onto the rest strength the tint already carries. Both
+ * multipliers stay custom properties, so the transition on
+ * --horizon-night-blend drives the damping frame by frame.
+ */
+.horizon-motion-layer .horizon-motion-intensity {
+  /*
+   * Conservative peak: the layer's own opacity. A second copy of a blob at
+   * alpha a adds a * p * (1 - a) of effective coverage, so a higher rest
+   * strength makes this slightly softer than the shader's exact multiply; the
+   * @supports block below corrects it where calc() can divide.
+   */
+  --horizon-intensity-peak: calc(
+    var(--horizon-intensity-amp, 0) *
+      (1 - var(--horizon-night-blend, 0) * (1 - var(--horizon-intensity-night, 1)))
+  );
+  animation: horizon-intensity var(--horizon-breathe-period, 16s) ease-in-out
+    var(--horizon-breathe-delay, 0s) infinite alternate-reverse;
+}
+
+@supports (opacity: calc(1 / (1 - 0.5))) {
+  /* Solve the stack for a * (1 + amp): divide by the coverage left over. */
+  .horizon-motion-layer .horizon-motion-intensity {
+    --horizon-intensity-peak: calc(
+      var(--horizon-intensity-amp, 0) *
+        (1 - var(--horizon-night-blend, 0) * (1 - var(--horizon-intensity-night, 1))) /
+        (1 -
+          min(
+            0.9,
+            var(--horizon-blob-alpha, 0.06) * var(--horizon-base-strength, 1)
+          ))
+    );
+  }
+}
+
+.horizon-motion-layer .horizon-motion-intensity[data-peak="expand"] {
+  animation-direction: alternate;
+}
+
 /* Hidden tab: freeze in place instead of burning frames nobody sees. */
 .horizon-motion-layer[data-paused="true"] .horizon-motion-drift,
-.horizon-motion-layer[data-paused="true"] .horizon-motion-breathe {
+.horizon-motion-layer[data-paused="true"] .horizon-motion-breathe,
+.horizon-motion-layer[data-paused="true"] .horizon-motion-intensity {
   animation-play-state: paused;
 }
 
@@ -112,10 +213,26 @@
   }
 }
 
+/* Envelope 0..1, on the breathe's own period, delay and easing. */
+@keyframes horizon-intensity {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: var(--horizon-intensity-peak);
+  }
+}
+
 /* Ambient motion is decoration; reduced motion gets the static glow. */
 @media (prefers-reduced-motion: reduce) {
   .horizon-motion-layer .horizon-motion-drift,
   .horizon-motion-layer .horizon-motion-breathe {
     animation: none !important;
+  }
+
+  /* Strength stays at 1: the pulse is not there to be static. */
+  .horizon-motion-layer .horizon-motion-intensity {
+    animation: none !important;
+    display: none;
   }
 }

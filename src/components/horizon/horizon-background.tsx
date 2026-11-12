@@ -1,4 +1,6 @@
-import type { CSSProperties } from "react";
+import { useEffect, useRef } from "react";
+import type { CSSProperties, RefObject } from "react";
+import type { HorizonIntensityPeak } from "./horizon-intensity";
 import { HorizonPauseScope } from "./horizon-pause-scope";
 import "./horizon-motion.css";
 
@@ -21,10 +23,12 @@ import "./horizon-motion.css";
  * two blobs, exactly as before; the ambient wrappers and the visibility
  * listener only exist when a prototype asks for them.
  *
- * Bottom-corner blob tint: the phase hue at the phase's own alpha.
+ * Bottom-corner blob tint: the phase hue at the phase's own alpha, scaled by the
+ * preset's rest strength. The strength is a live calc() so it can follow the
+ * phase fade to Night without a repaint of its own.
  */
-function blobTint(blob: 1 | 2, intensity = 1): string {
-  return `color-mix(in srgb, var(--horizon-${blob}) calc(var(--horizon-${blob}-alpha) * ${intensity * 100}%), transparent)`;
+function blobTint(blob: 1 | 2): string {
+  return `color-mix(in srgb, var(--horizon-${blob}) calc(var(--horizon-${blob}-alpha) * var(--horizon-base-strength, 1) * 100%), transparent)`;
 }
 
 /** 900x420 at -200/860 and 1000x460 at 700/820 in the 1440 frame. */
@@ -58,6 +62,23 @@ export type HorizonMotionTuning = {
   breatheScale?: number;
   /** Opacity drop at the bottom of the breath, in percent (13 = 0.87). */
   breatheDepth?: number;
+  /**
+   * Breathe-locked strength swing, as a fraction of the blob alpha (0.3 = up to
+   * +30%). 0 leaves the glow steady, which is what / ships until a value is
+   * picked.
+   */
+  intensityAmp?: number;
+  /** Multiplier on intensityAmp while the Night phase is active (0.6 = softer). */
+  nightIntensityScale?: number;
+  /** Which end of the breath the intensity envelope peaks on. */
+  intensityPeak?: HorizonIntensityPeak;
+  /**
+   * Glow strength at rest, as a multiple of the phase's own blob alpha. This is
+   * the knob the user tunes: 1 is the Figma alpha, 4 the tuned "boost".
+   */
+  baseIntensity?: number;
+  /** Rest strength in the Night phase; blends over the existing phase fade. */
+  nightBaseIntensity?: number;
 };
 
 export const HORIZON_MOTION_DEFAULTS: Required<HorizonMotionTuning> = {
@@ -67,6 +88,11 @@ export const HORIZON_MOTION_DEFAULTS: Required<HorizonMotionTuning> = {
   breathePeriod: 16,
   breatheScale: 2,
   breatheDepth: 13,
+  intensityAmp: 0,
+  nightIntensityScale: 0.6,
+  intensityPeak: "core",
+  baseIntensity: 1,
+  nightBaseIntensity: 1,
 };
 
 /** How the static grain layer composites over the glow. */
@@ -186,26 +212,84 @@ function breatheStyle(
   } as CSSProperties;
 }
 
+/**
+ * A CSS animation starts when its element first renders, so a pulse switched on
+ * later than its breathe wrapper would run beside the breath at a random
+ * offset. Copy the wrapper's start time, and the two share one clock.
+ */
+function useBreatheClock(
+  ref: RefObject<HTMLDivElement | null>,
+  attached: boolean,
+): void {
+  useEffect(() => {
+    const element = ref.current;
+
+    if (!element || typeof element.getAnimations !== "function") return;
+
+    const pulse = element.getAnimations()[0];
+    const breathe = element
+      .closest<HTMLElement>(".horizon-motion-breathe")
+      ?.getAnimations()[0];
+
+    if (!pulse || !breathe || breathe.startTime === null) return;
+
+    pulse.startTime = breathe.startTime;
+  }, [ref, attached]);
+}
+
 function HorizonBlob({
   blob,
   motion,
   tuning,
-  intensity,
 }: {
   blob: 1 | 2;
   motion: HorizonMotionVariant;
   tuning?: HorizonMotionTuning;
-  intensity: number;
 }) {
+  const pulseRef = useRef<HTMLDivElement | null>(null);
   const visual = (
     <div
       data-horizon-blob=""
       className={BLOB_CLASS}
-      style={{ ...blobBox(blob), backgroundColor: blobTint(blob, intensity) }}
+      style={{ ...blobBox(blob), backgroundColor: blobTint(blob) }}
     />
   );
 
+  const { intensityAmp, nightIntensityScale, intensityPeak } =
+    withDefaults(tuning);
+  const breathes = motion === "breathe" || motion === "drift-breathe";
+  const pulseOn = motion !== "none" && breathes && intensityAmp > 0;
+
+  useBreatheClock(pulseRef, pulseOn);
+
   if (motion === "none") return visual;
+
+  /*
+   * A second copy of the blob, on the breathe wrapper, whose opacity carries the
+   * intensity envelope. Stacking the same tint twice raises the colour strength
+   * exactly as the shader's alpha multiplier does, and opacity is the one
+   * property that stays on the compositor over an already-rasterised blur.
+   * Not rendered at amp 0, so / adds no layer.
+   */
+  const pulse = pulseOn ? (
+    <div
+      ref={pulseRef}
+      aria-hidden="true"
+      data-horizon-blob=""
+      data-peak={intensityPeak}
+      className={`${BLOB_CLASS} horizon-motion-intensity`}
+      style={
+        {
+          ...blobBox(blob),
+          backgroundColor: blobTint(blob),
+          "--horizon-intensity-amp": `${intensityAmp}`,
+          "--horizon-intensity-night": `${nightIntensityScale}`,
+          /* The pulse layer's own rest alpha, for the stacking correction. */
+          "--horizon-blob-alpha": `var(--horizon-${blob}-alpha)`,
+        } as CSSProperties
+      }
+    />
+  ) : null;
 
   return (
     <div
@@ -219,6 +303,7 @@ function HorizonBlob({
         style={breatheStyle(blob, tuning)}
       >
         {visual}
+        {pulse}
       </div>
     </div>
   );
@@ -230,45 +315,36 @@ export function HorizonBackground({
   tuning,
   dither,
   gradient = "srgb",
-  intensity = 1,
 }: {
   position?: "absolute" | "fixed";
   motion?: HorizonMotionVariant;
   tuning?: HorizonMotionTuning;
   dither?: HorizonDither;
   gradient?: HorizonGradientMode;
-  /**
-   * Prototype viewing aid: multiplies the blob alpha so the glow can be judged
-   * on a near-black surface. 1 is the shipped picture.
-   */
-  intensity?: number;
 }) {
   const placement = position === "fixed" ? "fixed" : "absolute";
   const grain = { ...HORIZON_DITHER_DEFAULTS, ...dither };
+  const { baseIntensity, nightBaseIntensity } = withDefaults(tuning);
 
   const blobs = (
     <>
-      <HorizonBlob
-        blob={1}
-        motion={motion}
-        tuning={tuning}
-        intensity={intensity}
-      />
-      <HorizonBlob
-        blob={2}
-        motion={motion}
-        tuning={tuning}
-        intensity={intensity}
-      />
+      <HorizonBlob blob={1} motion={motion} tuning={tuning} />
+      <HorizonBlob blob={2} motion={motion} tuning={tuning} />
     </>
   );
 
   return (
     <div
       aria-hidden="true"
-      className={`pointer-events-none ${placement} inset-0 overflow-hidden${
+      className={`pointer-events-none ${placement} inset-0 overflow-hidden horizon-night-scope${
         grain.enabled ? " isolate" : ""
       }`}
+      style={
+        {
+          "--horizon-base-intensity": `${baseIntensity}`,
+          "--horizon-night-base-intensity": `${nightBaseIntensity}`,
+        } as CSSProperties
+      }
     >
       <div
         className="absolute inset-0"
