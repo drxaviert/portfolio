@@ -5,6 +5,8 @@ import type {
   HorizonMotionTuning,
   HorizonMotionVariant,
 } from "./horizon-background";
+import { alternateProgress, breatheIntensity } from "./horizon-intensity";
+import "./horizon-motion.css";
 
 /**
  * WebGL twin of HorizonBackground.
@@ -35,13 +37,16 @@ import type {
  * token, resize or parameter change asks for a frame.
  */
 
-const DEFAULT_TUNING = {
+const DEFAULT_TUNING: Required<HorizonMotionTuning> = {
   driftPeriod: 110,
   driftTravelX: 1.5,
   driftTravelY: 1,
   breathePeriod: 16,
   breatheScale: 2,
   breatheDepth: 13,
+  intensityAmp: 0,
+  nightIntensityScale: 0.6,
+  intensityPeak: "core",
 };
 
 /** Blob 2's loop differs so the pair never syncs (mirrors the CSS version). */
@@ -225,69 +230,9 @@ type MotionUniforms = {
   scale2: number;
   opacity1: number;
   opacity2: number;
+  intensity1: number;
+  intensity2: number;
 };
-
-/**
- * CSS ease-in-out, sampled as x -> y. The y curve is smoothstep in the bezier
- * parameter, but x is solved for; treating x as the parameter would be a
- * different (faster) easing than the CSS layer uses.
- */
-const EASE_STEPS = 256;
-const EASE_IN_OUT_TABLE = (() => {
-  const table = new Float32Array(EASE_STEPS + 1);
-  const x1 = 0.42;
-  const x2 = 0.58;
-  const curve = (t: number, a1: number, a2: number) =>
-    3 * (1 - t) * (1 - t) * t * a1 + 3 * (1 - t) * t * t * a2 + t * t * t;
-
-  for (let index = 0; index <= EASE_STEPS; index += 1) {
-    const x = index / EASE_STEPS;
-    let low = 0;
-    let high = 1;
-
-    for (let step = 0; step < 20; step += 1) {
-      const mid = (low + high) / 2;
-
-      if (curve(mid, x1, x2) < x) low = mid;
-      else high = mid;
-    }
-
-    const t = (low + high) / 2;
-
-    table[index] = 3 * t * t - 2 * t * t * t;
-  }
-
-  return table;
-})();
-
-function easeInOut(value: number): number {
-  const x = Math.min(1, Math.max(0, value)) * EASE_STEPS;
-  const index = Math.floor(x);
-  const fraction = x - index;
-  const a = EASE_IN_OUT_TABLE[index];
-  const b = EASE_IN_OUT_TABLE[Math.min(index + 1, EASE_STEPS)];
-
-  return a + (b - a) * fraction;
-}
-
-/**
- * The value of an `alternate` CSS animation at `time` seconds. Each iteration
- * runs 0 -> 1 through the timing function, and every other iteration runs it
- * backwards; modelling it as one triangle over the duration would make the
- * shader twice as fast as the CSS it has to match.
- */
-function alternateProgress(
-  time: number,
-  period: number,
-  delay: number,
-): number {
-  const g = (time - delay) / period;
-  const iteration = Math.floor(g);
-  const progress = g - iteration;
-  const eased = easeInOut(progress);
-
-  return iteration % 2 === 0 ? eased : 1 - eased;
-}
 
 function motionUniforms(
   motion: HorizonMotionVariant,
@@ -295,6 +240,8 @@ function motionUniforms(
   time: number,
   width: number,
   height: number,
+  nightBlend: number,
+  reducedMotion: boolean,
 ): MotionUniforms {
   const t = { ...DEFAULT_TUNING, ...tuning };
   const driftOn = motion === "drift" || motion === "drift-breathe";
@@ -315,6 +262,21 @@ function motionUniforms(
     ? alternateProgress(time, t.breathePeriod, breatheDelay2)
     : 0;
 
+  // One envelope per blob, from that blob's own breathe progress, so a blob's
+  // strength peaks with its own breath even though the two run half a cycle
+  // apart.
+  const intensity = (progress: number) =>
+    breatheOn
+      ? breatheIntensity({
+          progress,
+          amp: t.intensityAmp,
+          nightScale: t.nightIntensityScale,
+          nightBlend,
+          peak: t.intensityPeak,
+          reducedMotion,
+        })
+      : 1;
+
   return {
     drift1: [travelX * drift1, -travelY * drift1],
     drift2: [-travelX * drift2, travelY * drift2],
@@ -322,7 +284,23 @@ function motionUniforms(
     scale2: 1 + (t.breatheScale / 100) * breathe2,
     opacity1: 1 - (t.breatheDepth / 100) * breathe1,
     opacity2: 1 - (t.breatheDepth / 100) * breathe2,
+    intensity1: intensity(breathe1),
+    intensity2: intensity(breathe2),
   };
+}
+
+/**
+ * How far the current phase has faded towards Night, 0..1. The CSS layer
+ * transitions its own registered property over the existing phase fade, so the
+ * shader reads that interpolated number rather than re-deriving the curve (and
+ * both renderers damp intensity on the same timeline).
+ */
+function readNightBlend(element: HTMLElement): number {
+  const value = Number.parseFloat(
+    getComputedStyle(element).getPropertyValue("--horizon-night-blend"),
+  );
+
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
 }
 
 /**
@@ -575,6 +553,7 @@ export function HorizonShader({
     const root = document.documentElement;
     const reduceQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     let tokens = readTokens();
+    let nightBlend = readNightBlend(canvas);
     let blurTexture: BlurTexture | null = null;
     let textureTimer: number | null = null;
     let dirty = true;
@@ -635,6 +614,7 @@ export function HorizonShader({
 
       if (dirty || root.dataset.phaseSwitching) {
         tokens = readTokens();
+        nightBlend = readNightBlend(canvas);
         dirty = false;
       }
 
@@ -648,6 +628,8 @@ export function HorizonShader({
         clock,
         window.innerWidth,
         window.innerHeight,
+        nightBlend,
+        reduceQuery.matches,
       );
 
       gl.uniform2f(uniforms.res, width, height);
@@ -657,8 +639,16 @@ export function HorizonShader({
       gl.uniform1f(uniforms.midAt, tokens.midAt);
       gl.uniform3fv(uniforms.color1, tokens.color1);
       gl.uniform3fv(uniforms.color2, tokens.color2);
-      gl.uniform1f(uniforms.alpha1, tokens.alpha1 * params.intensity);
-      gl.uniform1f(uniforms.alpha2, tokens.alpha2 * params.intensity);
+      // The static intensity prop scales the whole glow; the breathe envelope is
+      // its own per-frame multiplier, so both land in the same alpha uniform.
+      gl.uniform1f(
+        uniforms.alpha1,
+        tokens.alpha1 * params.intensity * animated.intensity1,
+      );
+      gl.uniform1f(
+        uniforms.alpha2,
+        tokens.alpha2 * params.intensity * animated.intensity2,
+      );
       gl.uniform2f(
         uniforms.uvScale,
         1 / (blurTexture.worldWidth * dpr),
@@ -834,7 +824,11 @@ export function HorizonShader({
         fadeIn ? " horizon-canvas-layer" : ""
       }`}
     >
-      <canvas ref={canvasRef} className="block h-full w-full" />
+      {/* Carries the phase's night-blend property; see horizon-motion.css. */}
+      <canvas
+        ref={canvasRef}
+        className="horizon-night-scope block h-full w-full"
+      />
     </div>
   );
 }

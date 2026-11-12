@@ -1,4 +1,6 @@
-import type { CSSProperties } from "react";
+import { useEffect, useRef } from "react";
+import type { CSSProperties, RefObject } from "react";
+import type { HorizonIntensityPeak } from "./horizon-intensity";
 import { HorizonPauseScope } from "./horizon-pause-scope";
 import "./horizon-motion.css";
 
@@ -58,6 +60,16 @@ export type HorizonMotionTuning = {
   breatheScale?: number;
   /** Opacity drop at the bottom of the breath, in percent (13 = 0.87). */
   breatheDepth?: number;
+  /**
+   * Breathe-locked strength swing, as a fraction of the blob alpha (0.3 = up to
+   * +30%). 0 leaves the glow steady, which is what / ships until a value is
+   * picked.
+   */
+  intensityAmp?: number;
+  /** Multiplier on intensityAmp while the Night phase is active (0.6 = softer). */
+  nightIntensityScale?: number;
+  /** Which end of the breath the intensity envelope peaks on. */
+  intensityPeak?: HorizonIntensityPeak;
 };
 
 export const HORIZON_MOTION_DEFAULTS: Required<HorizonMotionTuning> = {
@@ -67,6 +79,9 @@ export const HORIZON_MOTION_DEFAULTS: Required<HorizonMotionTuning> = {
   breathePeriod: 16,
   breatheScale: 2,
   breatheDepth: 13,
+  intensityAmp: 0,
+  nightIntensityScale: 0.6,
+  intensityPeak: "core",
 };
 
 /** How the static grain layer composites over the glow. */
@@ -186,6 +201,31 @@ function breatheStyle(
   } as CSSProperties;
 }
 
+/**
+ * A CSS animation starts when its element first renders, so a pulse switched on
+ * later than its breathe wrapper would run beside the breath at a random
+ * offset. Copy the wrapper's start time, and the two share one clock.
+ */
+function useBreatheClock(
+  ref: RefObject<HTMLDivElement | null>,
+  attached: boolean,
+): void {
+  useEffect(() => {
+    const element = ref.current;
+
+    if (!element || typeof element.getAnimations !== "function") return;
+
+    const pulse = element.getAnimations()[0];
+    const breathe = element
+      .closest<HTMLElement>(".horizon-motion-breathe")
+      ?.getAnimations()[0];
+
+    if (!pulse || !breathe || breathe.startTime === null) return;
+
+    pulse.startTime = breathe.startTime;
+  }, [ref, attached]);
+}
+
 function HorizonBlob({
   blob,
   motion,
@@ -197,6 +237,7 @@ function HorizonBlob({
   tuning?: HorizonMotionTuning;
   intensity: number;
 }) {
+  const pulseRef = useRef<HTMLDivElement | null>(null);
   const visual = (
     <div
       data-horizon-blob=""
@@ -205,7 +246,39 @@ function HorizonBlob({
     />
   );
 
+  const { intensityAmp, nightIntensityScale, intensityPeak } =
+    withDefaults(tuning);
+  const breathes = motion === "breathe" || motion === "drift-breathe";
+  const pulseOn = motion !== "none" && breathes && intensityAmp > 0;
+
+  useBreatheClock(pulseRef, pulseOn);
+
   if (motion === "none") return visual;
+
+  /*
+   * A second copy of the blob, on the breathe wrapper, whose opacity carries the
+   * intensity envelope. Stacking the same tint twice raises the colour strength
+   * exactly as the shader's alpha multiplier does, and opacity is the one
+   * property that stays on the compositor over an already-rasterised blur.
+   * Not rendered at amp 0, so / adds no layer.
+   */
+  const pulse = pulseOn ? (
+    <div
+      ref={pulseRef}
+      aria-hidden="true"
+      data-horizon-blob=""
+      data-peak={intensityPeak}
+      className={`${BLOB_CLASS} horizon-motion-intensity`}
+      style={
+        {
+          ...blobBox(blob),
+          backgroundColor: blobTint(blob, intensity),
+          "--horizon-intensity-amp": `${intensityAmp}`,
+          "--horizon-intensity-night": `${nightIntensityScale}`,
+        } as CSSProperties
+      }
+    />
+  ) : null;
 
   return (
     <div
@@ -219,6 +292,7 @@ function HorizonBlob({
         style={breatheStyle(blob, tuning)}
       >
         {visual}
+        {pulse}
       </div>
     </div>
   );
@@ -266,7 +340,7 @@ export function HorizonBackground({
   return (
     <div
       aria-hidden="true"
-      className={`pointer-events-none ${placement} inset-0 overflow-hidden${
+      className={`pointer-events-none ${placement} inset-0 overflow-hidden horizon-night-scope${
         grain.enabled ? " isolate" : ""
       }`}
     >
