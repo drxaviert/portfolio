@@ -17,7 +17,6 @@ import "./frame-line-spotlight.css";
 
 const PROXIMITY = 80;
 const POOL_RADIUS = 200; // chosen size 400px / 2
-const BRIGHTNESS = 0.85;
 const BLEED_FALLOFF = 3;
 const JUNCTION_SNAP = 48;
 const BLEND_SOFTNESS = 120;
@@ -184,7 +183,9 @@ export function FrameLineSpotlight() {
       frame = 0;
 
       if (!pointer || window.innerWidth < 1440) {
-        for (const line of lines) line.glow.style.opacity = "0";
+        for (const line of lines) {
+          line.glow.style.setProperty("--frame-spot-light", "0");
+        }
         return;
       }
 
@@ -207,8 +208,9 @@ export function FrameLineSpotlight() {
         for (const sample of samples) {
           sample.line.glow.style.setProperty("mask-image", "none");
           sample.line.glow.style.setProperty("-webkit-mask-image", "none");
-          sample.line.glow.style.opacity = String(
-            sample.weight * REDUCED_STRENGTH,
+          sample.line.glow.style.setProperty(
+            "--frame-spot-light",
+            (sample.weight * REDUCED_STRENGTH).toFixed(4),
           );
         }
         return;
@@ -229,7 +231,9 @@ export function FrameLineSpotlight() {
       }
 
       if (weightSum <= 0 || light <= 0) {
-        for (const line of lines) line.glow.style.opacity = "0";
+        for (const line of lines) {
+          line.glow.style.setProperty("--frame-spot-light", "0");
+        }
         return;
       }
 
@@ -303,7 +307,7 @@ export function FrameLineSpotlight() {
         const peak = bleedFalloff(distance / POOL_RADIUS);
 
         if (peak <= 0.001) {
-          line.glow.style.opacity = "0";
+          line.glow.style.setProperty("--frame-spot-light", "0");
           continue;
         }
 
@@ -342,7 +346,10 @@ export function FrameLineSpotlight() {
 
         line.glow.style.setProperty("-webkit-mask-image", gradient);
         line.glow.style.setProperty("mask-image", gradient);
-        line.glow.style.opacity = String(BRIGHTNESS * light * peak);
+        line.glow.style.setProperty(
+          "--frame-spot-light",
+          (light * peak).toFixed(4),
+        );
       }
     }
 
