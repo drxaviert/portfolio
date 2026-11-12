@@ -345,6 +345,47 @@ type BlurTexture = {
 };
 
 /**
+ * A real blur probe. Safari exposes `ctx.filter` (or accepts it as a plain
+ * expando) but ignores it unless the Canvas Filters feature is enabled, so the
+ * read-back check that used to live here passed and produced hard-edged
+ * ellipses. Draw a dot, blur it, and look for light where the unblurred dot
+ * cannot reach.
+ */
+let canvasBlurSupport: boolean | null = null;
+
+function supportsCanvasBlur(): boolean {
+  if (canvasBlurSupport !== null) return canvasBlurSupport;
+
+  const probe = document.createElement("canvas");
+
+  probe.width = 32;
+  probe.height = 32;
+
+  const ctx = probe.getContext("2d");
+
+  if (!ctx) {
+    canvasBlurSupport = false;
+    return false;
+  }
+
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, 32, 32);
+  ctx.filter = "blur(4px)";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(15, 15, 2, 2);
+
+  try {
+    const [red] = ctx.getImageData(13, 16, 1, 1).data;
+
+    canvasBlurSupport = red > 0;
+  } catch {
+    canvasBlurSupport = false;
+  }
+
+  return canvasBlurSupport;
+}
+
+/**
  * Rasterise both ellipses into one blurred RGBA texture: R is blob 1's
  * coverage, G is blob 2's. The canvas blur is the same implementation the CSS
  * filter uses, so the shader gets the exact soft edge instead of an analytic
@@ -356,6 +397,10 @@ function buildBlurTexture(
   width: number,
   height: number,
 ): BlurTexture | { error: string } {
+  if (!supportsCanvasBlur()) {
+    return { error: "Canvas blur is not applied by this browser." };
+  }
+
   const margin = Math.ceil(tokens.blur * TEXTURE_MARGIN_SIGMAS);
   const worldWidth = width + margin * 2;
   const worldHeight = height + margin * 2;
@@ -370,13 +415,6 @@ function buildBlurTexture(
 
   if (!ctx) return { error: "A 2D canvas is not available." };
 
-  ctx.filter = "blur(1px)";
-
-  if (ctx.filter !== "blur(1px)") {
-    return { error: "Canvas blur is not supported." };
-  }
-
-  ctx.filter = "none";
   ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
   ctx.globalCompositeOperation = "lighter";
