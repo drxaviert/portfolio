@@ -1,10 +1,12 @@
 /*
  * Ring hover — promoted from /dev/proto/card-hover ("Ring + nav bar").
  *
- * Every host is one ring surface: a frame (the 1px edge, clipped to the rest
- * inset), a glow inside that frame, and the host's fill one pixel inside the
- * frame. On hover the frame opens to the host's box, so the card grows into
- * the space it already occupies; the glow trails the cursor.
+ * Every host is one ring surface: a frame (the 1px edge), a glow inside that
+ * frame, and the host's fill one pixel inside the frame. Both layers are
+ * oversized by the grow amounts and clipped back to the host's box at rest,
+ * so the resting surface is exactly the Figma card box (no stroke). On hover
+ * the clip opens to the oversized box, so the ring grows outward past the
+ * Figma box into the gutters; the glow trails the cursor.
  *
  * Numbers are the decided defaults from the decision doc; the only values that
  * differ per host are the geometry vars below.
@@ -16,10 +18,13 @@
  */
 
 .ring-host {
-  --ring-rest-y: 6px;
-  --ring-rest-x: 3.5px;
+  /* How far the ring grows past the host box on hover (into the gutters). */
+  --ring-grow-y: 6px;
+  --ring-grow-x: 3.5px;
   --ring-radius: 12px;
+  --ring-open-radius: calc(var(--ring-radius) + 4px);
   --ring-inner-radius: 11px;
+  --ring-open-inner-radius: calc(var(--ring-open-radius) - 1px);
   --ring-glow-size: 614px;
   --ring-grow: 800ms;
   --ring-follow: 1000ms;
@@ -41,11 +46,15 @@
 
 .ring-frame {
   position: absolute;
-  inset: 0;
+  inset: calc(var(--ring-grow-y) * -1) calc(var(--ring-grow-x) * -1);
   z-index: -2;
-  border-radius: var(--ring-radius);
+  border-radius: var(--ring-open-radius);
   background-color: var(--ring-line);
-  clip-path: inset(var(--ring-rest-y) var(--ring-rest-x) round var(--ring-radius));
+  /* One pixel inside the host box at rest: hidden under the surface. */
+  clip-path: inset(
+    calc(var(--ring-grow-y) + 1px) calc(var(--ring-grow-x) + 1px) round
+      var(--ring-radius)
+  );
   transition: clip-path var(--ring-grow) var(--ring-ease);
 }
 
@@ -78,12 +87,12 @@
 
 .ring-surface {
   position: absolute;
-  inset: 0;
+  inset: calc(var(--ring-grow-y) * -1) calc(var(--ring-grow-x) * -1);
   z-index: -1;
-  border-radius: var(--ring-radius);
+  border-radius: var(--ring-open-radius);
+  /* At rest the clip is the host box exactly: the Figma card, radius 12. */
   clip-path: inset(
-    calc(var(--ring-rest-y) + 1px) calc(var(--ring-rest-x) + 1px) round
-      var(--ring-inner-radius)
+    var(--ring-grow-y) var(--ring-grow-x) round var(--ring-radius)
   );
   transition: clip-path var(--ring-grow) var(--ring-ease);
 }
@@ -98,11 +107,11 @@
   }
 
   .ring-host:hover .ring-frame {
-    clip-path: inset(0 round var(--ring-radius));
+    clip-path: inset(0 round var(--ring-open-radius));
   }
 
   .ring-host:hover .ring-surface {
-    clip-path: inset(1px round var(--ring-inner-radius));
+    clip-path: inset(1px round var(--ring-open-inner-radius));
   }
 
   .ring-host:hover .ring-glow {
@@ -126,12 +135,12 @@
 
 .ring-host:focus-visible .ring-frame,
 .ring-host:has(:focus-visible) .ring-frame {
-  clip-path: inset(0 round var(--ring-radius));
+  clip-path: inset(0 round var(--ring-open-radius));
 }
 
 .ring-host:focus-visible .ring-surface,
 .ring-host:has(:focus-visible) .ring-surface {
-  clip-path: inset(1px round var(--ring-inner-radius));
+  clip-path: inset(1px round var(--ring-open-inner-radius));
 }
 
 .ring-host:focus-visible .ring-glow,
@@ -150,20 +159,32 @@
     transition: none;
   }
 
-  /* No growth: every host rests at its open geometry. */
+  /* No growth: hosts stay at the Figma box; hover/focus reveal the ring
+     inside it instead of pushing it outward. */
   .ring-frame,
   .ring-host:hover .ring-frame,
   .ring-host:focus-visible .ring-frame,
   .ring-host:has(:focus-visible) .ring-frame {
-    clip-path: inset(0 round var(--ring-radius));
+    clip-path: inset(
+      var(--ring-grow-y) var(--ring-grow-x) round var(--ring-radius)
+    );
     transition: none;
   }
 
-  .ring-surface,
+  .ring-surface {
+    clip-path: inset(
+      var(--ring-grow-y) var(--ring-grow-x) round var(--ring-radius)
+    );
+    transition: none;
+  }
+
   .ring-host:hover .ring-surface,
   .ring-host:focus-visible .ring-surface,
   .ring-host:has(:focus-visible) .ring-surface {
-    clip-path: inset(1px round var(--ring-inner-radius));
+    clip-path: inset(
+      calc(var(--ring-grow-y) + 1px) calc(var(--ring-grow-x) + 1px) round
+        var(--ring-inner-radius)
+    );
     transition: none;
   }
 

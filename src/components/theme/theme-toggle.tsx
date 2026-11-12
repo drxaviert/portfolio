@@ -231,7 +231,7 @@ export function ThemeToggle() {
         })}
       </div>
 
-      {/* Below 768px: a 32x32 button that opens the menu below it. */}
+      {/* Below 768px: a 32x32 button that opens the menu above it. */}
       <div className="relative md:hidden">
         <button
           ref={triggerRef}
@@ -252,7 +252,7 @@ export function ThemeToggle() {
             aria-label="Theme"
             onKeyDown={onMenuKeyDown}
             onBlur={onMenuBlur}
-            className="absolute top-full right-0 z-50 mt-2 w-[168px] rounded-lg bg-surface-container-low p-1 shadow-card"
+            className="absolute right-0 bottom-full z-50 mb-2 flex w-[168px] flex-col gap-0.5 rounded-lg bg-surface-container-low p-1 shadow-card"
           >
             {OPTIONS.map((option) => {
               const selected = option.mode === mode;
@@ -269,7 +269,7 @@ export function ThemeToggle() {
                     triggerRef.current?.focus();
                   }}
                   className={[
-                    "flex h-[42px] w-full items-center gap-3 rounded-md px-3 text-left text-sm outline-hidden",
+                    "flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-base leading-5 font-medium outline-hidden",
                     "focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary",
                     selected
                       ? "bg-surface-container-high text-on-surface"

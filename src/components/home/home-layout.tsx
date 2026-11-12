@@ -54,13 +54,13 @@ export function HomeLayout() {
         />
 
         <div className="relative mx-auto my-auto flex w-full max-w-[1136px] flex-col gap-3">
-          {/* Frame lines: the 1200-wide hairlines sit 64px above and below
-              the content column (Figma 121:2007/121:2008). */}
+          {/* Frame lines: the 1200-wide hairlines sit 65px above and 64px
+              below the content column (Figma 121:2007/121:2008). */}
           <span
             aria-hidden="true"
             data-frame-line="h"
             className="pointer-events-none absolute -inset-x-8 hidden h-px bg-frame-line min-[1440px]:block"
-            style={{ top: "calc(var(--frame-gap) * -1)" }}
+            style={{ top: "calc(var(--frame-gap) * -1 - 1px)" }}
           />
           <span
             aria-hidden="true"
