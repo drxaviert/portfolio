@@ -69,6 +69,85 @@ export const HORIZON_MOTION_DEFAULTS: Required<HorizonMotionTuning> = {
   breatheDepth: 13,
 };
 
+/** How the static grain layer composites over the glow. */
+export type HorizonDitherBlend = "normal" | "overlay" | "soft-light";
+
+/**
+ * Static grain that breaks up 8-bit banding in the dark, low-alpha glow.
+ * Off by default so / keeps the untouched gradient.
+ */
+export type HorizonDither = {
+  enabled?: boolean;
+  /** Overlay opacity in percent (0-8). */
+  strength?: number;
+  blend?: HorizonDitherBlend;
+};
+
+/** Backdrop gradient interpolation; "oklab" adds eased intermediate stops. */
+export type HorizonGradientMode = "srgb" | "oklab";
+
+export const HORIZON_DITHER_DEFAULTS: Required<HorizonDither> = {
+  enabled: false,
+  strength: 3,
+  blend: "normal",
+};
+
+/**
+ * A tiled fractal-noise SVG, rasterised once by the browser and repeated. It
+ * never animates, so it costs one paint at mount and nothing per frame.
+ */
+const NOISE_TILE_PX = 220;
+const NOISE_URI = `url("data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${NOISE_TILE_PX}" height="${NOISE_TILE_PX}"><filter id="n" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="${NOISE_TILE_PX}" height="${NOISE_TILE_PX}" filter="url(#n)"/></svg>`,
+)}")`;
+
+/** Smoothstep positions for the eased stops; denser at both ends. */
+const EASED_STOPS = [0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875].map((t) => ({
+  t,
+  eased: Number((t * t * (3 - 2 * t)).toFixed(4)),
+}));
+
+function mix(from: string, to: string, percent: number): string {
+  return `color-mix(in oklab, ${from} ${percent}%, ${to})`;
+}
+
+function easedRamp(
+  from: string,
+  to: string,
+  start: string,
+  span: string,
+): string {
+  return EASED_STOPS.map(
+    ({ t, eased }) =>
+      `${mix(from, to, t * 100)} calc(${start} + (${span}) * ${eased})`,
+  ).join(", ");
+}
+
+const SRGB_BACKDROP =
+  "linear-gradient(180deg, var(--horizon-base) 0%, var(--horizon-base) 70%, var(--horizon-mid) var(--horizon-mid-at), var(--horizon-3) 100%)";
+
+/*
+ * The banding is the gradient's own quantisation: over the 70% -> 100% ramp the
+ * channel values move a few steps, so each step reads as a ring. Oklab makes
+ * the ramp perceptually even and the extra stops keep long straight segments
+ * from concentrating the steps.
+ */
+const OKLAB_BACKDROP = `linear-gradient(in oklab 180deg, var(--horizon-base) 0%, var(--horizon-base) 70%, ${easedRamp(
+  "var(--horizon-base)",
+  "var(--horizon-mid)",
+  "70%",
+  "var(--horizon-mid-at) - 70%",
+)}, var(--horizon-mid) var(--horizon-mid-at), ${easedRamp(
+  "var(--horizon-mid)",
+  "var(--horizon-3)",
+  "var(--horizon-mid-at)",
+  "100% - var(--horizon-mid-at)",
+)}, var(--horizon-3) 100%)`;
+
+export function backdropGradient(mode: HorizonGradientMode): string {
+  return mode === "oklab" ? OKLAB_BACKDROP : SRGB_BACKDROP;
+}
+
 /** Blob 2's loop is deliberately a different length, so the pair never syncs. */
 const SECOND_BLOB_PERIOD_RATIO = 0.82;
 /** Start blob 2 partway round, not at zero, for the same reason. */
@@ -147,12 +226,17 @@ export function HorizonBackground({
   position = "absolute",
   motion = "none",
   tuning,
+  dither,
+  gradient = "srgb",
 }: {
   position?: "absolute" | "fixed";
   motion?: HorizonMotionVariant;
   tuning?: HorizonMotionTuning;
+  dither?: HorizonDither;
+  gradient?: HorizonGradientMode;
 }) {
   const placement = position === "fixed" ? "fixed" : "absolute";
+  const grain = { ...HORIZON_DITHER_DEFAULTS, ...dither };
 
   const blobs = (
     <>
@@ -164,14 +248,13 @@ export function HorizonBackground({
   return (
     <div
       aria-hidden="true"
-      className={`pointer-events-none ${placement} inset-0 overflow-hidden`}
+      className={`pointer-events-none ${placement} inset-0 overflow-hidden${
+        grain.enabled ? " isolate" : ""
+      }`}
     >
       <div
         className="absolute inset-0"
-        style={{
-          backgroundImage:
-            "linear-gradient(180deg, var(--horizon-base) 0%, var(--horizon-base) 70%, var(--horizon-mid) var(--horizon-mid-at), var(--horizon-3) 100%)",
-        }}
+        style={{ backgroundImage: backdropGradient(gradient) }}
       />
 
       {motion === "none" ? (
@@ -179,6 +262,20 @@ export function HorizonBackground({
       ) : (
         <HorizonPauseScope motion={motion}>{blobs}</HorizonPauseScope>
       )}
+
+      {/* Static, tiled grain: breaks the 8-bit steps without moving a pixel. */}
+      {grain.enabled && grain.strength > 0 ? (
+        <div
+          className="horizon-grain absolute inset-0"
+          style={{
+            backgroundImage: NOISE_URI,
+            backgroundSize: `${NOISE_TILE_PX}px ${NOISE_TILE_PX}px`,
+            backgroundRepeat: "repeat",
+            opacity: grain.strength / 100,
+            mixBlendMode: grain.blend,
+          }}
+        />
+      ) : null}
     </div>
   );
 }

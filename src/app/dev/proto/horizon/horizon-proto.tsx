@@ -6,6 +6,8 @@ import {
   HorizonBackground,
 } from "@/components/horizon/horizon-background";
 import type {
+  HorizonDitherBlend,
+  HorizonGradientMode,
   HorizonMotionTuning,
   HorizonMotionVariant,
 } from "@/components/horizon/horizon-background";
@@ -23,14 +25,33 @@ const VARIANTS: { value: HorizonMotionVariant; label: string }[] = [
 
 const PHASES: Phase[] = ["dawn", "day", "dusk", "night"];
 
+const BLENDS: { value: HorizonDitherBlend; label: string }[] = [
+  { value: "normal", label: "normal" },
+  { value: "overlay", label: "overlay" },
+  { value: "soft-light", label: "soft-light" },
+];
+
+const GRADIENTS: { value: HorizonGradientMode; label: string }[] = [
+  { value: "srgb", label: "sRGB (current)" },
+  { value: "oklab", label: "oklab + eased stops" },
+];
+
 type ProtoState = {
   variant: HorizonMotionVariant;
   tuning: HorizonMotionTuning;
+  dither: boolean;
+  ditherStrength: number;
+  ditherBlend: HorizonDitherBlend;
+  gradient: HorizonGradientMode;
 };
 
 const DEFAULT_STATE: ProtoState = {
   variant: "drift-breathe",
   tuning: HORIZON_MOTION_DEFAULTS,
+  dither: true,
+  ditherStrength: 3,
+  ditherBlend: "normal",
+  gradient: "srgb",
 };
 
 /** Drift keeps the Figma ratio: 1.5% across for every 1% down. */
@@ -54,14 +75,35 @@ function readStoredState(): ProtoState | null {
     const parsed = JSON.parse(raw) as {
       variant?: unknown;
       tuning?: Record<string, unknown>;
+      dither?: unknown;
+      ditherStrength?: unknown;
+      ditherBlend?: unknown;
+      gradient?: unknown;
     };
     const variant = VARIANTS.find(
       (entry) => entry.value === parsed?.variant,
     )?.value;
     const tuning = parsed?.tuning ?? {};
+    const ditherBlend = BLENDS.find(
+      (entry) => entry.value === parsed?.ditherBlend,
+    )?.value;
+    const gradient = GRADIENTS.find(
+      (entry) => entry.value === parsed?.gradient,
+    )?.value;
 
     return {
       variant: variant ?? DEFAULT_STATE.variant,
+      dither:
+        typeof parsed?.dither === "boolean"
+          ? parsed.dither
+          : DEFAULT_STATE.dither,
+      ditherStrength: clamp(
+        numberOr(parsed?.ditherStrength, DEFAULT_STATE.ditherStrength),
+        0,
+        8,
+      ),
+      ditherBlend: ditherBlend ?? DEFAULT_STATE.ditherBlend,
+      gradient: gradient ?? DEFAULT_STATE.gradient,
       tuning: {
         driftPeriod: clamp(
           numberOr(tuning.driftPeriod, HORIZON_MOTION_DEFAULTS.driftPeriod),
@@ -194,6 +236,7 @@ export function HorizonProto() {
     `/dev/proto/horizon · variant: ${state.variant}`,
     `drift: ${tuning.driftPeriod}s · travel ${tuning.driftTravelX}% x / ${tuning.driftTravelY}% y`,
     `breathe: ${tuning.breathePeriod}s · scale ${(1 + tuning.breatheScale / 100).toFixed(2)} · opacity 1 → ${(1 - tuning.breatheDepth / 100).toFixed(2)}`,
+    `deband: dither ${state.dither ? `on · ${state.ditherStrength}% ${state.ditherBlend}` : "off"} · gradient ${state.gradient}`,
   ].join("\n");
 
   async function copyValues() {
@@ -219,6 +262,12 @@ export function HorizonProto() {
         position="fixed"
         motion={state.variant}
         tuning={tuning}
+        dither={{
+          enabled: state.dither,
+          strength: state.ditherStrength,
+          blend: state.ditherBlend,
+        }}
+        gradient={state.gradient}
       />
 
       <header className="hz-head">
@@ -406,6 +455,75 @@ export function HorizonProto() {
                   patchTuning({ breatheDepth: Number(event.target.value) })
                 }
               />
+            </Row>
+
+            <p className="hz-group">Debanding</p>
+
+            <label className="hz-check" htmlFor="hz-dither">
+              <input
+                id="hz-dither"
+                type="checkbox"
+                checked={state.dither}
+                onChange={(event) => patch({ dither: event.target.checked })}
+              />
+              Dither grain
+            </label>
+
+            <Row
+              id="hz-dither-strength"
+              label="Strength"
+              value={`${state.ditherStrength}%`}
+            >
+              <input
+                id="hz-dither-strength"
+                className="hz-range"
+                type="range"
+                min={0}
+                max={8}
+                step={0.5}
+                value={state.ditherStrength}
+                onChange={(event) =>
+                  patch({ ditherStrength: Number(event.target.value) })
+                }
+              />
+            </Row>
+
+            <Row id="hz-dither-blend" label="Blend" value={state.ditherBlend}>
+              <select
+                id="hz-dither-blend"
+                className="hz-select"
+                value={state.ditherBlend}
+                onChange={(event) =>
+                  patch({
+                    ditherBlend: event.target.value as HorizonDitherBlend,
+                  })
+                }
+              >
+                {BLENDS.map((entry) => (
+                  <option key={entry.value} value={entry.value}>
+                    {entry.label}
+                  </option>
+                ))}
+              </select>
+            </Row>
+
+            <Row id="hz-gradient" label="Gradient" value={state.gradient}>
+              <select
+                id="hz-gradient"
+                className="hz-select"
+                value={state.gradient}
+                onChange={(event) =>
+                  patch({
+                    gradient: event.target.value as HorizonGradientMode,
+                  })
+                }
+              >
+                {GRADIENTS.map((entry) => (
+                  <option key={entry.value} value={entry.value}>
+                    {entry.label}
+                  </option>
+                ))}
+              </select>
             </Row>
 
             <div className="hz-footer">

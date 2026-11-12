@@ -215,6 +215,39 @@
   cursor: pointer;
 }
 
+.hz-select {
+  grid-column: 1 / -1;
+  width: 100%;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.hz-select:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 2px;
+}
+
+.hz-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+}
+
+.hz-check input {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: rgba(255, 255, 255, 0.8);
+}
+
 .hz-footer {
   display: flex;
   align-items: center;
