@@ -37,9 +37,13 @@
 
   position: relative;
   isolation: isolate;
-  /* The fill and the edge move to the layers. */
+  /* The fill and the edge move to the layers. The shadow stays on the host
+     box: .ring-surface is oversized and clipped back to this box at rest, so
+     it would clip the shadow entirely. The host box is the Figma card, and
+     the surface only grows outward on hover. Not transitioned, so a theme
+     switch swaps the token without animating the edge. */
   background-color: transparent;
-  box-shadow: none;
+  box-shadow: var(--shadow-card);
   transition: z-index 100ms steps(1);
 }
 
