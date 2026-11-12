@@ -15,8 +15,8 @@
 /*
  * Horizon glow tokens are registered so a phase switch interpolates them: the
  * page gradient and the blob tints recompute from the animated values instead
- * of snapping. Only the prototype background renders them, and the 400ms
- * crossfade below is skipped under prefers-reduced-motion.
+ * of snapping. / and /dev/prototype both render the horizon background, and
+ * the 400ms crossfade below is skipped under prefers-reduced-motion.
  */
 @property --horizon-base {
   syntax: "<color>";
@@ -107,11 +107,6 @@
     --orb-3 var(--horizon-transition-duration) var(--horizon-transition-ease),
     --orb-2-at var(--horizon-transition-duration)
       var(--horizon-transition-ease);
-}
-
-/* A slider or colour drag applies instantly; phase switches still crossfade. */
-:root[data-horizon-tuning] {
-  transition: none;
 }
 
 /*

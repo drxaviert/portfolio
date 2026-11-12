@@ -5,6 +5,12 @@
  * panel, but phase-token themed instead of opaque dark glass.
  */
 export const GLOW_TUNER_CSS = `
+/* A slider or colour drag applies instantly; phase switches still crossfade.
+   Injected with the panel, so the production routes never ship this hook. */
+:root[data-horizon-tuning] {
+  transition: none;
+}
+
 .glow-tuner {
   position: fixed;
   right: 12px;
