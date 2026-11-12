@@ -23,8 +23,8 @@ import "./horizon-motion.css";
  *
  * Bottom-corner blob tint: the phase hue at the phase's own alpha.
  */
-function blobTint(blob: 1 | 2): string {
-  return `color-mix(in srgb, var(--horizon-${blob}) calc(var(--horizon-${blob}-alpha) * 100%), transparent)`;
+function blobTint(blob: 1 | 2, intensity = 1): string {
+  return `color-mix(in srgb, var(--horizon-${blob}) calc(var(--horizon-${blob}-alpha) * ${intensity * 100}%), transparent)`;
 }
 
 /** 900x420 at -200/860 and 1000x460 at 700/820 in the 1440 frame. */
@@ -190,16 +190,18 @@ function HorizonBlob({
   blob,
   motion,
   tuning,
+  intensity,
 }: {
   blob: 1 | 2;
   motion: HorizonMotionVariant;
   tuning?: HorizonMotionTuning;
+  intensity: number;
 }) {
   const visual = (
     <div
       data-horizon-blob=""
       className={BLOB_CLASS}
-      style={{ ...blobBox(blob), backgroundColor: blobTint(blob) }}
+      style={{ ...blobBox(blob), backgroundColor: blobTint(blob, intensity) }}
     />
   );
 
@@ -228,20 +230,36 @@ export function HorizonBackground({
   tuning,
   dither,
   gradient = "srgb",
+  intensity = 1,
 }: {
   position?: "absolute" | "fixed";
   motion?: HorizonMotionVariant;
   tuning?: HorizonMotionTuning;
   dither?: HorizonDither;
   gradient?: HorizonGradientMode;
+  /**
+   * Prototype viewing aid: multiplies the blob alpha so the glow can be judged
+   * on a near-black surface. 1 is the shipped picture.
+   */
+  intensity?: number;
 }) {
   const placement = position === "fixed" ? "fixed" : "absolute";
   const grain = { ...HORIZON_DITHER_DEFAULTS, ...dither };
 
   const blobs = (
     <>
-      <HorizonBlob blob={1} motion={motion} tuning={tuning} />
-      <HorizonBlob blob={2} motion={motion} tuning={tuning} />
+      <HorizonBlob
+        blob={1}
+        motion={motion}
+        tuning={tuning}
+        intensity={intensity}
+      />
+      <HorizonBlob
+        blob={2}
+        motion={motion}
+        tuning={tuning}
+        intensity={intensity}
+      />
     </>
   );
 

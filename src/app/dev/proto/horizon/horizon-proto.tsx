@@ -229,6 +229,9 @@ export function HorizonProto() {
   const [copied, setCopied] = useState(false);
   const [webglFailed, setWebglFailed] = useState(false);
   const [webglError, setWebglError] = useState<string | null>(null);
+  // Viewing aid, deliberately outside ProtoState: never stored, never copied.
+  const [boost, setBoost] = useState(false);
+  const [boostFactor, setBoostFactor] = useState(4);
   const copyTimer = useRef<number | null>(null);
 
   // Stored values are read after mount so server and client markup match: a
@@ -304,6 +307,8 @@ export function HorizonProto() {
 
   function reset() {
     setState({ ...DEFAULT_STATE, tuning: DEFAULT_TUNING });
+    setBoost(false);
+    setBoostFactor(4);
   }
 
   return (
@@ -314,6 +319,7 @@ export function HorizonProto() {
           tuning={tuning}
           ditherLsb={state.webglDither}
           dprCap={state.webglDpr}
+          intensity={boost ? boostFactor : 1}
           fadeIn={false}
           onFallback={(reason) => {
             setWebglError(reason);
@@ -332,6 +338,7 @@ export function HorizonProto() {
             blend: state.ditherBlend,
           }}
           gradient={state.gradient}
+          intensity={boost ? boostFactor : 1}
         />
       )}
 
@@ -528,6 +535,48 @@ export function HorizonProto() {
                 }
               />
             </Row>
+
+            <p className="hz-group">
+              Viewing aid <span>display only</span>
+            </p>
+
+            <label className="hz-toggle" htmlFor="hz-boost">
+              <input
+                id="hz-boost"
+                type="checkbox"
+                checked={boost}
+                onChange={(event) => setBoost(event.target.checked)}
+              />
+              <span>Boost glow</span>
+              <span className="hz-toggle-value">
+                {boost ? `×${boostFactor}` : "off"}
+              </span>
+            </label>
+
+            {boost ? (
+              <Row
+                id="hz-boost-factor"
+                label="Glow boost"
+                value={`×${boostFactor}`}
+              >
+                <input
+                  id="hz-boost-factor"
+                  className="hz-range"
+                  type="range"
+                  min={1}
+                  max={8}
+                  step={0.5}
+                  value={boostFactor}
+                  onChange={(event) =>
+                    setBoostFactor(Number(event.target.value))
+                  }
+                />
+                <p className="hz-note hz-boost-note">
+                  Glow alpha ×{boostFactor} for judging motion. Motion, dither
+                  and copied values are untouched.
+                </p>
+              </Row>
+            ) : null}
 
             <p className="hz-group">Renderer</p>
 

@@ -464,6 +464,7 @@ export function HorizonShader({
   ditherLsb = 1,
   dprCap = 1.5,
   fadeIn = true,
+  intensity = 1,
   onFallback,
 }: {
   motion: HorizonMotionVariant;
@@ -471,12 +472,17 @@ export function HorizonShader({
   ditherLsb?: number;
   dprCap?: number;
   fadeIn?: boolean;
+  /**
+   * Prototype viewing aid: multiplies the blob alpha so the glow can be judged
+   * on a near-black surface. 1 is the shipped picture.
+   */
+  intensity?: number;
   onFallback?: (reason: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
   const requestFrameRef = useRef<() => void>(() => {});
-  const paramsRef = useRef({ motion, tuning, ditherLsb, dprCap });
+  const paramsRef = useRef({ motion, tuning, ditherLsb, dprCap, intensity });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -651,8 +657,8 @@ export function HorizonShader({
       gl.uniform1f(uniforms.midAt, tokens.midAt);
       gl.uniform3fv(uniforms.color1, tokens.color1);
       gl.uniform3fv(uniforms.color2, tokens.color2);
-      gl.uniform1f(uniforms.alpha1, tokens.alpha1);
-      gl.uniform1f(uniforms.alpha2, tokens.alpha2);
+      gl.uniform1f(uniforms.alpha1, tokens.alpha1 * params.intensity);
+      gl.uniform1f(uniforms.alpha2, tokens.alpha2 * params.intensity);
       gl.uniform2f(
         uniforms.uvScale,
         1 / (blurTexture.worldWidth * dpr),
@@ -816,9 +822,9 @@ export function HorizonShader({
 
   // A parameter change needs a frame; motion needs the running loop.
   useEffect(() => {
-    paramsRef.current = { motion, tuning, ditherLsb, dprCap };
+    paramsRef.current = { motion, tuning, ditherLsb, dprCap, intensity };
     requestFrameRef.current();
-  }, [motion, tuning, ditherLsb, dprCap]);
+  }, [motion, tuning, ditherLsb, dprCap, intensity]);
 
   return (
     <div

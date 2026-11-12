@@ -256,3 +256,38 @@
   color: rgba(255, 255, 255, 0.35);
   font-size: 9px;
 }
+
+/* Viewing aid: a plain checkbox row followed by its factor slider. */
+.hz-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+}
+
+.hz-toggle input {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+}
+
+.hz-toggle-value {
+  margin-left: auto;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.hz-toggle:focus-within {
+  border-radius: 4px;
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 2px;
+}
+
+.hz-boost-note {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  line-height: 1.3;
+}
