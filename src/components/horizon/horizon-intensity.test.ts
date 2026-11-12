@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   alternateProgress,
+  baseStrength,
   breatheEnvelope,
   breatheIntensity,
 } from "./horizon-intensity";
@@ -121,6 +122,29 @@ describe("breathe intensity envelope", () => {
       ).toBe(1);
       expect(breatheIntensity({ progress, amp: 0 })).toBe(1);
     }
+  });
+});
+
+describe("rest strength", () => {
+  it("eases from the day base to the night base over the phase fade", () => {
+    expect(baseStrength({ base: 4, nightBase: 2.5, nightBlend: 0 })).toBe(4);
+    expect(baseStrength({ base: 4, nightBase: 2.5, nightBlend: 0.5 })).toBe(
+      3.25,
+    );
+    expect(baseStrength({ base: 4, nightBase: 2.5, nightBlend: 1 })).toBe(2.5);
+    // The shipped preset: a multiplier of exactly 1 at both ends.
+    expect(baseStrength({ base: 1, nightBase: 1, nightBlend: 1 })).toBe(1);
+    expect(baseStrength({})).toBe(1);
+  });
+
+  it("composes with the pulse: strength * (1 + amp * envelope)", () => {
+    const tuned = { base: 4, nightBase: 2.5, nightBlend: 1 };
+    const alpha = 0.06;
+    const strength = baseStrength(tuned);
+    const pulse = breatheIntensity({ progress: 0, amp: 0.3, peak: "core" });
+
+    expect(strength).toBe(2.5);
+    expect(alpha * strength * pulse).toBeCloseTo(0.06 * 2.5 * 1.3, 10);
   });
 });
 

@@ -110,6 +110,34 @@ export type BreatheIntensity = {
   reducedMotion?: boolean;
 };
 
+export type BaseStrength = {
+  /** Glow strength at rest in the day phases, as a multiplier on the alpha. */
+  base?: number;
+  /** Rest strength in the Night phase; blends over the phase fade. */
+  nightBase?: number;
+  /** 0 = day, 1 = full night; the phase fade interpolates it. */
+  nightBlend?: number;
+};
+
+/**
+ * The rest strength: `base`, eased towards `nightBase` as the phase fades to
+ * Night. It multiplies the blob alpha underneath the breathe pulse, so the two
+ * compose instead of replacing each other.
+ *
+ * The CSS fallback expresses the same line as a calc() on
+ * --horizon-base-strength (horizon-motion.css); keep the two in step.
+ */
+export function baseStrength({
+  base = 1,
+  nightBase = 1,
+  nightBlend = 0,
+}: BaseStrength): number {
+  const blend = Math.min(1, Math.max(0, nightBlend));
+
+  return base + (nightBase - base) * blend;
+}
+
+
 /**
  * The intensity multiplier for one blob: 1 + effectiveAmp * envelope, where
  * effectiveAmp is damped towards `amp * nightScale` as the phase fades to

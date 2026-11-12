@@ -1,40 +1,62 @@
 /*
- * Prototype chrome only: a label and the ambient picker. The page itself is
- * the real HorizonBackground, so everything here is deliberately neutral and
- * clearly "harness, not design". Fixed bottom-right so the glow stays visible.
+ * Prototype chrome only: a floating tuner over the real home layout. Everything
+ * here is deliberately neutral and clearly "harness, not design". Closed by
+ * default so the design is unobstructed; the pill sits in the 120px gutter at
+ * 1440 and opens the panel on demand.
  */
 
-.hz-head {
+.hz-fab {
   position: fixed;
-  top: 24px;
-  left: 24px;
-  z-index: 2147483645;
-  margin: 0;
-  color: var(--on-surface-variant);
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483646;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(10, 10, 10, 0.78);
+  -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  backdrop-filter: blur(10px) saturate(1.3);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 6px 18px rgba(0, 0, 0, 0.22);
+  color: rgba(255, 255, 255, 0.55);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  pointer-events: none;
+  font-size: 10px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.hz-kicker {
-  margin: 0;
-  color: var(--outline);
-  font-size: 10px;
+.hz-fab:hover {
+  background: rgba(10, 10, 10, 0.86);
+}
+
+.hz-fab:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 2px;
+}
+
+.hz-fab-label {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 9px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.hz-title {
-  margin: 4px 0 0;
-  color: var(--on-surface);
-  font-size: 18px;
+.hz-fab-value {
+  color: #fff;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: -0.01em;
 }
 
-.hz-sub {
-  margin: 2px 0 0;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
+.hz-fab-note {
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .hz-panel {
@@ -48,9 +70,10 @@
   width: 252px;
   max-height: calc(100dvh - 32px);
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 10px;
   border-radius: 14px;
-  background: rgba(10, 10, 10, 0.82);
+  background: rgba(10, 10, 10, 0.84);
   -webkit-backdrop-filter: blur(12px) saturate(1.4);
   backdrop-filter: blur(12px) saturate(1.4);
   box-shadow:
@@ -132,8 +155,7 @@
 }
 
 .hz-variants,
-.hz-renderers,
-.hz-phases {
+.hz-renderers {
   display: grid;
   gap: 2px;
   padding: 2px;
@@ -159,10 +181,6 @@
 
 .hz-renderers {
   grid-template-columns: repeat(2, 1fr);
-}
-
-.hz-phases {
-  grid-template-columns: repeat(4, 1fr);
 }
 
 .hz-warn {
@@ -238,24 +256,6 @@
   cursor: pointer;
 }
 
-.hz-select {
-  grid-column: 1 / -1;
-  width: 100%;
-  padding: 3px 4px;
-  border: 0;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  font: inherit;
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.hz-select:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.4);
-  outline-offset: 2px;
-}
-
 .hz-footer {
   display: flex;
   align-items: center;
@@ -267,39 +267,5 @@
 .hz-note {
   color: rgba(255, 255, 255, 0.35);
   font-size: 9px;
-}
-
-/* Viewing aid: a plain checkbox row followed by its factor slider. */
-.hz-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: rgba(255, 255, 255, 0.6);
-  cursor: pointer;
-}
-
-.hz-toggle input {
-  width: 12px;
-  height: 12px;
-  margin: 0;
-  accent-color: rgba(255, 255, 255, 0.8);
-  cursor: pointer;
-}
-
-.hz-toggle-value {
-  margin-left: auto;
-  color: #fff;
-  font-variant-numeric: tabular-nums;
-}
-
-.hz-toggle:focus-within {
-  border-radius: 4px;
-  outline: 2px solid rgba(255, 255, 255, 0.4);
-  outline-offset: 2px;
-}
-
-.hz-boost-note {
-  grid-column: 1 / -1;
-  margin: 2px 0 0;
   line-height: 1.3;
 }

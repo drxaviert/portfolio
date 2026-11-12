@@ -58,6 +58,15 @@
 
 .horizon-night-scope {
   --horizon-night-blend: 0;
+  /*
+   * Rest strength: base in the day phases, eased to the night base as the phase
+   * fades. Mirrors baseStrength() in horizon-intensity.ts.
+   */
+  --horizon-base-strength: calc(
+    var(--horizon-base-intensity, 1) +
+      (var(--horizon-night-base-intensity, 1) - var(--horizon-base-intensity, 1)) *
+      var(--horizon-night-blend)
+  );
   transition: --horizon-night-blend var(--horizon-transition-duration, 400ms)
     var(--horizon-transition-ease, ease-in-out);
 }
@@ -122,16 +131,38 @@
  * the animation and change its phase.
  *
  * Peak strength = amp, damped towards amp * night scale as the phase fades to
- * night. Both multipliers stay custom properties, so the transition on
+ * night, and multiplied onto the rest strength the tint already carries. Both
+ * multipliers stay custom properties, so the transition on
  * --horizon-night-blend drives the damping frame by frame.
  */
 .horizon-motion-layer .horizon-motion-intensity {
+  /*
+   * Conservative peak: the layer's own opacity. A second copy of a blob at
+   * alpha a adds a * p * (1 - a) of effective coverage, so a higher rest
+   * strength makes this slightly softer than the shader's exact multiply; the
+   * @supports block below corrects it where calc() can divide.
+   */
   --horizon-intensity-peak: calc(
     var(--horizon-intensity-amp, 0) *
       (1 - var(--horizon-night-blend, 0) * (1 - var(--horizon-intensity-night, 1)))
   );
   animation: horizon-intensity var(--horizon-breathe-period, 16s) ease-in-out
     var(--horizon-breathe-delay, 0s) infinite alternate-reverse;
+}
+
+@supports (opacity: calc(1 / (1 - 0.5))) {
+  /* Solve the stack for a * (1 + amp): divide by the coverage left over. */
+  .horizon-motion-layer .horizon-motion-intensity {
+    --horizon-intensity-peak: calc(
+      var(--horizon-intensity-amp, 0) *
+        (1 - var(--horizon-night-blend, 0) * (1 - var(--horizon-intensity-night, 1))) /
+        (1 -
+          min(
+            0.9,
+            var(--horizon-blob-alpha, 0.06) * var(--horizon-base-strength, 1)
+          ))
+    );
+  }
 }
 
 .horizon-motion-layer .horizon-motion-intensity[data-peak="expand"] {

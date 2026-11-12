@@ -5,7 +5,11 @@ import type {
   HorizonMotionTuning,
   HorizonMotionVariant,
 } from "./horizon-background";
-import { alternateProgress, breatheIntensity } from "./horizon-intensity";
+import {
+  alternateProgress,
+  baseStrength,
+  breatheIntensity,
+} from "./horizon-intensity";
 import "./horizon-motion.css";
 
 /**
@@ -47,6 +51,8 @@ const DEFAULT_TUNING: Required<HorizonMotionTuning> = {
   intensityAmp: 0,
   nightIntensityScale: 0.6,
   intensityPeak: "core",
+  baseIntensity: 1,
+  nightBaseIntensity: 1,
 };
 
 /** Blob 2's loop differs so the pair never syncs (mirrors the CSS version). */
@@ -232,6 +238,8 @@ type MotionUniforms = {
   opacity2: number;
   intensity1: number;
   intensity2: number;
+  /** Rest strength, eased towards the night base over the phase fade. */
+  base: number;
 };
 
 function motionUniforms(
@@ -286,6 +294,11 @@ function motionUniforms(
     opacity2: 1 - (t.breatheDepth / 100) * breathe2,
     intensity1: intensity(breathe1),
     intensity2: intensity(breathe2),
+    base: baseStrength({
+      base: t.baseIntensity,
+      nightBase: t.nightBaseIntensity,
+      nightBlend,
+    }),
   };
 }
 
@@ -442,7 +455,6 @@ export function HorizonShader({
   ditherLsb = 1,
   dprCap = 1.5,
   fadeIn = true,
-  intensity = 1,
   onFallback,
 }: {
   motion: HorizonMotionVariant;
@@ -450,17 +462,12 @@ export function HorizonShader({
   ditherLsb?: number;
   dprCap?: number;
   fadeIn?: boolean;
-  /**
-   * Prototype viewing aid: multiplies the blob alpha so the glow can be judged
-   * on a near-black surface. 1 is the shipped picture.
-   */
-  intensity?: number;
   onFallback?: (reason: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
   const requestFrameRef = useRef<() => void>(() => {});
-  const paramsRef = useRef({ motion, tuning, ditherLsb, dprCap, intensity });
+  const paramsRef = useRef({ motion, tuning, ditherLsb, dprCap });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -639,15 +646,15 @@ export function HorizonShader({
       gl.uniform1f(uniforms.midAt, tokens.midAt);
       gl.uniform3fv(uniforms.color1, tokens.color1);
       gl.uniform3fv(uniforms.color2, tokens.color2);
-      // The static intensity prop scales the whole glow; the breathe envelope is
-      // its own per-frame multiplier, so both land in the same alpha uniform.
+      // Rest strength, then the breathe envelope: both are alpha multipliers,
+      // so they compose here exactly as the CSS tint and pulse layer do.
       gl.uniform1f(
         uniforms.alpha1,
-        tokens.alpha1 * params.intensity * animated.intensity1,
+        tokens.alpha1 * animated.base * animated.intensity1,
       );
       gl.uniform1f(
         uniforms.alpha2,
-        tokens.alpha2 * params.intensity * animated.intensity2,
+        tokens.alpha2 * animated.base * animated.intensity2,
       );
       gl.uniform2f(
         uniforms.uvScale,
@@ -812,9 +819,9 @@ export function HorizonShader({
 
   // A parameter change needs a frame; motion needs the running loop.
   useEffect(() => {
-    paramsRef.current = { motion, tuning, ditherLsb, dprCap, intensity };
+    paramsRef.current = { motion, tuning, ditherLsb, dprCap };
     requestFrameRef.current();
-  }, [motion, tuning, ditherLsb, dprCap, intensity]);
+  }, [motion, tuning, ditherLsb, dprCap]);
 
   return (
     <div

@@ -3,13 +3,14 @@ import { HorizonProto } from "./horizon-proto";
 import "./horizon-proto.css";
 
 /**
- * Throwaway prototype: the home horizon glow with the breathe-locked intensity
- * pulse behind a live picker — amplitude presets, the night damping, the A/B
- * peak and both renderers side by side in the same session.
+ * Throwaway prototype: the real home layout over the live horizon glow, with
+ * the strength and breathe-pulse tuner floating on top — rest boost for day and
+ * night, pulse presets, the A/B peak and both renderers.
  *
- * Dev-only; deep links 404 in a production build. The background is the real
- * HorizonBackground / HorizonShader full-screen, so the colours, blur, phase
- * crossfade and dither are the production ones.
+ * Dev-only; deep links 404 in a production build. The glow is the real
+ * HorizonBackground / HorizonShader with the production dither and gradient, and
+ * the design above it is the same HomeLayout / renders, so nothing here is a
+ * stand-in.
  */
 export const metadata = {
   title: "Prototype · horizon intensity",

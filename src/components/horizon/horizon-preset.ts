@@ -28,6 +28,10 @@ export const HORIZON_HOME_MOTION: Required<HorizonMotionTuning> = {
   nightIntensityScale: 0.6,
   /** Strength peaks while the blob is tight and opaque. */
   intensityPeak: "core",
+  /** The Figma alpha, unboosted: production stays here until a value is picked. */
+  baseIntensity: 1,
+  /** Night rest strength; 1 keeps the night picture untouched too. */
+  nightBaseIntensity: 1,
 };
 
 /** CSS fallback grain: enough to break 8-bit steps, invisible as texture. */
