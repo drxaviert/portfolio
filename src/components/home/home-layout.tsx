@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-import type { ReactNode } from "react";
 import { HorizonLive } from "@/components/horizon/horizon-live";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
@@ -23,9 +22,6 @@ const frameGapStyle = {
  * the same design. The dev route adds its tools (phase picker, glow tuner)
  * around this component and nothing else.
  *
- * `horizon` lets a dev route supply its own glow with the live tuning (the
- * intensity proto does). Omitted, the page renders the production HorizonLive.
- *
  * Mirrors the final Figma frames (Day 121:2003, Night 121:3243): a 1200-wide
  * frame with 1px hairlines, a tracker card plus the Play card shell, the
  * 753/180/83/84 main band and the nav bar.
@@ -34,10 +30,10 @@ const frameGapStyle = {
  * is one ring surface that grows into its own box and is lit by a glow in the
  * phase's horizon palette (see ring-hover.css).
  */
-export function HomeLayout({ horizon }: { horizon?: ReactNode }) {
+export function HomeLayout() {
   return (
     <main className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface">
-      {horizon === undefined ? <HorizonLive /> : horizon}
+      <HorizonLive />
       <RingHoverPointer />
 
       <div

@@ -454,14 +454,12 @@ export function HorizonShader({
   tuning,
   ditherLsb = 1,
   dprCap = 1.5,
-  fadeIn = true,
   onFallback,
 }: {
   motion: HorizonMotionVariant;
   tuning?: HorizonMotionTuning;
   ditherLsb?: number;
   dprCap?: number;
-  fadeIn?: boolean;
   onFallback?: (reason: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -719,15 +717,10 @@ export function HorizonShader({
     };
 
     const onFirstFrame = () => {
-      if (fadeIn) {
-        // Let the 0-opacity state paint once so the fade has a start value.
-        requestAnimationFrame(() => {
-          layer.dataset.ready = "true";
-        });
-        return;
-      }
-
-      layer.dataset.ready = "true";
+      // Let the 0-opacity state paint once so the fade has a start value.
+      requestAnimationFrame(() => {
+        layer.dataset.ready = "true";
+      });
     };
 
     const observer = new MutationObserver(() => {
@@ -827,9 +820,7 @@ export function HorizonShader({
     <div
       ref={layerRef}
       aria-hidden="true"
-      className={`pointer-events-none fixed inset-0${
-        fadeIn ? " horizon-canvas-layer" : ""
-      }`}
+      className="pointer-events-none fixed inset-0 horizon-canvas-layer"
     >
       {/* Carries the phase's night-blend property; see horizon-motion.css. */}
       <canvas

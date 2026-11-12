@@ -46,7 +46,7 @@ const EASE_IN_OUT_TABLE = (() => {
   return table;
 })();
 
-export function easeInOut(value: number): number {
+function easeInOut(value: number): number {
   const x = Math.min(1, Math.max(0, value)) * EASE_STEPS;
   const index = Math.floor(x);
   const fraction = x - index;
