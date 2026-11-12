@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 
 /**
- * Prototype-only "horizon glow" page background.
+ * "Horizon glow" page background.
  *
  * Mirrors the bg / stripe gradient in the Figma 1440 frames (Day 121:2004,
  * Night 121:3244, Dawn 121:4483, Dusk 121:5722): a flat surface that holds to
@@ -9,6 +9,11 @@ import type { CSSProperties } from "react";
  * ellipses tucked below the fold. Every colour and the blob geometry come from
  * per-phase --horizon-* tokens (globals.css), so data-phase alone recolours
  * every layer and the dev glow panel can tune the current phase.
+ *
+ * `fixed` covers the viewport on the home page; `absolute` fills the sized
+ * container it sits in (the prototype). Both are decorative and stay behind
+ * the content: the caller places the content in a positioned element after
+ * this one, so no stacking hack is needed.
  *
  * Bottom-corner blob tint: the phase hue at the phase's own alpha.
  */
@@ -26,11 +31,17 @@ function blobBox(blob: 1 | 2): CSSProperties {
   };
 }
 
-export function HorizonBackground() {
+export function HorizonBackground({
+  position = "absolute",
+}: {
+  position?: "absolute" | "fixed";
+}) {
+  const placement = position === "fixed" ? "fixed" : "absolute";
+
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 overflow-hidden"
+      className={`pointer-events-none ${placement} inset-0 overflow-hidden`}
     >
       <div
         className="absolute inset-0"

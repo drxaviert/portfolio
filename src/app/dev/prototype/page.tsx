@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
+import { HorizonBackground } from "@/components/horizon/horizon-background";
 import { GlowTuner } from "./glow-tuner";
-import { HorizonBackground } from "./horizon-background";
 import { PhasePicker } from "./phase-picker";
 import { PrototypeNav } from "./prototype-nav";
 import { RingLayers } from "./ring-hover";

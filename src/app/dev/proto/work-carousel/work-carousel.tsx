@@ -14,7 +14,7 @@ import {
 } from "react";
 import { useReducedMotion } from "motion/react";
 import type { Transition } from "motion/react";
-import { HorizonBackground } from "@/app/dev/prototype/horizon-background";
+import { HorizonBackground } from "@/components/horizon/horizon-background";
 import { PrototypeNav } from "@/app/dev/prototype/prototype-nav";
 import { RingHoverPointer } from "@/app/dev/prototype/ring-pointer";
 import { RingLayers } from "@/app/dev/prototype/ring-hover";
