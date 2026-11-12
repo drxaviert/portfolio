@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import "@/app/dev/prototype/ring-hover.css";
+import "@/components/home/ring-hover.css";
 import { WorkCarousel } from "./work-carousel";
 
 /**
@@ -7,8 +7,8 @@ import { WorkCarousel } from "./work-carousel";
  * squeezy carousel — one featured slot, medium slots and sliver hints, with
  * the Ring hover language from the card-hover round.
  *
- * Dev-only; deep links 404 in a production build. Imports from
- * /dev/prototype are read-only: that route belongs to another worker.
+ * Dev-only; deep links 404 in a production build. Shares the home nav, cards
+ * and ring styles from src/components/home with /.
  */
 export const metadata = {
   title: "Prototype · work carousel",

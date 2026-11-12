@@ -2,10 +2,10 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { RingLayers } from "./ring-hover";
 
 /**
- * Static nav from the Figma 1440 frame (121:2253).
+ * Home nav from the Figma 1440 frame (121:2253).
  *
- * The links and the design-system glyph are non-interactive on purpose: this
- * prototype's only interaction is the theme toggle. The head is the orb mark:
+ * The links and the design-system glyph are non-interactive on purpose: the
+ * only interaction here is the theme toggle. The head is the orb mark:
  * a 36px ball painted with the phase blob gradient (bottom-left → top-right)
  * and two matte eyes, so it recolours with the theme like the rest.
  *
@@ -31,7 +31,7 @@ const LINKS = [
   { label: "About", active: false },
 ];
 
-export function PrototypeNav() {
+export function HomeNav() {
   return (
     <nav
       aria-label="Primary"

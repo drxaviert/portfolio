@@ -1,5 +1,5 @@
 /**
- * Prototype-only stand-in for the top-left widget card (Figma "emoji" 121:2022).
+ * Contribution tracker widget for the top-left card (Figma "emoji" 121:2022).
  *
  * Figma fills the card with the GitHub contribution tracker: square cells,
  * radius 2, 3px gaps and a 3-dot pager. The card is 160 at 375, 220 at 768/1024

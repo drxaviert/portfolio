@@ -15,10 +15,10 @@ import {
 import { useReducedMotion } from "motion/react";
 import type { Transition } from "motion/react";
 import { HorizonBackground } from "@/components/horizon/horizon-background";
-import { PrototypeNav } from "@/app/dev/prototype/prototype-nav";
-import { RingHoverPointer } from "@/app/dev/prototype/ring-pointer";
-import { RingLayers } from "@/app/dev/prototype/ring-hover";
-import { TrackerWidget } from "@/app/dev/prototype/tracker-widget";
+import { HomeNav } from "@/components/home/home-nav";
+import { RingLayers } from "@/components/home/ring-hover";
+import { RingHoverPointer } from "@/components/home/ring-pointer";
+import { TrackerWidget } from "@/components/home/tracker-widget";
 import { CAROUSEL_CSS } from "./carousel-css";
 import { Controls, DEFAULT_SETTINGS, EASE_CURVES } from "./controls";
 import type { Settings } from "./controls";
@@ -336,7 +336,7 @@ export function WorkCarousel() {
               ))}
             </ul>
 
-            <PrototypeNav />
+            <HomeNav />
           </div>
         </div>
       </main>
