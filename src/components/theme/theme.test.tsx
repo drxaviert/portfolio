@@ -60,6 +60,7 @@ beforeEach(() => {
   delete root().dataset.phase;
   delete root().dataset.dayPhase;
   delete root().dataset.rowMotion;
+  delete root().dataset.rowClose;
   delete root().dataset.phasePreview;
   delete root().dataset.phaseSwitching;
   root().classList.remove("dark");
@@ -722,6 +723,43 @@ describe("ThemeToggle", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Day" }));
 
     expect(phaseRow()).toHaveAttribute("data-entering", "false");
+  });
+
+  it("closes immediately on pointer leave in Instant mode", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    root().dataset.rowClose = "instant";
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+    expect(phaseRow()).toHaveAttribute("data-exiting", "true");
+  });
+
+  it("keeps keyboard focus holding the row in Instant mode", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    root().dataset.rowClose = "instant";
+    renderToggle();
+
+    fireEvent.keyDown(document, { key: "Tab" });
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+
+    const dusk = screen.getByRole("radio", { name: "Dusk" });
+
+    act(() => dusk.focus());
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    act(() => dusk.blur());
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
   });
 
   it("keeps the raise and clears exiting when the row reopens mid-fade", () => {

@@ -9,13 +9,13 @@ export const ROW_MOTION_STORAGE_KEY = "theme-row-motion";
 export const ROW_MOTION_SPEED_STORAGE_KEY = "theme-row-motion-speed";
 
 export const ROW_MOTIONS = [
-  { value: 0, label: "0 Â· Current" },
-  { value: 1, label: "1 Â· Fade + rise" },
-  { value: 2, label: "2 Â· Popover scale" },
-  { value: 3, label: "3 Â· Soft blur" },
-  { value: 4, label: "4 Â· Clip unfold" },
-  { value: 5, label: "5 Â· Staggered segments" },
-  { value: 6, label: "6 Â· Stagger + icons" },
+  { value: 0, label: "0 \u00B7 Current" },
+  { value: 1, label: "1 \u00B7 Fade + rise" },
+  { value: 2, label: "2 \u00B7 Popover scale" },
+  { value: 3, label: "3 \u00B7 Soft blur" },
+  { value: 4, label: "4 \u00B7 Clip unfold" },
+  { value: 5, label: "5 \u00B7 Staggered segments" },
+  { value: 6, label: "6 \u00B7 Stagger + icons" },
 ] as const;
 
 export type RowMotion = (typeof ROW_MOTIONS)[number]["value"];
@@ -249,4 +249,31 @@ export function formatIconStrengthReadout(strength: number): string {
   return `${Number(strength.toFixed(2))}x - rays -${Math.round(
     ICON_BASE_RAYS_DEG * strength,
   )}deg / rise ${Math.round(ICON_BASE_RISE_PX * strength)}px`;
+}
+
+/** How long the row survives after the pointer leaves in the dev picker. */
+export const ROW_CLOSE_STORAGE_KEY = "theme-row-close";
+
+export type RowCloseMode = "700" | "instant";
+
+export function parseRowCloseMode(value: unknown): RowCloseMode {
+  return value === "instant" ? "instant" : "700";
+}
+
+export function readRowCloseMode(): RowCloseMode {
+  try {
+    return parseRowCloseMode(
+      window.localStorage.getItem(ROW_CLOSE_STORAGE_KEY),
+    );
+  } catch {
+    return "700";
+  }
+}
+
+export function writeRowCloseMode(mode: RowCloseMode): void {
+  try {
+    window.localStorage.setItem(ROW_CLOSE_STORAGE_KEY, mode);
+  } catch {
+    // Intentionally ignored: the current page keeps the chosen close mode.
+  }
 }

@@ -3,16 +3,20 @@ import {
   formatIconStrengthReadout,
   formatSpeedReadout,
   parseIconStrength,
+  parseRowCloseMode,
   parseRowIconStrengths,
   parseRowMotion,
   parseRowMotionSpeeds,
   parseRowSpeed,
+  readRowCloseMode,
   readRowIconStrengths,
   readRowMotion,
   readRowMotionSpeeds,
+  ROW_CLOSE_STORAGE_KEY,
   ROW_MOTION_ICON_STORAGE_KEY,
   ROW_MOTION_SPEED_STORAGE_KEY,
   ROW_MOTION_STORAGE_KEY,
+  writeRowCloseMode,
   writeRowIconStrengths,
   writeRowMotion,
   writeRowMotionSpeeds,
@@ -248,5 +252,48 @@ describe("formatIconStrengthReadout", () => {
     expect(formatIconStrengthReadout(2)).toBe(
       "2x - rays -90deg / rise 8px",
     );
+  });
+});
+
+describe("parseRowCloseMode", () => {
+  it("keeps instant and defaults everything else to 700ms", () => {
+    expect(parseRowCloseMode("instant")).toBe("instant");
+    expect(parseRowCloseMode("700")).toBe("700");
+    expect(parseRowCloseMode(null)).toBe("700");
+    expect(parseRowCloseMode("soon")).toBe("700");
+  });
+});
+
+describe("readRowCloseMode", () => {
+  it("reads the stored mode", () => {
+    window.localStorage.setItem(ROW_CLOSE_STORAGE_KEY, "instant");
+
+    expect(readRowCloseMode()).toBe("instant");
+  });
+
+  it("returns 700ms when storage access throws", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage blocked");
+    });
+
+    expect(readRowCloseMode()).toBe("700");
+  });
+});
+
+describe("writeRowCloseMode", () => {
+  it("stores the mode", () => {
+    writeRowCloseMode("instant");
+
+    expect(window.localStorage.getItem(ROW_CLOSE_STORAGE_KEY)).toBe(
+      "instant",
+    );
+  });
+
+  it("does not throw when storage access throws", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("storage blocked");
+    });
+
+    expect(() => writeRowCloseMode("700")).not.toThrow();
   });
 });

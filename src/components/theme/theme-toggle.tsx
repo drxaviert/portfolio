@@ -19,8 +19,10 @@ import {
   ICON_STRENGTH_MIN,
   ICON_STRENGTH_STEP,
   parseIconStrength,
+  parseRowCloseMode,
   parseRowMotion,
   parseRowSpeed,
+  readRowCloseMode,
   readRowIconStrengths,
   readRowMotion,
   readRowMotionSpeeds,
@@ -29,6 +31,7 @@ import {
   ROW_SPEED_MAX,
   ROW_SPEED_MIN,
   ROW_SPEED_STEP,
+  writeRowCloseMode,
   writeRowIconStrengths,
   writeRowMotion,
   writeRowMotionSpeeds,
@@ -503,6 +506,14 @@ export function ThemeToggle() {
       focusInside.current && inputModality.current === "keyboard";
 
     if (holdsOpen()) {
+      return;
+    }
+
+    // Instant mode exits on the same pointer-leave that used to start the
+    // timer; the desktop wrapper (toggle + gap bridge + row) is one hover
+    // region, so moving between them never fires this.
+    if (document.documentElement.dataset.rowClose === "instant") {
+      closeRow();
       return;
     }
 
@@ -1043,6 +1054,7 @@ function RowMotionPicker() {
   const iconRef = useRef<HTMLInputElement>(null);
   const iconResetRef = useRef<HTMLButtonElement>(null);
   const iconReadoutRef = useRef<HTMLOutputElement>(null);
+  const closeRef = useRef<HTMLSelectElement>(null);
 
   function applySpeed(motion: RowMotion, speed: number) {
     document.documentElement.style.setProperty(
@@ -1107,8 +1119,17 @@ function RowMotionPicker() {
     applySpeed(stored, storedSpeed(stored));
     applyIconStrength(stored, storedIconStrength(stored));
 
+    const closeMode = readRowCloseMode();
+
+    if (closeRef.current) {
+      closeRef.current.value = closeMode;
+    }
+
+    document.documentElement.dataset.rowClose = closeMode;
+
     return () => {
       delete document.documentElement.dataset.rowMotion;
+      delete document.documentElement.dataset.rowClose;
       document.documentElement.style.removeProperty("--row-motion-speed");
       document.documentElement.style.removeProperty("--row-icon-strength");
     };
@@ -1247,6 +1268,24 @@ function RowMotionPicker() {
         aria-live="polite"
         className="tabular-nums text-on-surface-variant"
       />
+
+      <label className="flex items-center gap-2">
+        <span className="text-on-surface-variant">Close</span>
+        <select
+          ref={closeRef}
+          defaultValue="700"
+          onChange={(event) => {
+            const next = parseRowCloseMode(event.currentTarget.value);
+
+            writeRowCloseMode(next);
+            document.documentElement.dataset.rowClose = next;
+          }}
+          className="bg-transparent text-on-surface outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          <option value="700">700ms (current)</option>
+          <option value="instant">Instant</option>
+        </select>
+      </label>
     </div>
   );
 }
