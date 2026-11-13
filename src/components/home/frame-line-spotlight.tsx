@@ -6,18 +6,21 @@ import "./frame-line-spotlight.css";
 /**
  * Spotlight hover for the four 1px page frame lines.
  *
- * The real lines stay in place; this adds one primary-coloured glow per line,
- * sampled from a single round pool of light around the cursor. Values are the
+ * The real lines stay in place; this adds a primary-coloured glow per line,
+ * sampled from one round pool of light that follows the cursor. Values are the
  * chosen prototype settings (see the frame-line hover handoff).
  *
- * One window pointermove listener batched in rAF; mask/opacity only; no React
- * state per frame. Reduced motion replaces the moving mask with a whole-line
- * opacity fade. The root is inert, aria-hidden and pointer-events-none.
+ * One window pointermove listener batched in rAF. Each line clips a fixed
+ * 400px radial-gradient pool (its falloff is the mask in
+ * frame-line-spotlight.css) to its own 1px strip, so a pointer frame only
+ * writes one transform and one inherited opacity — both composited — instead of
+ * rebuilding four mask-image gradients (a paint property) under the WebGL
+ * horizon. Reduced motion hides the pools and fades the whole line instead.
+ * The root is inert, aria-hidden and pointer-events-none.
  */
 
 const PROXIMITY = 80;
-const POOL_RADIUS = 200; // chosen size 400px / 2
-const BLEED_FALLOFF = 3;
+const POOL_RADIUS = 200; // chosen size 400px / 2 (= .frame-spot-pool's size)
 const JUNCTION_SNAP = 48;
 const BLEND_SOFTNESS = 120;
 const REDUCED_STRENGTH = 0.4;
@@ -25,6 +28,7 @@ const REDUCED_STRENGTH = 0.4;
 type FrameLine = {
   host: HTMLDivElement;
   glow: HTMLSpanElement;
+  pool: HTMLSpanElement;
   vertical: boolean;
   /** Line centre in viewport coordinates. */
   x: number;
@@ -32,10 +36,9 @@ type FrameLine = {
   /** Extent along the line in viewport coordinates. */
   start: number;
   end: number;
-  /** Start of the line in viewport coordinates (mask origin). */
-  viewportStart: number;
-  /** Line length, px. */
-  length: number;
+  /** Host box origin in viewport coordinates (the pool's origin). */
+  originLeft: number;
+  originTop: number;
 };
 
 type LineSample = {
@@ -50,18 +53,11 @@ function smoothstep(value: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** Gaussian falloff with a smooth window so the pool reaches zero at R. */
-function bleedFalloff(x: number): number {
-  if (x >= 1) return 0;
-  if (x <= 0) return 1;
-
-  return Math.exp(-BLEED_FALLOFF * x * x) * smoothstep(1 - x);
-}
-
 export function FrameLineSpotlight() {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const hostRefs = useRef<Array<HTMLDivElement | null>>([]);
   const glowRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const poolRefs = useRef<Array<HTMLSpanElement | null>>([]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -81,19 +77,24 @@ export function FrameLineSpotlight() {
     const glows = glowRefs.current.filter(
       (glow): glow is HTMLSpanElement => glow !== null,
     );
+    const pools = poolRefs.current.filter(
+      (pool): pool is HTMLSpanElement => pool !== null,
+    );
 
-    if (hosts.length !== 4 || glows.length !== 4) return;
+    if (hosts.length !== 4 || glows.length !== 4 || pools.length !== 4) return;
 
     const lines: FrameLine[] = hosts.map((host, index) => ({
       host,
       glow: glows[index],
+      pool: pools[index],
       vertical: index < 2,
       x: 0,
       y: 0,
       start: 0,
       end: 0,
       viewportStart: 0,
-      length: 0,
+      originLeft: 0,
+      originTop: 0,
     }));
 
     const hoverQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
@@ -103,6 +104,8 @@ export function FrameLineSpotlight() {
     let frame = 0;
     let measureFrame = 0;
     let reduced = reducedQuery.matches;
+    /** Last opacity written to the root, so idle frames skip the style write. */
+    let lastLight = "";
 
     function measure() {
       if (window.innerWidth < 1440) return;
@@ -135,16 +138,14 @@ export function FrameLineSpotlight() {
           line.x = rect.left + 0.5;
           line.start = rect.top;
           line.end = rect.top + rect.height;
-          line.viewportStart = rect.top;
-          line.length = rect.height;
         } else {
           line.y = rect.top + 0.5;
           line.start = rect.left;
           line.end = rect.left + rect.width;
-          line.viewportStart = rect.left;
-          line.length = rect.width;
         }
 
+        line.originLeft = rect.left;
+        line.originTop = rect.top;
         line.host.style.left = `${rect.left - rootRect.left}px`;
         line.host.style.top = `${rect.top - rootRect.top}px`;
         line.host.style.width = `${rect.width}px`;
@@ -179,13 +180,23 @@ export function FrameLineSpotlight() {
       };
     }
 
+    /** Puts every pool out: both the shared opacity and the reduced fades. */
+    function clearLights() {
+      if (lastLight !== "0") {
+        lastLight = "0";
+        rootEl.style.setProperty("--frame-spot-light", "0");
+      }
+
+      for (const line of lines) {
+        line.glow.style.setProperty("--frame-spot-light", "0");
+      }
+    }
+
     function apply() {
       frame = 0;
 
       if (!pointer || window.innerWidth < 1440) {
-        for (const line of lines) {
-          line.glow.style.setProperty("--frame-spot-light", "0");
-        }
+        clearLights();
         return;
       }
 
@@ -206,8 +217,6 @@ export function FrameLineSpotlight() {
 
       if (reduced) {
         for (const sample of samples) {
-          sample.line.glow.style.setProperty("mask-image", "none");
-          sample.line.glow.style.setProperty("-webkit-mask-image", "none");
           sample.line.glow.style.setProperty(
             "--frame-spot-light",
             (sample.weight * REDUCED_STRENGTH).toFixed(4),
@@ -231,9 +240,7 @@ export function FrameLineSpotlight() {
       }
 
       if (weightSum <= 0 || light <= 0) {
-        for (const line of lines) {
-          line.glow.style.setProperty("--frame-spot-light", "0");
-        }
+        clearLights();
         return;
       }
 
@@ -294,62 +301,21 @@ export function FrameLineSpotlight() {
         sy = ly + (junction.y - ly) * junction.s;
       }
 
-      // Every line samples the same circle of radius R centred on L.
-      for (const sample of samples) {
-        const line = sample.line;
-        const px = line.vertical
-          ? line.x
-          : Math.min(Math.max(sx, line.start), line.end);
-        const py = line.vertical
-          ? Math.min(Math.max(sy, line.start), line.end)
-          : line.y;
-        const distance = Math.hypot(sx - px, sy - py);
-        const peak = bleedFalloff(distance / POOL_RADIUS);
+      // One light for all four lines: the pool's own falloff supplies each
+      // line's chord, exactly as the per-line mask gradient did.
+      const lightText = light.toFixed(4);
 
-        if (peak <= 0.001) {
-          line.glow.style.setProperty("--frame-spot-light", "0");
-          continue;
-        }
+      if (lightText !== lastLight) {
+        lastLight = lightText;
+        rootEl.style.setProperty("--frame-spot-light", lightText);
+      }
 
-        const halfChord = Math.sqrt(
-          Math.max(0, POOL_RADIUS * POOL_RADIUS - distance * distance),
-        );
-        const localPeak = line.vertical ? py - line.viewportStart : px - line.viewportStart;
-        const positions = new Set<number>([0, line.length]);
+      for (const line of lines) {
+        // Centre the fixed pool on the shared light; the strip clips the rest.
+        const poolX = (sx - line.originLeft - POOL_RADIUS).toFixed(2);
+        const poolY = (sy - line.originTop - POOL_RADIUS).toFixed(2);
 
-        for (const fraction of [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1]) {
-          const position = localPeak + fraction * halfChord;
-
-          if (position >= 0 && position <= line.length) {
-            positions.add(Math.round(position * 100) / 100);
-          }
-        }
-
-        const stops = [...positions]
-          .sort((a, b) => a - b)
-          .map((position) => {
-            const pointDistance = line.vertical
-              ? Math.hypot(sx - line.x, sy - (line.viewportStart + position))
-              : Math.hypot(
-                  sx - (line.viewportStart + position),
-                  sy - line.y,
-                );
-            const alpha = Math.min(
-              1,
-              Math.max(0, bleedFalloff(pointDistance / POOL_RADIUS) / peak),
-            );
-
-            return `rgba(0, 0, 0, ${alpha.toFixed(3)}) ${position.toFixed(2)}px`;
-          });
-        const direction = line.vertical ? "to bottom" : "to right";
-        const gradient = `linear-gradient(${direction}, ${stops.join(", ")})`;
-
-        line.glow.style.setProperty("-webkit-mask-image", gradient);
-        line.glow.style.setProperty("mask-image", gradient);
-        line.glow.style.setProperty(
-          "--frame-spot-light",
-          (light * peak).toFixed(4),
-        );
+        line.pool.style.transform = `translate3d(${poolX}px, ${poolY}px, 0)`;
       }
     }
 
@@ -425,6 +391,12 @@ export function FrameLineSpotlight() {
             className="frame-spot-glow"
             ref={(element) => {
               glowRefs.current[index] = element;
+            }}
+          />
+          <span
+            className="frame-spot-pool"
+            ref={(element) => {
+              poolRefs.current[index] = element;
             }}
           />
         </div>
