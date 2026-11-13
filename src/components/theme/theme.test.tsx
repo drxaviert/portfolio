@@ -3,7 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
-import { MODE_STORAGE_KEY, msUntilNextPhaseBoundary } from "@/lib/theme";
+import {
+  applyDayPhase,
+  DAY_PHASE_STORAGE_KEY,
+  MODE_STORAGE_KEY,
+  msUntilNextPhaseBoundary,
+} from "@/lib/theme";
 
 vi.mock("@/lib/theme", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/theme")>();
@@ -27,9 +32,11 @@ function root() {
 }
 
 beforeEach(() => {
+  applyDayPhase("clock");
   window.localStorage.clear();
   delete root().dataset.mode;
   delete root().dataset.phase;
+  delete root().dataset.dayPhase;
   delete root().dataset.phasePreview;
   delete root().dataset.phaseSwitching;
   root().classList.remove("dark");
@@ -38,6 +45,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  applyDayPhase("clock");
+  window.localStorage.clear();
   delete root().dataset.phaseSwitching;
   delete root().dataset.phasePreview;
   Reflect.deleteProperty(document, "hidden");
@@ -310,5 +319,152 @@ describe("ThemeToggle", () => {
       vi.advanceTimersByTime(8 * 60 * 60 * 1000 + 250);
     });
     expect(root().dataset.phase).toBe("dusk");
+  });
+
+  it("shows the Day phase row only while Day is active", async () => {
+    const user = userEvent.setup();
+    renderToggle();
+
+    expect(
+      screen.queryByRole("radiogroup", { name: "Day phase" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Day" }));
+
+    const row = screen.getByRole("radiogroup", { name: "Day phase" });
+    expect(row).toHaveAttribute("data-visible", "true");
+    expect(screen.getByRole("radio", { name: "Clock" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Dawn" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Midday" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Dusk" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Night" }));
+
+    expect(
+      screen.queryByRole("radiogroup", { name: "Day phase" }),
+    ).not.toBeInTheDocument();
+    expect(row).toHaveAttribute("data-visible", "false");
+    expect(row).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("pins a Day phase at a non-matching hour and stores it", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    expect(root().dataset.phase).toBe("day");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Dusk" }));
+
+    expect(root().dataset.mode).toBe("day");
+    expect(root().dataset.phase).toBe("dusk");
+    expect(root().dataset.dayPhase).toBe("dusk");
+    expect(window.localStorage.getItem(DAY_PHASE_STORAGE_KEY)).toBe("dusk");
+  });
+
+  it("keeps the pin while Auto is active and restores it on Day", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Dusk" }));
+    expect(root().dataset.phase).toBe("dusk");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Auto" }));
+    expect(root().dataset.phase).toBe("day");
+    expect(root().dataset.dayPhase).toBe("dusk");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    expect(root().dataset.phase).toBe("dusk");
+  });
+
+  it("moves through the Day phase row with the arrow keys", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    expect(screen.getByRole("radio", { name: "Clock" })).toBeChecked();
+
+    fireEvent.keyDown(screen.getByRole("radio", { name: "Clock" }), {
+      key: "ArrowRight",
+    });
+
+    expect(screen.getByRole("radio", { name: "Dawn" })).toBeChecked();
+    expect(root().dataset.phase).toBe("dawn");
+    expect(window.localStorage.getItem(DAY_PHASE_STORAGE_KEY)).toBe("dawn");
+
+    fireEvent.keyDown(screen.getByRole("radio", { name: "Dawn" }), {
+      key: "End",
+    });
+
+    expect(screen.getByRole("radio", { name: "Dusk" })).toBeChecked();
+    expect(root().dataset.phase).toBe("dusk");
+  });
+
+  it("does not schedule a boundary timer for a pinned Day phase", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 7, 0));
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Dusk" }));
+    expect(root().dataset.phase).toBe("dusk");
+
+    vi.mocked(msUntilNextPhaseBoundary).mockClear();
+
+    act(() => {
+      vi.advanceTimersByTime(24 * 60 * 60 * 1000);
+    });
+
+    expect(root().dataset.phase).toBe("dusk");
+    expect(vi.mocked(msUntilNextPhaseBoundary)).not.toHaveBeenCalled();
+  });
+
+  it("adds the phase choices under Day in the phone menu", async () => {
+    const user = userEvent.setup();
+    renderToggle();
+
+    await user.click(screen.getByRole("radio", { name: "Day" }));
+    await user.click(
+      screen.getByRole("button", { name: /Choose theme, currently Day/ }),
+    );
+
+    expect(
+      screen.getByRole("menuitemradio", { name: "Clock" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("menuitemradio", { name: "Dawn" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitemradio", { name: "Midday" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitemradio", { name: "Dusk" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("menuitemradio", { name: "Dusk" }));
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(root().dataset.phase).toBe("dusk");
+    expect(window.localStorage.getItem(DAY_PHASE_STORAGE_KEY)).toBe("dusk");
+  });
+
+  it("hides the phone phase choices when Day is not the mode", async () => {
+    const user = userEvent.setup();
+    renderToggle();
+
+    await user.click(
+      screen.getByRole("button", { name: /Choose theme, currently Auto/ }),
+    );
+
+    expect(
+      screen.queryByRole("menuitemradio", { name: "Clock" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitemradio", { name: "Dusk" }),
+    ).not.toBeInTheDocument();
   });
 });
