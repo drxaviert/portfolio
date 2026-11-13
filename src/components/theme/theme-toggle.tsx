@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type {
+  CSSProperties,
   ComponentPropsWithoutRef,
   FocusEvent,
   KeyboardEvent,
@@ -56,7 +57,109 @@ function canHover(): boolean {
     : true;
 }
 
+const ICON_SETTLE_DURATION = 600;
+const ICON_SETTLE_EASING = "cubic-bezier(0.34, 1.3, 0.64, 1)";
+const ICON_SCALE_POSE = "scale(0.745)";
+
+/** The entrance offset each glyph settles out of on hover. */
+const ICON_HOVER_POSES: Record<string, { part: string; from: string }[]> = {
+  day: [{ part: "[data-rays]", from: "rotate(-76.5deg)" }],
+  night: [{ part: "", from: "rotate(-40deg) scale(0.745)" }],
+  auto: [{ part: "[data-hands]", from: "rotate(-102deg)" }],
+  dawn: [{ part: "[data-sun]", from: "translateY(6.8px)" }],
+  dusk: [{ part: "[data-sun]", from: "translateY(-6.8px)" }],
+  dayclock: [
+    { part: "[data-rays]", from: "rotate(-76.5deg)" },
+    { part: "[data-hands]", from: "rotate(-102deg)" },
+  ],
+};
+
+function settleFrom(element: Element, from: string) {
+  if (typeof (element as HTMLElement).animate !== "function") {
+    return;
+  }
+
+  const running =
+    typeof element.getAnimations === "function"
+      ? element
+          .getAnimations()
+          .filter((animation) => animation.playState === "running")
+      : [];
+  const current = window.getComputedStyle(element).transform;
+  const start = running.length > 0 && current !== "none" ? current : from;
+
+  running.forEach((animation) => animation.cancel());
+  (element as HTMLElement).animate(
+    [{ transform: start }, { transform: "none" }],
+    {
+      duration: ICON_SETTLE_DURATION,
+      easing: ICON_SETTLE_EASING,
+      fill: "none",
+    },
+  );
+}
+
+/** Plays the entrance settle once for the hovered segment; ends at rest. */
+function playIconSettle(segment: HTMLElement) {
+  const svg = segment.querySelector<SVGElement>("[data-glyph]");
+
+  if (!svg) {
+    return;
+  }
+
+  markSunSettling(svg);
+
+  const glyph = svg.dataset.glyph ?? "";
+
+  for (const pose of ICON_HOVER_POSES[glyph] ?? []) {
+    if (pose.part === "") {
+      settleFrom(svg, pose.from);
+    } else {
+      const part = svg.querySelector(pose.part);
+
+      if (part) {
+        settleFrom(part, pose.from);
+      }
+    }
+  }
+
+  if (glyph !== "night") {
+    settleFrom(svg, ICON_SCALE_POSE);
+  }
+}
+
+const sunClipTimers = new WeakMap<Element, number>();
+
+/**
+ * Dawn/dusk clip their moving sun above the horizon while it travels. The
+ * clip is only on during the hover animation; the resting icon is unclipped.
+ */
+function markSunSettling(svg: SVGElement) {
+  const clip = svg.querySelector("[data-sun-clip]");
+
+  if (!clip) {
+    return;
+  }
+
+  clip.setAttribute("data-settling", "true");
+
+  const pending = sunClipTimers.get(clip);
+
+  if (pending !== undefined) {
+    window.clearTimeout(pending);
+  }
+
+  const timer = window.setTimeout(() => {
+    clip.removeAttribute("data-settling");
+    sunClipTimers.delete(clip);
+  }, ICON_SETTLE_DURATION + 50);
+
+  sunClipTimers.set(clip, timer);
+}
+
 function GlyphIcon({ glyph }: { glyph: Glyph }) {
+  const clipId = `sun-clip-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+
   return (
     <svg
       data-glyph={glyph}
@@ -87,18 +190,38 @@ function GlyphIcon({ glyph }: { glyph: Glyph }) {
         />
       ) : glyph === "dawn" ? (
         <>
+          <defs>
+            <clipPath id={clipId}>
+              <rect x="0" y="0" width="16" height="11.3" />
+            </clipPath>
+          </defs>
           <path d="M2 12h12" />
-          <g data-sun>
-            <path d="M5 12a3 3 0 0 1 6 0" />
-            <path d="M8 2.5v1.7M4.7 4.4l1.2 1.2M11.3 4.4l-1.2 1.2" />
+          <g
+            data-sun-clip
+            style={{ "--sun-clip": `url(#${clipId})` } as CSSProperties}
+          >
+            <g data-sun>
+              <path d="M5 12a3 3 0 0 1 6 0" />
+              <path d="M8 2.5v1.7M4.7 4.4l1.2 1.2M11.3 4.4l-1.2 1.2" />
+            </g>
           </g>
         </>
       ) : glyph === "dusk" ? (
         <>
+          <defs>
+            <clipPath id={clipId}>
+              <rect x="0" y="0" width="16" height="9.8" />
+            </clipPath>
+          </defs>
           <path d="M2 10.5h12" />
-          <g data-sun>
-            <path d="M5 10.5a3 3 0 0 0 6 0" />
-            <path d="M8 2.5v1.5M4.8 4.4l1.1 1.1M11.2 4.4l-1.1 1.1" />
+          <g
+            data-sun-clip
+            style={{ "--sun-clip": `url(#${clipId})` } as CSSProperties}
+          >
+            <g data-sun>
+              <path d="M5 10.5a3 3 0 0 0 6 0" />
+              <path d="M8 2.5v1.5M4.8 4.4l1.1 1.1M11.2 4.4l-1.1 1.1" />
+            </g>
           </g>
         </>
       ) : glyph === "dayclock" ? (
@@ -234,6 +357,20 @@ function SegmentTrack({
 
     if (previous === index) {
       return;
+    }
+
+    // The hovered icon replays the entrance settle once. The row skips this
+    // while its own entrance is still running so the CSS settle continues
+    // without a second animation.
+    const isRow = event.currentTarget.hasAttribute("data-phase-row");
+    const entering =
+      event.currentTarget.getAttribute("data-entering") === "true";
+    const reduced = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    if (!reduced && !(isRow && entering)) {
+      playIconSettle(target);
     }
 
     if (previous === null) {
