@@ -2,9 +2,14 @@
  * The row is a descendant of the nav ring host. ring-hover.css raises a
  * hovered card to z-index 1, and .ring-host isolates its own context, so the
  * row's own z-index cannot lift it out of the nav. Raise the nav itself while
- * the row is open (only then: a closed row changes nothing).
+ * the row is open, and keep it raised through the exit fade: data-visible
+ * flips false before the 120ms fade has painted, so data-exiting holds the
+ * raise until opacity actually finishes.
  */
-.ring-host:has([data-phase-row][data-visible="true"]) {
+.ring-host:has(
+  [data-phase-row][data-visible="true"],
+  [data-phase-row][data-exiting="true"]
+) {
   z-index: 2;
 }
 
@@ -14,8 +19,13 @@
  * drops back toward the toggle. Only opacity/transform animate, and
  * `visibility` is delayed so the row stays painted for the exit while `inert`
  * keeps it out of the tab order.
+ *
+ * --phase-row-exit-ms is read by the component to clear the exiting flag, so
+ * the fade and its fallback timer cannot drift apart.
  */
 .phase-row {
+  --phase-row-exit-ms: 120;
+
   opacity: 0;
   visibility: hidden;
   transform: translateY(4px) scale(0.98);
@@ -36,9 +46,11 @@
 
 .phase-row[data-visible="false"] {
   transition:
-    opacity 120ms cubic-bezier(0.4, 0, 1, 1),
-    transform 120ms cubic-bezier(0.4, 0, 1, 1),
-    visibility 0s 120ms;
+    opacity calc(var(--phase-row-exit-ms) * 1ms)
+      cubic-bezier(0.4, 0, 1, 1),
+    transform calc(var(--phase-row-exit-ms) * 1ms)
+      cubic-bezier(0.4, 0, 1, 1),
+    visibility 0s calc(var(--phase-row-exit-ms) * 1ms);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -50,13 +62,13 @@
 
   .phase-row[data-visible="true"] {
     transition:
-      opacity 120ms ease-out,
+      opacity calc(var(--phase-row-exit-ms) * 1ms) ease-out,
       visibility 0s;
   }
 
   .phase-row[data-visible="false"] {
     transition:
-      opacity 120ms ease-out,
-      visibility 0s 120ms;
+      opacity calc(var(--phase-row-exit-ms) * 1ms) ease-out,
+      visibility 0s calc(var(--phase-row-exit-ms) * 1ms);
   }
 }

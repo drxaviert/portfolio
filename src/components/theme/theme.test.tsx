@@ -597,6 +597,96 @@ describe("ThemeToggle", () => {
     expect(phaseRow()).toHaveAttribute("data-visible", "false");
   });
 
+  it("keeps the raise flag through the exit fade, then clears it", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    expect(phaseRow()).toHaveAttribute("data-exiting", "false");
+
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+    expect(phaseRow()).toHaveAttribute("data-exiting", "true");
+
+    // The fallback is the CSS exit duration plus 50ms.
+    act(() => {
+      vi.advanceTimersByTime(169);
+    });
+    expect(phaseRow()).toHaveAttribute("data-exiting", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(phaseRow()).toHaveAttribute("data-exiting", "false");
+  });
+
+  it("clears the raise flag on the row's opacity transitionend", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+    expect(phaseRow()).toHaveAttribute("data-exiting", "true");
+
+    fireEvent.transitionEnd(phaseRow(), { propertyName: "opacity" });
+    expect(phaseRow()).toHaveAttribute("data-exiting", "false");
+  });
+
+  it("clears immediately when the exit duration is zero", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    phaseRow().style.setProperty("--phase-row-exit-ms", "0");
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+    expect(phaseRow()).toHaveAttribute("data-exiting", "false");
+  });
+
+  it("keeps the raise and clears exiting when the row reopens mid-fade", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+    expect(phaseRow()).toHaveAttribute("data-exiting", "true");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+    expect(phaseRow()).toHaveAttribute("data-exiting", "false");
+
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+  });
+
   it("closes on Escape and puts focus back on Day without reopening", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0));

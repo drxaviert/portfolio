@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FocusEvent, KeyboardEvent, ReactNode } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
 import type { DayPhase, Mode } from "@/lib/theme";
@@ -8,6 +8,9 @@ import "./theme-toggle.css";
 
 /** How long the phase row lingers after the pointer leaves it and the toggle. */
 export const PHASE_ROW_CLOSE_DELAY_MS = 700;
+
+/** Fallback for the CSS exit duration if it cannot be read. */
+export const PHASE_ROW_EXIT_MS = 120;
 
 type ModeOption = {
   mode: Mode;
@@ -101,6 +104,22 @@ function dayPhaseGlyph(phase: DayPhase): Glyph {
   return phase;
 }
 
+/** The exit duration the CSS actually uses, so the fallback cannot drift. */
+function readRowExitMs(row: HTMLElement | null): number {
+  if (!row) {
+    return PHASE_ROW_EXIT_MS;
+  }
+
+  const value = Number.parseFloat(
+    window
+      .getComputedStyle(row)
+      .getPropertyValue("--phase-row-exit-ms")
+      .trim(),
+  );
+
+  return Number.isFinite(value) ? value : PHASE_ROW_EXIT_MS;
+}
+
 function segmentClasses(selected: boolean): string {
   return [
     // Figma 126:8942: segments are 33.3x28, radius 6, inside a 104x32 track
@@ -137,11 +156,14 @@ export function ThemeToggle() {
   const { mode, dayPhase, setMode, setDayPhase } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [rowOpen, setRowOpen] = useState(false);
+  const [rowExiting, setRowExiting] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const desktopRef = useRef<HTMLDivElement>(null);
   const dayRef = useRef<HTMLButtonElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | null>(null);
+  const exitTimer = useRef<number | null>(null);
   const focusInside = useRef(false);
   const pointerInside = useRef(false);
   const suppressFocusOpen = useRef(false);
@@ -154,46 +176,77 @@ export function ThemeToggle() {
   // The row belongs to Day: leaving Day hides it without a state effect.
   const rowVisible = rowOpen && dayActive;
 
-  function clearCloseTimer() {
+  const clearCloseTimer = useCallback(() => {
     if (closeTimer.current !== null) {
       window.clearTimeout(closeTimer.current);
       closeTimer.current = null;
     }
-  }
+  }, []);
 
-  function openRow() {
+  const clearExit = useCallback(() => {
+    if (exitTimer.current !== null) {
+      window.clearTimeout(exitTimer.current);
+      exitTimer.current = null;
+    }
+
+    setRowExiting(false);
+  }, []);
+
+  const startExit = useCallback(() => {
+    const exitMs = readRowExitMs(rowRef.current);
+
+    if (exitMs <= 0) {
+      clearExit();
+      return;
+    }
+
+    setRowExiting(true);
+
+    if (exitTimer.current !== null) {
+      window.clearTimeout(exitTimer.current);
+    }
+
+    // transitionend normally clears this; the timer covers a missed event.
+    exitTimer.current = window.setTimeout(() => {
+      exitTimer.current = null;
+      setRowExiting(false);
+    }, exitMs + 50);
+  }, [clearExit]);
+
+  const openRow = useCallback(() => {
     clearCloseTimer();
+    clearExit();
     setRowOpen(true);
-  }
+  }, [clearCloseTimer, clearExit]);
 
-  function closeRow() {
+  const closeRow = useCallback(() => {
     clearCloseTimer();
+    // data-visible flips false now, but the row keeps painting for the exit
+    // fade; hold the nav raise until that finishes.
+    if (rowVisible) {
+      startExit();
+    }
     setRowOpen(false);
-  }
+  }, [clearCloseTimer, rowVisible, startExit]);
 
-  function scheduleClose() {
+  const scheduleClose = useCallback(() => {
     clearCloseTimer();
 
-    if (focusHoldsOpen()) {
+    const holdsOpen = () =>
+      focusInside.current && inputModality.current === "keyboard";
+
+    if (holdsOpen()) {
       return;
     }
 
     closeTimer.current = window.setTimeout(() => {
       closeTimer.current = null;
 
-      if (!focusHoldsOpen()) {
-        setRowOpen(false);
+      if (!holdsOpen()) {
+        closeRow();
       }
     }, PHASE_ROW_CLOSE_DELAY_MS);
-  }
-
-  /**
-   * A mouse click leaves focus on the clicked segment, so plain focus must not
-   * pin the row open. Only focus that arrived through the keyboard does.
-   */
-  function focusHoldsOpen(): boolean {
-    return focusInside.current && inputModality.current === "keyboard";
-  }
+  }, [clearCloseTimer, closeRow]);
 
   // Track the input modality independently of focus: a pointerdown marks the
   // interaction as pointer before focus moves, and a keydown marks it as
@@ -228,6 +281,10 @@ export function ThemeToggle() {
       if (closeTimer.current !== null) {
         window.clearTimeout(closeTimer.current);
       }
+
+      if (exitTimer.current !== null) {
+        window.clearTimeout(exitTimer.current);
+      }
     };
   }, []);
 
@@ -251,12 +308,7 @@ export function ThemeToggle() {
         return;
       }
 
-      if (closeTimer.current !== null) {
-        window.clearTimeout(closeTimer.current);
-        closeTimer.current = null;
-      }
-
-      setRowOpen(false);
+      closeRow();
 
       // Restoring focus to Day must not count as "focus entered Day" and
       // reopen the row it just closed.
@@ -268,7 +320,7 @@ export function ThemeToggle() {
     document.addEventListener("keydown", onKeyDown);
 
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [rowVisible]);
+  }, [rowVisible, closeRow]);
 
   // Touch has no pointer-leave, so a tap outside is the close gesture.
   useEffect(() => {
@@ -280,19 +332,14 @@ export function ThemeToggle() {
       const target = event.target as Node | null;
 
       if (target && !desktopRef.current?.contains(target)) {
-        if (closeTimer.current !== null) {
-          window.clearTimeout(closeTimer.current);
-          closeTimer.current = null;
-        }
-
-        setRowOpen(false);
+        closeRow();
       }
     };
 
     document.addEventListener("pointerdown", onPointerDown);
 
     return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [rowVisible]);
+  }, [rowVisible, closeRow]);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -579,12 +626,23 @@ export function ThemeToggle() {
          * cards; absolute positioning keeps the page from moving.
          */}
         <div
+          ref={rowRef}
           role="radiogroup"
           aria-label="Day phase"
           aria-hidden={!rowVisible}
           inert={!rowVisible}
           data-phase-row="true"
           data-visible={rowVisible}
+          data-exiting={rowExiting}
+          onTransitionEnd={(event) => {
+            if (event.target !== event.currentTarget) {
+              return;
+            }
+
+            if (event.propertyName === "opacity" && !rowVisible) {
+              clearExit();
+            }
+          }}
           className="phase-row absolute right-0 bottom-full mb-1 flex h-8 w-[132px] items-center rounded-[6px] bg-toggle-track p-0.5 shadow-card"
         >
           {PHASE_OPTIONS.map((option, index) => {
