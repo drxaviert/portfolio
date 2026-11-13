@@ -16,7 +16,11 @@ import "./theme-toggle.css";
 /** How long the phase row lingers after the pointer leaves it and the toggle. */
 export const PHASE_ROW_CLOSE_DELAY_MS = 100;
 
-/** Long enough for the last icon settle (330ms delay + 600ms swing). */
+/**
+ * Outlives the last icon settle: the final segment's icon starts at 330ms and
+ * swings for 600ms, so it lands at 930ms; 990ms adds a 60ms buffer before
+ * hover may stack a second animation.
+ */
 const ROW_ENTER_SETTLE_MS = 990;
 
 /** Fallback for the CSS exit duration if it cannot be read. */
