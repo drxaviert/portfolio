@@ -1,4 +1,4 @@
-﻿/*
+/*
  * The row is a descendant of the nav ring host. ring-hover.css raises a
  * hovered card to z-index 1, and .ring-host isolates its own context, so the
  * row's own z-index cannot lift it out of the nav. Raise the nav itself while
@@ -57,12 +57,27 @@
 }
 
 /* Segments: 360ms fade/rise, left to right; exit together in 240ms. */
-.phase-row [role="radio"] {
+.phase-row[data-phase-row] [role="radio"] {
   transition:
     opacity 360ms cubic-bezier(0.23, 1, 0.32, 1),
     translate 360ms cubic-bezier(0.23, 1, 0.32, 1),
     color 150ms ease-out,
+    transform 150ms ease-out,
+    scale 150ms ease-out;
+}
+/*
+ * Selected fill, enter-only: leaving the checked state drops this rule, so the
+ * old fill is released on the same frame while the new one fades in. A fast
+ * flip can then never paint two selected segments (or two labels) at once.
+ * The extra [data-phase-row] keeps the phase-switch fade (globals.css), which
+ * transitions every colour on the page, from retiming either state.
+ */
+.phase-row[data-phase-row] [role="radio"][aria-checked="true"] {
+  transition:
     background-color 150ms ease-out,
+    opacity 360ms cubic-bezier(0.23, 1, 0.32, 1),
+    translate 360ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 150ms ease-out,
     transform 150ms ease-out,
     scale 150ms ease-out;
 }
@@ -70,28 +85,43 @@
   opacity: 1;
   translate: 0 0;
 }
+/*
+ * The entrance stagger only delays the fade/rise. Colour, fill and scale are
+ * interaction feedback and must not inherit a 120-270ms entrance delay when a
+ * selection changes while the row is open.
+ */
 .phase-row[data-visible="true"] [role="radio"]:nth-of-type(1) {
-  transition-delay: 120ms;
+  --segment-delay: 120ms;
 }
 .phase-row[data-visible="true"] [role="radio"]:nth-of-type(2) {
-  transition-delay: 170ms;
+  --segment-delay: 170ms;
 }
 .phase-row[data-visible="true"] [role="radio"]:nth-of-type(3) {
-  transition-delay: 220ms;
+  --segment-delay: 220ms;
 }
 .phase-row[data-visible="true"] [role="radio"]:nth-of-type(4) {
-  transition-delay: 270ms;
+  --segment-delay: 270ms;
+}
+.phase-row[data-visible="true"] [role="radio"] {
+  transition-delay:
+    var(--segment-delay), var(--segment-delay), 0ms, 0ms, 0ms;
+}
+.phase-row[data-visible="true"] [role="radio"][aria-checked="true"] {
+  transition-delay:
+    0ms, var(--segment-delay), var(--segment-delay), 0ms, 0ms, 0ms;
 }
 .phase-row[data-visible="false"] [role="radio"] {
   opacity: 0;
   translate: 0 3px;
   /*
-   * Durations follow the property list above: opacity and translate take the
-   * 240ms exit, colour and background keep their 150ms (overriding every
-   * duration to 240ms stretched the colour fade), transform and scale keep
-   * the exit timing they had.
+   * Five properties now (opacity, translate, colour, transform, scale); the
+   * checked list below adds the selected fill in front.
    */
-  transition-duration: 240ms, 240ms, 150ms, 150ms, 240ms, 240ms;
+  transition-duration: 240ms, 240ms, 150ms, 240ms, 240ms;
+  transition-delay: 0ms;
+}
+.phase-row[data-visible="false"] [role="radio"][aria-checked="true"] {
+  transition-duration: 150ms, 240ms, 240ms, 150ms, 240ms, 240ms;
   transition-delay: 0ms;
 }
 
@@ -242,33 +272,61 @@
   }
 }
 
-/* ---------- Hover motion ---------- */
+/* ---------- Selection and tooltip feedback ---------- */
 
-.hover-pill {
+/*
+ * Mode segments: colour, press scale, and an enter-only selected fill. The
+ * fill's transition is declared on the checked state, so losing the selection
+ * drops the rule and releases the old fill immediately; a fast flip shows one
+ * selection at a time instead of crossfading two. Both rules are specific
+ * enough to keep the phase-switch fade in globals.css (which transitions every
+ * colour on the page for one theme change) from retiming either state.
+ */
+[data-mode-track] .segment:not([aria-checked="true"]) {
+  transition:
+    color 150ms ease-out,
+    transform 150ms ease-out,
+    scale 150ms ease-out;
+}
+
+[data-mode-track] .segment[aria-checked="true"] {
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out,
+    transform 150ms ease-out,
+    scale 150ms ease-out;
+}
+
+/*
+ * Tooltip: the documented 150ms fade on the way in (300ms after hover, so
+ * travel across the track does not flash labels), released at once on the way
+ * out. Two labels can never be visible together, and the outgoing one cannot
+ * cover the neighbouring icons.
+ */
+.segment-tooltip {
   opacity: 0;
+}
+
+.segment:focus-visible .segment-tooltip {
+  opacity: 1;
   transition: opacity 150ms ease-out;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .hover-pill.is-visible {
-    opacity: 0.55;
-    /* The layer only needs to exist while the pill is on screen, not for the
-       life of the page. */
-    will-change: transform, opacity;
+  .segment:hover .segment-tooltip {
+    opacity: 1;
+    transition: opacity 150ms ease-out 300ms;
   }
 }
 
-@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .hover-pill {
-    transition:
-      transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      opacity 150ms ease-out;
-  }
+/* No transition in the released state, so a theme fade cannot stretch it. */
+.segment:not(:focus-visible):not(:hover) .segment-tooltip {
+  transition-property: none;
 }
 
 /*
  * md+ segments are 34x28 inside the 32px track. A fine pointer keeps the 2px
- * track inset (the hover pill needs that exact box); a coarse one only widens
+ * track inset (the highlight needs that exact box); a coarse one only widens
  * the invisible hit area to 34x40. The Figma track never changes size.
  */
 @media (pointer: coarse) {
@@ -321,18 +379,94 @@
   .phase-row[data-visible="false"] [role="radio"] {
     opacity: 1;
     translate: none;
-    transition:
-      color 150ms ease-out,
-      background-color 150ms ease-out;
+    transition: color 150ms ease-out;
   }
 
-  .segment {
+  .phase-row[data-visible="true"] [role="radio"][aria-checked="true"],
+  .phase-row[data-visible="false"] [role="radio"][aria-checked="true"] {
     transition:
-      color 150ms ease-out,
-      background-color 150ms ease-out;
+      background-color 150ms ease-out,
+      color 150ms ease-out;
+  }
+
+  [data-mode-track] .segment {
+    transition: color 150ms ease-out;
+  }
+
+  [data-mode-track] .segment[aria-checked="true"] {
+    transition:
+      background-color 150ms ease-out,
+      color 150ms ease-out;
   }
 
   .segment:active {
     scale: 1;
+  }
+}
+
+/* ---------- Selection highlight — stretch & snap ---------- */
+
+/*
+ * One SVG capsule in a clipped layer under the icons. The path is redrawn only
+ * while it moves (leading edge 180ms, trailing edge 220ms after a 120ms hold),
+ * so the fill is crisp at any size and can never leave the rounded track box.
+ */
+.shape-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.shape-layer .highlight-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.shape-layer path {
+  fill: var(--toggle-selected);
+}
+
+/* The faint hover capsule uses the same motion at the documented 0.55 weight. */
+.shape-layer--hover {
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .shape-layer--hover.is-visible {
+    opacity: 0.55;
+  }
+}
+
+/*
+ * The path paints the selected fill, so the segment itself stays transparent
+ * and a fast flip never shows two fills: there is only ever one capsule.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .segment[aria-checked="true"] {
+    background-color: transparent;
+  }
+}
+
+/*
+ * Reduced motion drops the travel: the layer is hidden and the segment fill
+ * crossfades in 120ms, exactly like the previous selection feedback.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .shape-layer {
+    display: none;
+  }
+
+  .segment[role="radio"] {
+    transition: color 150ms ease-out;
+  }
+
+  .segment[role="radio"][aria-checked="true"] {
+    transition:
+      background-color 120ms ease-out,
+      color 150ms ease-out;
   }
 }

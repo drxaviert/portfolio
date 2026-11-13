@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import type {
   ComponentPropsWithoutRef,
   FocusEvent,
@@ -57,6 +63,13 @@ type Glyph = Mode | "dawn" | "dusk" | "dayclock";
 function canHover(): boolean {
   return typeof window.matchMedia === "function"
     ? window.matchMedia("(hover: hover)").matches
+    : true;
+}
+
+/** The highlight hover follows only a device that hovers with a fine pointer. */
+function canHoverHighlight(): boolean {
+  return typeof window.matchMedia === "function"
+    ? window.matchMedia("(hover: hover) and (pointer: fine)").matches
     : true;
 }
 
@@ -273,11 +286,293 @@ function trackWidth(segments: number): string {
   return `${segments * SEGMENT_WIDTH + TRACK_INSET}px`;
 }
 
+/* ---------- Selection highlight: stretch & snap ---------- */
+
+const TRACK_HEIGHT = 32;
+const SHAPE_PADDING = 2;
+const SHAPE_RADIUS = 6;
+const PILL_HEIGHT = 28;
+
+/**
+ * The chosen motion, baked in: at Lag 100 the trailing edge waits 120ms, then
+ * closes at 220ms while the leading edge gets there first in 180ms. The curves
+ * are the ones picked in the dev comparison - a fast ease-out on the leading
+ * edge and a stronger one on the trailing edge, so the capsule elongates over
+ * both segments and contracts onto the target with no overshoot.
+ */
+export const TRAILING_DELAY_MS = 120;
+export const LEADING_DURATION_MS = 180;
+export const TRAILING_DURATION_MS = 220;
+
+const LEADING_DURATION = LEADING_DURATION_MS / 1000;
+const TRAILING_DURATION = TRAILING_DURATION_MS / 1000;
+const TRAILING_DELAY = TRAILING_DELAY_MS / 1000;
+
+function leadingEase(t: number): number {
+  return 1 - (1 - t) ** 3;
+}
+
+function trailingEase(t: number): number {
+  return 1 - (1 - t) ** 5;
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/** Rounded pill path; at rest this is the exact Figma silhouette. */
+function pillPath(x: number, width: number): string {
+  const w = Math.max(2, width);
+  const r = Math.min(SHAPE_RADIUS, PILL_HEIGHT / 2, w / 2);
+  const right = x + w;
+  const bottom = SHAPE_PADDING + PILL_HEIGHT;
+
+  return [
+    `M${round2(x + r)},${SHAPE_PADDING}`,
+    `H${round2(right - r)}`,
+    `A${r},${r} 0 0 1 ${round2(right)},${SHAPE_PADDING + r}`,
+    `V${bottom - r}`,
+    `A${r},${r} 0 0 1 ${round2(right - r)},${bottom}`,
+    `H${round2(x + r)}`,
+    `A${r},${r} 0 0 1 ${round2(x)},${bottom - r}`,
+    `V${SHAPE_PADDING + r}`,
+    `A${r},${r} 0 0 1 ${round2(x + r)},${SHAPE_PADDING}`,
+    "Z",
+  ].join("");
+}
+
+function segmentLeft(index: number): number {
+  return SHAPE_PADDING + index * SEGMENT_WIDTH;
+}
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+type HighlightState = {
+  targetIndex: number | null;
+  placed: boolean;
+  lastVisible: boolean;
+  edgeLeft: number;
+  edgeRight: number;
+  flight: {
+    start: number;
+    leadFrom: number;
+    leadTo: number;
+    trailFrom: number;
+    trailTo: number;
+    leadingRight: boolean;
+  } | null;
+  raf: number;
+};
+
+function createHighlightState(): HighlightState {
+  return {
+    targetIndex: null,
+    placed: false,
+    lastVisible: false,
+    edgeLeft: 0,
+    edgeRight: 0,
+    flight: null,
+    raf: 0,
+  };
+}
+
+function snapHighlight(st: HighlightState, index: number): void {
+  const left = segmentLeft(index);
+
+  st.targetIndex = index;
+  st.edgeLeft = left;
+  st.edgeRight = left + SEGMENT_WIDTH;
+  st.flight = null;
+}
+
+function drawHighlight(path: SVGPathElement, st: HighlightState): void {
+  const left = Math.min(st.edgeLeft, st.edgeRight);
+  const right = Math.max(st.edgeLeft, st.edgeRight);
+
+  path.setAttribute("d", pillPath(left, right - left));
+}
+
+/**
+ * One capsule path that stretches toward the new segment: the leading edge
+ * leaves on its own, the trailing edge holds for the lag and then closes with a
+ * stronger ease-out. Both edges are captured from the shape's current position,
+ * so a new selection mid-flight retargets instead of restarting, and the layer
+ * is exactly the track box, so nothing can paint outside it.
+ */
+function StretchHighlight({
+  width,
+  targetIndex,
+  active,
+  visible = true,
+  hover = false,
+  layerRef,
+}: {
+  width: number;
+  targetIndex: number;
+  active: boolean;
+  visible?: boolean;
+  hover?: boolean;
+  layerRef?: Ref<HTMLSpanElement>;
+}) {
+  const pathRef = useRef<SVGPathElement>(null);
+  const stateRef = useRef<HighlightState>(createHighlightState());
+
+  useEffect(() => {
+    const path = pathRef.current;
+
+    if (!path) {
+      return;
+    }
+
+    const st = stateRef.current;
+    const stop = () => {
+      if (st.raf) {
+        window.cancelAnimationFrame(st.raf);
+        st.raf = 0;
+      }
+    };
+
+    if (!st.placed) {
+      snapHighlight(st, targetIndex);
+      st.placed = true;
+      st.lastVisible = visible;
+      drawHighlight(path, st);
+
+      return;
+    }
+
+    if (!active || prefersReducedMotion()) {
+      stop();
+      snapHighlight(st, targetIndex);
+      drawHighlight(path, st);
+
+      return;
+    }
+
+    if (!visible) {
+      st.lastVisible = false;
+
+      return;
+    }
+
+    if (!st.lastVisible) {
+      // The hover pill appears where the pointer already is, with no travel.
+      st.lastVisible = true;
+      stop();
+      snapHighlight(st, targetIndex);
+      drawHighlight(path, st);
+
+      return;
+    }
+
+    if (st.targetIndex === targetIndex) {
+      drawHighlight(path, st);
+
+      return;
+    }
+
+    const left = segmentLeft(targetIndex);
+    const center = (st.edgeLeft + st.edgeRight) / 2;
+    const movingRight = left + SEGMENT_WIDTH / 2 >= center;
+
+    st.targetIndex = targetIndex;
+    st.flight = {
+      start: performance.now(),
+      leadFrom: movingRight ? st.edgeRight : st.edgeLeft,
+      leadTo: movingRight ? left + SEGMENT_WIDTH : left,
+      trailFrom: movingRight ? st.edgeLeft : st.edgeRight,
+      trailTo: movingRight ? left : left + SEGMENT_WIDTH,
+      leadingRight: movingRight,
+    };
+
+    stop();
+
+    const loop = (now: number) => {
+      const flight = st.flight;
+
+      if (!flight) {
+        return;
+      }
+
+      const elapsed = Math.max(0, (now - flight.start) / 1000);
+      const leadProgress = Math.min(1, elapsed / LEADING_DURATION);
+      const trailProgress = Math.min(
+        1,
+        Math.max(0, elapsed - TRAILING_DELAY) / TRAILING_DURATION,
+      );
+      const lead =
+        flight.leadFrom +
+        (flight.leadTo - flight.leadFrom) * leadingEase(leadProgress);
+      const trail =
+        flight.trailFrom +
+        (flight.trailTo - flight.trailFrom) * trailingEase(trailProgress);
+
+      if (flight.leadingRight) {
+        st.edgeRight = lead;
+        st.edgeLeft = trail;
+      } else {
+        st.edgeLeft = lead;
+        st.edgeRight = trail;
+      }
+
+      drawHighlight(path, st);
+
+      if (leadProgress >= 1 && trailProgress >= 1) {
+        snapHighlight(st, targetIndex);
+        drawHighlight(path, st);
+        st.raf = 0;
+
+        return;
+      }
+
+      st.raf = window.requestAnimationFrame(loop);
+    };
+
+    st.raf = window.requestAnimationFrame(loop);
+
+    return stop;
+  }, [targetIndex, active, visible, width]);
+
+  useEffect(() => {
+    const st = stateRef.current;
+
+    return () => {
+      if (st.raf) {
+        window.cancelAnimationFrame(st.raf);
+      }
+    };
+  }, []);
+
+  return (
+    <span
+      ref={layerRef}
+      aria-hidden="true"
+      className={hover ? "shape-layer shape-layer--hover" : "shape-layer"}
+    >
+      <svg
+        className="highlight-svg"
+        viewBox={`0 0 ${width} ${TRACK_HEIGHT}`}
+        preserveAspectRatio="none"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path ref={pathRef} />
+      </svg>
+    </span>
+  );
+}
 function segmentClasses(selected: boolean): string {
   return [
     // Figma 126:8942, rounded to 34x28 so both tracks share integer centers:
-    // segments sit inside a 106x32 / 140x32 track with a 2px inset.
-    "segment group relative flex h-7 flex-1 items-center justify-center rounded-[6px] outline-hidden transition-[color,background-color,transform,scale] duration-150 ease-out",
+    // segments sit inside a 106x32 / 140x32 track with a 2px inset. The
+    // transitions live in theme-toggle.css so the selected fill can be
+    // enter-only.
+    "segment group relative flex h-7 flex-1 items-center justify-center rounded-[6px] outline-hidden",
     "active:scale-[0.96]",
     "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-primary",
     selected
@@ -305,33 +600,42 @@ const HIT_AREA_CLASS = {
 type SegmentTrackProps = {
   label: string;
   segments: number;
-  trackRef?: Ref<HTMLDivElement>;
+  /** Index of the checked segment; the highlight rests on it. */
+  selectedIndex: number;
+  /** False while the track is hidden (the phase row before it opens). */
+  active?: boolean;
+  /** The parent needs the root node; a callback keeps React refs out of props. */
+  trackRef?: (node: HTMLDivElement | null) => void;
 } & ComponentPropsWithoutRef<"div">;
 
-/** Shared track shell: same height, inset, radius and fill for every count. */
+/**
+ * Shared track shell: same height, inset, radius and highlight for every count.
+ * The selected fill is painted by an SVG capsule under the icons, so the
+ * segments themselves only carry labels and hit areas.
+ */
 function SegmentTrack({
   label,
   segments,
+  selectedIndex,
+  active = true,
   trackRef,
   className,
   children,
   onPointerLeave,
   ...rest
 }: SegmentTrackProps) {
-  const pillRef = useRef<HTMLSpanElement>(null);
   const hoveredIndex = useRef<number | null>(null);
+  const [hoverTarget, setHoverTarget] = useState<number | null>(null);
+  const hoverLayer = useRef<HTMLSpanElement>(null);
+  const width = segments * SEGMENT_WIDTH + TRACK_INSET;
 
   function hidePill() {
     hoveredIndex.current = null;
-
-    const pill = pillRef.current;
-
-    if (pill) {
-      pill.classList.remove("is-visible");
-    }
+    setHoverTarget(null);
+    hoverLayer.current?.classList.remove("is-visible");
   }
 
-  /** Positions the single shared pill under the segment the pointer is on. */
+  /** Moves the faint hover capsule under the segment the pointer is on. */
   function showPill(event: ReactPointerEvent<HTMLDivElement>) {
     if (!canHover()) {
       return;
@@ -349,9 +653,8 @@ function SegmentTrack({
       event.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]'),
     );
     const index = buttons.indexOf(target);
-    const pill = pillRef.current;
 
-    if (index < 0 || !pill) {
+    if (index < 0) {
       return;
     }
 
@@ -375,26 +678,10 @@ function SegmentTrack({
       playIconSettle(target);
     }
 
-    if (previous === null) {
-      // First entry fades in where the pointer already is: commit the
-      // geometry with transitions off, then restore them and reveal on the
-      // next frame so opacity actually has a 0 start to fade from.
-      pill.classList.remove("is-visible");
-      pill.style.transition = "none";
-      pill.style.width = `${target.offsetWidth}px`;
-      pill.style.height = `${target.offsetHeight}px`;
-      pill.style.transform = `translateX(${target.offsetLeft}px)`;
-      void pill.offsetWidth;
-
-      window.requestAnimationFrame(() => {
-        pill.style.transition = "";
-
-        if (hoveredIndex.current === index) {
-          pill.classList.add("is-visible");
-        }
-      });
-    } else {
-      pill.style.transform = `translateX(${target.offsetLeft}px)`;
+    // Fine-pointer hover only: touch has no hover to follow.
+    if (canHoverHighlight()) {
+      setHoverTarget(index);
+      hoverLayer.current?.classList.add("is-visible");
     }
 
     hoveredIndex.current = index;
@@ -419,16 +706,23 @@ function SegmentTrack({
         .filter(Boolean)
         .join(" ")}
     >
-      <span
-        ref={pillRef}
-        aria-hidden="true"
-        className="hover-pill pointer-events-none absolute top-0.5 left-0 h-7 rounded-[6px] bg-toggle-selected"
+      <StretchHighlight
+        width={width}
+        targetIndex={hoverTarget ?? selectedIndex}
+        active={active}
+        visible={hoverTarget !== null}
+        hover
+        layerRef={hoverLayer}
+      />
+      <StretchHighlight
+        width={width}
+        targetIndex={selectedIndex}
+        active={active}
       />
       {children}
     </div>
   );
 }
-
 type SegmentProps = {
   selected: boolean;
   label: string;
@@ -496,7 +790,7 @@ function Tooltip({
     <span
       aria-hidden="true"
       className={[
-        "pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface opacity-0 transition-opacity duration-150 group-hover:delay-300 group-hover:opacity-100 group-focus-visible:opacity-100",
+        "segment-tooltip pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface",
         below ? "top-full mt-2" : "-top-9",
       ].join(" ")}
     >
@@ -516,9 +810,15 @@ export function ThemeToggle() {
   const desktopRef = useRef<HTMLDivElement>(null);
   const dayRef = useRef<HTMLButtonElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
+  /** Reports the phase row's root node without handing the child a ref object. */
+  const setRowRef = useCallback((node: HTMLDivElement | null) => {
+    rowRef.current = node;
+  }, []);
   const closeTimer = useRef<number | null>(null);
   const exitTimer = useRef<number | null>(null);
   const enterTimer = useRef<number | null>(null);
+  /** True when the row is closing while one of its options has focus. */
+  const rowHadFocus = useRef(false);
   const focusInside = useRef(false);
   /** True while the pointer is over Day, the gap bridge, or the row. */
   const hoverRegion = useRef(false);
@@ -531,6 +831,14 @@ export function ThemeToggle() {
   const dayActive = mode === "day";
   // The row belongs to Day: leaving Day hides it without a state effect.
   const rowVisible = rowOpen && dayActive;
+  const modeIndex = Math.max(
+    0,
+    OPTIONS.findIndex((option) => option.mode === mode),
+  );
+  const phaseIndex = Math.max(
+    0,
+    PHASE_OPTIONS.findIndex((option) => option.phase === dayPhase),
+  );
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimer.current !== null) {
@@ -602,6 +910,11 @@ export function ThemeToggle() {
   const closeRow = useCallback(() => {
     clearCloseTimer();
     clearEnter();
+    // The row goes inert on this commit, which would drop focus to <body>;
+    // remember that focus was inside so it can be handed back to Day.
+    rowHadFocus.current = Boolean(
+      rowRef.current?.contains(document.activeElement),
+    );
     // data-visible flips false now, but the row keeps painting for the exit
     // fade; hold the nav raise until that finishes.
     if (rowVisible) {
@@ -657,6 +970,22 @@ export function ThemeToggle() {
       window.clearTimeout(closeTimer.current);
       closeTimer.current = null;
     }
+  }, [rowVisible]);
+
+  /**
+   * A row that closes while one of its options has focus must not strand the
+   * user: the row becomes inert, so focus returns to Day instead of falling
+   * back to <body> (which would restart Tab at the top of the page).
+   */
+  useEffect(() => {
+    if (rowVisible || !rowHadFocus.current) {
+      return;
+    }
+
+    rowHadFocus.current = false;
+    suppressFocusOpen.current = true;
+    dayRef.current?.focus();
+    suppressFocusOpen.current = false;
   }, [rowVisible]);
 
   useEffect(() => {
@@ -777,6 +1106,25 @@ export function ThemeToggle() {
     event: KeyboardEvent<HTMLButtonElement>,
     index: number,
   ) {
+    const option = OPTIONS[index];
+
+    /*
+     * A forward Tab from Day has to reach the phase group even when the row
+     * was closed while Day kept focus (Escape, or the pointer leaving after a
+     * click). Opening during keydown runs before the browser picks the next
+     * focusable, so this same Tab lands inside the row.
+     */
+    if (
+      event.key === "Tab" &&
+      !event.shiftKey &&
+      option.mode === "day" &&
+      dayActive &&
+      !rowVisible
+    ) {
+      openRow();
+      return;
+    }
+
     let nextIndex: number;
 
     switch (event.key) {
@@ -956,7 +1304,9 @@ export function ThemeToggle() {
         <SegmentTrack
           label="Theme"
           segments={OPTIONS.length}
+          selectedIndex={modeIndex}
           className="relative"
+          data-mode-track="true"
         >
           {OPTIONS.map((option, index) => {
             const selected = option.mode === mode;
@@ -1031,7 +1381,9 @@ export function ThemeToggle() {
         <SegmentTrack
           label="Day phase"
           segments={PHASE_OPTIONS.length}
-          trackRef={rowRef}
+          selectedIndex={phaseIndex}
+          active={rowVisible}
+          trackRef={setRowRef}
           aria-hidden={!rowVisible}
           inert={!rowVisible}
           data-phase-row="true"
@@ -1167,11 +1519,6 @@ export function ThemeToggle() {
   );
 }
 
-/**
- * Dev-only switcher for the Day row's enter/exit motion and speed. The motion
- * and speed are applied to <html> so the CSS can switch transitions, and both
- * are remembered in localStorage. Production renders nothing at all.
- */
 function CheckIcon() {
   return (
     <svg
