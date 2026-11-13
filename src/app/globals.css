@@ -114,14 +114,16 @@
 /*
  * One-piece phase switch: theme.ts marks <html> with data-phase-switching for
  * one fade, then removes it. Only colour-like properties transition, so normal
- * hover/press motion is untouched the rest of the time.
+ * hover/press motion is untouched the rest of the time. `transform` and
+ * `clip-path` are deliberately absent: leaving them in retimed every hover
+ * that started inside the 400ms window at 400ms ease-in-out.
  */
 :root[data-phase-switching] *,
 :root[data-phase-switching] *::before,
 :root[data-phase-switching] *::after {
   transition-property:
     background-color, border-color, outline-color, text-decoration-color, fill,
-    stroke, box-shadow, transform, clip-path, opacity;
+    stroke, box-shadow, opacity;
   transition-duration: var(--horizon-transition-duration);
   transition-timing-function: var(--horizon-transition-ease);
 }
@@ -158,7 +160,7 @@
   ) {
   transition-property:
     color, background-color, border-color, outline-color, text-decoration-color,
-    fill, stroke, box-shadow, transform, clip-path, opacity;
+    fill, stroke, box-shadow, opacity;
 }
 
 /* Clock-driven switches (Auto mode, dev preview) use the auto tokens. */

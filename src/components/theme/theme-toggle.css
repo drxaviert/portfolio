@@ -17,7 +17,7 @@
  * Shipped enter/exit (chosen in the dev picker as Stagger + icons at 2.00x
  * with a 1.70x icon strength): the track scales out of the toggle over
  * 400ms, the segments fade/rise with a 120/170/220/270ms stagger, and each
- * icon settles 30ms after its segment. Exit is together in 240ms.
+ * icon settles 60ms after its segment. Exit is together in 240ms.
  *
  * --phase-row-exit-ms is registered so the component reads the exit as a
  * plain number for the nav raise and its fallback timer.
@@ -85,7 +85,13 @@
 .phase-row[data-visible="false"] [role="radio"] {
   opacity: 0;
   translate: 0 3px;
-  transition-duration: 240ms;
+  /*
+   * Durations follow the property list above: opacity and translate take the
+   * 240ms exit, colour and background keep their 150ms (overriding every
+   * duration to 240ms stretched the colour fade), transform and scale keep
+   * the exit timing they had.
+   */
+  transition-duration: 240ms, 240ms, 150ms, 150ms, 240ms, 240ms;
   transition-delay: 0ms;
 }
 
@@ -241,12 +247,14 @@
 .hover-pill {
   opacity: 0;
   transition: opacity 150ms ease-out;
-  will-change: transform, opacity;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .hover-pill.is-visible {
     opacity: 0.55;
+    /* The layer only needs to exist while the pill is on screen, not for the
+       life of the page. */
+    will-change: transform, opacity;
   }
 }
 
