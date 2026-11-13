@@ -267,6 +267,21 @@
 }
 
 /*
+ * md+ segments are 34x28 inside the 32px track. A fine pointer keeps the 2px
+ * track inset (the hover pill needs that exact box); a coarse one only widens
+ * the invisible hit area to 34x40. The Figma track never changes size.
+ */
+@media (pointer: coarse) {
+  .segment-coarse-hit-area::before {
+    position: absolute;
+    inset-inline: 0;
+    top: -6px;
+    bottom: -6px;
+    content: "";
+  }
+}
+
+/*
  * Geometry for the icon settles (entrance and hover): rotate rays/hands about
  * the glyph center and scale the icon box from its center. The hover motion
  * itself is WAAPI in theme-toggle.tsx.

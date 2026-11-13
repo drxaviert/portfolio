@@ -290,6 +290,18 @@ function segmentClasses(selected: boolean): string {
 const EXPANDED_HIT_AREA =
   "before:absolute before:inset-x-0 before:-top-0.5 before:-bottom-0.5 before:content-['']";
 
+/**
+ * Fingers get no use out of the 2px inset the fine-pointer pill relies on, so a
+ * coarse pointer widens each md+ segment to 34x40 (see theme-toggle.css). The
+ * 32px track keeps its Figma size either way.
+ */
+const COARSE_HIT_AREA = "segment-coarse-hit-area";
+
+const HIT_AREA_CLASS = {
+  track: EXPANDED_HIT_AREA,
+  finger: COARSE_HIT_AREA,
+} as const;
+
 type SegmentTrackProps = {
   label: string;
   segments: number;
@@ -428,7 +440,7 @@ type SegmentProps = {
   onPointerEnter?: () => void;
   onPointerLeave?: () => void;
   onFocus?: () => void;
-  expandHitArea?: boolean;
+  hitArea?: "track" | "finger";
   tooltipBelow?: boolean;
 };
 
@@ -444,7 +456,7 @@ function Segment({
   onPointerEnter,
   onPointerLeave,
   onFocus,
-  expandHitArea = false,
+  hitArea,
   tooltipBelow = false,
 }: SegmentProps) {
   return (
@@ -462,7 +474,7 @@ function Segment({
       onFocus={onFocus}
       className={[
         segmentClasses(selected),
-        expandHitArea ? EXPANDED_HIT_AREA : "",
+        hitArea ? HIT_AREA_CLASS[hitArea] : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -957,6 +969,7 @@ export function ThemeToggle() {
                 tooltip={option.tooltip}
                 glyph={option.mode}
                 tooltipBelow={dayActive}
+                hitArea="finger"
                 buttonRef={option.mode === "day" ? dayRef : undefined}
                 onClick={() => {
                   setMode(option.mode);
@@ -1048,7 +1061,7 @@ export function ThemeToggle() {
                 label={option.label}
                 tooltip={option.tooltip}
                 glyph={dayPhaseGlyph(option.phase)}
-                expandHitArea
+                hitArea="track"
                 onClick={() => setDayPhase(option.phase)}
                 onKeyDown={(event) => onPhaseKeyDown(event, index)}
               />
@@ -1066,7 +1079,7 @@ export function ThemeToggle() {
           aria-expanded={menuOpen}
           aria-label={`Choose theme, currently ${currentMode.label}`}
           onClick={() => setMenuOpen((open) => !open)}
-          className="flex size-8 items-center justify-center rounded-md bg-toggle-track text-on-surface shadow-card outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className="relative flex size-8 items-center justify-center rounded-md bg-toggle-track text-on-surface shadow-card outline-hidden before:absolute before:-inset-1.5 before:content-[''] focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           <GlyphIcon glyph={mode} />
         </button>
