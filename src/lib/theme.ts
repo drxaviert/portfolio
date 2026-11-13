@@ -3,11 +3,28 @@ export type Mode = "day" | "night" | "auto";
 export type Phase = "dawn" | "day" | "dusk" | "night";
 
 /**
+ * Day mode either follows the clock ("clock", the historical behaviour) or
+ * pins one light phase. Night and Auto ignore it, but the choice is kept so
+ * Day comes back to it.
+ */
+export type DayPhase = "clock" | "dawn" | "day" | "dusk";
+
+export const DAY_PHASES: readonly DayPhase[] = [
+  "clock",
+  "dawn",
+  "day",
+  "dusk",
+];
+
+/**
  * The stored choice keeps the original key so existing visitors are migrated
  * rather than reset: "light" becomes "day", "dark" becomes "night", and
  * anything missing or unknown becomes "auto".
  */
 export const MODE_STORAGE_KEY = "theme";
+
+/** Separate key: the Day-phase choice survives mode changes. */
+export const DAY_PHASE_STORAGE_KEY = "theme-day-phase";
 
 /** Hour at which each phase starts (local time, 24h clock). */
 export const PHASE_STARTS = {
@@ -35,16 +52,31 @@ function isMode(value: string): boolean {
   return Object.prototype.hasOwnProperty.call(LEGACY_MODES, value);
 }
 
+function isDayPhase(value: string): value is DayPhase {
+  return (DAY_PHASES as readonly string[]).includes(value);
+}
+
 /**
  * Phase for an hour of the local clock.
  *
  * - auto: dawn 5–8, day 8–17, dusk 17–20, night 20–5.
  * - day: a light theme that still follows the clock and never shows night;
  *   20–2 mirrors back to day and 2–5 mirrors back to dawn, so every change
- *   lands on a neighbouring phase (02–08 is continuous dawn).
+ *   lands on a neighbouring phase (02–08 is continuous dawn). A pinned
+ *   `dayPhase` replaces the clock entirely.
  * - night: always night.
+ *
+ * Night and Auto ignore `dayPhase`: only Day mode can pin a phase.
  */
-export function phaseForHour(hour: number, mode: Mode = "auto"): Phase {
+export function phaseForHour(
+  hour: number,
+  mode: Mode = "auto",
+  dayPhase: DayPhase = "clock",
+): Phase {
+  if (mode === "day" && dayPhase !== "clock") {
+    return dayPhase;
+  }
+
   const h = ((Math.floor(hour) % 24) + 24) % 24;
 
   if (mode === "night") {
@@ -71,8 +103,12 @@ export function phaseForHour(hour: number, mode: Mode = "auto"): Phase {
 }
 
 /** Phase for a moment in the visitor's local time zone. */
-export function phaseFor(date: Date = new Date(), mode: Mode = "auto"): Phase {
-  return phaseForHour(date.getHours(), mode);
+export function phaseFor(
+  date: Date = new Date(),
+  mode: Mode = "auto",
+  dayPhase: DayPhase = "clock",
+): Phase {
+  return phaseForHour(date.getHours(), mode, dayPhase);
 }
 
 /** Hours where the Auto phase can change. */
@@ -154,6 +190,38 @@ export function readStoredMode(): Mode {
 export function writeStoredMode(mode: Mode): void {
   try {
     window.localStorage.setItem(MODE_STORAGE_KEY, mode);
+  } catch {
+    // Intentionally ignored: the in-memory choice still applies.
+  }
+}
+
+/** Maps a raw storage value onto a Day phase; anything unknown is "clock". */
+export function parseStoredDayPhase(value: unknown): DayPhase {
+  if (typeof value !== "string" || !isDayPhase(value)) {
+    return "clock";
+  }
+
+  return value;
+}
+
+/**
+ * Reads the persisted Day-phase pin. A missing value, an unknown value or
+ * blocked storage all mean the default: follow the clock.
+ */
+export function readStoredDayPhase(): DayPhase {
+  try {
+    return parseStoredDayPhase(
+      window.localStorage.getItem(DAY_PHASE_STORAGE_KEY),
+    );
+  } catch {
+    return "clock";
+  }
+}
+
+/** Persists the Day-phase pin; a failed write must never break the session. */
+export function writeStoredDayPhase(dayPhase: DayPhase): void {
+  try {
+    window.localStorage.setItem(DAY_PHASE_STORAGE_KEY, dayPhase);
   } catch {
     // Intentionally ignored: the in-memory choice still applies.
   }
@@ -306,21 +374,32 @@ export function markPhaseSwitch(kind: PhaseSwitchKind = "click"): void {
  */
 let activeMode: Mode | null = null;
 
+/** Same fallback for the Day-phase pin: storage can be unavailable. */
+let activeDayPhase: DayPhase | null = null;
+
 /** The mode the document follows when no dev preview is pinned. */
 export function getActiveMode(): Mode {
   return activeMode ?? readStoredMode();
 }
 
+/** The Day-phase pin the document follows when no dev preview is pinned. */
+export function getActiveDayPhase(): DayPhase {
+  return activeDayPhase ?? readStoredDayPhase();
+}
+
 /**
  * Applies a mode to the document: data-mode and data-phase drive the tokens,
- * and `.dark` stays for anything still keyed off the class. Returns the phase.
+ * and `.dark` stays for anything still keyed off the class. Night and Auto
+ * resolve from the clock even when a Day-phase pin is stored; Day applies the
+ * pin, or follows the clock when the pin is "clock". Returns the phase.
  */
 export function applyMode(
   mode: Mode,
   date: Date = new Date(),
   kind: PhaseSwitchKind = "click",
+  dayPhase: DayPhase = getActiveDayPhase(),
 ): Phase {
-  const phase = phaseFor(date, mode);
+  const phase = phaseFor(date, mode, dayPhase);
   const root = document.documentElement;
   const changed = root.dataset.phase !== phase;
 
@@ -329,11 +408,40 @@ export function applyMode(
   if (changed) markPhaseSwitch(kind);
 
   activeMode = mode;
+  activeDayPhase = dayPhase;
   root.dataset.mode = mode;
+  root.dataset.dayPhase = dayPhase;
   root.dataset.phase = phase;
   root.classList.toggle("dark", phase === "night");
 
   return phase;
+}
+
+/**
+ * Chooses the Day-mode phase. The pin is remembered even while Night or Auto
+ * is active, so the next Day selection returns to it; the current mode keeps
+ * ignoring it until then.
+ */
+export function applyDayPhase(
+  dayPhase: DayPhase,
+  date: Date = new Date(),
+  kind: PhaseSwitchKind = "click",
+): Phase {
+  activeDayPhase = dayPhase;
+  writeStoredDayPhase(dayPhase);
+
+  // The document is the source of truth for the current mode: a pre-paint
+  // script can have set it before this module ever ran.
+  const applied = document.documentElement.dataset.mode;
+
+  return applyMode(
+    applied === "day" || applied === "night" || applied === "auto"
+      ? applied
+      : getActiveMode(),
+    date,
+    kind,
+    dayPhase,
+  );
 }
 
 /**
