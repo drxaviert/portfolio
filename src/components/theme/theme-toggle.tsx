@@ -5,10 +5,18 @@ import type {
   ComponentPropsWithoutRef,
   FocusEvent,
   KeyboardEvent,
+  PointerEvent as ReactPointerEvent,
   ReactNode,
   Ref,
 } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
+import {
+  appliedHoverVariant,
+  HOVER_VARIANTS,
+  parseHoverVariant,
+  readHoverVariant,
+  writeHoverVariant,
+} from "@/components/theme/hover-variants";
 import type { DayPhase, Mode } from "@/lib/theme";
 import "./theme-toggle.css";
 
@@ -55,6 +63,7 @@ function canHover(): boolean {
 function GlyphIcon({ glyph }: { glyph: Glyph }) {
   return (
     <svg
+      data-glyph={glyph}
       viewBox="0 0 16 16"
       width="16"
       height="16"
@@ -69,34 +78,51 @@ function GlyphIcon({ glyph }: { glyph: Glyph }) {
       {glyph === "day" ? (
         <>
           <circle cx="8" cy="8" r="3" />
-          <path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1" />
+          <g data-rays>
+            <path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1" />
+          </g>
         </>
       ) : glyph === "night" ? (
-        <path d="M13.2 9.7A5.8 5.8 0 0 1 6.3 2.8a5.9 5.9 0 1 0 6.9 6.9Z" />
+        // The crescent's painted bbox is 0.65px left of the icon box; nudge it
+        // so its optical center lines up with the sun above.
+        <path
+          transform="translate(0.65 0)"
+          d="M13.2 9.7A5.8 5.8 0 0 1 6.3 2.8a5.9 5.9 0 1 0 6.9 6.9Z"
+        />
       ) : glyph === "dawn" ? (
         <>
           <path d="M2 12h12" />
-          <path d="M5 12a3 3 0 0 1 6 0" />
-          <path d="M8 2.5v1.7M4.7 4.4l1.2 1.2M11.3 4.4l-1.2 1.2" />
+          <g data-sun>
+            <path d="M5 12a3 3 0 0 1 6 0" />
+            <path d="M8 2.5v1.7M4.7 4.4l1.2 1.2M11.3 4.4l-1.2 1.2" />
+          </g>
         </>
       ) : glyph === "dusk" ? (
         <>
           <path d="M2 10.5h12" />
-          <path d="M5 10.5a3 3 0 0 0 6 0" />
-          <path d="M8 2.5v1.5M4.8 4.4l1.1 1.1M11.2 4.4l-1.1 1.1" />
+          <g data-sun>
+            <path d="M5 10.5a3 3 0 0 0 6 0" />
+            <path d="M8 2.5v1.5M4.8 4.4l1.1 1.1M11.2 4.4l-1.1 1.1" />
+          </g>
         </>
       ) : glyph === "dayclock" ? (
         // A sun with clock hands: the day's time rather than a clock alone,
         // which is what Auto keeps.
         <>
           <circle cx="8" cy="8" r="3.2" />
-          <path d="M8 1.6v1.4M8 13v1.4M1.6 8h1.4M13 8h1.4" />
-          <path d="M8 6V8l1.6.8" />
+          <g data-rays>
+            <path d="M8 1.6v1.4M8 13v1.4M1.6 8h1.4M13 8h1.4" />
+          </g>
+          <g data-hands>
+            <path d="M8 6V8l1.6.8" />
+          </g>
         </>
       ) : (
         <>
           <circle cx="8" cy="8" r="6" />
-          <path d="M8 4.6V8l2.4 1.4" />
+          <g data-hands>
+            <path d="M8 4.6V8l2.4 1.4" />
+          </g>
         </>
       )}
     </svg>
@@ -127,11 +153,12 @@ function readRowExitMs(row: HTMLElement | null): number {
 }
 
 /**
- * The 3-segment toggle's inner run is 100px: a 104px track minus its 2px inset
- * on each side. Every segmented control keeps that segment width, so a track
- * with another count is the same component, only wider.
+ * Whole-pixel segment width shared by every track. The Figma toggle is 104px
+ * with 3 × 33.33px segments; rounding to 34px keeps every segment center on an
+ * integer so the row and toggle columns line up exactly (106px and 140px
+ * tracks, right edges aligned).
  */
-const SEGMENT_WIDTH = 100 / 3;
+const SEGMENT_WIDTH = 34;
 const TRACK_INSET = 4;
 
 function trackWidth(segments: number): string {
@@ -140,9 +167,10 @@ function trackWidth(segments: number): string {
 
 function segmentClasses(selected: boolean): string {
   return [
-    // Figma 126:8942: segments are 33.3x28, radius 6, inside a 104x32 track
-    // with a 2px inset (the track's p-0.5).
-    "group relative flex h-7 flex-1 items-center justify-center rounded-[6px] outline-hidden transition-colors",
+    // Figma 126:8942, rounded to 34x28 so both tracks share integer centers:
+    // segments sit inside a 106x32 / 140x32 track with a 2px inset.
+    "segment group relative flex h-7 flex-1 items-center justify-center rounded-[6px] outline-hidden transition-[color,background-color,transform,scale] duration-150 ease-out",
+    "active:scale-[0.94]",
     "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
     selected
       ? "bg-toggle-selected text-on-surface"
@@ -169,6 +197,113 @@ function SegmentTrack({
   children,
   ...rest
 }: SegmentTrackProps) {
+  const pillRef = useRef<HTMLSpanElement>(null);
+  const hoveredIndex = useRef<number | null>(null);
+  const stretchTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (stretchTimer.current !== null) {
+        window.clearTimeout(stretchTimer.current);
+      }
+    };
+  }, []);
+
+  function hidePill() {
+    hoveredIndex.current = null;
+
+    if (stretchTimer.current !== null) {
+      window.clearTimeout(stretchTimer.current);
+      stretchTimer.current = null;
+    }
+
+    const pill = pillRef.current;
+
+    if (pill) {
+      pill.classList.remove("is-visible");
+      pill.style.scale = "";
+    }
+  }
+
+  /** Positions the single shared pill under the segment the pointer is on. */
+  function showPill(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!canHover()) {
+      return;
+    }
+
+    const variant = appliedHoverVariant();
+
+    if (variant === 0) {
+      return;
+    }
+
+    const target = (event.target as Element).closest<HTMLElement>(
+      '[role="radio"]',
+    );
+
+    if (!target || !event.currentTarget.contains(target)) {
+      return;
+    }
+
+    const buttons = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]'),
+    );
+    const index = buttons.indexOf(target);
+    const pill = pillRef.current;
+
+    if (index < 0 || !pill) {
+      return;
+    }
+
+    const previous = hoveredIndex.current;
+
+    if (previous === index) {
+      return;
+    }
+
+    if (previous === null) {
+      // First entry fades in where the pointer already is: commit the
+      // geometry with transitions off, then restore them and reveal on the
+      // next frame so opacity actually has a 0 start to fade from.
+      pill.classList.remove("is-visible");
+      pill.style.transition = "none";
+      pill.style.width = `${target.offsetWidth}px`;
+      pill.style.height = `${target.offsetHeight}px`;
+      pill.style.transform = `translateX(${target.offsetLeft}px)`;
+      void pill.offsetWidth;
+
+      window.requestAnimationFrame(() => {
+        pill.style.transition = "";
+
+        if (hoveredIndex.current === index) {
+          pill.classList.add("is-visible");
+        }
+      });
+    } else {
+      pill.style.transform = `translateX(${target.offsetLeft}px)`;
+
+      if (
+        variant === 4 &&
+        window.matchMedia?.("(prefers-reduced-motion: no-preference)").matches
+      ) {
+        pill.style.transformOrigin =
+          index > previous ? "left center" : "right center";
+        pill.style.scale = "1.18 1";
+
+        if (stretchTimer.current !== null) {
+          window.clearTimeout(stretchTimer.current);
+        }
+
+        stretchTimer.current = window.setTimeout(() => {
+          stretchTimer.current = null;
+          pill.style.scale = "1 1";
+        }, 110);
+      }
+    }
+
+    hoveredIndex.current = index;
+  }
+
   return (
     <div
       {...rest}
@@ -176,6 +311,8 @@ function SegmentTrack({
       role="radiogroup"
       aria-label={label}
       style={{ width: trackWidth(segments) }}
+      onPointerOver={showPill}
+      onPointerLeave={hidePill}
       className={[
         "flex h-8 items-center rounded-md bg-toggle-track p-0.5",
         className,
@@ -183,6 +320,11 @@ function SegmentTrack({
         .filter(Boolean)
         .join(" ")}
     >
+      <span
+        ref={pillRef}
+        aria-hidden="true"
+        className="hover-pill pointer-events-none absolute top-0.5 left-0 h-7 rounded-[6px] bg-toggle-selected"
+      />
       {children}
     </div>
   );
@@ -670,7 +812,11 @@ export function ThemeToggle() {
         onFocus={onDesktopFocus}
         onBlur={onDesktopBlur}
       >
-        <SegmentTrack label="Theme" segments={OPTIONS.length}>
+        <SegmentTrack
+          label="Theme"
+          segments={OPTIONS.length}
+          className="relative"
+        >
           {OPTIONS.map((option, index) => {
             const selected = option.mode === mode;
 
@@ -858,7 +1004,63 @@ export function ThemeToggle() {
           </div>
         ) : null}
       </div>
+
+      <HoverVariantPicker />
     </>
+  );
+}
+
+/**
+ * Dev-only switcher for the hover-motion variants. The value is applied to
+ * <html> so the CSS rules cover the toggle and the row alike, and remembered
+ * in localStorage. Production renders nothing at all.
+ */
+function HoverVariantPicker() {
+  const selectRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") {
+      return;
+    }
+
+    const stored = readHoverVariant();
+
+    if (selectRef.current) {
+      selectRef.current.value = String(stored);
+    }
+
+    document.documentElement.dataset.hoverVariant = String(stored);
+
+    return () => {
+      delete document.documentElement.dataset.hoverVariant;
+    };
+  }, []);
+
+  if (process.env.NODE_ENV !== "development") {
+    return null;
+  }
+
+  return (
+    <label className="fixed top-2 left-2 z-[60] flex items-center gap-2 rounded-md bg-surface-container-low px-2 py-1 text-xs text-on-surface shadow-card">
+      <span className="text-on-surface-variant">Hover</span>
+      <select
+        ref={selectRef}
+        defaultValue="0"
+        onChange={(event) => {
+          const next = parseHoverVariant(event.currentTarget.value);
+
+          writeHoverVariant(next);
+          document.documentElement.dataset.hoverVariant = String(next);
+        }}
+        className="bg-transparent text-on-surface outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        {HOVER_VARIANTS.map((variant) => (
+          <option key={variant.value} value={variant.value}>
+            {variant.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
