@@ -293,6 +293,7 @@ const HIGHLIGHT_MODES: readonly { value: HighlightMode; label: string }[] = [
 type HighlightConfig = {
   mode: HighlightMode;
   goo: number;
+  neck: number;
   hoverGoos: boolean;
   /** False when the browser cannot apply an SVG filter to an HTML layer. */
   filterOk: boolean;
@@ -300,6 +301,7 @@ type HighlightConfig = {
 
 const GOO_STORAGE_KEY = "theme-toggle-highlight";
 const GOO_DEFAULT = 35;
+const NECK_DEFAULT = 70;
 
 /** True only in `next dev`, so the comparison panel never ships. */
 const DEV_PANEL = process.env.NODE_ENV === "development";
@@ -312,22 +314,25 @@ const DEV_PANEL = process.env.NODE_ENV === "development";
 type GooSettings = {
   mode: HighlightMode;
   goo: number;
+  neck: number;
   hoverGoos: boolean;
 };
 
 const GOO_DEFAULTS: GooSettings = {
   mode: "metaball",
   goo: GOO_DEFAULT,
+  neck: NECK_DEFAULT,
   hoverGoos: false,
 };
 
 const gooListeners = new Set<() => void>();
 let gooSnapshot: GooSettings | null = null;
 
-function normalizeGoo(value: unknown): number {
+/** Clamps a stored slider value; `fallback` is the default for that slider. */
+function normalizeStop(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value)
     ? Math.min(100, Math.max(0, Math.round(value)))
-    : GOO_DEFAULTS.goo;
+    : fallback;
 }
 
 function readGooSettings(): GooSettings {
@@ -345,7 +350,8 @@ function readGooSettings(): GooSettings {
         parsed.mode === "current" || parsed.mode === "metaball"
           ? parsed.mode
           : GOO_DEFAULTS.mode,
-      goo: normalizeGoo(parsed.goo),
+      goo: normalizeStop(parsed.goo, GOO_DEFAULTS.goo),
+      neck: normalizeStop(parsed.neck, GOO_DEFAULTS.neck),
       hoverGoos:
         typeof parsed.hoverGoos === "boolean"
           ? parsed.hoverGoos
@@ -403,28 +409,62 @@ function restBlob(index: number): BlobRect {
 type GooParams = {
   duration: number;
   blur: number;
-  threshold: number;
+  /** Alpha contrast multiplier of the goo filter. */
+  alphaScale: number;
+  /** Alpha offset of the goo filter, negated in the matrix. */
+  alphaOffset: number;
   stretch: number;
   lag: number;
   wobble: number;
+  /** Cross-axis pinch at mid-flight; 0 leaves the neck exactly as it was. */
+  pinch: number;
+  /** Slight uniform shrink that travels with the pinch. */
+  shrink: number;
 };
 
 /**
- * The whole Goo slider is one interpolation: 0 is a 260ms stretch with a short
- * soft neck and no landing wobble, 100 is a 480ms travel with a wide bridge
- * that wobbles once as it settles. Blur and the alpha constant move together
- * so the neck stays visible at every stop.
+ * Goo is the amount of effect; Neck narrows the contact point. Neck 0 keeps the
+ * original matrix, lag and full-height blobs, so today's neck width is the
+ * start of the range. Higher stops pull the twin back until only a narrow
+ * overlap (and then a small gap) is left between the two lobes, pinch both
+ * blobs' height at mid-flight, and steepen the alpha threshold, so the joint
+ * thins and then snaps instead of reading as a wide band. Rest is untouched:
+ * the pinch and the offset are both zero at progress 0 and 1.
  */
-function gooParams(goo: number): GooParams {
+function gooParams(goo: number, neck: number): GooParams {
   const t = Math.min(100, Math.max(0, goo)) / 100;
+  const n = Math.min(100, Math.max(0, neck)) / 100;
+  // 0 is today's threshold; the neck only nudges it denser so the bridge
+  // thins without breaking. The steeper curve is what makes the pinch crisp.
+  const threshold = (6 + 2 * t) / 18 + 0.06 * n;
+  const blur = 2 + 6 * t;
+  const stretch = 0.04 + 0.18 * t;
+  const baseLag = 3 + 7 * t;
+  // The twin travels behind the lead by its own width plus a gap. Today (neck
+  // 0) the two overlap by ~30px, which is why the highlight reads as one wide
+  // band; the slider removes that overlap until the edges just touch, then
+  // opens a small real gap that the goo bridges as a thin neck.
+  const trailWidth = SEGMENT_WIDTH * (1 + stretch * 0.5);
+  const overlapAtZero = baseLag - trailWidth;
+  // 70 is the reference thin neck: a small real gap the goo can still bridge.
+  // 100 opens it as far as the blur allows before the bridge would snap.
+  const gapAtSeventy = 0.9 * blur;
+  const gapMax = 1.2 * blur;
+  const gap =
+    n <= 0.7
+      ? overlapAtZero + (gapAtSeventy - overlapAtZero) * (n / 0.7)
+      : gapAtSeventy + (gapMax - gapAtSeventy) * ((n - 0.7) / 0.3);
 
   return {
     duration: Math.round(260 + 220 * t),
-    blur: 2 + 6 * t,
-    threshold: 6 + 2 * t,
-    stretch: 0.04 + 0.18 * t,
-    lag: 3 + 7 * t,
+    blur,
+    alphaScale: 18 + 14 * n,
+    alphaOffset: (18 + 14 * n) * threshold,
+    stretch,
+    lag: trailWidth + gap,
     wobble: 0.05 * t,
+    pinch: 0.55 * n,
+    shrink: 0.035 * n,
   };
 }
 
@@ -474,11 +514,12 @@ function measureSegment(track: HTMLElement, index: number): BlobRect | null {
 function readBlobTransform(element: HTMLElement): {
   x: number;
   scaleX: number;
+  scaleY: number;
 } {
   const value = window.getComputedStyle(element).transform;
 
   if (!value || value === "none") {
-    return { x: 0, scaleX: 1 };
+    return { x: 0, scaleX: 1, scaleY: 1 };
   }
 
   const parts = value
@@ -487,10 +528,18 @@ function readBlobTransform(element: HTMLElement): {
     .map(Number);
 
   if (value.startsWith("matrix3d")) {
-    return { x: parts[12] ?? 0, scaleX: parts[0] ?? 1 };
+    return {
+      x: parts[12] ?? 0,
+      scaleX: parts[0] ?? 1,
+      scaleY: parts[5] ?? 1,
+    };
   }
 
-  return { x: parts[4] ?? 0, scaleX: parts[0] ?? 1 };
+  return {
+    x: parts[4] ?? 0,
+    scaleX: parts[0] ?? 1,
+    scaleY: parts[3] ?? 1,
+  };
 }
 
 function placeBlob(element: HTMLElement, rect: BlobRect): void {
@@ -508,6 +557,7 @@ type GooVars = CSSProperties & { "--goo-x": string };
 function blobVars(rect: BlobRect): GooVars {
   return { "--goo-x": `${rect.x}px` };
 }
+
 /**
  * Sends the lead blob to `rect` and drags a lagging twin behind it; the goo
  * filter turns the gap into a neck, and the neck snaps when the twin catches up
@@ -522,7 +572,9 @@ function flyBlobs(
   params: GooParams,
 ): () => void {
   const leadStart = readBlobTransform(lead);
-  const trailStart = trail ? readBlobTransform(trail) : { x: 0, scaleX: 1 };
+  const trailStart = trail
+    ? readBlobTransform(trail)
+    : { x: 0, scaleX: 1, scaleY: 1 };
   const to = rect.x;
   const direction = Math.sign(to - leadStart.x) || 1;
   // The first frame's timestamp is the clock, not the moment the effect ran:
@@ -559,13 +611,23 @@ function flyBlobs(
     );
     const eased = 1 - (1 - progress) ** 3;
     const wave = Math.sin(Math.PI * progress);
+    // Squared wave: the pinch peaks briefly at mid-flight, then is gone well
+    // before landing so the pill returns to its exact rest height.
+    const pinch = Math.sin(Math.PI * progress) ** 2;
     const x = leadStart.x + (to - leadStart.x) * eased;
 
     // Scale eases in from wherever the blob was caught mid-flight.
+    const scaleBlend = Math.min(1, progress * 4);
     let scaleX =
       leadStart.scaleX +
-      (1 + params.stretch * wave - leadStart.scaleX) *
-        Math.min(1, progress * 4);
+      (1 +
+        params.stretch * wave -
+        params.shrink * pinch -
+        leadStart.scaleX) *
+        scaleBlend;
+    const scaleY =
+      leadStart.scaleY +
+      (1 - params.pinch * pinch - leadStart.scaleY) * scaleBlend;
 
     // Landing wobble is scale-only, so the pill can never overshoot the track.
     if (params.wobble > 0 && progress > 0.72) {
@@ -574,18 +636,30 @@ function flyBlobs(
       scaleX += params.wobble * Math.sin(q * Math.PI * 2.5) * (1 - q);
     }
 
-    lead.style.transform = `translate3d(${x}px, ${rect.y}px, 0) scaleX(${scaleX})`;
+    lead.style.transform = `translate3d(${x}px, ${rect.y}px, 0) scale(${scaleX}, ${scaleY})`;
 
     if (trail) {
       // The twin keeps a bounded gap behind the lead (the neck), and an
       // existing gap from an interrupted flight decays instead of jumping.
       const catchUp = 1 - (1 - progress) ** 3;
+      // The twin pinches with the lead so the joint itself is thin; its start
+      // scales blend in too, or an interruption would pop it back to size.
+      const trailScaleX =
+        trailStart.scaleX +
+        (1 +
+          params.stretch * 0.5 * wave -
+          params.shrink * pinch -
+          trailStart.scaleX) *
+          scaleBlend;
+      const trailScaleY =
+        trailStart.scaleY +
+        (1 - params.pinch * pinch - trailStart.scaleY) * scaleBlend;
       const trailX =
         x -
         direction * params.lag * wave +
         (trailStart.x - leadStart.x) * (1 - catchUp);
 
-      trail.style.transform = `translate3d(${trailX}px, ${rect.y}px, 0) scaleX(${1 + params.stretch * 0.5 * wave})`;
+      trail.style.transform = `translate3d(${trailX}px, ${rect.y}px, 0) scale(${trailScaleX}, ${trailScaleY})`;
     }
 
     if (progress < 1 && frames < maxFrames) {
@@ -677,7 +751,7 @@ function SegmentTrack({
   /** The selection the blobs were last placed for, and whether they painted. */
   const placed = useRef<{ index: number; active: boolean } | null>(null);
   const metaball = highlight.mode === "metaball";
-  const params = gooParams(highlight.goo);
+  const params = gooParams(highlight.goo, highlight.neck);
   const filterId = `goo-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const restBox = restBlob(selectedIndex);
   const filterStyle = highlight.filterOk
@@ -748,9 +822,16 @@ function SegmentTrack({
       lead,
       trail,
       rect,
-      gooParams(highlight.goo),
+      gooParams(highlight.goo, highlight.neck),
     );
-  }, [selectedIndex, active, metaball, highlight.filterOk, highlight.goo]);
+  }, [
+    selectedIndex,
+    active,
+    metaball,
+    highlight.filterOk,
+    highlight.goo,
+    highlight.neck,
+  ]);
 
   // A resize can move the segments without changing the selection.
   useEffect(() => {
@@ -881,7 +962,7 @@ function SegmentTrack({
           lead,
           trail,
           rect,
-          gooParams(highlight.goo),
+          gooParams(highlight.goo, highlight.neck),
         );
       }
 
@@ -942,7 +1023,7 @@ function SegmentTrack({
               <feColorMatrix
                 in="blur"
                 type="matrix"
-                values={`1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -${params.threshold}`}
+                values={`1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${params.alphaScale} -${params.alphaOffset}`}
                 result="goo"
               />
               <feComposite in="SourceGraphic" in2="goo" operator="atop" />
@@ -1099,6 +1180,7 @@ export function ThemeToggle() {
   const {
     mode: highlightMode,
     goo,
+    neck,
     hoverGoos,
   } = useSyncExternalStore(subscribeGoo, getGooSettings, getServerGooSettings);
   const filterOk = useSyncExternalStore(
@@ -1117,6 +1199,7 @@ export function ThemeToggle() {
   const highlight: HighlightConfig = {
     mode: DEV_PANEL ? highlightMode : "current",
     goo,
+    neck,
     hoverGoos: DEV_PANEL && hoverGoos,
     filterOk,
   };
@@ -1853,10 +1936,12 @@ export function ThemeToggle() {
         <GooPanel
           mode={highlightMode}
           goo={goo}
+          neck={neck}
           hoverGoos={hoverGoos}
           filterOk={filterOk}
           onMode={(mode) => setGooSettings({ mode })}
           onGoo={(goo) => setGooSettings({ goo })}
+          onNeck={(neck) => setGooSettings({ neck })}
           onHoverGoos={(hoverGoos) => setGooSettings({ hoverGoos })}
         />
       ) : null}
@@ -1866,28 +1951,32 @@ export function ThemeToggle() {
 
 /**
  * Dev-only comparison panel for the selection highlight: Current is the shipped
- * fill, Metaball is the goo prototype with its Goo slider and hover switch. The
- * choice, the slider and the hover flag are remembered in localStorage; the
- * panel renders only in development.
+ * fill, Metaball is the goo prototype with its Goo and Neck sliders and hover
+ * switch. The choice, both sliders and the hover flag are remembered in
+ * localStorage; the panel renders only in development.
  */
 function GooPanel({
   mode,
   goo,
+  neck,
   hoverGoos,
   filterOk,
   onMode,
   onGoo,
+  onNeck,
   onHoverGoos,
 }: {
   mode: HighlightMode;
   goo: number;
+  neck: number;
   hoverGoos: boolean;
   filterOk: boolean;
   onMode: (mode: HighlightMode) => void;
   onGoo: (goo: number) => void;
+  onNeck: (neck: number) => void;
   onHoverGoos: (enabled: boolean) => void;
 }) {
-  const { duration } = gooParams(goo);
+  const { duration } = gooParams(goo, neck);
 
   return (
     <div
@@ -1939,6 +2028,24 @@ function GooPanel({
               step={1}
               value={goo}
               onChange={(event) => onGoo(Number(event.target.value))}
+              className="w-full accent-primary"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="flex items-baseline justify-between gap-2">
+              <span>Neck</span>
+              <span className="tabular-nums text-on-surface-variant">
+                {neck}
+              </span>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={neck}
+              onChange={(event) => onNeck(Number(event.target.value))}
               className="w-full accent-primary"
             />
           </label>
