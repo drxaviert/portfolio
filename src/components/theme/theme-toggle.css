@@ -1,4 +1,4 @@
-/*
+﻿/*
  * The row is a descendant of the nav ring host. ring-hover.css raises a
  * hovered card to z-index 1, and .ring-host isolates its own context, so the
  * row's own z-index cannot lift it out of the nav. Raise the nav itself while
@@ -73,158 +73,55 @@
   }
 }
 
-/* ---------- Hover motion variants (dev picker; 0 is the shipped look) ---------- */
 
-/*
- * One pill per track follows the pointer. Geometry is written as a transform
- * and width on first entry; later segment changes only move the transform.
- * Variant 0 never reveals it (the pointer handler returns early).
- */
+/* ---------- Hover motion (Classic) ---------- */
+
 .hover-pill {
   opacity: 0;
-  scale: 1 1;
   transition: opacity 150ms ease-out;
   will-change: transform, opacity;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-hover-variant="1"] .hover-pill.is-visible {
-    opacity: 0.55;
-  }
-  [data-hover-variant="2"] .hover-pill.is-visible {
-    opacity: 0.6;
-  }
-  [data-hover-variant="3"] .hover-pill.is-visible {
-    opacity: 0.3;
-  }
-  [data-hover-variant="4"] .hover-pill.is-visible {
+  .hover-pill.is-visible {
     opacity: 0.55;
   }
 }
 
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  [data-hover-variant="1"] .hover-pill {
+  .hover-pill {
     transition:
       transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      opacity 150ms ease-out,
-      scale 120ms ease-out;
-  }
-  [data-hover-variant="2"] .hover-pill {
-    transition:
-      transform 260ms cubic-bezier(0.34, 1.4, 0.64, 1),
-      opacity 150ms ease-out,
-      scale 120ms ease-out;
-  }
-  [data-hover-variant="3"] .hover-pill {
-    transition:
-      transform 240ms ease-out,
-      opacity 200ms ease-out,
-      scale 120ms ease-out;
-  }
-  [data-hover-variant="4"] .hover-pill {
-    transition:
-      transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      opacity 150ms ease-out,
-      scale 110ms ease-out;
+      opacity 150ms ease-out;
   }
 
   /* Icon parts transition back on leave; only transform animates. */
-  [data-hover-variant] .segment [data-glyph] [data-rays],
-  [data-hover-variant] .segment [data-glyph] [data-hands],
-  [data-hover-variant] .segment [data-glyph] [data-sun] {
+  .segment [data-glyph] [data-rays],
+  .segment [data-glyph] [data-hands],
+  .segment [data-glyph] [data-sun] {
     transform-box: view-box;
     transform-origin: 8px 8px;
     transition: transform 250ms ease-out;
   }
-  [data-hover-variant] .segment [data-glyph="night"] {
+
+  .segment [data-glyph="night"] {
     transform-origin: center;
     transition: transform 250ms ease-out;
   }
 
-  /* 1 Classic: pill 200ms, character motion alongside at 250ms. */
-  [data-hover-variant="1"] .segment:hover [data-rays] {
+  .segment:hover [data-rays] {
     transform: rotate(20deg);
   }
-  [data-hover-variant="1"] .segment:hover [data-hands] {
+  .segment:hover [data-hands] {
     transform: rotate(25deg);
   }
-  [data-hover-variant="1"] .segment:hover [data-glyph="night"] {
+  .segment:hover [data-glyph="night"] {
     transform: rotate(-12deg);
   }
-  [data-hover-variant="1"] .segment:hover [data-glyph="dawn"] [data-sun] {
+  .segment:hover [data-glyph="dawn"] [data-sun] {
     transform: translateY(-1.5px);
   }
-  [data-hover-variant="1"] .segment:hover [data-glyph="dusk"] [data-sun] {
-    transform: translateY(1.5px);
-  }
-
-  /* 2 Springy: overshoot on the pill and a small settle on the glyphs. */
-  [data-hover-variant="2"] .segment [data-glyph] [data-rays],
-  [data-hover-variant="2"] .segment [data-glyph] [data-hands],
-  [data-hover-variant="2"] .segment [data-glyph] [data-sun],
-  [data-hover-variant="2"] .segment [data-glyph="night"] {
-    transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
-    transition-duration: 300ms;
-  }
-  [data-hover-variant="2"] .segment:hover [data-rays] {
-    transform: rotate(30deg);
-  }
-  [data-hover-variant="2"] .segment:hover [data-hands] {
-    transform: rotate(35deg);
-  }
-  [data-hover-variant="2"] .segment:hover [data-glyph="night"] {
-    transform: rotate(-16deg);
-  }
-  [data-hover-variant="2"] .segment:hover [data-glyph="dawn"] [data-sun] {
-    transform: translateY(-2px);
-  }
-  [data-hover-variant="2"] .segment:hover [data-glyph="dusk"] [data-sun] {
-    transform: translateY(2px);
-  }
-
-  /* 3 Quiet: half amplitude, slower, almost subliminal. */
-  [data-hover-variant="3"] .segment [data-glyph] [data-rays],
-  [data-hover-variant="3"] .segment [data-glyph] [data-hands],
-  [data-hover-variant="3"] .segment [data-glyph] [data-sun],
-  [data-hover-variant="3"] .segment [data-glyph="night"] {
-    transition-duration: 300ms;
-  }
-  [data-hover-variant="3"] .segment:hover [data-rays] {
-    transform: rotate(10deg);
-  }
-  [data-hover-variant="3"] .segment:hover [data-hands] {
-    transform: rotate(12deg);
-  }
-  [data-hover-variant="3"] .segment:hover [data-glyph="night"] {
-    transform: rotate(-6deg);
-  }
-  [data-hover-variant="3"] .segment:hover [data-glyph="dawn"] [data-sun] {
-    transform: translateY(-0.75px);
-  }
-  [data-hover-variant="3"] .segment:hover [data-glyph="dusk"] [data-sun] {
-    transform: translateY(0.75px);
-  }
-
-  /* 4 Stretch + sequence: the pill lands first, the glyph follows. */
-  [data-hover-variant="4"] .segment [data-glyph] [data-rays],
-  [data-hover-variant="4"] .segment [data-glyph] [data-hands],
-  [data-hover-variant="4"] .segment [data-glyph] [data-sun],
-  [data-hover-variant="4"] .segment [data-glyph="night"] {
-    transition-delay: 80ms;
-  }
-  [data-hover-variant="4"] .segment:hover [data-rays] {
-    transform: rotate(20deg);
-  }
-  [data-hover-variant="4"] .segment:hover [data-hands] {
-    transform: rotate(25deg);
-  }
-  [data-hover-variant="4"] .segment:hover [data-glyph="night"] {
-    transform: rotate(-12deg);
-  }
-  [data-hover-variant="4"] .segment:hover [data-glyph="dawn"] [data-sun] {
-    transform: translateY(-1.5px);
-  }
-  [data-hover-variant="4"] .segment:hover [data-glyph="dusk"] [data-sun] {
+  .segment:hover [data-glyph="dusk"] [data-sun] {
     transform: translateY(1.5px);
   }
 }

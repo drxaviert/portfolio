@@ -10,13 +10,6 @@ import type {
   Ref,
 } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
-import {
-  appliedHoverVariant,
-  HOVER_VARIANTS,
-  parseHoverVariant,
-  readHoverVariant,
-  writeHoverVariant,
-} from "@/components/theme/hover-variants";
 import type { DayPhase, Mode } from "@/lib/theme";
 import "./theme-toggle.css";
 
@@ -199,41 +192,20 @@ function SegmentTrack({
 }: SegmentTrackProps) {
   const pillRef = useRef<HTMLSpanElement>(null);
   const hoveredIndex = useRef<number | null>(null);
-  const stretchTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (stretchTimer.current !== null) {
-        window.clearTimeout(stretchTimer.current);
-      }
-    };
-  }, []);
 
   function hidePill() {
     hoveredIndex.current = null;
-
-    if (stretchTimer.current !== null) {
-      window.clearTimeout(stretchTimer.current);
-      stretchTimer.current = null;
-    }
 
     const pill = pillRef.current;
 
     if (pill) {
       pill.classList.remove("is-visible");
-      pill.style.scale = "";
     }
   }
 
   /** Positions the single shared pill under the segment the pointer is on. */
   function showPill(event: ReactPointerEvent<HTMLDivElement>) {
     if (!canHover()) {
-      return;
-    }
-
-    const variant = appliedHoverVariant();
-
-    if (variant === 0) {
       return;
     }
 
@@ -281,24 +253,6 @@ function SegmentTrack({
       });
     } else {
       pill.style.transform = `translateX(${target.offsetLeft}px)`;
-
-      if (
-        variant === 4 &&
-        window.matchMedia?.("(prefers-reduced-motion: no-preference)").matches
-      ) {
-        pill.style.transformOrigin =
-          index > previous ? "left center" : "right center";
-        pill.style.scale = "1.18 1";
-
-        if (stretchTimer.current !== null) {
-          window.clearTimeout(stretchTimer.current);
-        }
-
-        stretchTimer.current = window.setTimeout(() => {
-          stretchTimer.current = null;
-          pill.style.scale = "1 1";
-        }, 110);
-      }
     }
 
     hoveredIndex.current = index;
@@ -1004,63 +958,7 @@ export function ThemeToggle() {
           </div>
         ) : null}
       </div>
-
-      <HoverVariantPicker />
     </>
-  );
-}
-
-/**
- * Dev-only switcher for the hover-motion variants. The value is applied to
- * <html> so the CSS rules cover the toggle and the row alike, and remembered
- * in localStorage. Production renders nothing at all.
- */
-function HoverVariantPicker() {
-  const selectRef = useRef<HTMLSelectElement>(null);
-
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "development") {
-      return;
-    }
-
-    const stored = readHoverVariant();
-
-    if (selectRef.current) {
-      selectRef.current.value = String(stored);
-    }
-
-    document.documentElement.dataset.hoverVariant = String(stored);
-
-    return () => {
-      delete document.documentElement.dataset.hoverVariant;
-    };
-  }, []);
-
-  if (process.env.NODE_ENV !== "development") {
-    return null;
-  }
-
-  return (
-    <label className="fixed top-2 left-2 z-[60] flex items-center gap-2 rounded-md bg-surface-container-low px-2 py-1 text-xs text-on-surface shadow-card">
-      <span className="text-on-surface-variant">Hover</span>
-      <select
-        ref={selectRef}
-        defaultValue="0"
-        onChange={(event) => {
-          const next = parseHoverVariant(event.currentTarget.value);
-
-          writeHoverVariant(next);
-          document.documentElement.dataset.hoverVariant = String(next);
-        }}
-        className="bg-transparent text-on-surface outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-      >
-        {HOVER_VARIANTS.map((variant) => (
-          <option key={variant.value} value={variant.value}>
-            {variant.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 
