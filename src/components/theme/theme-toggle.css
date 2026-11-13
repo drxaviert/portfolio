@@ -1,4 +1,14 @@
 /*
+ * The row is a descendant of the nav ring host. ring-hover.css raises a
+ * hovered card to z-index 1, and .ring-host isolates its own context, so the
+ * row's own z-index cannot lift it out of the nav. Raise the nav itself while
+ * the row is open (only then: a closed row changes nothing).
+ */
+.ring-host:has([data-phase-row][data-visible="true"]) {
+  z-index: 2;
+}
+
+/*
  * The Day-phase row opens above the theme toggle. It rises from below the
  * toggle (translateY +4px, scale .98) into place; the exit is quicker and
  * drops back toward the toggle. Only opacity/transform animate, and
