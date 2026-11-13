@@ -145,6 +145,8 @@ export function ThemeToggle() {
   const focusInside = useRef(false);
   const pointerInside = useRef(false);
   const suppressFocusOpen = useRef(false);
+  /** Only keyboard focus may hold the row open; pointer focus may not. */
+  const inputModality = useRef<"pointer" | "keyboard">("pointer");
 
   const currentMode =
     OPTIONS.find((option) => option.mode === mode) ?? OPTIONS[2];
@@ -172,18 +174,46 @@ export function ThemeToggle() {
   function scheduleClose() {
     clearCloseTimer();
 
-    if (focusInside.current) {
+    if (focusHoldsOpen()) {
       return;
     }
 
     closeTimer.current = window.setTimeout(() => {
       closeTimer.current = null;
 
-      if (!focusInside.current) {
+      if (!focusHoldsOpen()) {
         setRowOpen(false);
       }
     }, PHASE_ROW_CLOSE_DELAY_MS);
   }
+
+  /**
+   * A mouse click leaves focus on the clicked segment, so plain focus must not
+   * pin the row open. Only focus that arrived through the keyboard does.
+   */
+  function focusHoldsOpen(): boolean {
+    return focusInside.current && inputModality.current === "keyboard";
+  }
+
+  // Track the input modality independently of focus: a pointerdown marks the
+  // interaction as pointer before focus moves, and a keydown marks it as
+  // keyboard before Tab moves focus.
+  useEffect(() => {
+    const onPointerDown = () => {
+      inputModality.current = "pointer";
+    };
+    const onKeyDown = () => {
+      inputModality.current = "keyboard";
+    };
+
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, []);
 
   // A pinned row only belongs to Day; leaving Day closes it immediately.
   useEffect(() => {
@@ -208,6 +238,15 @@ export function ThemeToggle() {
     }
 
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      // Keyboard use inside the row holds it open, even if a pointer-leave
+      // timer was already running.
+      if (focusInside.current) {
+        if (closeTimer.current !== null) {
+          window.clearTimeout(closeTimer.current);
+          closeTimer.current = null;
+        }
+      }
+
       if (event.key !== "Escape") {
         return;
       }
@@ -444,7 +483,10 @@ export function ThemeToggle() {
 
   function onDesktopFocus() {
     focusInside.current = true;
-    clearCloseTimer();
+
+    if (inputModality.current === "keyboard") {
+      clearCloseTimer();
+    }
   }
 
   function onDesktopBlur(event: FocusEvent<HTMLDivElement>) {
@@ -508,7 +550,11 @@ export function ThemeToggle() {
                     return;
                   }
 
-                  if (option.mode === "day" && dayActive) {
+                  if (
+                    option.mode === "day" &&
+                    dayActive &&
+                    inputModality.current === "keyboard"
+                  ) {
                     openRow();
                   }
                 }}

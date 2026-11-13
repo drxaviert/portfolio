@@ -540,7 +540,7 @@ describe("ThemeToggle", () => {
     expect(phaseRow()).toHaveAttribute("data-visible", "true");
   });
 
-  it("keeps the row open while focus is inside, then closes after focus leaves", () => {
+  it("keeps the row open while keyboard focus is inside, then closes after focus leaves", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
     mockHoverCanHover(true);
@@ -550,6 +550,8 @@ describe("ThemeToggle", () => {
 
     const dusk = screen.getByRole("radio", { name: "Dusk" });
 
+    // Tab is what makes the subsequent focus keyboard focus.
+    fireEvent.keyDown(document, { key: "Tab" });
     act(() => dusk.focus());
     fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
 
@@ -561,6 +563,36 @@ describe("ThemeToggle", () => {
     act(() => dusk.blur());
     act(() => {
       vi.advanceTimersByTime(700);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+  });
+
+  it("does not let pointer focus hold the row open", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    fireEvent.pointerDown(screen.getByRole("radio", { name: "Day" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+
+    const dusk = screen.getByRole("radio", { name: "Dusk" });
+
+    fireEvent.pointerDown(dusk);
+    fireEvent.click(dusk);
+    // A real mouse click leaves focus on the clicked button.
+    act(() => dusk.focus());
+    expect(dusk).toHaveFocus();
+
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(699);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(1);
     });
     expect(phaseRow()).toHaveAttribute("data-visible", "false");
   });
