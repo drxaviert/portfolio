@@ -6,6 +6,9 @@ import { useTheme } from "@/components/theme/theme-provider";
 import type { DayPhase, Mode } from "@/lib/theme";
 import "./theme-toggle.css";
 
+/** How long the phase row lingers after the pointer leaves it and the toggle. */
+export const PHASE_ROW_CLOSE_DELAY_MS = 700;
+
 type ModeOption = {
   mode: Mode;
   label: string;
@@ -31,7 +34,14 @@ const PHASE_OPTIONS: PhaseOption[] = [
   { phase: "dusk", label: "Dusk", tooltip: "Dusk" },
 ];
 
-type Glyph = Mode | "dawn" | "dusk";
+type Glyph = Mode | "dawn" | "dusk" | "dayclock";
+
+/** False on touch-first devices, where the row is opened by tapping Day. */
+function canHover(): boolean {
+  return typeof window.matchMedia === "function"
+    ? window.matchMedia("(hover: hover)").matches
+    : true;
+}
 
 function GlyphIcon({ glyph }: { glyph: Glyph }) {
   return (
@@ -66,6 +76,14 @@ function GlyphIcon({ glyph }: { glyph: Glyph }) {
           <path d="M5 10.5a3 3 0 0 0 6 0" />
           <path d="M8 2.5v1.5M4.8 4.4l1.1 1.1M11.2 4.4l-1.1 1.1" />
         </>
+      ) : glyph === "dayclock" ? (
+        // A sun with clock hands: the day's time rather than a clock alone,
+        // which is what Auto keeps.
+        <>
+          <circle cx="8" cy="8" r="3.2" />
+          <path d="M8 1.6v1.4M8 13v1.4M1.6 8h1.4M13 8h1.4" />
+          <path d="M8 6V8l1.6.8" />
+        </>
       ) : (
         <>
           <circle cx="8" cy="8" r="6" />
@@ -76,9 +94,9 @@ function GlyphIcon({ glyph }: { glyph: Glyph }) {
   );
 }
 
-/** Maps a pin to the glyph that reads as it: Clock reuses the Auto clock. */
+/** Maps a pin to the glyph that reads as it. */
 function dayPhaseGlyph(phase: DayPhase): Glyph {
-  if (phase === "clock") return "auto";
+  if (phase === "clock") return "dayclock";
   if (phase === "day") return "day";
   return phase;
 }
@@ -95,11 +113,20 @@ function segmentClasses(selected: boolean): string {
   ].join(" ");
 }
 
-function Tooltip({ children }: { children: ReactNode }) {
+function Tooltip({
+  children,
+  below = false,
+}: {
+  children: ReactNode;
+  below?: boolean;
+}) {
   return (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+      className={[
+        "pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100",
+        below ? "top-full mt-2" : "-top-9",
+      ].join(" ")}
     >
       {children}
     </span>
@@ -109,21 +136,124 @@ function Tooltip({ children }: { children: ReactNode }) {
 export function ThemeToggle() {
   const { mode, dayPhase, setMode, setDayPhase } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [rowReady, setRowReady] = useState(false);
+  const [rowOpen, setRowOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const desktopRef = useRef<HTMLDivElement>(null);
+  const dayRef = useRef<HTMLButtonElement>(null);
+  const closeTimer = useRef<number | null>(null);
+  const focusInside = useRef(false);
+  const pointerInside = useRef(false);
+  const suppressFocusOpen = useRef(false);
 
   const currentMode =
     OPTIONS.find((option) => option.mode === mode) ?? OPTIONS[2];
   const dayActive = mode === "day";
+  // The row belongs to Day: leaving Day hides it without a state effect.
+  const rowVisible = rowOpen && dayActive;
 
-  // Let the first paint land without an entrance: the row is already in its
-  // resting place when the page loads on Day, and only later changes animate.
+  function clearCloseTimer() {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }
+
+  function openRow() {
+    clearCloseTimer();
+    setRowOpen(true);
+  }
+
+  function closeRow() {
+    clearCloseTimer();
+    setRowOpen(false);
+  }
+
+  function scheduleClose() {
+    clearCloseTimer();
+
+    if (focusInside.current) {
+      return;
+    }
+
+    closeTimer.current = window.setTimeout(() => {
+      closeTimer.current = null;
+
+      if (!focusInside.current) {
+        setRowOpen(false);
+      }
+    }, PHASE_ROW_CLOSE_DELAY_MS);
+  }
+
+  // A pinned row only belongs to Day; leaving Day closes it immediately.
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => setRowReady(true));
+    if (!rowVisible && closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }, [rowVisible]);
 
-    return () => window.cancelAnimationFrame(frame);
+  useEffect(() => {
+    return () => {
+      if (closeTimer.current !== null) {
+        window.clearTimeout(closeTimer.current);
+      }
+    };
   }, []);
+
+  // Escape closes the row from anywhere and hands focus back to Day.
+  useEffect(() => {
+    if (!rowVisible) {
+      return;
+    }
+
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      if (closeTimer.current !== null) {
+        window.clearTimeout(closeTimer.current);
+        closeTimer.current = null;
+      }
+
+      setRowOpen(false);
+
+      // Restoring focus to Day must not count as "focus entered Day" and
+      // reopen the row it just closed.
+      suppressFocusOpen.current = true;
+      dayRef.current?.focus();
+      suppressFocusOpen.current = false;
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [rowVisible]);
+
+  // Touch has no pointer-leave, so a tap outside is the close gesture.
+  useEffect(() => {
+    if (!rowVisible || canHover()) {
+      return;
+    }
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+
+      if (target && !desktopRef.current?.contains(target)) {
+        if (closeTimer.current !== null) {
+          window.clearTimeout(closeTimer.current);
+          closeTimer.current = null;
+        }
+
+        setRowOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [rowVisible]);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -196,7 +326,17 @@ export function ThemeToggle() {
     }
 
     event.preventDefault();
-    setMode(OPTIONS[nextIndex].mode);
+
+    const next = OPTIONS[nextIndex];
+
+    setMode(next.mode);
+
+    if (next.mode === "day") {
+      openRow();
+    } else {
+      closeRow();
+    }
+
     event.currentTarget
       .closest('[role="radiogroup"]')
       ?.querySelectorAll<HTMLElement>('[role="radio"]')
@@ -285,10 +425,53 @@ export function ThemeToggle() {
     setMenuOpen(false);
   }
 
+  /** The desktop host: hovering or focusing anywhere in it keeps the row up. */
+  function onDesktopPointerEnter() {
+    pointerInside.current = true;
+
+    if (canHover()) {
+      clearCloseTimer();
+    }
+  }
+
+  function onDesktopPointerLeave() {
+    pointerInside.current = false;
+
+    if (canHover()) {
+      scheduleClose();
+    }
+  }
+
+  function onDesktopFocus() {
+    focusInside.current = true;
+    clearCloseTimer();
+  }
+
+  function onDesktopBlur(event: FocusEvent<HTMLDivElement>) {
+    const next = event.relatedTarget as Node | null;
+
+    if (next && desktopRef.current?.contains(next)) {
+      return;
+    }
+
+    focusInside.current = false;
+
+    if (!pointerInside.current) {
+      scheduleClose();
+    }
+  }
+
   return (
     <>
       {/* 768px and up: icon-only 3-segment pill, 104x32, 2px inset. */}
-      <div className="relative hidden md:block">
+      <div
+        ref={desktopRef}
+        className="relative hidden md:block"
+        onPointerEnter={onDesktopPointerEnter}
+        onPointerLeave={onDesktopPointerLeave}
+        onFocus={onDesktopFocus}
+        onBlur={onDesktopBlur}
+      >
         <div
           role="radiogroup"
           aria-label="Theme"
@@ -300,35 +483,63 @@ export function ThemeToggle() {
             return (
               <button
                 key={option.mode}
+                ref={option.mode === "day" ? dayRef : undefined}
                 type="button"
                 role="radio"
                 aria-checked={selected}
                 aria-label={option.label}
                 tabIndex={selected ? 0 : -1}
-                onClick={() => setMode(option.mode)}
+                onClick={() => {
+                  setMode(option.mode);
+
+                  if (option.mode === "day") {
+                    openRow();
+                  } else {
+                    closeRow();
+                  }
+                }}
+                onPointerEnter={() => {
+                  if (option.mode === "day" && dayActive) {
+                    openRow();
+                  }
+                }}
+                onFocus={() => {
+                  if (suppressFocusOpen.current) {
+                    return;
+                  }
+
+                  if (option.mode === "day" && dayActive) {
+                    openRow();
+                  }
+                }}
                 onKeyDown={(event) => onSegmentKeyDown(event, index)}
                 className={segmentClasses(selected)}
               >
                 <GlyphIcon glyph={option.mode} />
-                <Tooltip>{option.tooltip}</Tooltip>
+                <Tooltip below={dayActive}>{option.tooltip}</Tooltip>
               </button>
             );
           })}
         </div>
 
+        {/* Bridges the 4px gap so moving from the toggle to the row keeps
+            hovering, and keeps the whole journey one hover target. */}
+        {rowVisible ? (
+          <span aria-hidden="true" className="absolute inset-x-0 -top-1 h-1" />
+        ) : null}
+
         {/*
-         * Day-only phase row. It hangs under the toggle in the page's bottom
-         * padding and overlays nothing, so nothing else moves when it appears.
+         * Day-only phase row. It opens above the toggle in the gap below the
+         * cards; absolute positioning keeps the page from moving.
          */}
         <div
           role="radiogroup"
           aria-label="Day phase"
-          aria-hidden={!dayActive}
-          inert={!dayActive}
+          aria-hidden={!rowVisible}
+          inert={!rowVisible}
           data-phase-row="true"
-          data-visible={dayActive}
-          data-ready={rowReady}
-          className="phase-row absolute top-full right-0 mt-5 flex h-8 w-[132px] items-center rounded-[6px] bg-toggle-track p-0.5 shadow-card"
+          data-visible={rowVisible}
+          className="phase-row absolute right-0 bottom-full mb-1 flex h-8 w-[132px] items-center rounded-[6px] bg-toggle-track p-0.5 shadow-card"
         >
           {PHASE_OPTIONS.map((option, index) => {
             const selected = option.phase === dayPhase;

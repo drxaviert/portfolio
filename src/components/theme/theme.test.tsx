@@ -31,6 +31,28 @@ function root() {
   return document.documentElement;
 }
 
+function phaseRow(): HTMLElement {
+  return document.querySelector<HTMLElement>('[data-phase-row="true"]')!;
+}
+
+function themeHost(): HTMLElement {
+  return screen.getByRole("radiogroup", { name: "Theme" }).parentElement!;
+}
+
+/** jsdom has no hover media query of its own. */
+function mockHoverCanHover(hover: boolean) {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: hover ? query === "(hover: hover)" : query === "(hover: none)",
+    media: query,
+    onchange: null,
+    addListener() {},
+    removeListener() {},
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent: () => false,
+  }));
+}
+
 beforeEach(() => {
   applyDayPhase("clock");
   window.localStorage.clear();
@@ -53,6 +75,7 @@ afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("ThemeToggle", () => {
@@ -466,5 +489,143 @@ describe("ThemeToggle", () => {
     expect(
       screen.queryByRole("menuitemradio", { name: "Dusk" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("opens the Day row on click and closes it after the pointer leaves", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+
+    fireEvent.click(day);
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(699);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+  });
+
+  it("cancels the close when the pointer moves into the row", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    fireEvent.pointerOver(screen.getByRole("radio", { name: "Dusk" }), {
+      relatedTarget: document.body,
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+  });
+
+  it("keeps the row open while focus is inside, then closes after focus leaves", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+
+    const dusk = screen.getByRole("radio", { name: "Dusk" });
+
+    act(() => dusk.focus());
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    act(() => dusk.blur());
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+  });
+
+  it("closes on Escape and puts focus back on Day without reopening", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+    fireEvent.click(day);
+
+    act(() => screen.getByRole("radio", { name: "Dawn" }).focus());
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+    expect(day).toHaveFocus();
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+  });
+
+  it("starts closed on load but opens when Day is hovered", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    mockHoverCanHover(true);
+    renderToggle();
+
+    expect(root().dataset.mode).toBe("day");
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+
+    fireEvent.pointerOver(screen.getByRole("radio", { name: "Day" }), {
+      relatedTarget: document.body,
+    });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+  });
+
+  it("taps Day open and an outside tap closes on touch", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(false);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+    fireEvent.click(day);
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    // No pointer-leave timer on touch.
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    fireEvent.pointerDown(document.body);
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
   });
 });

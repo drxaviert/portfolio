@@ -1,17 +1,15 @@
 /*
- * The Day-phase row hangs under the theme toggle. It fades and rises into
- * place from the toggle's corner; the exit is quicker and drops back up toward
- * it. Only opacity/transform animate, and `visibility` is delayed so the row
- * stays painted for the exit while `inert` keeps it out of the tab order.
- *
- * data-ready is false for the first frame so a page that loads on Day does not
- * play an entrance it never asked for.
+ * The Day-phase row opens above the theme toggle. It rises from below the
+ * toggle (translateY +4px, scale .98) into place; the exit is quicker and
+ * drops back toward the toggle. Only opacity/transform animate, and
+ * `visibility` is delayed so the row stays painted for the exit while `inert`
+ * keeps it out of the tab order.
  */
 .phase-row {
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-4px) scale(0.98);
-  transform-origin: top right;
+  transform: translateY(4px) scale(0.98);
+  transform-origin: bottom right;
   pointer-events: none;
 }
 
@@ -20,16 +18,13 @@
   visibility: visible;
   transform: none;
   pointer-events: auto;
-}
-
-.phase-row[data-ready="true"] {
   transition:
     opacity 180ms cubic-bezier(0.32, 0.72, 0, 1),
     transform 180ms cubic-bezier(0.32, 0.72, 0, 1),
     visibility 0s;
 }
 
-.phase-row[data-ready="true"][data-visible="false"] {
+.phase-row[data-visible="false"] {
   transition:
     opacity 120ms cubic-bezier(0.4, 0, 1, 1),
     transform 120ms cubic-bezier(0.4, 0, 1, 1),
@@ -43,16 +38,15 @@
     transform: none;
   }
 
-  .phase-row[data-ready="true"],
-  .phase-row[data-ready="true"][data-visible="false"] {
-    transition:
-      opacity 120ms ease-out,
-      visibility 0s 120ms;
-  }
-
-  .phase-row[data-ready="true"][data-visible="true"] {
+  .phase-row[data-visible="true"] {
     transition:
       opacity 120ms ease-out,
       visibility 0s;
+  }
+
+  .phase-row[data-visible="false"] {
+    transition:
+      opacity 120ms ease-out,
+      visibility 0s 120ms;
   }
 }
