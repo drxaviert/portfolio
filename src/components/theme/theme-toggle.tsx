@@ -9,7 +9,6 @@ import type {
   ReactNode,
   Ref,
 } from "react";
-import { useDayRowVariant } from "@/components/theme/day-row-variant";
 import { useTheme } from "@/components/theme/theme-provider";
 import type { DayPhase, Mode } from "@/lib/theme";
 import "./theme-toggle.css";
@@ -443,8 +442,6 @@ type SegmentProps = {
   onFocus?: () => void;
   hitArea?: "track" | "finger";
   tooltipBelow?: boolean;
-  ariaControls?: string;
-  ariaDescribedBy?: string;
 };
 
 /** Shared segment button: same classes, icon size and tooltip everywhere. */
@@ -461,8 +458,6 @@ function Segment({
   onFocus,
   hitArea,
   tooltipBelow = false,
-  ariaControls,
-  ariaDescribedBy,
 }: SegmentProps) {
   return (
     <button
@@ -471,8 +466,6 @@ function Segment({
       role="radio"
       aria-checked={selected}
       aria-label={label}
-      aria-controls={ariaControls}
-      aria-describedby={ariaDescribedBy}
       tabIndex={selected ? 0 : -1}
       onClick={onClick}
       onKeyDown={onKeyDown}
@@ -514,13 +507,10 @@ function Tooltip({
 
 export function ThemeToggle() {
   const { mode, dayPhase, setMode, setDayPhase } = useTheme();
-  const variant = useDayRowVariant();
   const [menuOpen, setMenuOpen] = useState(false);
   const [rowOpen, setRowOpen] = useState(false);
   const [rowExiting, setRowExiting] = useState(false);
   const [rowEntering, setRowEntering] = useState(false);
-  /** Set for the one frame in which an instant open paints. */
-  const [rowInstant, setRowInstant] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const desktopRef = useRef<HTMLDivElement>(null);
@@ -529,18 +519,14 @@ export function ThemeToggle() {
   const closeTimer = useRef<number | null>(null);
   const exitTimer = useRef<number | null>(null);
   const enterTimer = useRef<number | null>(null);
-  const instantFrame = useRef<number | null>(null);
   /** True when the row is closing while one of its options has focus. */
   const rowHadFocus = useRef(false);
-  /** Variant C: move focus into the row once the open has committed. */
-  const pendingPhaseFocus = useRef(false);
   const focusInside = useRef(false);
   /** True while the pointer is over Day, the gap bridge, or the row. */
   const hoverRegion = useRef(false);
   const suppressFocusOpen = useRef(false);
   /** Only keyboard focus may hold the row open; pointer focus may not. */
   const inputModality = useRef<"pointer" | "keyboard">("pointer");
-  const phaseRowId = useId();
 
   const currentMode =
     OPTIONS.find((option) => option.mode === mode) ?? OPTIONS[2];
@@ -608,43 +594,12 @@ export function ThemeToggle() {
     }, ROW_ENTER_SETTLE_MS);
   }, [clearEnter]);
 
-  const openRow = useCallback(
-    (options?: { instant?: boolean }) => {
-      clearCloseTimer();
-      clearExit();
-
-      if (options?.instant) {
-        // Variant B/C: the row appears already at rest. No settle flag, no
-        // stagger; data-instant pins every entrance transition to 0ms until
-        // the open has painted, then comes off so hover and exit are untouched.
-        clearEnter();
-        setRowInstant(true);
-
-        if (instantFrame.current !== null) {
-          window.cancelAnimationFrame(instantFrame.current);
-        }
-
-        instantFrame.current = window.requestAnimationFrame(() => {
-          instantFrame.current = window.requestAnimationFrame(() => {
-            instantFrame.current = null;
-            setRowInstant(false);
-          });
-        });
-      } else {
-        // A full entrance supersedes any instant open still on screen.
-        if (instantFrame.current !== null) {
-          window.cancelAnimationFrame(instantFrame.current);
-          instantFrame.current = null;
-        }
-
-        setRowInstant(false);
-        startEnter();
-      }
-
-      setRowOpen(true);
-    },
-    [clearCloseTimer, clearEnter, clearExit, startEnter],
-  );
+  const openRow = useCallback(() => {
+    clearCloseTimer();
+    clearExit();
+    startEnter();
+    setRowOpen(true);
+  }, [clearCloseTimer, clearExit, startEnter]);
 
   const closeRow = useCallback(() => {
     clearCloseTimer();
@@ -727,18 +682,6 @@ export function ThemeToggle() {
     suppressFocusOpen.current = false;
   }, [rowVisible]);
 
-  /** Variant C opens the row from the keyboard; focus follows the commit. */
-  useEffect(() => {
-    if (!rowVisible || !pendingPhaseFocus.current) {
-      return;
-    }
-
-    pendingPhaseFocus.current = false;
-    rowRef.current
-      ?.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]')
-      ?.focus();
-  }, [rowVisible]);
-
   useEffect(() => {
     return () => {
       if (closeTimer.current !== null) {
@@ -751,10 +694,6 @@ export function ThemeToggle() {
 
       if (enterTimer.current !== null) {
         window.clearTimeout(enterTimer.current);
-      }
-
-      if (instantFrame.current !== null) {
-        window.cancelAnimationFrame(instantFrame.current);
       }
     };
   }, []);
@@ -867,45 +806,20 @@ export function ThemeToggle() {
      * A forward Tab from Day has to reach the phase group even when the row
      * was closed while Day kept focus (Escape, or the pointer leaving after a
      * click). Opening during keydown runs before the browser picks the next
-     * focusable, so this same Tab lands inside the row. Variant C keeps Tab
-     * from opening it on purpose.
+     * focusable, so this same Tab lands inside the row.
      */
     if (
       event.key === "Tab" &&
       !event.shiftKey &&
       option.mode === "day" &&
       dayActive &&
-      !rowVisible &&
-      variant !== "on-demand"
+      !rowVisible
     ) {
-      openRow(variant === "instant" ? { instant: true } : undefined);
+      openRow();
       return;
     }
 
-    /*
-     * Variant C: focus alone never opens the row, so Enter or Space is the
-     * keyboard way in. Left/Right/Home/End stay with the radiogroup and
-     * Up/Down keep moving the mode, so neither conflicts.
-     */
-    if (
-      variant === "on-demand" &&
-      option.mode === "day" &&
-      dayActive &&
-      (event.key === "Enter" || event.key === " ")
-    ) {
-      event.preventDefault();
-
-      if (rowVisible) {
-        focusCheckedPhase();
-      } else {
-        pendingPhaseFocus.current = true;
-        openRow({ instant: true });
-      }
-
-      return;
-    }
-
-    let nextIndex;
+    let nextIndex: number;
 
     switch (event.key) {
       case "ArrowRight":
@@ -933,10 +847,7 @@ export function ThemeToggle() {
     setMode(next.mode);
 
     if (next.mode === "day") {
-      // Variant C: selecting Day with the arrows must not open the row either.
-      if (variant !== "on-demand") {
-        openRow();
-      }
+      openRow();
     } else {
       closeRow();
     }
@@ -945,21 +856,6 @@ export function ThemeToggle() {
       .closest('[role="radiogroup"]')
       ?.querySelectorAll<HTMLElement>('[role="radio"]')
       [nextIndex]?.focus();
-  }
-
-  /** The group's Tab stop: the checked phase, or the first option. */
-  function focusCheckedPhase() {
-    const row = rowRef.current;
-
-    if (!row) {
-      return;
-    }
-
-    const checked = row.querySelector<HTMLElement>(
-      '[role="radio"][aria-checked="true"]',
-    );
-
-    (checked ?? row.querySelector<HTMLElement>('[role="radio"]'))?.focus();
   }
 
   function onPhaseKeyDown(
@@ -1148,25 +1044,12 @@ export function ThemeToggle() {
                   if (
                     option.mode === "day" &&
                     dayActive &&
-                    inputModality.current === "keyboard" &&
-                    variant !== "on-demand"
+                    inputModality.current === "keyboard"
                   ) {
-                    openRow(
-                      variant === "instant" ? { instant: true } : undefined,
-                    );
+                    openRow();
                   }
                 }}
                 onKeyDown={(event) => onSegmentKeyDown(event, index)}
-                ariaControls={
-                  variant === "on-demand" && option.mode === "day"
-                    ? phaseRowId
-                    : undefined
-                }
-                ariaDescribedBy={
-                  variant === "on-demand" && option.mode === "day"
-                    ? `${phaseRowId}-hint`
-                    : undefined
-                }
               />
             );
           })}
@@ -1183,16 +1066,6 @@ export function ThemeToggle() {
           />
         ) : null}
 
-        {/* Variant C: Day is a radio, so the row's existence is announced
-            through a description (aria-expanded is not valid on a radio). */}
-        {variant === "on-demand" && dayActive ? (
-          <span id={`${phaseRowId}-hint`} className="sr-only">
-            {rowVisible
-              ? "Day phase options are open."
-              : "Press Enter or Space to open the day phase options."}
-          </span>
-        ) : null}
-
         {/*
          * Day-only phase row. It opens above the toggle in the gap below the
          * cards; absolute positioning keeps the page from moving.
@@ -1201,14 +1074,12 @@ export function ThemeToggle() {
           label="Day phase"
           segments={PHASE_OPTIONS.length}
           trackRef={rowRef}
-          id={phaseRowId}
           aria-hidden={!rowVisible}
           inert={!rowVisible}
           data-phase-row="true"
           data-visible={rowVisible}
           data-exiting={rowExiting}
           data-entering={rowEntering}
-          data-instant={rowInstant || undefined}
           onPointerEnter={enterHoverRegion}
           onPointerLeave={leaveHoverRegion}
           onTransitionEnd={(event) => {

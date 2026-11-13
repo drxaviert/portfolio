@@ -96,24 +96,6 @@
 }
 
 /*
- * Instant open (dev variants B and C): the row appears already in its final
- * state, so the entrance is skipped for exactly one open. The component drops
- * the attribute two frames after the open, which leaves hover, exit and the
- * reduced-motion fade untouched.
- */
-@media (prefers-reduced-motion: no-preference) {
-  .phase-row[data-instant="true"],
-  .phase-row[data-instant="true"] [role="radio"],
-  .phase-row[data-instant="true"] [data-glyph],
-  .phase-row[data-instant="true"] [data-glyph] [data-rays],
-  .phase-row[data-instant="true"] [data-glyph] [data-hands],
-  .phase-row[data-instant="true"] [data-glyph] [data-sun] {
-    transition-duration: 0ms !important;
-    transition-delay: 0ms !important;
-  }
-}
-
-/*
  * Icon settle. The offset poses only exist while the row is closed and not
  * exiting, so an exit merely fades the icons and the next open starts from
  * here. Each icon starts 60ms after its segment's own delay, so the settle
