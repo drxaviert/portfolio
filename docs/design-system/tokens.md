@@ -109,3 +109,7 @@ resting card at its full layout box, so that is what the code paints at rest.
 
 Rows at x=0, 400px gaps: phase colour table (y 4444, 84 swatches bound to the four collections), shadow specimens (y 6556), theme controls (y 7336).
 
+## See also
+
+- [motion.md](./motion.md) — the shipped motion of the theme toggle and the Day phase row: hover, entrances, icon settle, close delay, reduced motion, and the frame-line spotlight values.
+
