@@ -26,7 +26,7 @@ export function ProjectCard() {
   return (
     <article className="ring-host flex h-[420px] flex-col justify-end rounded-lg p-5 md:h-auto md:p-8">
       <RingLayers fill="bg-surface-container-low" />
-      <h1 className="ring-title text-title-sm font-semibold md:text-title">
+      <h1 className="ring-title text-balance text-title-sm font-semibold md:text-title">
         Project name
       </h1>
     </article>

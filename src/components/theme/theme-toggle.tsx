@@ -278,8 +278,8 @@ function segmentClasses(selected: boolean): string {
     // Figma 126:8942, rounded to 34x28 so both tracks share integer centers:
     // segments sit inside a 106x32 / 140x32 track with a 2px inset.
     "segment group relative flex h-7 flex-1 items-center justify-center rounded-[6px] outline-hidden transition-[color,background-color,transform,scale] duration-150 ease-out",
-    "active:scale-[0.94]",
-    "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+    "active:scale-[0.96]",
+    "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-primary",
     selected
       ? "bg-toggle-selected text-on-surface"
       : "text-on-surface-variant hover:text-on-surface",
@@ -289,6 +289,18 @@ function segmentClasses(selected: boolean): string {
 /** Extends the 28px pill into the track inset, for a full 32px hit target. */
 const EXPANDED_HIT_AREA =
   "before:absolute before:inset-x-0 before:-top-0.5 before:-bottom-0.5 before:content-['']";
+
+/**
+ * Fingers get no use out of the 2px inset the fine-pointer pill relies on, so a
+ * coarse pointer widens each md+ segment to 34x40 (see theme-toggle.css). The
+ * 32px track keeps its Figma size either way.
+ */
+const COARSE_HIT_AREA = "segment-coarse-hit-area";
+
+const HIT_AREA_CLASS = {
+  track: EXPANDED_HIT_AREA,
+  finger: COARSE_HIT_AREA,
+} as const;
 
 type SegmentTrackProps = {
   label: string;
@@ -428,7 +440,7 @@ type SegmentProps = {
   onPointerEnter?: () => void;
   onPointerLeave?: () => void;
   onFocus?: () => void;
-  expandHitArea?: boolean;
+  hitArea?: "track" | "finger";
   tooltipBelow?: boolean;
 };
 
@@ -444,7 +456,7 @@ function Segment({
   onPointerEnter,
   onPointerLeave,
   onFocus,
-  expandHitArea = false,
+  hitArea,
   tooltipBelow = false,
 }: SegmentProps) {
   return (
@@ -462,7 +474,7 @@ function Segment({
       onFocus={onFocus}
       className={[
         segmentClasses(selected),
-        expandHitArea ? EXPANDED_HIT_AREA : "",
+        hitArea ? HIT_AREA_CLASS[hitArea] : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -484,7 +496,7 @@ function Tooltip({
     <span
       aria-hidden="true"
       className={[
-        "pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100",
+        "pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface opacity-0 transition-opacity duration-150 group-hover:delay-300 group-hover:opacity-100 group-focus-visible:opacity-100",
         below ? "top-full mt-2" : "-top-9",
       ].join(" ")}
     >
@@ -957,6 +969,7 @@ export function ThemeToggle() {
                 tooltip={option.tooltip}
                 glyph={option.mode}
                 tooltipBelow={dayActive}
+                hitArea="finger"
                 buttonRef={option.mode === "day" ? dayRef : undefined}
                 onClick={() => {
                   setMode(option.mode);
@@ -1048,7 +1061,7 @@ export function ThemeToggle() {
                 label={option.label}
                 tooltip={option.tooltip}
                 glyph={dayPhaseGlyph(option.phase)}
-                expandHitArea
+                hitArea="track"
                 onClick={() => setDayPhase(option.phase)}
                 onKeyDown={(event) => onPhaseKeyDown(event, index)}
               />
@@ -1066,7 +1079,7 @@ export function ThemeToggle() {
           aria-expanded={menuOpen}
           aria-label={`Choose theme, currently ${currentMode.label}`}
           onClick={() => setMenuOpen((open) => !open)}
-          className="flex size-8 items-center justify-center rounded-md bg-toggle-track text-on-surface shadow-card outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className="relative flex size-8 items-center justify-center rounded-md bg-toggle-track text-on-surface shadow-card outline-hidden before:absolute before:-inset-1.5 before:content-[''] focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           <GlyphIcon glyph={mode} />
         </button>
@@ -1078,7 +1091,7 @@ export function ThemeToggle() {
             aria-label="Theme"
             onKeyDown={onMenuKeyDown}
             onBlur={onMenuBlur}
-            className="absolute right-0 bottom-full z-50 mb-2 flex max-h-[calc(100dvh-4rem)] w-[168px] flex-col gap-0.5 overflow-y-auto overscroll-contain rounded-lg bg-surface-container-low p-1 shadow-card"
+            className="absolute right-0 bottom-full z-[3] mb-2 flex max-h-[calc(100dvh-4rem)] w-[168px] flex-col gap-0.5 overflow-y-auto overscroll-contain rounded-lg bg-surface-container-low p-1 shadow-card"
           >
             {OPTIONS.map((option) => {
               const selected = option.mode === mode;

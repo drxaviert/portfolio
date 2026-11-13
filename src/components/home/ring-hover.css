@@ -158,10 +158,10 @@
   clip-path: inset(1px round var(--ring-inner-radius));
 }
 
+/* Keyboard: the glow only fades in, so it needs no promoted layer. */
 .ring-host:focus-visible .ring-glow,
 .ring-host:has(:focus-visible) .ring-glow {
   opacity: 1;
-  will-change: transform;
 }
 
 .ring-host:focus-visible {
