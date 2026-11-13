@@ -1,6 +1,7 @@
 ﻿import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setDayRowVariant } from "@/components/theme/day-row-variant";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import {
@@ -55,6 +56,7 @@ function mockHoverCanHover(hover: boolean) {
 
 beforeEach(() => {
   applyDayPhase("clock");
+  setDayRowVariant("current");
   window.localStorage.clear();
   delete root().dataset.mode;
   delete root().dataset.phase;
@@ -988,6 +990,108 @@ describe("ThemeToggle", () => {
     fireEvent.keyDown(day, { key: "Tab" });
 
     expect(phaseRow()).toHaveAttribute("data-visible", "true");
+  });
+
+  it("does not reopen the row from Tab in the on-demand variant", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    mockHoverCanHover(true);
+    setDayRowVariant("on-demand");
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+
+    act(() => day.focus());
+    fireEvent.keyDown(day, { key: "Tab" });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+  });
+
+  it("opens the row at rest for keyboard focus in the instant variant", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    mockHoverCanHover(true);
+    setDayRowVariant("instant");
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => day.focus());
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+    expect(phaseRow()).toHaveAttribute("data-instant", "true");
+    // No entrance: the icon settle and the stagger are not armed.
+    expect(phaseRow()).toHaveAttribute("data-entering", "false");
+
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+
+    expect(phaseRow()).not.toHaveAttribute("data-instant");
+  });
+
+  it("keeps the entrance for a pointer open in the instant variant", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    mockHoverCanHover(true);
+    setDayRowVariant("instant");
+    renderToggle();
+
+    fireEvent.pointerOver(screen.getByRole("radio", { name: "Day" }), {
+      relatedTarget: document.body,
+    });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+    expect(phaseRow()).not.toHaveAttribute("data-instant");
+  });
+
+  it("opens the row on demand and moves focus into it", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    mockHoverCanHover(true);
+    setDayRowVariant("on-demand");
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+    const row = phaseRow();
+
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => day.focus());
+
+    // Focus alone never opens it, but the group is announced.
+    expect(row).toHaveAttribute("data-visible", "false");
+    expect(day).toHaveAttribute("aria-controls", row.id);
+    expect(day).toHaveAttribute("aria-describedby");
+
+    fireEvent.keyDown(day, { key: "Enter" });
+
+    expect(row).toHaveAttribute("data-visible", "true");
+    expect(row).toHaveAttribute("data-instant", "true");
+    expect(screen.getByRole("radio", { name: "Clock" })).toHaveFocus();
+
+    // Escape closes it and hands focus back to Day.
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(row).toHaveAttribute("data-visible", "false");
+    expect(day).toHaveFocus();
+
+    // Space opens it again, and the pointer path keeps the full entrance.
+    fireEvent.keyDown(day, { key: " " });
+
+    expect(row).toHaveAttribute("data-visible", "true");
+    expect(screen.getByRole("radio", { name: "Clock" })).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.pointerDown(day);
+    fireEvent.click(day);
+
+    expect(row).toHaveAttribute("data-visible", "true");
+    expect(row).not.toHaveAttribute("data-instant");
   });
 });
 
