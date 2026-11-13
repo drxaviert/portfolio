@@ -92,7 +92,8 @@
 /*
  * Icon settle. The offset poses only exist while the row is closed and not
  * exiting, so an exit merely fades the icons and the next open starts from
- * here. Delays are the segment delays + 30ms at the shipped 2.00x speed.
+ * here. Each icon starts 60ms after its segment's own delay, so the settle
+ * delays are 180/230/280/330ms against segment delays of 120/170/220/270ms.
  */
 @media (prefers-reduced-motion: no-preference) {
   .phase-row[data-visible="false"]:not([data-exiting="true"])
