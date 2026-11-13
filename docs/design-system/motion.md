@@ -13,46 +13,70 @@ The shipped motion of the theme toggle and the Day phase row, recorded from the 
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
-| Pointer over a segment | pill `transform` | 200ms | 0 | `cubic-bezier(0.2, 0.8, 0.2, 1)` | previous segment x → hovered segment x |
-| Pointer over a segment | pill `opacity` | 150ms | 0 | `ease-out` | 0 → 0.55 |
-| Pointer leaves the track | pill `opacity` | 150ms | 0 | `ease-out` | 0.55 → 0 |
-| First segment entered | pill geometry | 0 | 0 | none | committed with transitions off, then restored on the next frame so the fade has a 0 start |
+| Pointer over a segment | hover path `d` | 180ms / 220ms | 0 / 120ms | ease-out cubic / quint | previous hover edge → hovered segment |
+| Pointer over a segment | hover layer `opacity` | 150ms | 0 | `ease-out` | 0 → 0.55 |
+| Pointer leaves the track | hover layer `opacity` | 150ms | 0 | `ease-out` | 0.55 → 0 |
+| First segment entered | hover path | 0 | 0 | none | placed at the hovered segment, then faded in from 0 |
 | Segment pressed | `scale` | 150ms | 0 | `ease-out` | 1 → 0.94 |
 | Segment hover | `color` | 150ms | 0 | `ease-out` | `on-surface-variant` → `on-surface` |
 | Segment or icon focused | tooltip `opacity` | 150ms | 0 | `ease-out` | 0 → 1 |
 
-Hover only applies on `(hover: hover) and (pointer: fine)`; the pill is not shown on touch, where the row opens by tapping Day.
+Hover only applies on `(hover: hover) and (pointer: fine)`; the hover capsule is not shown on touch, where the row opens by tapping Day. Its motion is the same stretch & snap shape as the selection (see that section).
 
-- `src/components/theme/theme-toggle.css:246` — hover-only block
-- `src/components/theme/theme-toggle.css:252` — pill transition (transform 200ms, opacity 150ms)
-- `src/components/theme/theme-toggle.css:248` — pill peak opacity 0.55
-- `src/components/theme/theme-toggle.tsx:366` — first-entry geometry with transitions off
-- `src/components/theme/theme-toggle.tsx:277` — `active:scale-[0.94]` and the 150ms `ease-out` segment transition
-- `src/components/theme/theme-toggle.tsx:483` — tooltip fade
+- `src/components/theme/theme-toggle.css:433` — hover layer opacity and 0.55
+- `src/components/theme/theme-toggle.css:439` — hover-only visible state
+- `src/components/theme/theme-toggle.tsx:70` — fine-pointer gate for the hover capsule
+- `src/components/theme/theme-toggle.tsx:639` — pointer-over drives the hover path
+- `src/components/theme/theme-toggle.tsx:407` — hover uses the same path runner
+- `src/components/theme/theme-toggle.tsx:576` — `active:scale-[0.96]` and the 150ms `ease-out` segment transition
+- `src/components/theme/theme-toggle.css:310` — tooltip fade
 
 ## Selection feedback
 
-Moving the selection fades the incoming fill and label in over 150ms and releases the outgoing one on the same frame, so a fast flip can never paint two selected segments or two labels. The phase-switch fade in `globals.css` sets a transition on every element for one theme change; the segment and tooltip rules are specific enough to keep their own timings through it.
+Selection is painted by the stretch highlight (next section); the segment itself no longer carries a fill in the default path, so a fast flip can never paint two selected segments. The incoming label still fades over 150ms and is released on the same frame. The phase-switch fade in `globals.css` sets a transition on every element for one theme change; the segment and tooltip rules are specific enough to keep their own timings through it.
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
-| Selection enters | fill `background-color` | 150ms | 0 | `ease-out` | transparent → `--toggle-selected` |
-| Selection leaves | fill `background-color` | 0 | 0 | — | `--toggle-selected` → transparent |
+| Selection enters, reduced motion | fill `background-color` | 120ms | 0 | `ease-out` | transparent → `--toggle-selected` |
 | Segment focused | tooltip `opacity` | 150ms | 0 | `ease-out` | 0 → 1 |
 | Segment blurred | tooltip `opacity` | 0 | 0 | — | 1 → 0 |
 | Pointer enters a segment | tooltip `opacity` | 150ms | 300ms | `ease-out` | 0 → 1 |
 | Pointer leaves a segment | tooltip `opacity` | 0 | 0 | — | 1 → 0 |
 
-The enter-only timing is structural: the fill's transition is declared on the checked state and the label's on `:focus-visible`/`:hover`, so losing the state removes the transition instead of starting the reverse one. The phase-row entrance stagger delays only `opacity`/`translate`; colour, fill and scale are never delayed.
+The fill row is the reduced-motion path only; the default highlight hides its layer and crossfades that fill in 120ms. The label fade is declared on `:focus-visible`/`:hover`, so losing the state removes the transition instead of starting the reverse one. The phase-row entrance stagger delays only `opacity`/`translate`; colour and scale are never delayed.
 
-- `src/components/theme/theme-toggle.css:60` — row segment list, no fill
-- `src/components/theme/theme-toggle.css:75` — row selected fill, enter-only
-- `src/components/theme/theme-toggle.css:105` — stagger delays opacity/translate only
-- `src/components/theme/theme-toggle.css:285` — mode segment feedback, enter-only fill
+- `src/components/theme/theme-toggle.css:458` — reduced-motion fill crossfade (120ms)
 - `src/components/theme/theme-toggle.css:306` — tooltip hidden by default
 - `src/components/theme/theme-toggle.css:310` — focused label fade-in
 - `src/components/theme/theme-toggle.css:316` — hovered label, 300ms
 - `src/components/theme/theme-toggle.css:323` — released label, no transition
+
+## Selection highlight — stretch & snap
+
+Both radiogroups (Day/Night/Auto and the Day phase row) paint the selection with one SVG capsule inside the track instead of a per-segment fill. On a change the leading edge leaves first; the trailing edge holds for the lag, so the capsule spans both segments and then contracts onto the target with no overshoot. The edges are retargeted from the shape's current position, so a fast flip never restarts from zero and a second selection mid-flight stays the only destination. The layer is exactly the track box, so nothing paints outside it.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Selection moves, leading edge | highlight path `d` | 180ms | 0 | ease-out cubic, `1-(1-t)^3` | current edge → destination edge |
+| Selection moves, trailing edge | highlight path `d` | 220ms | 120ms | ease-out quint, `1-(1-t)^5` | current edge → destination edge |
+| Selection moves (Day phase row) | same as above | 180ms / 220ms | 0 / 120ms | same | current edge → destination edge |
+| Hover moves between segments | hover path `d` | 180ms / 220ms | 0 / 120ms | same | previous hover edge → hovered segment |
+| Hover pill appears | hover layer `opacity` | 150ms | 0 | `ease-out` | 0 → 0.55 |
+| Hover pill leaves | hover layer `opacity` | 150ms | 0 | `ease-out` | 0.55 → 0 |
+| Selection enters, reduced motion | fill `background-color` | 120ms | 0 | `ease-out` | transparent → `--toggle-selected` |
+
+The timings are the shipped constants `LEADING_DURATION_MS = 180`, `TRAILING_DURATION_MS = 220` and `TRAILING_DELAY_MS = 120`; the rest silhouette is the Figma 34x28 pill at a 6px radius, 2px inside the track. Hover runs the same shape at the documented 0.55 weight and is gated to `(hover: hover) and (pointer: fine)`. Reduced motion hides the layer and keeps the 120ms fill crossfade.
+
+- `src/components/theme/theme-toggle.tsx:303` — `TRAILING_DELAY_MS = 120`
+- `src/components/theme/theme-toggle.tsx:304` — `LEADING_DURATION_MS = 180`
+- `src/components/theme/theme-toggle.tsx:305` — `TRAILING_DURATION_MS = 220`
+- `src/components/theme/theme-toggle.tsx:311` — leading ease-out cubic
+- `src/components/theme/theme-toggle.tsx:315` — trailing ease-out quint
+- `src/components/theme/theme-toggle.tsx:324` — rest pill path (34x28, radius 6)
+- `src/components/theme/theme-toggle.tsx:407` — the one-path runner and its rAF loop
+- `src/components/theme/theme-toggle.css:414` — clipped track-sized highlight layer
+- `src/components/theme/theme-toggle.css:433` — hover layer opacity and 0.55
+- `src/components/theme/theme-toggle.css:458` — reduced-motion layer hide + fill crossfade
 
 ## Day phase row entrance — "Stagger + icons"
 
@@ -151,17 +175,18 @@ One opacity fade for the whole row. No scale, no segment rise, no icon settle, n
 | Element | Behaviour |
 | --- | --- |
 | Row | opacity only, 120ms `ease-out`; `transform: none`; visibility delayed by the same 120ms |
-| Segments | no opacity or translate animation; colour always transitions over 150ms, and the selected fill only on the way in |
+| Selection highlight | layer hidden; the segment fill crossfades over 120ms and the label colour over 150ms |
+| Segments | no opacity or translate animation; colour always transitions over 150ms |
 | Icons | stay at rest; entrance poses and settles are inside `prefers-reduced-motion: no-preference` |
-| Hover settle | skipped entirely; the pill still follows the pointer without the 200ms transform transition |
+| Hover capsule | hidden; the segment fill is the only hover feedback, following the pointer without travel |
 | Press | `scale: 1` (no 0.94 dip) |
 | Frame-line spotlight | mask replaced by a whole-line opacity fade capped at 0.4 strength, 150ms |
 
-- `src/components/theme/theme-toggle.css:276` — reduced-motion block
-- `src/components/theme/theme-toggle.css:280` — `--phase-row-exit-ms: 120`
-- `src/components/theme/theme-toggle.css:284` — 120ms opacity-only enter
-- `src/components/theme/theme-toggle.css:311` — `scale: 1` on press
-- `src/components/theme/theme-toggle.tsx:354` — settle skipped under reduced motion
+- `src/components/theme/theme-toggle.css:458` — reduced-motion highlight hide + 120ms fill
+- `src/components/theme/theme-toggle.css:358` — reduced-motion row/segment block
+- `src/components/theme/theme-toggle.css:362` — `--phase-row-exit-ms: 120`
+- `src/components/theme/theme-toggle.css:366` — 120ms opacity-only enter
+- `src/components/theme/theme-toggle.tsx:677` — settle skipped under reduced motion
 - `src/components/home/frame-line-spotlight.tsx:207` — reduced spotlight path
 - `src/components/home/frame-line-spotlight.css:39` — 150ms reduced fade
 
