@@ -662,6 +662,33 @@ describe("ThemeToggle", () => {
     expect(phaseRow()).toHaveAttribute("data-exiting", "false");
   });
 
+  it("follows the active option's exit duration for the fallback", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    // What the option CSS would set for, say, Clip unfold.
+    phaseRow().style.setProperty("--phase-row-exit-ms", "200");
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+    expect(phaseRow()).toHaveAttribute("data-exiting", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(249);
+    });
+    expect(phaseRow()).toHaveAttribute("data-exiting", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(phaseRow()).toHaveAttribute("data-exiting", "false");
+  });
+
   it("keeps the raise and clears exiting when the row reopens mid-fade", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0));

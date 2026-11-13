@@ -10,6 +10,12 @@ import type {
   Ref,
 } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
+import {
+  parseRowMotion,
+  readRowMotion,
+  ROW_MOTIONS,
+  writeRowMotion,
+} from "@/components/theme/row-motion";
 import type { DayPhase, Mode } from "@/lib/theme";
 import "./theme-toggle.css";
 
@@ -958,7 +964,63 @@ export function ThemeToggle() {
           </div>
         ) : null}
       </div>
+
+      <RowMotionPicker />
     </>
+  );
+}
+
+/**
+ * Dev-only switcher for the Day row's enter/exit motion. The value is applied
+ * to <html> so the CSS can switch transitions, and remembered in
+ * localStorage. Production renders nothing at all.
+ */
+function RowMotionPicker() {
+  const selectRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") {
+      return;
+    }
+
+    const stored = readRowMotion();
+
+    if (selectRef.current) {
+      selectRef.current.value = String(stored);
+    }
+
+    document.documentElement.dataset.rowMotion = String(stored);
+
+    return () => {
+      delete document.documentElement.dataset.rowMotion;
+    };
+  }, []);
+
+  if (process.env.NODE_ENV !== "development") {
+    return null;
+  }
+
+  return (
+    <label className="fixed top-2 left-2 z-[60] flex items-center gap-2 rounded-md bg-surface-container-low px-2 py-1 text-xs text-on-surface shadow-card">
+      <span className="text-on-surface-variant">Row</span>
+      <select
+        ref={selectRef}
+        defaultValue="0"
+        onChange={(event) => {
+          const next = parseRowMotion(event.currentTarget.value);
+
+          writeRowMotion(next);
+          document.documentElement.dataset.rowMotion = String(next);
+        }}
+        className="bg-transparent text-on-surface outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        {ROW_MOTIONS.map((motion) => (
+          <option key={motion.value} value={motion.value}>
+            {motion.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
