@@ -940,5 +940,54 @@ describe("ThemeToggle", () => {
     fireEvent.pointerDown(document.body);
     expect(phaseRow()).toHaveAttribute("data-visible", "false");
   });
+
+  it("returns focus to Day when the row closes with a phase focused", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+
+    fireEvent.click(day);
+
+    const dawn = screen.getByRole("radio", { name: "Dawn" });
+
+    fireEvent.pointerDown(dawn);
+    act(() => dawn.focus());
+
+    // The pointer leaves while Dawn still has focus; the row goes inert, so
+    // focus must come back to Day instead of falling through to <body>.
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+    expect(day).toHaveFocus();
+  });
+
+  it("opens the closed row when Tab leaves the focused Day segment", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+
+    fireEvent.click(day);
+    act(() => screen.getByRole("radio", { name: "Dusk" }).focus());
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+    expect(day).toHaveFocus();
+
+    // The row is closed while Day keeps focus, so Tab has to reopen it before
+    // the browser picks the next focusable or the phase group is skipped.
+    fireEvent.keyDown(day, { key: "Tab" });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+  });
 });
 

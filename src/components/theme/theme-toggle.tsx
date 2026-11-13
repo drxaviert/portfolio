@@ -519,6 +519,8 @@ export function ThemeToggle() {
   const closeTimer = useRef<number | null>(null);
   const exitTimer = useRef<number | null>(null);
   const enterTimer = useRef<number | null>(null);
+  /** True when the row is closing while one of its options has focus. */
+  const rowHadFocus = useRef(false);
   const focusInside = useRef(false);
   /** True while the pointer is over Day, the gap bridge, or the row. */
   const hoverRegion = useRef(false);
@@ -602,6 +604,11 @@ export function ThemeToggle() {
   const closeRow = useCallback(() => {
     clearCloseTimer();
     clearEnter();
+    // The row goes inert on this commit, which would drop focus to <body>;
+    // remember that focus was inside so it can be handed back to Day.
+    rowHadFocus.current = Boolean(
+      rowRef.current?.contains(document.activeElement),
+    );
     // data-visible flips false now, but the row keeps painting for the exit
     // fade; hold the nav raise until that finishes.
     if (rowVisible) {
@@ -657,6 +664,22 @@ export function ThemeToggle() {
       window.clearTimeout(closeTimer.current);
       closeTimer.current = null;
     }
+  }, [rowVisible]);
+
+  /**
+   * A row that closes while one of its options has focus must not strand the
+   * user: the row becomes inert, so focus returns to Day instead of falling
+   * back to <body> (which would restart Tab at the top of the page).
+   */
+  useEffect(() => {
+    if (rowVisible || !rowHadFocus.current) {
+      return;
+    }
+
+    rowHadFocus.current = false;
+    suppressFocusOpen.current = true;
+    dayRef.current?.focus();
+    suppressFocusOpen.current = false;
   }, [rowVisible]);
 
   useEffect(() => {
@@ -777,6 +800,25 @@ export function ThemeToggle() {
     event: KeyboardEvent<HTMLButtonElement>,
     index: number,
   ) {
+    const option = OPTIONS[index];
+
+    /*
+     * A forward Tab from Day has to reach the phase group even when the row
+     * was closed while Day kept focus (Escape, or the pointer leaving after a
+     * click). Opening during keydown runs before the browser picks the next
+     * focusable, so this same Tab lands inside the row.
+     */
+    if (
+      event.key === "Tab" &&
+      !event.shiftKey &&
+      option.mode === "day" &&
+      dayActive &&
+      !rowVisible
+    ) {
+      openRow();
+      return;
+    }
+
     let nextIndex: number;
 
     switch (event.key) {
