@@ -92,7 +92,6 @@ export function FrameLineSpotlight() {
       y: 0,
       start: 0,
       end: 0,
-      viewportStart: 0,
       originLeft: 0,
       originTop: 0,
     }));
