@@ -1,14 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  formatCloseDelayReadout,
   formatIconStrengthReadout,
   formatSpeedReadout,
   parseIconStrength,
-  parseRowCloseMode,
+  parseRowCloseDelay,
   parseRowIconStrengths,
   parseRowMotion,
   parseRowMotionSpeeds,
   parseRowSpeed,
-  readRowCloseMode,
+  readRowCloseDelay,
   readRowIconStrengths,
   readRowMotion,
   readRowMotionSpeeds,
@@ -16,7 +17,7 @@ import {
   ROW_MOTION_ICON_STORAGE_KEY,
   ROW_MOTION_SPEED_STORAGE_KEY,
   ROW_MOTION_STORAGE_KEY,
-  writeRowCloseMode,
+  writeRowCloseDelay,
   writeRowIconStrengths,
   writeRowMotion,
   writeRowMotionSpeeds,
@@ -255,20 +256,37 @@ describe("formatIconStrengthReadout", () => {
   });
 });
 
-describe("parseRowCloseMode", () => {
-  it("keeps instant and defaults everything else to 700ms", () => {
-    expect(parseRowCloseMode("instant")).toBe("instant");
-    expect(parseRowCloseMode("700")).toBe("700");
-    expect(parseRowCloseMode(null)).toBe("700");
-    expect(parseRowCloseMode("soon")).toBe("700");
+describe("parseRowCloseDelay", () => {
+  it("migrates the old select values", () => {
+    expect(parseRowCloseDelay("instant")).toBe(0);
+    expect(parseRowCloseDelay("700ms")).toBe(700);
+    expect(parseRowCloseDelay("700")).toBe(700);
+  });
+
+  it("clamps to 0-1000 and quantises to the 25ms step", () => {
+    expect(parseRowCloseDelay("300")).toBe(300);
+    expect(parseRowCloseDelay(325)).toBe(325);
+    expect(parseRowCloseDelay(310)).toBe(300);
+    expect(parseRowCloseDelay(-50)).toBe(0);
+    expect(parseRowCloseDelay(1200)).toBe(1000);
+  });
+
+  it("defaults to 700ms for missing or invalid values", () => {
+    expect(parseRowCloseDelay(null)).toBe(700);
+    expect(parseRowCloseDelay(undefined)).toBe(700);
+    expect(parseRowCloseDelay("soon")).toBe(700);
   });
 });
 
-describe("readRowCloseMode", () => {
-  it("reads the stored mode", () => {
+describe("readRowCloseDelay", () => {
+  it("reads the stored delay including old values", () => {
+    window.localStorage.setItem(ROW_CLOSE_STORAGE_KEY, "300");
+
+    expect(readRowCloseDelay()).toBe(300);
+
     window.localStorage.setItem(ROW_CLOSE_STORAGE_KEY, "instant");
 
-    expect(readRowCloseMode()).toBe("instant");
+    expect(readRowCloseDelay()).toBe(0);
   });
 
   it("returns 700ms when storage access throws", () => {
@@ -276,17 +294,15 @@ describe("readRowCloseMode", () => {
       throw new Error("storage blocked");
     });
 
-    expect(readRowCloseMode()).toBe("700");
+    expect(readRowCloseDelay()).toBe(700);
   });
 });
 
-describe("writeRowCloseMode", () => {
-  it("stores the mode", () => {
-    writeRowCloseMode("instant");
+describe("writeRowCloseDelay", () => {
+  it("stores the delay as a number string", () => {
+    writeRowCloseDelay(300);
 
-    expect(window.localStorage.getItem(ROW_CLOSE_STORAGE_KEY)).toBe(
-      "instant",
-    );
+    expect(window.localStorage.getItem(ROW_CLOSE_STORAGE_KEY)).toBe("300");
   });
 
   it("does not throw when storage access throws", () => {
@@ -294,6 +310,13 @@ describe("writeRowCloseMode", () => {
       throw new Error("storage blocked");
     });
 
-    expect(() => writeRowCloseMode("700")).not.toThrow();
+    expect(() => writeRowCloseDelay(700)).not.toThrow();
+  });
+});
+
+describe("formatCloseDelayReadout", () => {
+  it("shows the delay in ms", () => {
+    expect(formatCloseDelayReadout(300)).toBe("300ms");
+    expect(formatCloseDelayReadout(0)).toBe("0ms");
   });
 });

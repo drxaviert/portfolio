@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+﻿import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
@@ -725,11 +725,11 @@ describe("ThemeToggle", () => {
     expect(phaseRow()).toHaveAttribute("data-entering", "false");
   });
 
-  it("closes immediately on pointer leave in Instant mode", () => {
+  it("closes immediately on pointer leave at 0ms", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
     mockHoverCanHover(true);
-    root().dataset.rowClose = "instant";
+    root().dataset.rowClose = "0";
     renderToggle();
 
     fireEvent.click(screen.getByRole("radio", { name: "Day" }));
@@ -741,11 +741,33 @@ describe("ThemeToggle", () => {
     expect(phaseRow()).toHaveAttribute("data-exiting", "true");
   });
 
-  it("keeps keyboard focus holding the row in Instant mode", () => {
+  it("waits the configured close delay before exiting", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
     mockHoverCanHover(true);
-    root().dataset.rowClose = "instant";
+    root().dataset.rowClose = "300";
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(299);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+    expect(phaseRow()).toHaveAttribute("data-exiting", "true");
+  });
+
+  it("keeps keyboard focus holding the row at 0ms", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    root().dataset.rowClose = "0";
     renderToggle();
 
     fireEvent.keyDown(document, { key: "Tab" });
@@ -851,3 +873,4 @@ describe("ThemeToggle", () => {
     expect(phaseRow()).toHaveAttribute("data-visible", "false");
   });
 });
+

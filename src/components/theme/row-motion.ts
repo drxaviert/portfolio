@@ -253,27 +253,58 @@ export function formatIconStrengthReadout(strength: number): string {
 
 /** How long the row survives after the pointer leaves in the dev picker. */
 export const ROW_CLOSE_STORAGE_KEY = "theme-row-close";
+export const ROW_CLOSE_MIN = 0;
+export const ROW_CLOSE_MAX = 1000;
+export const ROW_CLOSE_STEP = 25;
+export const ROW_CLOSE_DEFAULT = 700;
 
-export type RowCloseMode = "700" | "instant";
+/**
+ * Reads a close delay in ms. Migrates the old select values ("instant" -> 0,
+ * "700ms" -> 700), clamps to 0-1000 and quantises to the 25ms step.
+ */
+export function parseRowCloseDelay(value: unknown): number {
+  if (value === "instant") {
+    return 0;
+  }
 
-export function parseRowCloseMode(value: unknown): RowCloseMode {
-  return value === "instant" ? "instant" : "700";
+  if (value === "700ms") {
+    return ROW_CLOSE_DEFAULT;
+  }
+
+  if (value === null || value === undefined || value === "") {
+    return ROW_CLOSE_DEFAULT;
+  }
+
+  const parsed = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return ROW_CLOSE_DEFAULT;
+  }
+
+  const clamped = Math.min(ROW_CLOSE_MAX, Math.max(ROW_CLOSE_MIN, parsed));
+
+  return Math.round(clamped / ROW_CLOSE_STEP) * ROW_CLOSE_STEP;
 }
 
-export function readRowCloseMode(): RowCloseMode {
+export function readRowCloseDelay(): number {
   try {
-    return parseRowCloseMode(
+    return parseRowCloseDelay(
       window.localStorage.getItem(ROW_CLOSE_STORAGE_KEY),
     );
   } catch {
-    return "700";
+    return ROW_CLOSE_DEFAULT;
   }
 }
 
-export function writeRowCloseMode(mode: RowCloseMode): void {
+export function writeRowCloseDelay(delay: number): void {
   try {
-    window.localStorage.setItem(ROW_CLOSE_STORAGE_KEY, mode);
+    window.localStorage.setItem(ROW_CLOSE_STORAGE_KEY, String(delay));
   } catch {
-    // Intentionally ignored: the current page keeps the chosen close mode.
+    // Intentionally ignored: the current page keeps the chosen delay.
   }
+}
+
+/** The dev readout, e.g. 300ms. */
+export function formatCloseDelayReadout(delay: number): string {
+  return `${delay}ms`;
 }

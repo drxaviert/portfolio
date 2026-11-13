@@ -12,6 +12,7 @@ import type {
 } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
 import {
+  formatCloseDelayReadout,
   formatIconStrengthReadout,
   formatSpeedReadout,
   ICON_STRENGTH_DEFAULT,
@@ -19,19 +20,23 @@ import {
   ICON_STRENGTH_MIN,
   ICON_STRENGTH_STEP,
   parseIconStrength,
-  parseRowCloseMode,
+  parseRowCloseDelay,
   parseRowMotion,
   parseRowSpeed,
-  readRowCloseMode,
+  readRowCloseDelay,
   readRowIconStrengths,
   readRowMotion,
   readRowMotionSpeeds,
+  ROW_CLOSE_DEFAULT,
+  ROW_CLOSE_MAX,
+  ROW_CLOSE_MIN,
+  ROW_CLOSE_STEP,
   ROW_MOTIONS,
   ROW_SPEED_DEFAULT,
   ROW_SPEED_MAX,
   ROW_SPEED_MIN,
   ROW_SPEED_STEP,
-  writeRowCloseMode,
+  writeRowCloseDelay,
   writeRowIconStrengths,
   writeRowMotion,
   writeRowMotionSpeeds,
@@ -509,10 +514,14 @@ export function ThemeToggle() {
       return;
     }
 
-    // Instant mode exits on the same pointer-leave that used to start the
-    // timer; the desktop wrapper (toggle + gap bridge + row) is one hover
-    // region, so moving between them never fires this.
-    if (document.documentElement.dataset.rowClose === "instant") {
+    // The configured wait after the pointer leaves the toggle + row region.
+    // 0 starts the exit on that same pointer-leave; the bridge keeps crossing
+    // from the toggle to the row inside the region for every value.
+    const delay = parseRowCloseDelay(
+      document.documentElement.dataset.rowClose,
+    );
+
+    if (delay <= 0) {
       closeRow();
       return;
     }
@@ -523,7 +532,7 @@ export function ThemeToggle() {
       if (!holdsOpen()) {
         closeRow();
       }
-    }, PHASE_ROW_CLOSE_DELAY_MS);
+    }, delay);
   }, [clearCloseTimer, closeRow]);
 
   // Track the input modality independently of focus: a pointerdown marks the
@@ -1054,7 +1063,8 @@ function RowMotionPicker() {
   const iconRef = useRef<HTMLInputElement>(null);
   const iconResetRef = useRef<HTMLButtonElement>(null);
   const iconReadoutRef = useRef<HTMLOutputElement>(null);
-  const closeRef = useRef<HTMLSelectElement>(null);
+  const closeRef = useRef<HTMLInputElement>(null);
+  const closeReadoutRef = useRef<HTMLOutputElement>(null);
 
   function applySpeed(motion: RowMotion, speed: number) {
     document.documentElement.style.setProperty(
@@ -1092,6 +1102,18 @@ function RowMotionPicker() {
     }
   }
 
+  function applyCloseDelay(delay: number) {
+    document.documentElement.dataset.rowClose = String(delay);
+
+    if (closeRef.current) {
+      closeRef.current.value = String(delay);
+    }
+
+    if (closeReadoutRef.current) {
+      closeReadoutRef.current.textContent = formatCloseDelayReadout(delay);
+    }
+  }
+
   function currentMotion(): RowMotion {
     return parseRowMotion(selectRef.current?.value ?? 0);
   }
@@ -1118,14 +1140,7 @@ function RowMotionPicker() {
     document.documentElement.dataset.rowMotion = String(stored);
     applySpeed(stored, storedSpeed(stored));
     applyIconStrength(stored, storedIconStrength(stored));
-
-    const closeMode = readRowCloseMode();
-
-    if (closeRef.current) {
-      closeRef.current.value = closeMode;
-    }
-
-    document.documentElement.dataset.rowClose = closeMode;
+    applyCloseDelay(readRowCloseDelay());
 
     return () => {
       delete document.documentElement.dataset.rowMotion;
@@ -1271,21 +1286,41 @@ function RowMotionPicker() {
 
       <label className="flex items-center gap-2">
         <span className="text-on-surface-variant">Close</span>
-        <select
+        <input
           ref={closeRef}
-          defaultValue="700"
+          type="range"
+          min={ROW_CLOSE_MIN}
+          max={ROW_CLOSE_MAX}
+          step={ROW_CLOSE_STEP}
+          defaultValue={ROW_CLOSE_DEFAULT}
           onChange={(event) => {
-            const next = parseRowCloseMode(event.currentTarget.value);
+            const next = parseRowCloseDelay(event.currentTarget.value);
 
-            writeRowCloseMode(next);
-            document.documentElement.dataset.rowClose = next;
+            writeRowCloseDelay(next);
+            applyCloseDelay(next);
           }}
-          className="bg-transparent text-on-surface outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        >
-          <option value="700">700ms (current)</option>
-          <option value="instant">Instant</option>
-        </select>
+          aria-label="Row close delay"
+          className="h-1.5 w-20 accent-primary"
+        />
       </label>
+
+      <button
+        type="button"
+        onClick={() => {
+          writeRowCloseDelay(ROW_CLOSE_DEFAULT);
+          applyCloseDelay(ROW_CLOSE_DEFAULT);
+        }}
+        aria-label="Reset close delay to 700ms"
+        className="rounded-md px-1.5 py-0.5 text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+      >
+        700ms
+      </button>
+
+      <output
+        ref={closeReadoutRef}
+        aria-live="polite"
+        className="tabular-nums text-on-surface-variant"
+      />
     </div>
   );
 }
