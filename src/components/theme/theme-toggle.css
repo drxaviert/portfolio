@@ -1,4 +1,4 @@
-﻿/*
+/*
  * The row is a descendant of the nav ring host. ring-hover.css raises a
  * hovered card to z-index 1, and .ring-host isolates its own context, so the
  * row's own z-index cannot lift it out of the nav. Raise the nav itself while
@@ -324,33 +324,9 @@
   transition-property: none;
 }
 
-/* ---------- Hover motion ---------- */
-
-.hover-pill {
-  opacity: 0;
-  transition: opacity 150ms ease-out;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .hover-pill.is-visible {
-    opacity: 0.55;
-    /* The layer only needs to exist while the pill is on screen, not for the
-       life of the page. */
-    will-change: transform, opacity;
-  }
-}
-
-@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .hover-pill {
-    transition:
-      transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      opacity 150ms ease-out;
-  }
-}
-
 /*
  * md+ segments are 34x28 inside the 32px track. A fine pointer keeps the 2px
- * track inset (the hover pill needs that exact box); a coarse one only widens
+ * track inset (the highlight needs that exact box); a coarse one only widens
  * the invisible hit area to 34x40. The Figma track never changes size.
  */
 @media (pointer: coarse) {
@@ -428,47 +404,12 @@
   }
 }
 
-/* ---------- Highlight prototypes (dev only) ---------- */
+/* ---------- Selection highlight — stretch & snap ---------- */
 
 /*
- * The blur variant: a clipped layer under the icons. Two same-coloured blobs
- * travel (a lead and a lagging twin) and the goo filter turns the gap between
- * them into a neck; when the twin catches up, the neck snaps and both are one
- * pill again. Icons, labels and tooltips stay outside the filtered element, so
- * they are never blurred. The layer is exactly the track, which keeps the
- * filter area small; the filter itself is static per Goo value.
- */
-.goo-layer {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: 6px;
-  pointer-events: none;
-}
-
-.goo-layer-filter {
-  position: absolute;
-  inset: 0;
-}
-
-.goo-blob {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 34px;
-  height: 28px;
-  border-radius: 6px;
-  background: var(--toggle-selected);
-  /* The rest place; JS takes over the inline transform while a blob travels. */
-  transform: translate3d(var(--goo-x, 2px), 2px, 0);
-  transform-origin: 50% 50%;
-  will-change: transform;
-}
-
-/*
- * The path variants (metaball, liquid, stretch) draw one crisp SVG path inside
- * the same clipped track box. No filter, so edges stay sharp and nothing can
- * paint outside the rounded track.
+ * One SVG capsule in a clipped layer under the icons. The path is redrawn only
+ * while it moves (leading edge 180ms, trailing edge 220ms after a 120ms hold),
+ * so the fill is crisp at any size and can never leave the rounded track box.
  */
 .shape-layer {
   position: absolute;
@@ -488,56 +429,42 @@
   fill: var(--toggle-selected);
 }
 
-/* The hover layer fades as a whole, at the documented 0.55 hover weight. */
-.goo-layer--hover,
+/* The faint hover capsule uses the same motion at the documented 0.55 weight. */
 .shape-layer--hover {
   opacity: 0;
   transition: opacity 150ms ease-out;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .goo-layer--hover.is-visible,
   .shape-layer--hover.is-visible {
     opacity: 0.55;
   }
 }
 
-/* "Hover goos too" hands the hover pill to the active variant layer. */
-@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  [data-shape-hover="true"] .hover-pill {
-    opacity: 0;
-  }
-}
-
 /*
- * A non-Current variant paints the selected fill from its own layer instead of
- * the segment, so the fill has no transition of its own. A selection change
- * never shows two fills: there is only ever one highlight shape.
+ * The path paints the selected fill, so the segment itself stays transparent
+ * and a fast flip never shows two fills: there is only ever one capsule.
  */
 @media (prefers-reduced-motion: no-preference) {
-  [data-highlight]:not([data-highlight="current"])
-    .segment[aria-checked="true"] {
+  .segment[aria-checked="true"] {
     background-color: transparent;
   }
 }
 
 /*
- * Reduced motion drops every prototype and the travel: the layers are hidden
- * and the segment fill crossfades like Current, 120ms in.
+ * Reduced motion drops the travel: the layer is hidden and the segment fill
+ * crossfades in 120ms, exactly like the previous selection feedback.
  */
 @media (prefers-reduced-motion: reduce) {
-  [data-highlight]:not([data-highlight="current"]) .goo-layer,
-  [data-highlight]:not([data-highlight="current"]) .shape-layer {
+  .shape-layer {
     display: none;
   }
 
-  [data-highlight]:not([data-highlight="current"])
-    .segment[role="radio"] {
+  .segment[role="radio"] {
     transition: color 150ms ease-out;
   }
 
-  [data-highlight]:not([data-highlight="current"])
-    .segment[role="radio"][aria-checked="true"] {
+  .segment[role="radio"][aria-checked="true"] {
     transition:
       background-color 120ms ease-out,
       color 150ms ease-out;

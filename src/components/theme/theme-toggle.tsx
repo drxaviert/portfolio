@@ -6,11 +6,9 @@ import {
   useId,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import type {
   ComponentPropsWithoutRef,
-  CSSProperties,
   FocusEvent,
   KeyboardEvent,
   PointerEvent as ReactPointerEvent,
@@ -65,6 +63,13 @@ type Glyph = Mode | "dawn" | "dusk" | "dayclock";
 function canHover(): boolean {
   return typeof window.matchMedia === "function"
     ? window.matchMedia("(hover: hover)").matches
+    : true;
+}
+
+/** The highlight hover follows only a device that hovers with a fine pointer. */
+function canHoverHighlight(): boolean {
+  return typeof window.matchMedia === "function"
+    ? window.matchMedia("(hover: hover) and (pointer: fine)").matches
     : true;
 }
 
@@ -281,224 +286,63 @@ function trackWidth(segments: number): string {
   return `${segments * SEGMENT_WIDTH + TRACK_INSET}px`;
 }
 
-/* ---------- Dev-only highlight prototypes ---------- */
+/* ---------- Selection highlight: stretch & snap ---------- */
 
-type HighlightVariant = "current" | "goo" | "path" | "liquid" | "stretch";
-type ShapeVariant = Exclude<HighlightVariant, "current" | "goo">;
-
-const HIGHLIGHT_VARIANTS: readonly {
-  value: HighlightVariant;
-  label: string;
-}[] = [
-  { value: "current", label: "Current" },
-  { value: "goo", label: "Goo (blur)" },
-  { value: "path", label: "Metaball (path)" },
-  { value: "liquid", label: "Liquid" },
-  { value: "stretch", label: "Stretch & snap" },
-];
-
-function isShapeVariant(value: HighlightVariant): value is ShapeVariant {
-  return value === "path" || value === "liquid" || value === "stretch";
-}
-
-function isHighlightVariant(value: unknown): value is HighlightVariant {
-  return HIGHLIGHT_VARIANTS.some((option) => option.value === value);
-}
-
-type HighlightConfig = {
-  variant: HighlightVariant;
-  goo: number;
-  neck: number;
-  bounce: number;
-  lag: number;
-  hover: boolean;
-  /** False when the browser cannot apply an SVG filter to an HTML layer. */
-  filterOk: boolean;
-};
-
-const HIGHLIGHT_STORAGE_KEY = "theme-toggle-highlight";
-const GOO_DEFAULT = 35;
-const NECK_DEFAULT = 70;
-const BOUNCE_DEFAULT = 55;
-const LAG_DEFAULT = 45;
-
-/** True only in `next dev`, so the comparison panel never ships. */
-const DEV_PANEL = process.env.NODE_ENV === "development";
+const TRACK_HEIGHT = 32;
+const SHAPE_PADDING = 2;
+const SHAPE_RADIUS = 6;
+const PILL_HEIGHT = 28;
 
 /**
- * Dev-only settings for the comparison panel. A tiny external store keeps the
- * localStorage read out of render effects; the server snapshot is the default
- * and the client snapshot picks up storage after hydration.
+ * The chosen motion, baked in: at Lag 100 the trailing edge waits 120ms, then
+ * closes at 220ms while the leading edge gets there first in 180ms. The curves
+ * are the ones picked in the dev comparison - a fast ease-out on the leading
+ * edge and a stronger one on the trailing edge, so the capsule elongates over
+ * both segments and contracts onto the target with no overshoot.
  */
-type HighlightSettings = {
-  variant: HighlightVariant;
-  goo: number;
-  neck: number;
-  bounce: number;
-  lag: number;
-  hover: boolean;
-};
+export const TRAILING_DELAY_MS = 120;
+export const LEADING_DURATION_MS = 180;
+export const TRAILING_DURATION_MS = 220;
 
-const HIGHLIGHT_DEFAULTS: HighlightSettings = {
-  variant: "path",
-  goo: GOO_DEFAULT,
-  neck: NECK_DEFAULT,
-  bounce: BOUNCE_DEFAULT,
-  lag: LAG_DEFAULT,
-  hover: false,
-};
+const LEADING_DURATION = LEADING_DURATION_MS / 1000;
+const TRAILING_DURATION = TRAILING_DURATION_MS / 1000;
+const TRAILING_DELAY = TRAILING_DELAY_MS / 1000;
 
-const highlightListeners = new Set<() => void>();
-let highlightSnapshot: HighlightSettings | null = null;
-
-/** Clamps a stored slider value; `fallback` is the default for that slider. */
-function normalizeStop(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.min(100, Math.max(0, Math.round(value)))
-    : fallback;
+function leadingEase(t: number): number {
+  return 1 - (1 - t) ** 3;
 }
 
-function readHighlightSettings(): HighlightSettings {
-  try {
-    const stored = window.localStorage.getItem(HIGHLIGHT_STORAGE_KEY);
-
-    if (!stored) {
-      return HIGHLIGHT_DEFAULTS;
-    }
-
-    // `mode` is the pre-variant key: the old "metaball" is today's "goo".
-    const parsed = JSON.parse(stored) as Partial<HighlightSettings> & {
-      mode?: unknown;
-    };
-    const variant =
-      parsed.variant ??
-      (parsed.mode === "metaball" ? "goo" : parsed.mode);
-
-    return {
-      variant: isHighlightVariant(variant)
-        ? variant
-        : HIGHLIGHT_DEFAULTS.variant,
-      goo: normalizeStop(parsed.goo, HIGHLIGHT_DEFAULTS.goo),
-      neck: normalizeStop(parsed.neck, HIGHLIGHT_DEFAULTS.neck),
-      bounce: normalizeStop(parsed.bounce, HIGHLIGHT_DEFAULTS.bounce),
-      lag: normalizeStop(parsed.lag, HIGHLIGHT_DEFAULTS.lag),
-      hover:
-        typeof parsed.hover === "boolean"
-          ? parsed.hover
-          : HIGHLIGHT_DEFAULTS.hover,
-    };
-  } catch {
-    return HIGHLIGHT_DEFAULTS;
-  }
+function trailingEase(t: number): number {
+  return 1 - (1 - t) ** 5;
 }
 
-function getHighlightSettings(): HighlightSettings {
-  highlightSnapshot ??= readHighlightSettings();
-
-  return highlightSnapshot;
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
-function getServerHighlightSettings(): HighlightSettings {
-  return HIGHLIGHT_DEFAULTS;
+/** Rounded pill path; at rest this is the exact Figma silhouette. */
+function pillPath(x: number, width: number): string {
+  const w = Math.max(2, width);
+  const r = Math.min(SHAPE_RADIUS, PILL_HEIGHT / 2, w / 2);
+  const right = x + w;
+  const bottom = SHAPE_PADDING + PILL_HEIGHT;
+
+  return [
+    `M${round2(x + r)},${SHAPE_PADDING}`,
+    `H${round2(right - r)}`,
+    `A${r},${r} 0 0 1 ${round2(right)},${SHAPE_PADDING + r}`,
+    `V${bottom - r}`,
+    `A${r},${r} 0 0 1 ${round2(right - r)},${bottom}`,
+    `H${round2(x + r)}`,
+    `A${r},${r} 0 0 1 ${round2(x)},${bottom - r}`,
+    `V${SHAPE_PADDING + r}`,
+    `A${r},${r} 0 0 1 ${round2(x + r)},${SHAPE_PADDING}`,
+    "Z",
+  ].join("");
 }
 
-function subscribeHighlight(listener: () => void): () => void {
-  highlightListeners.add(listener);
-
-  return () => {
-    highlightListeners.delete(listener);
-  };
-}
-
-function setHighlightSettings(patch: Partial<HighlightSettings>): void {
-  highlightSnapshot = { ...getHighlightSettings(), ...patch };
-
-  try {
-    window.localStorage.setItem(
-      HIGHLIGHT_STORAGE_KEY,
-      JSON.stringify(highlightSnapshot),
-    );
-  } catch {
-    // Storage can be blocked; the panel still works for this page load.
-  }
-
-  highlightListeners.forEach((listener) => listener());
-}
-
-const BLOB_HEIGHT = 28;
-
-/** The rest box of a segment: 34x28 inside a 2px track inset. */
-type BlobRect = { x: number; y: number; w: number; h: number };
-
-function restBlob(index: number): BlobRect {
-  return {
-    x: TRACK_INSET / 2 + index * SEGMENT_WIDTH,
-    y: (32 - BLOB_HEIGHT) / 2,
-    w: SEGMENT_WIDTH,
-    h: BLOB_HEIGHT,
-  };
-}
-
-type GooParams = {
-  duration: number;
-  blur: number;
-  /** Alpha contrast multiplier of the goo filter. */
-  alphaScale: number;
-  /** Alpha offset of the goo filter, negated in the matrix. */
-  alphaOffset: number;
-  stretch: number;
-  lag: number;
-  wobble: number;
-  /** Cross-axis pinch at mid-flight; 0 leaves the neck exactly as it was. */
-  pinch: number;
-  /** Slight uniform shrink that travels with the pinch. */
-  shrink: number;
-};
-
-/**
- * Goo is the amount of effect; Neck narrows the contact point. Neck 0 keeps the
- * original matrix, lag and full-height blobs, so today's neck width is the
- * start of the range. Higher stops pull the twin back until only a narrow
- * overlap (and then a small gap) is left between the two lobes, pinch both
- * blobs' height at mid-flight, and steepen the alpha threshold, so the joint
- * thins and then snaps instead of reading as a wide band. Rest is untouched:
- * the pinch and the offset are both zero at progress 0 and 1.
- */
-function gooParams(goo: number, neck: number): GooParams {
-  const t = Math.min(100, Math.max(0, goo)) / 100;
-  const n = Math.min(100, Math.max(0, neck)) / 100;
-  // 0 is today's threshold; the neck only nudges it denser so the bridge
-  // thins without breaking. The steeper curve is what makes the pinch crisp.
-  const threshold = (6 + 2 * t) / 18 + 0.06 * n;
-  const blur = 2 + 6 * t;
-  const stretch = 0.04 + 0.18 * t;
-  const baseLag = 3 + 7 * t;
-  // The twin travels behind the lead by its own width plus a gap. Today (neck
-  // 0) the two overlap by ~30px, which is why the highlight reads as one wide
-  // band; the slider removes that overlap until the edges just touch, then
-  // opens a small real gap that the goo bridges as a thin neck.
-  const trailWidth = SEGMENT_WIDTH * (1 + stretch * 0.5);
-  const overlapAtZero = baseLag - trailWidth;
-  // 70 is the reference thin neck: a small real gap the goo can still bridge.
-  // 100 opens it as far as the blur allows before the bridge would snap.
-  const gapAtSeventy = 0.9 * blur;
-  const gapMax = 1.2 * blur;
-  const gap =
-    n <= 0.7
-      ? overlapAtZero + (gapAtSeventy - overlapAtZero) * (n / 0.7)
-      : gapAtSeventy + (gapMax - gapAtSeventy) * ((n - 0.7) / 0.3);
-
-  return {
-    duration: Math.round(260 + 220 * t),
-    blur,
-    alphaScale: 18 + 14 * n,
-    alphaOffset: (18 + 14 * n) * threshold,
-    stretch,
-    lag: trailWidth + gap,
-    wobble: 0.05 * t,
-    pinch: 0.55 * n,
-    shrink: 0.035 * n,
-  };
+function segmentLeft(index: number): number {
+  return SHAPE_PADDING + index * SEGMENT_WIDTH;
 }
 
 function prefersReducedMotion(): boolean {
@@ -508,648 +352,75 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-/** Safari can accept the syntax and still paint nothing; this is the cheap gate. */
-function supportsGooFilter(): boolean {
-  return (
-    typeof CSS !== "undefined" &&
-    typeof CSS.supports === "function" &&
-    CSS.supports("filter", 'url("#goo")')
-  );
-}
-
-function subscribeToEnvironment(): () => void {
-  return () => {};
-}
-
-/** The server cannot know; the first client render upgrades to the real answer. */
-function serverGooSupport(): boolean {
-  return false;
-}
-
-function measureSegment(track: HTMLElement, index: number): BlobRect | null {
-  const segment = track.querySelectorAll<HTMLElement>('[role="radio"]')[index];
-
-  if (!segment || segment.offsetWidth === 0) {
-    return null;
-  }
-
-  // Layout units, not rects: the phase row can be mid-scale on its entrance,
-  // and a scaled measurement would shrink the pill. offset* is transform-free.
-  return {
-    x: segment.offsetLeft,
-    y: segment.offsetTop,
-    w: segment.offsetWidth,
-    h: segment.offsetHeight,
-  };
-}
-
-/** Reads the translate/scale we last wrote, so a retarget starts mid-air. */
-function readBlobTransform(element: HTMLElement): {
-  x: number;
-  scaleX: number;
-  scaleY: number;
-} {
-  const value = window.getComputedStyle(element).transform;
-
-  if (!value || value === "none") {
-    return { x: 0, scaleX: 1, scaleY: 1 };
-  }
-
-  const parts = value
-    .slice(value.indexOf("(") + 1, value.lastIndexOf(")"))
-    .split(",")
-    .map(Number);
-
-  if (value.startsWith("matrix3d")) {
-    return {
-      x: parts[12] ?? 0,
-      scaleX: parts[0] ?? 1,
-      scaleY: parts[5] ?? 1,
-    };
-  }
-
-  return {
-    x: parts[4] ?? 0,
-    scaleX: parts[0] ?? 1,
-    scaleY: parts[3] ?? 1,
-  };
-}
-
-function placeBlob(element: HTMLElement, rect: BlobRect): void {
-  element.style.width = `${rect.w}px`;
-  element.style.height = `${rect.h}px`;
-  element.style.transform = `translate3d(${rect.x}px, ${rect.y}px, 0)`;
-}
-
-/**
- * The rest place is a custom property on the layer, never an inline transform
- * on a blob: React re-rendering must not overwrite a flight in progress.
- */
-type GooVars = CSSProperties & { "--goo-x": string };
-
-function blobVars(rect: BlobRect): GooVars {
-  return { "--goo-x": `${rect.x}px` };
-}
-
-/**
- * Sends the lead blob to `rect` and drags a lagging twin behind it; the goo
- * filter turns the gap into a neck, and the neck snaps when the twin catches up
- * and both are a round pill again. rAF rather than WAAPI because the twin is a
- * function of the lead's position and both must retarget from their current
- * computed transform, so a new selection never restarts from zero.
- */
-function flyBlobs(
-  lead: HTMLElement,
-  trail: HTMLElement | null,
-  rect: BlobRect,
-  params: GooParams,
-): () => void {
-  const leadStart = readBlobTransform(lead);
-  const trailStart = trail
-    ? readBlobTransform(trail)
-    : { x: 0, scaleX: 1, scaleY: 1 };
-  const to = rect.x;
-  const direction = Math.sign(to - leadStart.x) || 1;
-  // The first frame's timestamp is the clock, not the moment the effect ran:
-  // rAF timestamps can predate a long render, which would start mid-flight.
-  let startedAt = 0;
-  // Fake timers can freeze performance.now(); a frame cap still ends the flight.
-  const maxFrames = Math.ceil(params.duration / 8) + 2;
-  let frames = 0;
-  let raf = 0;
-  let cancelled = false;
-
-  lead.style.width = `${rect.w}px`;
-  lead.style.height = `${rect.h}px`;
-
-  if (trail) {
-    trail.style.width = `${rect.w}px`;
-    trail.style.height = `${rect.h}px`;
-  }
-
-  function frame(now: number) {
-    if (cancelled) {
-      return;
-    }
-
-    frames += 1;
-
-    if (startedAt === 0) {
-      startedAt = now;
-    }
-
-    const progress = Math.min(
-      1,
-      Math.max(0, (now - startedAt) / params.duration),
-    );
-    const eased = 1 - (1 - progress) ** 3;
-    const wave = Math.sin(Math.PI * progress);
-    // Squared wave: the pinch peaks briefly at mid-flight, then is gone well
-    // before landing so the pill returns to its exact rest height.
-    const pinch = Math.sin(Math.PI * progress) ** 2;
-    const x = leadStart.x + (to - leadStart.x) * eased;
-
-    // Scale eases in from wherever the blob was caught mid-flight.
-    const scaleBlend = Math.min(1, progress * 4);
-    let scaleX =
-      leadStart.scaleX +
-      (1 +
-        params.stretch * wave -
-        params.shrink * pinch -
-        leadStart.scaleX) *
-        scaleBlend;
-    const scaleY =
-      leadStart.scaleY +
-      (1 - params.pinch * pinch - leadStart.scaleY) * scaleBlend;
-
-    // Landing wobble is scale-only, so the pill can never overshoot the track.
-    if (params.wobble > 0 && progress > 0.72) {
-      const q = (progress - 0.72) / 0.28;
-
-      scaleX += params.wobble * Math.sin(q * Math.PI * 2.5) * (1 - q);
-    }
-
-    lead.style.transform = `translate3d(${x}px, ${rect.y}px, 0) scale(${scaleX}, ${scaleY})`;
-
-    if (trail) {
-      // The twin keeps a bounded gap behind the lead (the neck), and an
-      // existing gap from an interrupted flight decays instead of jumping.
-      const catchUp = 1 - (1 - progress) ** 3;
-      // The twin pinches with the lead so the joint itself is thin; its start
-      // scales blend in too, or an interruption would pop it back to size.
-      const trailScaleX =
-        trailStart.scaleX +
-        (1 +
-          params.stretch * 0.5 * wave -
-          params.shrink * pinch -
-          trailStart.scaleX) *
-          scaleBlend;
-      const trailScaleY =
-        trailStart.scaleY +
-        (1 - params.pinch * pinch - trailStart.scaleY) * scaleBlend;
-      const trailX =
-        x -
-        direction * params.lag * wave +
-        (trailStart.x - leadStart.x) * (1 - catchUp);
-
-      trail.style.transform = `translate3d(${trailX}px, ${rect.y}px, 0) scale(${trailScaleX}, ${trailScaleY})`;
-    }
-
-    if (progress < 1 && frames < maxFrames) {
-      raf = window.requestAnimationFrame(frame);
-      return;
-    }
-
-    lead.style.transform = `translate3d(${to}px, ${rect.y}px, 0)`;
-
-    if (trail) {
-      trail.style.transform = `translate3d(${to}px, ${rect.y}px, 0)`;
-    }
-  }
-
-  raf = window.requestAnimationFrame(frame);
-
-  return () => {
-    cancelled = true;
-    window.cancelAnimationFrame(raf);
-  };
-}
-
-/* ---------- Path highlight shapes ---------- */
-
-const TRACK_HEIGHT = 32;
-const SHAPE_PADDING = 2;
-const SHAPE_RADIUS = 6;
-
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
-/** Rounded pill path; at rest this is the exact Figma silhouette. */
-function pillPath(
-  x: number,
-  width: number,
-  height = BLOB_HEIGHT,
-  y = SHAPE_PADDING,
-): string {
-  const w = Math.max(2, width);
-  const h = Math.max(2, height);
-  const r = Math.min(SHAPE_RADIUS, h / 2, w / 2);
-  const right = x + w;
-  const bottom = y + h;
-
-  return [
-    `M${round2(x + r)},${round2(y)}`,
-    `H${round2(right - r)}`,
-    `A${round2(r)},${round2(r)} 0 0 1 ${round2(right)},${round2(y + r)}`,
-    `V${round2(bottom - r)}`,
-    `A${round2(r)},${round2(r)} 0 0 1 ${round2(right - r)},${round2(bottom)}`,
-    `H${round2(x + r)}`,
-    `A${round2(r)},${round2(r)} 0 0 1 ${round2(x)},${round2(bottom - r)}`,
-    `V${round2(y + r)}`,
-    `A${round2(r)},${round2(r)} 0 0 1 ${round2(x + r)},${round2(y)}`,
-    "Z",
-  ].join("");
-}
-
-/**
- * Two pills joined by tangent cubic bridges. The top edge leaves the source
- * horizontally, dives to the neck midway, and climbs back onto the target, so
- * the join has no corners; `neckHalf` narrows as the pills separate, and at
- * full height the same path is a plain capsule (the touching case).
- */
-function metaballPath(
-  leftX: number,
-  rightX: number,
-  neckHalf: number,
-): string {
-  const yTop = SHAPE_PADDING;
-  const yBottom = SHAPE_PADDING + BLOB_HEIGHT;
-  const cy = SHAPE_PADDING + BLOB_HEIGHT / 2;
-  const r = SHAPE_RADIUS;
-  const leftEdge = leftX + SEGMENT_WIDTH;
-  const rightEdge = rightX;
-  const mid = (leftEdge + rightEdge) / 2;
-  const topNeck = cy - neckHalf;
-  const bottomNeck = cy + neckHalf;
-  const leftTangent = leftEdge - r;
-  const rightTangent = rightEdge + r;
-  const hxLeft = (mid - leftTangent) * 0.62;
-  const hxRight = (rightTangent - mid) * 0.62;
-
-  return [
-    `M${round2(leftX + r)},${yTop}`,
-    `H${round2(leftTangent)}`,
-    `C${round2(leftTangent + hxLeft)},${yTop} ${round2(mid - hxLeft * 0.45)},${round2(topNeck)} ${round2(mid)},${round2(topNeck)}`,
-    `C${round2(mid + hxRight * 0.45)},${round2(topNeck)} ${round2(rightTangent - hxRight)},${yTop} ${round2(rightTangent)},${yTop}`,
-    `H${round2(rightX + SEGMENT_WIDTH - r)}`,
-    `A${r},${r} 0 0 1 ${round2(rightX + SEGMENT_WIDTH)},${yTop + r}`,
-    `V${yBottom - r}`,
-    `A${r},${r} 0 0 1 ${round2(rightX + SEGMENT_WIDTH - r)},${yBottom}`,
-    `H${round2(rightTangent)}`,
-    `C${round2(rightTangent - hxRight)},${yBottom} ${round2(mid + hxRight * 0.45)},${round2(bottomNeck)} ${round2(mid)},${round2(bottomNeck)}`,
-    `C${round2(mid - hxLeft * 0.45)},${round2(bottomNeck)} ${round2(leftTangent + hxLeft)},${yBottom} ${round2(leftTangent)},${yBottom}`,
-    `H${round2(leftX + r)}`,
-    `A${r},${r} 0 0 1 ${round2(leftX)},${yBottom - r}`,
-    `V${yTop + r}`,
-    `A${r},${r} 0 0 1 ${round2(leftX + r)},${yTop}`,
-    "Z",
-  ].join("");
-}
-
-type Spring = { x: number; v: number };
-
-/** Semi-implicit Euler with substeps, so a long frame cannot explode. */
-function stepSpring(
-  spring: Spring,
-  target: number,
-  dt: number,
-  omega: number,
-  zeta: number,
-): void {
-  const steps = Math.max(1, Math.ceil(dt * 240));
-  const h = dt / steps;
-  const k = omega * omega;
-  const c = 2 * zeta * omega;
-
-  for (let i = 0; i < steps; i += 1) {
-    const acceleration = -k * (spring.x - target) - c * spring.v;
-
-    spring.v += acceleration * h;
-    spring.x += spring.v * h;
-  }
-}
-
-type ShapeState = {
-  variant: ShapeVariant | null;
+type HighlightState = {
   targetIndex: number | null;
   placed: boolean;
   lastVisible: boolean;
-  head: Spring;
-  tailX: number;
-  tailScale: number;
-  tailAlive: boolean;
-  left: Spring;
-  right: Spring;
   edgeLeft: number;
   edgeRight: number;
-  stretch: {
+  flight: {
     start: number;
     leadFrom: number;
     leadTo: number;
     trailFrom: number;
     trailTo: number;
-    delay: number;
+    leadingRight: boolean;
   } | null;
   raf: number;
-  last: number;
 };
 
-function createShapeState(): ShapeState {
+function createHighlightState(): HighlightState {
   return {
-    variant: null,
     targetIndex: null,
     placed: false,
     lastVisible: false,
-    head: { x: 0, v: 0 },
-    tailX: 0,
-    tailScale: 1,
-    tailAlive: true,
-    left: { x: 0, v: 0 },
-    right: { x: 0, v: 0 },
     edgeLeft: 0,
     edgeRight: 0,
-    stretch: null,
+    flight: null,
     raf: 0,
-    last: 0,
   };
 }
 
-function shapeTargetX(index: number): number {
-  return SHAPE_PADDING + index * SEGMENT_WIDTH;
-}
-
-function snapShape(st: ShapeState, index: number, width: number): void {
-  const targetX = shapeTargetX(index);
+function snapHighlight(st: HighlightState, index: number): void {
+  const left = segmentLeft(index);
 
   st.targetIndex = index;
-  st.head.x = targetX;
-  st.head.v = 0;
-  st.tailX = targetX;
-  st.tailScale = 1;
-  st.tailAlive = true;
-  st.left.x = targetX;
-  st.left.v = 0;
-  st.right.x = Math.min(width, targetX + SEGMENT_WIDTH);
-  st.right.v = 0;
-  st.edgeLeft = targetX;
-  st.edgeRight = targetX + SEGMENT_WIDTH;
-  st.stretch = null;
+  st.edgeLeft = left;
+  st.edgeRight = left + SEGMENT_WIDTH;
+  st.flight = null;
 }
 
-/** Arms a flight from the shape's current state; never restarts from zero. */
-function beginShape(
-  st: ShapeState,
-  variant: ShapeVariant,
-  index: number,
-  config: HighlightConfig,
-): void {
-  st.targetIndex = index;
+function drawHighlight(path: SVGPathElement, st: HighlightState): void {
+  const left = Math.min(st.edgeLeft, st.edgeRight);
+  const right = Math.max(st.edgeLeft, st.edgeRight);
 
-  if (variant === "path") {
-    // A new source only appears when the old one is gone; a live source keeps
-    // stretching from where it already is.
-    if (!st.tailAlive || st.tailScale < 0.05) {
-      st.tailX = st.head.x;
-      st.tailScale = 1;
-      st.tailAlive = true;
-    }
-
-    return;
-  }
-
-  if (variant === "stretch") {
-    const targetX = shapeTargetX(index);
-    const center = (st.edgeLeft + st.edgeRight) / 2;
-    const movingRight = targetX + SEGMENT_WIDTH / 2 >= center;
-
-    st.stretch = {
-      start: performance.now(),
-      leadFrom: movingRight ? st.edgeRight : st.edgeLeft,
-      leadTo: movingRight ? targetX + SEGMENT_WIDTH : targetX,
-      trailFrom: movingRight ? st.edgeLeft : st.edgeRight,
-      trailTo: movingRight ? targetX : targetX + SEGMENT_WIDTH,
-      delay: (config.lag / 100) * 0.12,
-    };
-  }
-}
-
-function stepPath(
-  st: ShapeState,
-  index: number,
-  config: HighlightConfig,
-  dt: number,
-): boolean {
-  const targetX = shapeTargetX(index);
-  const t = config.goo / 100;
-  const duration = (260 + 220 * t) / 1000;
-  const n = config.neck / 100;
-  const snapDist = 46 + 32 * (1 - n);
-
-  stepSpring(st.head, targetX, dt, 4 / duration, 1 - 0.18 * t);
-
-  const distance = Math.abs(st.head.x - st.tailX);
-  const settled =
-    Math.abs(st.head.x - targetX) < 0.15 && Math.abs(st.head.v) < 2;
-
-  if (st.tailAlive && (distance > snapDist || (settled && distance > 0.5))) {
-    st.tailAlive = false;
-  }
-
-  if (!st.tailAlive && st.tailScale > 0) {
-    st.tailScale = Math.max(0, st.tailScale - dt / 0.09);
-  }
-
-  if (settled) {
-    st.head.x = targetX;
-    st.head.v = 0;
-  }
-
-  if (settled && (!st.tailAlive || st.tailScale <= 0)) {
-    st.tailX = targetX;
-    st.tailScale = 1;
-    st.tailAlive = true;
-
-    return true;
-  }
-
-  return false;
-}
-
-function stepLiquid(
-  st: ShapeState,
-  index: number,
-  config: HighlightConfig,
-  dt: number,
-  width: number,
-): boolean {
-  const targetX = shapeTargetX(index);
-  const zeta = 1 - 0.32 * (config.bounce / 100);
-  // The leading edge is stiffer than the trailing one, so the capsule stretches
-  // toward the target and closes up behind it instead of sliding rigidly.
-  const movingRight =
-    targetX + SEGMENT_WIDTH / 2 >= (st.left.x + st.right.x) / 2;
-
-  stepSpring(st.left, targetX, dt, movingRight ? 15 : 24, zeta);
-  stepSpring(
-    st.right,
-    targetX + SEGMENT_WIDTH,
-    dt,
-    movingRight ? 24 : 15,
-    zeta,
-  );
-
-  // Overshoot may never leave the track, even by a rounding pixel.
-  st.left.x = Math.min(Math.max(st.left.x, 0), width - 8);
-  st.right.x = Math.min(Math.max(st.right.x, st.left.x + 8), width);
-
-  const settledLeft =
-    Math.abs(st.left.x - targetX) < 0.1 && Math.abs(st.left.v) < 1;
-  const settledRight =
-    Math.abs(st.right.x - (targetX + SEGMENT_WIDTH)) < 0.1 &&
-    Math.abs(st.right.v) < 1;
-
-  if (settledLeft) {
-    st.left.x = targetX;
-    st.left.v = 0;
-  }
-
-  if (settledRight) {
-    st.right.x = targetX + SEGMENT_WIDTH;
-    st.right.v = 0;
-  }
-
-  return settledLeft && settledRight;
-}
-
-function stepStretch(
-  st: ShapeState,
-  index: number,
-  width: number,
-): boolean {
-  const s = st.stretch;
-
-  if (!s) {
-    return true;
-  }
-
-  const elapsed = (performance.now() - s.start) / 1000;
-  const leadProgress = Math.min(1, elapsed / 0.18);
-  const trailProgress = Math.min(1, Math.max(0, elapsed - s.delay) / 0.22);
-  const leadEase = 1 - (1 - leadProgress) ** 3;
-  const trailEase = 1 - (1 - trailProgress) ** 5;
-  const lead = s.leadFrom + (s.leadTo - s.leadFrom) * leadEase;
-  const trail = s.trailFrom + (s.trailTo - s.trailFrom) * trailEase;
-  const leadingRight = s.leadTo > s.trailTo;
-
-  if (leadingRight) {
-    st.edgeRight = lead;
-    st.edgeLeft = trail;
-  } else {
-    st.edgeLeft = lead;
-    st.edgeRight = trail;
-  }
-
-  if (leadProgress >= 1 && trailProgress >= 1) {
-    st.edgeLeft = shapeTargetX(index);
-    st.edgeRight = st.edgeLeft + SEGMENT_WIDTH;
-    st.stretch = null;
-
-    return true;
-  }
-
-  // Keep the paint inside the track while the edges travel.
-  st.edgeLeft = Math.min(Math.max(st.edgeLeft, 0), width - 8);
-  st.edgeRight = Math.min(Math.max(st.edgeRight, st.edgeLeft + 8), width);
-
-  return false;
-}
-
-function drawShape(
-  path: SVGPathElement,
-  st: ShapeState,
-  variant: ShapeVariant,
-  config: HighlightConfig,
-  width: number,
-): void {
-  let d: string;
-
-  if (variant === "path") {
-    const headX = st.head.x;
-
-    if (!st.tailAlive || st.tailScale <= 0.001) {
-      d = pillPath(headX, SEGMENT_WIDTH);
-
-      if (st.tailScale > 0.001) {
-        const tw = SEGMENT_WIDTH * st.tailScale;
-        const th = BLOB_HEIGHT * st.tailScale;
-
-        d += pillPath(
-          st.tailX + (SEGMENT_WIDTH - tw) / 2,
-          tw,
-          th,
-          SHAPE_PADDING + (BLOB_HEIGHT - th) / 2,
-        );
-      }
-    } else {
-      const left = Math.min(headX, st.tailX);
-      const distance = Math.abs(headX - st.tailX);
-
-      if (distance <= SEGMENT_WIDTH) {
-        d = pillPath(left, SEGMENT_WIDTH + distance);
-      } else {
-        const n = config.neck / 100;
-        const minNeckHalf = 7 - 4.5 * n;
-        const snapDist = 46 + 32 * (1 - n);
-        const over = Math.min(
-          1,
-          (distance - SEGMENT_WIDTH) / (snapDist - SEGMENT_WIDTH),
-        );
-        const neckHalf = 14 - (14 - minNeckHalf) * over;
-
-        d = metaballPath(left, left + distance, neckHalf);
-      }
-    }
-  } else if (variant === "liquid") {
-    const left = Math.min(Math.max(st.left.x, 0), width - 8);
-    const right = Math.min(Math.max(st.right.x, left + 8), width);
-    const stretch = Math.max(0, right - left - SEGMENT_WIDTH);
-    const height =
-      BLOB_HEIGHT *
-      (1 - 0.16 * Math.min(1, stretch / SEGMENT_WIDTH));
-
-    d = pillPath(left, right - left, height, (TRACK_HEIGHT - height) / 2);
-  } else {
-    const left = Math.min(Math.max(st.edgeLeft, 0), width - 8);
-    const right = Math.min(Math.max(st.edgeRight, left + 8), width);
-
-    d = pillPath(left, right - left);
-  }
-
-  path.setAttribute("d", d);
+  path.setAttribute("d", pillPath(left, right - left));
 }
 
 /**
- * One SVG path per layer, redrawn only while it moves. The three shape variants
- * share the state machine: path = spring + shrinking source, liquid = two edge
- * springs with overshoot, stretch = two timed edges with a trailing delay.
+ * One capsule path that stretches toward the new segment: the leading edge
+ * leaves on its own, the trailing edge holds for the lag and then closes with a
+ * stronger ease-out. Both edges are captured from the shape's current position,
+ * so a new selection mid-flight retargets instead of restarting, and the layer
+ * is exactly the track box, so nothing can paint outside it.
  */
-function ShapeHighlight({
-  variant,
+function StretchHighlight({
   width,
   targetIndex,
   active,
-  visible,
-  config,
-  layerRef,
+  visible = true,
   hover = false,
+  layerRef,
 }: {
-  variant: ShapeVariant;
   width: number;
   targetIndex: number;
   active: boolean;
-  visible: boolean;
-  config: HighlightConfig;
-  layerRef?: Ref<HTMLSpanElement>;
+  visible?: boolean;
   hover?: boolean;
+  layerRef?: Ref<HTMLSpanElement>;
 }) {
   const pathRef = useRef<SVGPathElement>(null);
-  const stateRef = useRef<ShapeState>(createShapeState());
-  const configRef = useRef(config);
-
-  useEffect(() => {
-    configRef.current = config;
-  });
+  const stateRef = useRef<HighlightState>(createHighlightState());
 
   useEffect(() => {
     const path = pathRef.current;
@@ -1165,24 +436,20 @@ function ShapeHighlight({
         st.raf = 0;
       }
     };
-    const variantChanged = st.variant !== variant;
 
-    st.variant = variant;
-
-    if (variantChanged || !st.placed) {
-      stop();
-      snapShape(st, targetIndex, width);
+    if (!st.placed) {
+      snapHighlight(st, targetIndex);
       st.placed = true;
       st.lastVisible = visible;
-      drawShape(path, st, variant, configRef.current, width);
+      drawHighlight(path, st);
 
       return;
     }
 
     if (!active || prefersReducedMotion()) {
       stop();
-      snapShape(st, targetIndex, width);
-      drawShape(path, st, variant, configRef.current, width);
+      snapHighlight(st, targetIndex);
+      drawHighlight(path, st);
 
       return;
     }
@@ -1194,40 +461,70 @@ function ShapeHighlight({
     }
 
     if (!st.lastVisible) {
-      // The hover pill appears where the pointer already is, like the blur one.
+      // The hover pill appears where the pointer already is, with no travel.
       st.lastVisible = true;
       stop();
-      snapShape(st, targetIndex, width);
-      drawShape(path, st, variant, configRef.current, width);
+      snapHighlight(st, targetIndex);
+      drawHighlight(path, st);
 
       return;
     }
 
     if (st.targetIndex === targetIndex) {
-      drawShape(path, st, variant, configRef.current, width);
+      drawHighlight(path, st);
 
       return;
     }
 
-    beginShape(st, variant, targetIndex, configRef.current);
+    const left = segmentLeft(targetIndex);
+    const center = (st.edgeLeft + st.edgeRight) / 2;
+    const movingRight = left + SEGMENT_WIDTH / 2 >= center;
+
+    st.targetIndex = targetIndex;
+    st.flight = {
+      start: performance.now(),
+      leadFrom: movingRight ? st.edgeRight : st.edgeLeft,
+      leadTo: movingRight ? left + SEGMENT_WIDTH : left,
+      trailFrom: movingRight ? st.edgeLeft : st.edgeRight,
+      trailTo: movingRight ? left : left + SEGMENT_WIDTH,
+      leadingRight: movingRight,
+    };
+
     stop();
-    st.last = performance.now();
 
     const loop = (now: number) => {
-      const dt = Math.min(0.032, Math.max(0.001, (now - st.last) / 1000));
+      const flight = st.flight;
 
-      st.last = now;
+      if (!flight) {
+        return;
+      }
 
-      const done =
-        variant === "path"
-          ? stepPath(st, targetIndex, configRef.current, dt)
-          : variant === "liquid"
-            ? stepLiquid(st, targetIndex, configRef.current, dt, width)
-            : stepStretch(st, targetIndex, width);
+      const elapsed = Math.max(0, (now - flight.start) / 1000);
+      const leadProgress = Math.min(1, elapsed / LEADING_DURATION);
+      const trailProgress = Math.min(
+        1,
+        Math.max(0, elapsed - TRAILING_DELAY) / TRAILING_DURATION,
+      );
+      const lead =
+        flight.leadFrom +
+        (flight.leadTo - flight.leadFrom) * leadingEase(leadProgress);
+      const trail =
+        flight.trailFrom +
+        (flight.trailTo - flight.trailFrom) * trailingEase(trailProgress);
 
-      drawShape(path, st, variant, configRef.current, width);
+      if (flight.leadingRight) {
+        st.edgeRight = lead;
+        st.edgeLeft = trail;
+      } else {
+        st.edgeLeft = lead;
+        st.edgeRight = trail;
+      }
 
-      if (done) {
+      drawHighlight(path, st);
+
+      if (leadProgress >= 1 && trailProgress >= 1) {
+        snapHighlight(st, targetIndex);
+        drawHighlight(path, st);
         st.raf = 0;
 
         return;
@@ -1239,7 +536,7 @@ function ShapeHighlight({
     st.raf = window.requestAnimationFrame(loop);
 
     return stop;
-  }, [variant, targetIndex, active, visible, width]);
+  }, [targetIndex, active, visible, width]);
 
   useEffect(() => {
     const st = stateRef.current;
@@ -1256,7 +553,6 @@ function ShapeHighlight({
       ref={layerRef}
       aria-hidden="true"
       className={hover ? "shape-layer shape-layer--hover" : "shape-layer"}
-      data-shape-variant={variant}
     >
       <svg
         className="highlight-svg"
@@ -1270,7 +566,6 @@ function ShapeHighlight({
     </span>
   );
 }
-
 function segmentClasses(selected: boolean): string {
   return [
     // Figma 126:8942, rounded to 34x28 so both tracks share integer centers:
@@ -1305,21 +600,23 @@ const HIT_AREA_CLASS = {
 type SegmentTrackProps = {
   label: string;
   segments: number;
-  /** Index of the checked segment; the metaball blobs rest on it. */
+  /** Index of the checked segment; the highlight rests on it. */
   selectedIndex: number;
-  highlight: HighlightConfig;
   /** False while the track is hidden (the phase row before it opens). */
   active?: boolean;
   /** The parent needs the root node; a callback keeps React refs out of props. */
   trackRef?: (node: HTMLDivElement | null) => void;
 } & ComponentPropsWithoutRef<"div">;
 
-/** Shared track shell: same height, inset, radius and fill for every count. */
+/**
+ * Shared track shell: same height, inset, radius and highlight for every count.
+ * The selected fill is painted by an SVG capsule under the icons, so the
+ * segments themselves only carry labels and hit areas.
+ */
 function SegmentTrack({
   label,
   segments,
   selectedIndex,
-  highlight,
   active = true,
   trackRef,
   className,
@@ -1327,145 +624,18 @@ function SegmentTrack({
   onPointerLeave,
   ...rest
 }: SegmentTrackProps) {
-  const pillRef = useRef<HTMLSpanElement>(null);
   const hoveredIndex = useRef<number | null>(null);
   const [hoverTarget, setHoverTarget] = useState<number | null>(null);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const selectionLead = useRef<HTMLSpanElement>(null);
-  const selectionTrail = useRef<HTMLSpanElement>(null);
-  const hoverGoo = useRef<HTMLSpanElement>(null);
-  const hoverLead = useRef<HTMLSpanElement>(null);
-  const hoverTrail = useRef<HTMLSpanElement>(null);
-  const hoverShape = useRef<HTMLSpanElement>(null);
-  const selectionFlight = useRef<(() => void) | null>(null);
-  const hoverFlight = useRef<(() => void) | null>(null);
-  /** The selection the blur blobs were last placed for, and whether they painted. */
-  const placed = useRef<{ index: number; active: boolean } | null>(null);
-  const variant = highlight.variant;
-  const isGoo = variant === "goo";
-  const isShape = isShapeVariant(variant);
-  const usesHover = variant !== "current" && highlight.hover;
-  const gooHover = isGoo && highlight.hover;
-  const params = gooParams(highlight.goo, highlight.neck);
-  const filterId = `goo-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
-  const restBox = restBlob(selectedIndex);
+  const hoverLayer = useRef<HTMLSpanElement>(null);
   const width = segments * SEGMENT_WIDTH + TRACK_INSET;
-  const filterStyle = highlight.filterOk
-    ? { filter: `url(#${filterId})` }
-    : undefined;
-
-  const setRoot = useCallback(
-    (node: HTMLDivElement | null) => {
-      rootRef.current = node;
-      trackRef?.(node);
-    },
-    [trackRef],
-  );
-
-  // Any flight still running when the track unmounts must not touch dead nodes.
-  useEffect(() => {
-    return () => {
-      selectionFlight.current?.();
-      hoverFlight.current?.();
-    };
-  }, []);
-
-  /**
-   * A selection change retargets the blur blobs from their computed transform,
-   * so a fast arrow sequence keeps one highlight moving toward the newest
-   * segment instead of stacking flights. Opening the row, switching the dev
-   * variant and reduced motion all place the blobs at rest with no travel.
-   */
-  useEffect(() => {
-    const root = rootRef.current;
-    const lead = selectionLead.current;
-    const trail = selectionTrail.current;
-    const previous = placed.current;
-    placed.current = { index: selectedIndex, active };
-
-    if (!root || !lead || !isGoo) {
-      return;
-    }
-
-    const rect = measureSegment(root, selectedIndex);
-
-    if (!rect) {
-      return;
-    }
-
-    selectionFlight.current?.();
-    selectionFlight.current = null;
-
-    const retarget =
-      previous !== null &&
-      previous.active &&
-      active &&
-      previous.index !== selectedIndex &&
-      !prefersReducedMotion();
-
-    if (!retarget) {
-      placeBlob(lead, rect);
-
-      if (trail) {
-        placeBlob(trail, rect);
-      }
-
-      return;
-    }
-
-    selectionFlight.current = flyBlobs(
-      lead,
-      trail,
-      rect,
-      gooParams(highlight.goo, highlight.neck),
-    );
-  }, [
-    selectedIndex,
-    active,
-    isGoo,
-    highlight.filterOk,
-    highlight.goo,
-    highlight.neck,
-  ]);
-
-  // A resize can move the segments without changing the selection.
-  useEffect(() => {
-    if (!isGoo) {
-      return;
-    }
-
-    function onResize() {
-      const root = rootRef.current;
-      const lead = selectionLead.current;
-      const rect = root ? measureSegment(root, selectedIndex) : null;
-
-      if (!lead || !rect) {
-        return;
-      }
-
-      selectionFlight.current?.();
-      selectionFlight.current = null;
-      placeBlob(lead, rect);
-
-      if (selectionTrail.current) {
-        placeBlob(selectionTrail.current, rect);
-      }
-    }
-
-    window.addEventListener("resize", onResize);
-
-    return () => window.removeEventListener("resize", onResize);
-  }, [isGoo, selectedIndex]);
 
   function hidePill() {
     hoveredIndex.current = null;
     setHoverTarget(null);
-    pillRef.current?.classList.remove("is-visible");
-    hoverGoo.current?.classList.remove("is-visible");
-    hoverShape.current?.classList.remove("is-visible");
+    hoverLayer.current?.classList.remove("is-visible");
   }
 
-  /** Positions the single shared pill under the segment the pointer is on. */
+  /** Moves the faint hover capsule under the segment the pointer is on. */
   function showPill(event: ReactPointerEvent<HTMLDivElement>) {
     if (!canHover()) {
       return;
@@ -1483,9 +653,8 @@ function SegmentTrack({
       event.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]'),
     );
     const index = buttons.indexOf(target);
-    const pill = pillRef.current;
 
-    if (index < 0 || !pill) {
+    if (index < 0) {
       return;
     }
 
@@ -1509,69 +678,10 @@ function SegmentTrack({
       playIconSettle(target);
     }
 
-    const rect = {
-      x: target.offsetLeft,
-      y: target.offsetTop,
-      w: target.offsetWidth,
-      h: target.offsetHeight,
-    };
-
-    if (previous === null) {
-      // First entry fades in where the pointer already is: commit the
-      // geometry with transitions off, then restore them and reveal on the
-      // next frame so opacity actually has a 0 start to fade from.
-      pill.classList.remove("is-visible");
-      pill.style.transition = "none";
-      pill.style.width = `${rect.w}px`;
-      pill.style.height = `${rect.h}px`;
-      pill.style.transform = `translateX(${rect.x}px)`;
-      void pill.offsetWidth;
-
-      window.requestAnimationFrame(() => {
-        pill.style.transition = "";
-
-        if (hoveredIndex.current === index) {
-          pill.classList.add("is-visible");
-        }
-      });
-    } else {
-      pill.style.transform = `translateX(${rect.x}px)`;
-    }
-
-    // "Hover goos too" hands the hover pill to the active variant. CSS hides
-    // the plain pill while a variant layer is in charge.
-    if (usesHover) {
+    // Fine-pointer hover only: touch has no hover to follow.
+    if (canHoverHighlight()) {
       setHoverTarget(index);
-
-      if (isShape) {
-        hoverShape.current?.classList.add("is-visible");
-      }
-    }
-
-    const layer = hoverGoo.current;
-    const lead = hoverLead.current;
-    const trail = hoverTrail.current;
-
-    if (layer && lead && gooHover) {
-      hoverFlight.current?.();
-      hoverFlight.current = null;
-
-      if (previous === null) {
-        placeBlob(lead, rect);
-
-        if (trail) {
-          placeBlob(trail, rect);
-        }
-      } else {
-        hoverFlight.current = flyBlobs(
-          lead,
-          trail,
-          rect,
-          gooParams(highlight.goo, highlight.neck),
-        );
-      }
-
-      layer.classList.add("is-visible");
+      hoverLayer.current?.classList.add("is-visible");
     }
 
     hoveredIndex.current = index;
@@ -1580,12 +690,10 @@ function SegmentTrack({
   return (
     <div
       {...rest}
-      ref={setRoot}
+      ref={trackRef}
       role="radiogroup"
       aria-label={label}
       style={{ width: trackWidth(segments) }}
-      data-highlight={variant}
-      data-shape-hover={usesHover ? "true" : undefined}
       onPointerOver={showPill}
       onPointerLeave={(event) => {
         hidePill();
@@ -1598,111 +706,23 @@ function SegmentTrack({
         .filter(Boolean)
         .join(" ")}
     >
-      {isGoo ? (
-        <svg
-          className="absolute size-0"
-          aria-hidden="true"
-          focusable="false"
-          width="0"
-          height="0"
-        >
-          <defs>
-            {/*
-             * Static per Goo/Neck value: blur, then an alpha contrast that
-             * keeps only the merged core, then the source on top so the resting
-             * pill keeps its exact radius and size.
-             */}
-            <filter
-              id={filterId}
-              x="-20%"
-              y="-20%"
-              width="140%"
-              height="140%"
-              colorInterpolationFilters="sRGB"
-            >
-              <feGaussianBlur
-                in="SourceGraphic"
-                stdDeviation={params.blur}
-                result="blur"
-              />
-              <feColorMatrix
-                in="blur"
-                type="matrix"
-                values={`1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${params.alphaScale} -${params.alphaOffset}`}
-                result="goo"
-              />
-              <feComposite in="SourceGraphic" in2="goo" operator="atop" />
-            </filter>
-          </defs>
-        </svg>
-      ) : null}
-
-      {/* Hover layers sit under the selection layer and under the icons. */}
-      {usesHover && isShape ? (
-        <ShapeHighlight
-          variant={variant}
-          width={width}
-          targetIndex={hoverTarget ?? selectedIndex}
-          active={active}
-          visible={hoverTarget !== null}
-          config={highlight}
-          layerRef={hoverShape}
-          hover
-        />
-      ) : null}
-
-      {gooHover ? (
-        <span
-          ref={hoverGoo}
-          aria-hidden="true"
-          className="goo-layer goo-layer--hover"
-          style={blobVars(restBox)}
-        >
-          <span className="goo-layer-filter" style={filterStyle}>
-            <span ref={hoverLead} className="goo-blob" />
-            {highlight.filterOk ? (
-              <span ref={hoverTrail} className="goo-blob" />
-            ) : null}
-          </span>
-        </span>
-      ) : null}
-
-      {isShape ? (
-        <ShapeHighlight
-          variant={variant}
-          width={width}
-          targetIndex={selectedIndex}
-          active={active}
-          visible
-          config={highlight}
-        />
-      ) : null}
-
-      {isGoo ? (
-        <span
-          aria-hidden="true"
-          className="goo-layer"
-          style={blobVars(restBox)}
-        >
-          <span className="goo-layer-filter" style={filterStyle}>
-            <span ref={selectionLead} className="goo-blob" />
-            {highlight.filterOk ? (
-              <span ref={selectionTrail} className="goo-blob" />
-            ) : null}
-          </span>
-        </span>
-      ) : null}
-
-      <span
-        ref={pillRef}
-        aria-hidden="true"
-        className="hover-pill pointer-events-none absolute top-0.5 left-0 h-7 rounded-[6px] bg-toggle-selected"
+      <StretchHighlight
+        width={width}
+        targetIndex={hoverTarget ?? selectedIndex}
+        active={active}
+        visible={hoverTarget !== null}
+        hover
+        layerRef={hoverLayer}
+      />
+      <StretchHighlight
+        width={width}
+        targetIndex={selectedIndex}
+        active={active}
       />
       {children}
     </div>
   );
 }
-
 type SegmentProps = {
   selected: boolean;
   label: string;
@@ -1805,41 +825,12 @@ export function ThemeToggle() {
   const suppressFocusOpen = useRef(false);
   /** Only keyboard focus may hold the row open; pointer focus may not. */
   const inputModality = useRef<"pointer" | "keyboard">("pointer");
-  /** Dev-only comparison: the highlight variants and their knobs. */
-  const {
-    variant: highlightVariant,
-    goo,
-    neck,
-    bounce,
-    lag,
-    hover,
-  } = useSyncExternalStore(
-    subscribeHighlight,
-    getHighlightSettings,
-    getServerHighlightSettings,
-  );
-  const filterOk = useSyncExternalStore(
-    subscribeToEnvironment,
-    supportsGooFilter,
-    serverGooSupport,
-  );
 
   const currentMode =
     OPTIONS.find((option) => option.mode === mode) ?? OPTIONS[2];
   const dayActive = mode === "day";
   // The row belongs to Day: leaving Day hides it without a state effect.
   const rowVisible = rowOpen && dayActive;
-  // Production always runs the shipped highlight; only the dev panel can
-  // switch, and without it no prototype layer ever renders.
-  const highlight: HighlightConfig = {
-    variant: DEV_PANEL ? highlightVariant : "current",
-    goo,
-    neck,
-    bounce,
-    lag,
-    hover: DEV_PANEL && hover,
-    filterOk,
-  };
   const modeIndex = Math.max(
     0,
     OPTIONS.findIndex((option) => option.mode === mode),
@@ -2111,53 +1102,6 @@ export function ThemeToggle() {
     selected?.focus();
   }, [menuOpen]);
 
-  /*
-   * `K` flips the variant unless focus is in a field or a modifier is held.
-   * The settings themselves live in the external store above.
-   */
-  useEffect(() => {
-    if (!DEV_PANEL) {
-      return;
-    }
-
-    function onKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key !== "k" && event.key !== "K") {
-        return;
-      }
-
-      if (event.metaKey || event.ctrlKey || event.altKey) {
-        return;
-      }
-
-      const target =
-        (document.activeElement as HTMLElement | null) ??
-        (event.target as HTMLElement | null);
-
-      if (
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT" ||
-          target.isContentEditable)
-      ) {
-        return;
-      }
-
-      const current = getHighlightSettings().variant;
-      const index = HIGHLIGHT_VARIANTS.findIndex(
-        (option) => option.value === current,
-      );
-      const next =
-        HIGHLIGHT_VARIANTS[(index + 1) % HIGHLIGHT_VARIANTS.length].value;
-
-      setHighlightSettings({ variant: next });
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, []);
-
   function onSegmentKeyDown(
     event: KeyboardEvent<HTMLButtonElement>,
     index: number,
@@ -2361,7 +1305,6 @@ export function ThemeToggle() {
           label="Theme"
           segments={OPTIONS.length}
           selectedIndex={modeIndex}
-          highlight={highlight}
           className="relative"
           data-mode-track="true"
         >
@@ -2439,7 +1382,6 @@ export function ThemeToggle() {
           label="Day phase"
           segments={PHASE_OPTIONS.length}
           selectedIndex={phaseIndex}
-          highlight={highlight}
           active={rowVisible}
           trackRef={setRowRef}
           aria-hidden={!rowVisible}
@@ -2573,179 +1515,7 @@ export function ThemeToggle() {
           </div>
         ) : null}
       </div>
-
-      {DEV_PANEL ? (
-        <HighlightPanel
-          variant={highlightVariant}
-          goo={goo}
-          neck={neck}
-          bounce={bounce}
-          lag={lag}
-          hover={hover}
-          filterOk={filterOk}
-          onVariant={(variant) => setHighlightSettings({ variant })}
-          onGoo={(goo) => setHighlightSettings({ goo })}
-          onNeck={(neck) => setHighlightSettings({ neck })}
-          onBounce={(bounce) => setHighlightSettings({ bounce })}
-          onLag={(lag) => setHighlightSettings({ lag })}
-          onHover={(hover) => setHighlightSettings({ hover })}
-        />
-      ) : null}
     </>
-  );
-}
-
-/**
- * Dev-only comparison panel for the selection highlight. Current is the shipped
- * fill; the other four are prototypes with only their own sliders shown. The
- * choice, every slider and the hover flag are remembered in localStorage; the
- * panel renders only in development.
- */
-function HighlightPanel({
-  variant,
-  goo,
-  neck,
-  bounce,
-  lag,
-  hover,
-  filterOk,
-  onVariant,
-  onGoo,
-  onNeck,
-  onBounce,
-  onLag,
-  onHover,
-}: {
-  variant: HighlightVariant;
-  goo: number;
-  neck: number;
-  bounce: number;
-  lag: number;
-  hover: boolean;
-  filterOk: boolean;
-  onVariant: (variant: HighlightVariant) => void;
-  onGoo: (goo: number) => void;
-  onNeck: (neck: number) => void;
-  onBounce: (bounce: number) => void;
-  onLag: (lag: number) => void;
-  onHover: (hover: boolean) => void;
-}) {
-  const { duration } = gooParams(goo, neck);
-  const lagMs = Math.round((lag / 100) * 120);
-  const usesNeck = variant === "goo" || variant === "path";
-  const usesGoo = variant === "goo" || variant === "path";
-
-  return (
-    <div
-      role="group"
-      aria-label="Theme toggle highlight"
-      className="fixed bottom-3 left-[62px] z-[60] flex w-[220px] flex-col gap-2 rounded-lg bg-surface-container-low p-2.5 text-xs text-on-surface shadow-card"
-    >
-      <div className="flex items-center justify-between">
-        <span className="font-medium">Highlight</span>
-        <span className="text-[10px] text-on-surface-variant">K</span>
-      </div>
-
-      <div
-        role="group"
-        aria-label="Highlight variant"
-        className="flex flex-col gap-0.5 rounded-md bg-toggle-track p-0.5"
-      >
-        {HIGHLIGHT_VARIANTS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={variant === option.value}
-            onClick={() => onVariant(option.value)}
-            className={[
-              "h-5 w-full rounded-[6px] px-2 text-left text-[11px] leading-none outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary",
-              variant === option.value
-                ? "bg-toggle-selected text-on-surface"
-                : "text-on-surface-variant",
-            ].join(" ")}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-
-      {usesGoo ? (
-        <PanelSlider
-          label="Goo"
-          value={goo}
-          detail={`${duration}ms`}
-          onChange={onGoo}
-        />
-      ) : null}
-
-      {usesNeck ? (
-        <PanelSlider label="Neck" value={neck} onChange={onNeck} />
-      ) : null}
-
-      {variant === "liquid" ? (
-        <PanelSlider label="Bounce" value={bounce} onChange={onBounce} />
-      ) : null}
-
-      {variant === "stretch" ? (
-        <PanelSlider
-          label="Lag"
-          value={lag}
-          detail={`${lagMs}ms`}
-          onChange={onLag}
-        />
-      ) : null}
-
-      {variant !== "current" ? (
-        <label className="flex items-center justify-between gap-2">
-          <span>Hover goos too</span>
-          <input
-            type="checkbox"
-            checked={hover}
-            onChange={(event) => onHover(event.target.checked)}
-            className="size-3.5 accent-primary"
-          />
-        </label>
-      ) : null}
-
-      {variant === "goo" && !filterOk ? (
-        <span className="text-[10px] leading-tight text-on-surface-variant">
-          SVG filter unavailable: plain stretch fallback.
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-function PanelSlider({
-  label,
-  value,
-  detail,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  detail?: string;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="flex items-baseline justify-between gap-2">
-        <span>{label}</span>
-        <span className="tabular-nums text-on-surface-variant">
-          {value}
-          {detail ? ` · ${detail}` : ""}
-        </span>
-      </span>
-      <input
-        type="range"
-        min={0}
-        max={100}
-        step={1}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="w-full accent-primary"
-      />
-    </label>
   );
 }
 
