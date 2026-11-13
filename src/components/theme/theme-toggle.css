@@ -428,10 +428,10 @@
   }
 }
 
-/* ---------- Metaball highlight (dev prototype) ---------- */
+/* ---------- Highlight prototypes (dev only) ---------- */
 
 /*
- * The highlight is a clipped layer under the icons. Two same-coloured blobs
+ * The blur variant: a clipped layer under the icons. Two same-coloured blobs
  * travel (a lead and a lagging twin) and the goo filter turns the gap between
  * them into a neck; when the twin catches up, the neck snaps and both are one
  * pill again. Icons, labels and tooltips stay outside the filtered element, so
@@ -465,50 +465,79 @@
   will-change: transform;
 }
 
-/* The hover goo fades as a layer, so the filter always sees full alpha. */
-.goo-layer--hover {
+/*
+ * The path variants (metaball, liquid, stretch) draw one crisp SVG path inside
+ * the same clipped track box. No filter, so edges stay sharp and nothing can
+ * paint outside the rounded track.
+ */
+.shape-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.shape-layer .highlight-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.shape-layer path {
+  fill: var(--toggle-selected);
+}
+
+/* The hover layer fades as a whole, at the documented 0.55 hover weight. */
+.goo-layer--hover,
+.shape-layer--hover {
   opacity: 0;
   transition: opacity 150ms ease-out;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .goo-layer--hover.is-visible {
+  .goo-layer--hover.is-visible,
+  .shape-layer--hover.is-visible {
     opacity: 0.55;
   }
 }
 
-/* "Hover goos too" hands the hover pill to the goo layer. */
+/* "Hover goos too" hands the hover pill to the active variant layer. */
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  [data-goo-hover="true"] .hover-pill {
+  [data-shape-hover="true"] .hover-pill {
     opacity: 0;
   }
 }
 
 /*
- * Metaball mode paints the selected fill from the blob layer instead of the
- * segment, so the fill has no transition of its own. Leaving the checked state
- * behind a selection change never shows two fills: there is only ever one blob.
+ * A non-Current variant paints the selected fill from its own layer instead of
+ * the segment, so the fill has no transition of its own. A selection change
+ * never shows two fills: there is only ever one highlight shape.
  */
 @media (prefers-reduced-motion: no-preference) {
-  [data-metaball="true"] .segment[aria-checked="true"] {
+  [data-highlight]:not([data-highlight="current"])
+    .segment[aria-checked="true"] {
     background-color: transparent;
   }
 }
 
 /*
- * Reduced motion drops the goo and the travel: the blob layer is hidden and the
- * segment fill crossfades exactly like the Current highlight, 120ms in.
+ * Reduced motion drops every prototype and the travel: the layers are hidden
+ * and the segment fill crossfades like Current, 120ms in.
  */
 @media (prefers-reduced-motion: reduce) {
-  [data-metaball="true"] .goo-layer {
+  [data-highlight]:not([data-highlight="current"]) .goo-layer,
+  [data-highlight]:not([data-highlight="current"]) .shape-layer {
     display: none;
   }
 
-  [data-metaball="true"] .segment[role="radio"] {
+  [data-highlight]:not([data-highlight="current"])
+    .segment[role="radio"] {
     transition: color 150ms ease-out;
   }
 
-  [data-metaball="true"] .segment[role="radio"][aria-checked="true"] {
+  [data-highlight]:not([data-highlight="current"])
+    .segment[role="radio"][aria-checked="true"] {
     transition:
       background-color 120ms ease-out,
       color 150ms ease-out;

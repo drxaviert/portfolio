@@ -281,27 +281,46 @@ function trackWidth(segments: number): string {
   return `${segments * SEGMENT_WIDTH + TRACK_INSET}px`;
 }
 
-/* ---------- Metaball highlight (dev prototype) ---------- */
+/* ---------- Dev-only highlight prototypes ---------- */
 
-type HighlightMode = "current" | "metaball";
+type HighlightVariant = "current" | "goo" | "path" | "liquid" | "stretch";
+type ShapeVariant = Exclude<HighlightVariant, "current" | "goo">;
 
-const HIGHLIGHT_MODES: readonly { value: HighlightMode; label: string }[] = [
+const HIGHLIGHT_VARIANTS: readonly {
+  value: HighlightVariant;
+  label: string;
+}[] = [
   { value: "current", label: "Current" },
-  { value: "metaball", label: "Metaball" },
+  { value: "goo", label: "Goo (blur)" },
+  { value: "path", label: "Metaball (path)" },
+  { value: "liquid", label: "Liquid" },
+  { value: "stretch", label: "Stretch & snap" },
 ];
 
+function isShapeVariant(value: HighlightVariant): value is ShapeVariant {
+  return value === "path" || value === "liquid" || value === "stretch";
+}
+
+function isHighlightVariant(value: unknown): value is HighlightVariant {
+  return HIGHLIGHT_VARIANTS.some((option) => option.value === value);
+}
+
 type HighlightConfig = {
-  mode: HighlightMode;
+  variant: HighlightVariant;
   goo: number;
   neck: number;
-  hoverGoos: boolean;
+  bounce: number;
+  lag: number;
+  hover: boolean;
   /** False when the browser cannot apply an SVG filter to an HTML layer. */
   filterOk: boolean;
 };
 
-const GOO_STORAGE_KEY = "theme-toggle-highlight";
+const HIGHLIGHT_STORAGE_KEY = "theme-toggle-highlight";
 const GOO_DEFAULT = 35;
 const NECK_DEFAULT = 70;
+const BOUNCE_DEFAULT = 55;
+const LAG_DEFAULT = 45;
 
 /** True only in `next dev`, so the comparison panel never ships. */
 const DEV_PANEL = process.env.NODE_ENV === "development";
@@ -311,22 +330,26 @@ const DEV_PANEL = process.env.NODE_ENV === "development";
  * localStorage read out of render effects; the server snapshot is the default
  * and the client snapshot picks up storage after hydration.
  */
-type GooSettings = {
-  mode: HighlightMode;
+type HighlightSettings = {
+  variant: HighlightVariant;
   goo: number;
   neck: number;
-  hoverGoos: boolean;
+  bounce: number;
+  lag: number;
+  hover: boolean;
 };
 
-const GOO_DEFAULTS: GooSettings = {
-  mode: "metaball",
+const HIGHLIGHT_DEFAULTS: HighlightSettings = {
+  variant: "path",
   goo: GOO_DEFAULT,
   neck: NECK_DEFAULT,
-  hoverGoos: false,
+  bounce: BOUNCE_DEFAULT,
+  lag: LAG_DEFAULT,
+  hover: false,
 };
 
-const gooListeners = new Set<() => void>();
-let gooSnapshot: GooSettings | null = null;
+const highlightListeners = new Set<() => void>();
+let highlightSnapshot: HighlightSettings | null = null;
 
 /** Clamps a stored slider value; `fallback` is the default for that slider. */
 function normalizeStop(value: unknown, fallback: number): number {
@@ -335,61 +358,71 @@ function normalizeStop(value: unknown, fallback: number): number {
     : fallback;
 }
 
-function readGooSettings(): GooSettings {
+function readHighlightSettings(): HighlightSettings {
   try {
-    const stored = window.localStorage.getItem(GOO_STORAGE_KEY);
+    const stored = window.localStorage.getItem(HIGHLIGHT_STORAGE_KEY);
 
     if (!stored) {
-      return GOO_DEFAULTS;
+      return HIGHLIGHT_DEFAULTS;
     }
 
-    const parsed = JSON.parse(stored) as Partial<GooSettings>;
+    // `mode` is the pre-variant key: the old "metaball" is today's "goo".
+    const parsed = JSON.parse(stored) as Partial<HighlightSettings> & {
+      mode?: unknown;
+    };
+    const variant =
+      parsed.variant ??
+      (parsed.mode === "metaball" ? "goo" : parsed.mode);
 
     return {
-      mode:
-        parsed.mode === "current" || parsed.mode === "metaball"
-          ? parsed.mode
-          : GOO_DEFAULTS.mode,
-      goo: normalizeStop(parsed.goo, GOO_DEFAULTS.goo),
-      neck: normalizeStop(parsed.neck, GOO_DEFAULTS.neck),
-      hoverGoos:
-        typeof parsed.hoverGoos === "boolean"
-          ? parsed.hoverGoos
-          : GOO_DEFAULTS.hoverGoos,
+      variant: isHighlightVariant(variant)
+        ? variant
+        : HIGHLIGHT_DEFAULTS.variant,
+      goo: normalizeStop(parsed.goo, HIGHLIGHT_DEFAULTS.goo),
+      neck: normalizeStop(parsed.neck, HIGHLIGHT_DEFAULTS.neck),
+      bounce: normalizeStop(parsed.bounce, HIGHLIGHT_DEFAULTS.bounce),
+      lag: normalizeStop(parsed.lag, HIGHLIGHT_DEFAULTS.lag),
+      hover:
+        typeof parsed.hover === "boolean"
+          ? parsed.hover
+          : HIGHLIGHT_DEFAULTS.hover,
     };
   } catch {
-    return GOO_DEFAULTS;
+    return HIGHLIGHT_DEFAULTS;
   }
 }
 
-function getGooSettings(): GooSettings {
-  gooSnapshot ??= readGooSettings();
+function getHighlightSettings(): HighlightSettings {
+  highlightSnapshot ??= readHighlightSettings();
 
-  return gooSnapshot;
+  return highlightSnapshot;
 }
 
-function getServerGooSettings(): GooSettings {
-  return GOO_DEFAULTS;
+function getServerHighlightSettings(): HighlightSettings {
+  return HIGHLIGHT_DEFAULTS;
 }
 
-function subscribeGoo(listener: () => void): () => void {
-  gooListeners.add(listener);
+function subscribeHighlight(listener: () => void): () => void {
+  highlightListeners.add(listener);
 
   return () => {
-    gooListeners.delete(listener);
+    highlightListeners.delete(listener);
   };
 }
 
-function setGooSettings(patch: Partial<GooSettings>): void {
-  gooSnapshot = { ...getGooSettings(), ...patch };
+function setHighlightSettings(patch: Partial<HighlightSettings>): void {
+  highlightSnapshot = { ...getHighlightSettings(), ...patch };
 
   try {
-    window.localStorage.setItem(GOO_STORAGE_KEY, JSON.stringify(gooSnapshot));
+    window.localStorage.setItem(
+      HIGHLIGHT_STORAGE_KEY,
+      JSON.stringify(highlightSnapshot),
+    );
   } catch {
     // Storage can be blocked; the panel still works for this page load.
   }
 
-  gooListeners.forEach((listener) => listener());
+  highlightListeners.forEach((listener) => listener());
 }
 
 const BLOB_HEIGHT = 28;
@@ -682,6 +715,562 @@ function flyBlobs(
   };
 }
 
+/* ---------- Path highlight shapes ---------- */
+
+const TRACK_HEIGHT = 32;
+const SHAPE_PADDING = 2;
+const SHAPE_RADIUS = 6;
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/** Rounded pill path; at rest this is the exact Figma silhouette. */
+function pillPath(
+  x: number,
+  width: number,
+  height = BLOB_HEIGHT,
+  y = SHAPE_PADDING,
+): string {
+  const w = Math.max(2, width);
+  const h = Math.max(2, height);
+  const r = Math.min(SHAPE_RADIUS, h / 2, w / 2);
+  const right = x + w;
+  const bottom = y + h;
+
+  return [
+    `M${round2(x + r)},${round2(y)}`,
+    `H${round2(right - r)}`,
+    `A${round2(r)},${round2(r)} 0 0 1 ${round2(right)},${round2(y + r)}`,
+    `V${round2(bottom - r)}`,
+    `A${round2(r)},${round2(r)} 0 0 1 ${round2(right - r)},${round2(bottom)}`,
+    `H${round2(x + r)}`,
+    `A${round2(r)},${round2(r)} 0 0 1 ${round2(x)},${round2(bottom - r)}`,
+    `V${round2(y + r)}`,
+    `A${round2(r)},${round2(r)} 0 0 1 ${round2(x + r)},${round2(y)}`,
+    "Z",
+  ].join("");
+}
+
+/**
+ * Two pills joined by tangent cubic bridges. The top edge leaves the source
+ * horizontally, dives to the neck midway, and climbs back onto the target, so
+ * the join has no corners; `neckHalf` narrows as the pills separate, and at
+ * full height the same path is a plain capsule (the touching case).
+ */
+function metaballPath(
+  leftX: number,
+  rightX: number,
+  neckHalf: number,
+): string {
+  const yTop = SHAPE_PADDING;
+  const yBottom = SHAPE_PADDING + BLOB_HEIGHT;
+  const cy = SHAPE_PADDING + BLOB_HEIGHT / 2;
+  const r = SHAPE_RADIUS;
+  const leftEdge = leftX + SEGMENT_WIDTH;
+  const rightEdge = rightX;
+  const mid = (leftEdge + rightEdge) / 2;
+  const topNeck = cy - neckHalf;
+  const bottomNeck = cy + neckHalf;
+  const leftTangent = leftEdge - r;
+  const rightTangent = rightEdge + r;
+  const hxLeft = (mid - leftTangent) * 0.62;
+  const hxRight = (rightTangent - mid) * 0.62;
+
+  return [
+    `M${round2(leftX + r)},${yTop}`,
+    `H${round2(leftTangent)}`,
+    `C${round2(leftTangent + hxLeft)},${yTop} ${round2(mid - hxLeft * 0.45)},${round2(topNeck)} ${round2(mid)},${round2(topNeck)}`,
+    `C${round2(mid + hxRight * 0.45)},${round2(topNeck)} ${round2(rightTangent - hxRight)},${yTop} ${round2(rightTangent)},${yTop}`,
+    `H${round2(rightX + SEGMENT_WIDTH - r)}`,
+    `A${r},${r} 0 0 1 ${round2(rightX + SEGMENT_WIDTH)},${yTop + r}`,
+    `V${yBottom - r}`,
+    `A${r},${r} 0 0 1 ${round2(rightX + SEGMENT_WIDTH - r)},${yBottom}`,
+    `H${round2(rightTangent)}`,
+    `C${round2(rightTangent - hxRight)},${yBottom} ${round2(mid + hxRight * 0.45)},${round2(bottomNeck)} ${round2(mid)},${round2(bottomNeck)}`,
+    `C${round2(mid - hxLeft * 0.45)},${round2(bottomNeck)} ${round2(leftTangent + hxLeft)},${yBottom} ${round2(leftTangent)},${yBottom}`,
+    `H${round2(leftX + r)}`,
+    `A${r},${r} 0 0 1 ${round2(leftX)},${yBottom - r}`,
+    `V${yTop + r}`,
+    `A${r},${r} 0 0 1 ${round2(leftX + r)},${yTop}`,
+    "Z",
+  ].join("");
+}
+
+type Spring = { x: number; v: number };
+
+/** Semi-implicit Euler with substeps, so a long frame cannot explode. */
+function stepSpring(
+  spring: Spring,
+  target: number,
+  dt: number,
+  omega: number,
+  zeta: number,
+): void {
+  const steps = Math.max(1, Math.ceil(dt * 240));
+  const h = dt / steps;
+  const k = omega * omega;
+  const c = 2 * zeta * omega;
+
+  for (let i = 0; i < steps; i += 1) {
+    const acceleration = -k * (spring.x - target) - c * spring.v;
+
+    spring.v += acceleration * h;
+    spring.x += spring.v * h;
+  }
+}
+
+type ShapeState = {
+  variant: ShapeVariant | null;
+  targetIndex: number | null;
+  placed: boolean;
+  lastVisible: boolean;
+  head: Spring;
+  tailX: number;
+  tailScale: number;
+  tailAlive: boolean;
+  left: Spring;
+  right: Spring;
+  edgeLeft: number;
+  edgeRight: number;
+  stretch: {
+    start: number;
+    leadFrom: number;
+    leadTo: number;
+    trailFrom: number;
+    trailTo: number;
+    delay: number;
+  } | null;
+  raf: number;
+  last: number;
+};
+
+function createShapeState(): ShapeState {
+  return {
+    variant: null,
+    targetIndex: null,
+    placed: false,
+    lastVisible: false,
+    head: { x: 0, v: 0 },
+    tailX: 0,
+    tailScale: 1,
+    tailAlive: true,
+    left: { x: 0, v: 0 },
+    right: { x: 0, v: 0 },
+    edgeLeft: 0,
+    edgeRight: 0,
+    stretch: null,
+    raf: 0,
+    last: 0,
+  };
+}
+
+function shapeTargetX(index: number): number {
+  return SHAPE_PADDING + index * SEGMENT_WIDTH;
+}
+
+function snapShape(st: ShapeState, index: number, width: number): void {
+  const targetX = shapeTargetX(index);
+
+  st.targetIndex = index;
+  st.head.x = targetX;
+  st.head.v = 0;
+  st.tailX = targetX;
+  st.tailScale = 1;
+  st.tailAlive = true;
+  st.left.x = targetX;
+  st.left.v = 0;
+  st.right.x = Math.min(width, targetX + SEGMENT_WIDTH);
+  st.right.v = 0;
+  st.edgeLeft = targetX;
+  st.edgeRight = targetX + SEGMENT_WIDTH;
+  st.stretch = null;
+}
+
+/** Arms a flight from the shape's current state; never restarts from zero. */
+function beginShape(
+  st: ShapeState,
+  variant: ShapeVariant,
+  index: number,
+  config: HighlightConfig,
+): void {
+  st.targetIndex = index;
+
+  if (variant === "path") {
+    // A new source only appears when the old one is gone; a live source keeps
+    // stretching from where it already is.
+    if (!st.tailAlive || st.tailScale < 0.05) {
+      st.tailX = st.head.x;
+      st.tailScale = 1;
+      st.tailAlive = true;
+    }
+
+    return;
+  }
+
+  if (variant === "stretch") {
+    const targetX = shapeTargetX(index);
+    const center = (st.edgeLeft + st.edgeRight) / 2;
+    const movingRight = targetX + SEGMENT_WIDTH / 2 >= center;
+
+    st.stretch = {
+      start: performance.now(),
+      leadFrom: movingRight ? st.edgeRight : st.edgeLeft,
+      leadTo: movingRight ? targetX + SEGMENT_WIDTH : targetX,
+      trailFrom: movingRight ? st.edgeLeft : st.edgeRight,
+      trailTo: movingRight ? targetX : targetX + SEGMENT_WIDTH,
+      delay: (config.lag / 100) * 0.12,
+    };
+  }
+}
+
+function stepPath(
+  st: ShapeState,
+  index: number,
+  config: HighlightConfig,
+  dt: number,
+): boolean {
+  const targetX = shapeTargetX(index);
+  const t = config.goo / 100;
+  const duration = (260 + 220 * t) / 1000;
+  const n = config.neck / 100;
+  const snapDist = 46 + 32 * (1 - n);
+
+  stepSpring(st.head, targetX, dt, 4 / duration, 1 - 0.18 * t);
+
+  const distance = Math.abs(st.head.x - st.tailX);
+  const settled =
+    Math.abs(st.head.x - targetX) < 0.15 && Math.abs(st.head.v) < 2;
+
+  if (st.tailAlive && (distance > snapDist || (settled && distance > 0.5))) {
+    st.tailAlive = false;
+  }
+
+  if (!st.tailAlive && st.tailScale > 0) {
+    st.tailScale = Math.max(0, st.tailScale - dt / 0.09);
+  }
+
+  if (settled) {
+    st.head.x = targetX;
+    st.head.v = 0;
+  }
+
+  if (settled && (!st.tailAlive || st.tailScale <= 0)) {
+    st.tailX = targetX;
+    st.tailScale = 1;
+    st.tailAlive = true;
+
+    return true;
+  }
+
+  return false;
+}
+
+function stepLiquid(
+  st: ShapeState,
+  index: number,
+  config: HighlightConfig,
+  dt: number,
+  width: number,
+): boolean {
+  const targetX = shapeTargetX(index);
+  const zeta = 1 - 0.32 * (config.bounce / 100);
+  // The leading edge is stiffer than the trailing one, so the capsule stretches
+  // toward the target and closes up behind it instead of sliding rigidly.
+  const movingRight =
+    targetX + SEGMENT_WIDTH / 2 >= (st.left.x + st.right.x) / 2;
+
+  stepSpring(st.left, targetX, dt, movingRight ? 15 : 24, zeta);
+  stepSpring(
+    st.right,
+    targetX + SEGMENT_WIDTH,
+    dt,
+    movingRight ? 24 : 15,
+    zeta,
+  );
+
+  // Overshoot may never leave the track, even by a rounding pixel.
+  st.left.x = Math.min(Math.max(st.left.x, 0), width - 8);
+  st.right.x = Math.min(Math.max(st.right.x, st.left.x + 8), width);
+
+  const settledLeft =
+    Math.abs(st.left.x - targetX) < 0.1 && Math.abs(st.left.v) < 1;
+  const settledRight =
+    Math.abs(st.right.x - (targetX + SEGMENT_WIDTH)) < 0.1 &&
+    Math.abs(st.right.v) < 1;
+
+  if (settledLeft) {
+    st.left.x = targetX;
+    st.left.v = 0;
+  }
+
+  if (settledRight) {
+    st.right.x = targetX + SEGMENT_WIDTH;
+    st.right.v = 0;
+  }
+
+  return settledLeft && settledRight;
+}
+
+function stepStretch(
+  st: ShapeState,
+  index: number,
+  width: number,
+): boolean {
+  const s = st.stretch;
+
+  if (!s) {
+    return true;
+  }
+
+  const elapsed = (performance.now() - s.start) / 1000;
+  const leadProgress = Math.min(1, elapsed / 0.18);
+  const trailProgress = Math.min(1, Math.max(0, elapsed - s.delay) / 0.22);
+  const leadEase = 1 - (1 - leadProgress) ** 3;
+  const trailEase = 1 - (1 - trailProgress) ** 5;
+  const lead = s.leadFrom + (s.leadTo - s.leadFrom) * leadEase;
+  const trail = s.trailFrom + (s.trailTo - s.trailFrom) * trailEase;
+  const leadingRight = s.leadTo > s.trailTo;
+
+  if (leadingRight) {
+    st.edgeRight = lead;
+    st.edgeLeft = trail;
+  } else {
+    st.edgeLeft = lead;
+    st.edgeRight = trail;
+  }
+
+  if (leadProgress >= 1 && trailProgress >= 1) {
+    st.edgeLeft = shapeTargetX(index);
+    st.edgeRight = st.edgeLeft + SEGMENT_WIDTH;
+    st.stretch = null;
+
+    return true;
+  }
+
+  // Keep the paint inside the track while the edges travel.
+  st.edgeLeft = Math.min(Math.max(st.edgeLeft, 0), width - 8);
+  st.edgeRight = Math.min(Math.max(st.edgeRight, st.edgeLeft + 8), width);
+
+  return false;
+}
+
+function drawShape(
+  path: SVGPathElement,
+  st: ShapeState,
+  variant: ShapeVariant,
+  config: HighlightConfig,
+  width: number,
+): void {
+  let d: string;
+
+  if (variant === "path") {
+    const headX = st.head.x;
+
+    if (!st.tailAlive || st.tailScale <= 0.001) {
+      d = pillPath(headX, SEGMENT_WIDTH);
+
+      if (st.tailScale > 0.001) {
+        const tw = SEGMENT_WIDTH * st.tailScale;
+        const th = BLOB_HEIGHT * st.tailScale;
+
+        d += pillPath(
+          st.tailX + (SEGMENT_WIDTH - tw) / 2,
+          tw,
+          th,
+          SHAPE_PADDING + (BLOB_HEIGHT - th) / 2,
+        );
+      }
+    } else {
+      const left = Math.min(headX, st.tailX);
+      const distance = Math.abs(headX - st.tailX);
+
+      if (distance <= SEGMENT_WIDTH) {
+        d = pillPath(left, SEGMENT_WIDTH + distance);
+      } else {
+        const n = config.neck / 100;
+        const minNeckHalf = 7 - 4.5 * n;
+        const snapDist = 46 + 32 * (1 - n);
+        const over = Math.min(
+          1,
+          (distance - SEGMENT_WIDTH) / (snapDist - SEGMENT_WIDTH),
+        );
+        const neckHalf = 14 - (14 - minNeckHalf) * over;
+
+        d = metaballPath(left, left + distance, neckHalf);
+      }
+    }
+  } else if (variant === "liquid") {
+    const left = Math.min(Math.max(st.left.x, 0), width - 8);
+    const right = Math.min(Math.max(st.right.x, left + 8), width);
+    const stretch = Math.max(0, right - left - SEGMENT_WIDTH);
+    const height =
+      BLOB_HEIGHT *
+      (1 - 0.16 * Math.min(1, stretch / SEGMENT_WIDTH));
+
+    d = pillPath(left, right - left, height, (TRACK_HEIGHT - height) / 2);
+  } else {
+    const left = Math.min(Math.max(st.edgeLeft, 0), width - 8);
+    const right = Math.min(Math.max(st.edgeRight, left + 8), width);
+
+    d = pillPath(left, right - left);
+  }
+
+  path.setAttribute("d", d);
+}
+
+/**
+ * One SVG path per layer, redrawn only while it moves. The three shape variants
+ * share the state machine: path = spring + shrinking source, liquid = two edge
+ * springs with overshoot, stretch = two timed edges with a trailing delay.
+ */
+function ShapeHighlight({
+  variant,
+  width,
+  targetIndex,
+  active,
+  visible,
+  config,
+  layerRef,
+  hover = false,
+}: {
+  variant: ShapeVariant;
+  width: number;
+  targetIndex: number;
+  active: boolean;
+  visible: boolean;
+  config: HighlightConfig;
+  layerRef?: Ref<HTMLSpanElement>;
+  hover?: boolean;
+}) {
+  const pathRef = useRef<SVGPathElement>(null);
+  const stateRef = useRef<ShapeState>(createShapeState());
+  const configRef = useRef(config);
+
+  useEffect(() => {
+    configRef.current = config;
+  });
+
+  useEffect(() => {
+    const path = pathRef.current;
+
+    if (!path) {
+      return;
+    }
+
+    const st = stateRef.current;
+    const stop = () => {
+      if (st.raf) {
+        window.cancelAnimationFrame(st.raf);
+        st.raf = 0;
+      }
+    };
+    const variantChanged = st.variant !== variant;
+
+    st.variant = variant;
+
+    if (variantChanged || !st.placed) {
+      stop();
+      snapShape(st, targetIndex, width);
+      st.placed = true;
+      st.lastVisible = visible;
+      drawShape(path, st, variant, configRef.current, width);
+
+      return;
+    }
+
+    if (!active || prefersReducedMotion()) {
+      stop();
+      snapShape(st, targetIndex, width);
+      drawShape(path, st, variant, configRef.current, width);
+
+      return;
+    }
+
+    if (!visible) {
+      st.lastVisible = false;
+
+      return;
+    }
+
+    if (!st.lastVisible) {
+      // The hover pill appears where the pointer already is, like the blur one.
+      st.lastVisible = true;
+      stop();
+      snapShape(st, targetIndex, width);
+      drawShape(path, st, variant, configRef.current, width);
+
+      return;
+    }
+
+    if (st.targetIndex === targetIndex) {
+      drawShape(path, st, variant, configRef.current, width);
+
+      return;
+    }
+
+    beginShape(st, variant, targetIndex, configRef.current);
+    stop();
+    st.last = performance.now();
+
+    const loop = (now: number) => {
+      const dt = Math.min(0.032, Math.max(0.001, (now - st.last) / 1000));
+
+      st.last = now;
+
+      const done =
+        variant === "path"
+          ? stepPath(st, targetIndex, configRef.current, dt)
+          : variant === "liquid"
+            ? stepLiquid(st, targetIndex, configRef.current, dt, width)
+            : stepStretch(st, targetIndex, width);
+
+      drawShape(path, st, variant, configRef.current, width);
+
+      if (done) {
+        st.raf = 0;
+
+        return;
+      }
+
+      st.raf = window.requestAnimationFrame(loop);
+    };
+
+    st.raf = window.requestAnimationFrame(loop);
+
+    return stop;
+  }, [variant, targetIndex, active, visible, width]);
+
+  useEffect(() => {
+    const st = stateRef.current;
+
+    return () => {
+      if (st.raf) {
+        window.cancelAnimationFrame(st.raf);
+      }
+    };
+  }, []);
+
+  return (
+    <span
+      ref={layerRef}
+      aria-hidden="true"
+      className={hover ? "shape-layer shape-layer--hover" : "shape-layer"}
+      data-shape-variant={variant}
+    >
+      <svg
+        className="highlight-svg"
+        viewBox={`0 0 ${width} ${TRACK_HEIGHT}`}
+        preserveAspectRatio="none"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path ref={pathRef} />
+      </svg>
+    </span>
+  );
+}
+
 function segmentClasses(selected: boolean): string {
   return [
     // Figma 126:8942, rounded to 34x28 so both tracks share integer centers:
@@ -740,24 +1329,30 @@ function SegmentTrack({
 }: SegmentTrackProps) {
   const pillRef = useRef<HTMLSpanElement>(null);
   const hoveredIndex = useRef<number | null>(null);
+  const [hoverTarget, setHoverTarget] = useState<number | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const selectionLead = useRef<HTMLSpanElement>(null);
   const selectionTrail = useRef<HTMLSpanElement>(null);
   const hoverGoo = useRef<HTMLSpanElement>(null);
   const hoverLead = useRef<HTMLSpanElement>(null);
   const hoverTrail = useRef<HTMLSpanElement>(null);
+  const hoverShape = useRef<HTMLSpanElement>(null);
   const selectionFlight = useRef<(() => void) | null>(null);
   const hoverFlight = useRef<(() => void) | null>(null);
-  /** The selection the blobs were last placed for, and whether they painted. */
+  /** The selection the blur blobs were last placed for, and whether they painted. */
   const placed = useRef<{ index: number; active: boolean } | null>(null);
-  const metaball = highlight.mode === "metaball";
+  const variant = highlight.variant;
+  const isGoo = variant === "goo";
+  const isShape = isShapeVariant(variant);
+  const usesHover = variant !== "current" && highlight.hover;
+  const gooHover = isGoo && highlight.hover;
   const params = gooParams(highlight.goo, highlight.neck);
   const filterId = `goo-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const restBox = restBlob(selectedIndex);
+  const width = segments * SEGMENT_WIDTH + TRACK_INSET;
   const filterStyle = highlight.filterOk
     ? { filter: `url(#${filterId})` }
     : undefined;
-  const gooHover = metaball && highlight.hoverGoos;
 
   const setRoot = useCallback(
     (node: HTMLDivElement | null) => {
@@ -776,10 +1371,10 @@ function SegmentTrack({
   }, []);
 
   /**
-   * A selection change retargets the blobs from their computed transform, so a
-   * fast arrow sequence keeps one highlight moving toward the newest segment
-   * instead of stacking flights. Opening the row, switching the dev variant and
-   * reduced motion all place the blobs at rest with no travel.
+   * A selection change retargets the blur blobs from their computed transform,
+   * so a fast arrow sequence keeps one highlight moving toward the newest
+   * segment instead of stacking flights. Opening the row, switching the dev
+   * variant and reduced motion all place the blobs at rest with no travel.
    */
   useEffect(() => {
     const root = rootRef.current;
@@ -788,7 +1383,7 @@ function SegmentTrack({
     const previous = placed.current;
     placed.current = { index: selectedIndex, active };
 
-    if (!root || !lead || !metaball) {
+    if (!root || !lead || !isGoo) {
       return;
     }
 
@@ -827,7 +1422,7 @@ function SegmentTrack({
   }, [
     selectedIndex,
     active,
-    metaball,
+    isGoo,
     highlight.filterOk,
     highlight.goo,
     highlight.neck,
@@ -835,7 +1430,7 @@ function SegmentTrack({
 
   // A resize can move the segments without changing the selection.
   useEffect(() => {
-    if (!metaball) {
+    if (!isGoo) {
       return;
     }
 
@@ -860,12 +1455,14 @@ function SegmentTrack({
     window.addEventListener("resize", onResize);
 
     return () => window.removeEventListener("resize", onResize);
-  }, [metaball, selectedIndex]);
+  }, [isGoo, selectedIndex]);
 
   function hidePill() {
     hoveredIndex.current = null;
+    setHoverTarget(null);
     pillRef.current?.classList.remove("is-visible");
     hoverGoo.current?.classList.remove("is-visible");
+    hoverShape.current?.classList.remove("is-visible");
   }
 
   /** Positions the single shared pill under the segment the pointer is on. */
@@ -941,8 +1538,16 @@ function SegmentTrack({
       pill.style.transform = `translateX(${rect.x}px)`;
     }
 
-    // With "Hover goos too" on, the faint pill gets the same lead/twin goo.
-    // CSS hides the plain pill while the goo layer is in charge.
+    // "Hover goos too" hands the hover pill to the active variant. CSS hides
+    // the plain pill while a variant layer is in charge.
+    if (usesHover) {
+      setHoverTarget(index);
+
+      if (isShape) {
+        hoverShape.current?.classList.add("is-visible");
+      }
+    }
+
     const layer = hoverGoo.current;
     const lead = hoverLead.current;
     const trail = hoverTrail.current;
@@ -979,8 +1584,8 @@ function SegmentTrack({
       role="radiogroup"
       aria-label={label}
       style={{ width: trackWidth(segments) }}
-      data-metaball={metaball ? "true" : undefined}
-      data-goo-hover={gooHover ? "true" : undefined}
+      data-highlight={variant}
+      data-shape-hover={usesHover ? "true" : undefined}
       onPointerOver={showPill}
       onPointerLeave={(event) => {
         hidePill();
@@ -993,7 +1598,7 @@ function SegmentTrack({
         .filter(Boolean)
         .join(" ")}
     >
-      {metaball ? (
+      {isGoo ? (
         <svg
           className="absolute size-0"
           aria-hidden="true"
@@ -1003,9 +1608,9 @@ function SegmentTrack({
         >
           <defs>
             {/*
-             * Static per Goo value: blur, then an alpha contrast that keeps
-             * only the merged core, then the source on top so the resting pill
-             * keeps its exact radius and size.
+             * Static per Goo/Neck value: blur, then an alpha contrast that
+             * keeps only the merged core, then the source on top so the resting
+             * pill keeps its exact radius and size.
              */}
             <filter
               id={filterId}
@@ -1032,7 +1637,20 @@ function SegmentTrack({
         </svg>
       ) : null}
 
-      {/* Hover goo sits under the selection goo and under the icons. */}
+      {/* Hover layers sit under the selection layer and under the icons. */}
+      {usesHover && isShape ? (
+        <ShapeHighlight
+          variant={variant}
+          width={width}
+          targetIndex={hoverTarget ?? selectedIndex}
+          active={active}
+          visible={hoverTarget !== null}
+          config={highlight}
+          layerRef={hoverShape}
+          hover
+        />
+      ) : null}
+
       {gooHover ? (
         <span
           ref={hoverGoo}
@@ -1049,7 +1667,18 @@ function SegmentTrack({
         </span>
       ) : null}
 
-      {metaball ? (
+      {isShape ? (
+        <ShapeHighlight
+          variant={variant}
+          width={width}
+          targetIndex={selectedIndex}
+          active={active}
+          visible
+          config={highlight}
+        />
+      ) : null}
+
+      {isGoo ? (
         <span
           aria-hidden="true"
           className="goo-layer"
@@ -1176,13 +1805,19 @@ export function ThemeToggle() {
   const suppressFocusOpen = useRef(false);
   /** Only keyboard focus may hold the row open; pointer focus may not. */
   const inputModality = useRef<"pointer" | "keyboard">("pointer");
-  /** Dev-only comparison: the metaball highlight and its knobs. */
+  /** Dev-only comparison: the highlight variants and their knobs. */
   const {
-    mode: highlightMode,
+    variant: highlightVariant,
     goo,
     neck,
-    hoverGoos,
-  } = useSyncExternalStore(subscribeGoo, getGooSettings, getServerGooSettings);
+    bounce,
+    lag,
+    hover,
+  } = useSyncExternalStore(
+    subscribeHighlight,
+    getHighlightSettings,
+    getServerHighlightSettings,
+  );
   const filterOk = useSyncExternalStore(
     subscribeToEnvironment,
     supportsGooFilter,
@@ -1195,12 +1830,14 @@ export function ThemeToggle() {
   // The row belongs to Day: leaving Day hides it without a state effect.
   const rowVisible = rowOpen && dayActive;
   // Production always runs the shipped highlight; only the dev panel can
-  // switch, and without it the metaball layer never renders.
+  // switch, and without it no prototype layer ever renders.
   const highlight: HighlightConfig = {
-    mode: DEV_PANEL ? highlightMode : "current",
+    variant: DEV_PANEL ? highlightVariant : "current",
     goo,
     neck,
-    hoverGoos: DEV_PANEL && hoverGoos,
+    bounce,
+    lag,
+    hover: DEV_PANEL && hover,
     filterOk,
   };
   const modeIndex = Math.max(
@@ -1506,9 +2143,14 @@ export function ThemeToggle() {
         return;
       }
 
-      setGooSettings({
-        mode: getGooSettings().mode === "metaball" ? "current" : "metaball",
-      });
+      const current = getHighlightSettings().variant;
+      const index = HIGHLIGHT_VARIANTS.findIndex(
+        (option) => option.value === current,
+      );
+      const next =
+        HIGHLIGHT_VARIANTS[(index + 1) % HIGHLIGHT_VARIANTS.length].value;
+
+      setHighlightSettings({ variant: next });
     }
 
     document.addEventListener("keydown", onKeyDown);
@@ -1933,16 +2575,20 @@ export function ThemeToggle() {
       </div>
 
       {DEV_PANEL ? (
-        <GooPanel
-          mode={highlightMode}
+        <HighlightPanel
+          variant={highlightVariant}
           goo={goo}
           neck={neck}
-          hoverGoos={hoverGoos}
+          bounce={bounce}
+          lag={lag}
+          hover={hover}
           filterOk={filterOk}
-          onMode={(mode) => setGooSettings({ mode })}
-          onGoo={(goo) => setGooSettings({ goo })}
-          onNeck={(neck) => setGooSettings({ neck })}
-          onHoverGoos={(hoverGoos) => setGooSettings({ hoverGoos })}
+          onVariant={(variant) => setHighlightSettings({ variant })}
+          onGoo={(goo) => setHighlightSettings({ goo })}
+          onNeck={(neck) => setHighlightSettings({ neck })}
+          onBounce={(bounce) => setHighlightSettings({ bounce })}
+          onLag={(lag) => setHighlightSettings({ lag })}
+          onHover={(hover) => setHighlightSettings({ hover })}
         />
       ) : null}
     </>
@@ -1950,33 +2596,44 @@ export function ThemeToggle() {
 }
 
 /**
- * Dev-only comparison panel for the selection highlight: Current is the shipped
- * fill, Metaball is the goo prototype with its Goo and Neck sliders and hover
- * switch. The choice, both sliders and the hover flag are remembered in
- * localStorage; the panel renders only in development.
+ * Dev-only comparison panel for the selection highlight. Current is the shipped
+ * fill; the other four are prototypes with only their own sliders shown. The
+ * choice, every slider and the hover flag are remembered in localStorage; the
+ * panel renders only in development.
  */
-function GooPanel({
-  mode,
+function HighlightPanel({
+  variant,
   goo,
   neck,
-  hoverGoos,
+  bounce,
+  lag,
+  hover,
   filterOk,
-  onMode,
+  onVariant,
   onGoo,
   onNeck,
-  onHoverGoos,
+  onBounce,
+  onLag,
+  onHover,
 }: {
-  mode: HighlightMode;
+  variant: HighlightVariant;
   goo: number;
   neck: number;
-  hoverGoos: boolean;
+  bounce: number;
+  lag: number;
+  hover: boolean;
   filterOk: boolean;
-  onMode: (mode: HighlightMode) => void;
+  onVariant: (variant: HighlightVariant) => void;
   onGoo: (goo: number) => void;
   onNeck: (neck: number) => void;
-  onHoverGoos: (enabled: boolean) => void;
+  onBounce: (bounce: number) => void;
+  onLag: (lag: number) => void;
+  onHover: (hover: boolean) => void;
 }) {
   const { duration } = gooParams(goo, neck);
+  const lagMs = Math.round((lag / 100) * 120);
+  const usesNeck = variant === "goo" || variant === "path";
+  const usesGoo = variant === "goo" || variant === "path";
 
   return (
     <div
@@ -1992,17 +2649,17 @@ function GooPanel({
       <div
         role="group"
         aria-label="Highlight variant"
-        className="flex items-center rounded-md bg-toggle-track p-0.5"
+        className="flex flex-col gap-0.5 rounded-md bg-toggle-track p-0.5"
       >
-        {HIGHLIGHT_MODES.map((option) => (
+        {HIGHLIGHT_VARIANTS.map((option) => (
           <button
             key={option.value}
             type="button"
-            aria-pressed={mode === option.value}
-            onClick={() => onMode(option.value)}
+            aria-pressed={variant === option.value}
+            onClick={() => onVariant(option.value)}
             className={[
-              "h-5 flex-1 rounded-[6px] px-1.5 text-[11px] leading-none outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary",
-              mode === option.value
+              "h-5 w-full rounded-[6px] px-2 text-left text-[11px] leading-none outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary",
+              variant === option.value
                 ? "bg-toggle-selected text-on-surface"
                 : "text-on-surface-variant",
             ].join(" ")}
@@ -2012,62 +2669,83 @@ function GooPanel({
         ))}
       </div>
 
-      {mode === "metaball" ? (
-        <>
-          <label className="flex flex-col gap-1">
-            <span className="flex items-baseline justify-between gap-2">
-              <span>Goo</span>
-              <span className="tabular-nums text-on-surface-variant">
-                {goo} · {duration}ms
-              </span>
-            </span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={goo}
-              onChange={(event) => onGoo(Number(event.target.value))}
-              className="w-full accent-primary"
-            />
-          </label>
+      {usesGoo ? (
+        <PanelSlider
+          label="Goo"
+          value={goo}
+          detail={`${duration}ms`}
+          onChange={onGoo}
+        />
+      ) : null}
 
-          <label className="flex flex-col gap-1">
-            <span className="flex items-baseline justify-between gap-2">
-              <span>Neck</span>
-              <span className="tabular-nums text-on-surface-variant">
-                {neck}
-              </span>
-            </span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={neck}
-              onChange={(event) => onNeck(Number(event.target.value))}
-              className="w-full accent-primary"
-            />
-          </label>
+      {usesNeck ? (
+        <PanelSlider label="Neck" value={neck} onChange={onNeck} />
+      ) : null}
 
-          <label className="flex items-center justify-between gap-2">
-            <span>Hover goos too</span>
-            <input
-              type="checkbox"
-              checked={hoverGoos}
-              onChange={(event) => onHoverGoos(event.target.checked)}
-              className="size-3.5 accent-primary"
-            />
-          </label>
+      {variant === "liquid" ? (
+        <PanelSlider label="Bounce" value={bounce} onChange={onBounce} />
+      ) : null}
 
-          {!filterOk ? (
-            <span className="text-[10px] leading-tight text-on-surface-variant">
-              SVG filter unavailable: plain stretch fallback.
-            </span>
-          ) : null}
-        </>
+      {variant === "stretch" ? (
+        <PanelSlider
+          label="Lag"
+          value={lag}
+          detail={`${lagMs}ms`}
+          onChange={onLag}
+        />
+      ) : null}
+
+      {variant !== "current" ? (
+        <label className="flex items-center justify-between gap-2">
+          <span>Hover goos too</span>
+          <input
+            type="checkbox"
+            checked={hover}
+            onChange={(event) => onHover(event.target.checked)}
+            className="size-3.5 accent-primary"
+          />
+        </label>
+      ) : null}
+
+      {variant === "goo" && !filterOk ? (
+        <span className="text-[10px] leading-tight text-on-surface-variant">
+          SVG filter unavailable: plain stretch fallback.
+        </span>
       ) : null}
     </div>
+  );
+}
+
+function PanelSlider({
+  label,
+  value,
+  detail,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  detail?: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="flex items-baseline justify-between gap-2">
+        <span>{label}</span>
+        <span className="tabular-nums text-on-surface-variant">
+          {value}
+          {detail ? ` · ${detail}` : ""}
+        </span>
+      </span>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={1}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-full accent-primary"
+      />
+    </label>
   );
 }
 
