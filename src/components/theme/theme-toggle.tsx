@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { FocusEvent, KeyboardEvent, ReactNode } from "react";
+import type {
+  ComponentPropsWithoutRef,
+  FocusEvent,
+  KeyboardEvent,
+  ReactNode,
+  Ref,
+} from "react";
 import { useTheme } from "@/components/theme/theme-provider";
 import type { DayPhase, Mode } from "@/lib/theme";
 import "./theme-toggle.css";
@@ -120,6 +126,18 @@ function readRowExitMs(row: HTMLElement | null): number {
   return Number.isFinite(value) ? value : PHASE_ROW_EXIT_MS;
 }
 
+/**
+ * The 3-segment toggle's inner run is 100px: a 104px track minus its 2px inset
+ * on each side. Every segmented control keeps that segment width, so a track
+ * with another count is the same component, only wider.
+ */
+const SEGMENT_WIDTH = 100 / 3;
+const TRACK_INSET = 4;
+
+function trackWidth(segments: number): string {
+  return `${segments * SEGMENT_WIDTH + TRACK_INSET}px`;
+}
+
 function segmentClasses(selected: boolean): string {
   return [
     // Figma 126:8942: segments are 33.3x28, radius 6, inside a 104x32 track
@@ -130,6 +148,97 @@ function segmentClasses(selected: boolean): string {
       ? "bg-toggle-selected text-on-surface"
       : "text-on-surface-variant hover:text-on-surface",
   ].join(" ");
+}
+
+/** Extends the 28px pill into the track inset, for a full 32px hit target. */
+const EXPANDED_HIT_AREA =
+  "before:absolute before:inset-x-0 before:-top-0.5 before:-bottom-0.5 before:content-['']";
+
+type SegmentTrackProps = {
+  label: string;
+  segments: number;
+  trackRef?: Ref<HTMLDivElement>;
+} & ComponentPropsWithoutRef<"div">;
+
+/** Shared track shell: same height, inset, radius and fill for every count. */
+function SegmentTrack({
+  label,
+  segments,
+  trackRef,
+  className,
+  children,
+  ...rest
+}: SegmentTrackProps) {
+  return (
+    <div
+      {...rest}
+      ref={trackRef}
+      role="radiogroup"
+      aria-label={label}
+      style={{ width: trackWidth(segments) }}
+      className={[
+        "flex h-8 items-center rounded-md bg-toggle-track p-0.5",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      {children}
+    </div>
+  );
+}
+
+type SegmentProps = {
+  selected: boolean;
+  label: string;
+  tooltip: string;
+  glyph: Glyph;
+  onClick: () => void;
+  onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+  buttonRef?: Ref<HTMLButtonElement>;
+  onPointerEnter?: () => void;
+  onFocus?: () => void;
+  expandHitArea?: boolean;
+  tooltipBelow?: boolean;
+};
+
+/** Shared segment button: same classes, icon size and tooltip everywhere. */
+function Segment({
+  selected,
+  label,
+  tooltip,
+  glyph,
+  onClick,
+  onKeyDown,
+  buttonRef,
+  onPointerEnter,
+  onFocus,
+  expandHitArea = false,
+  tooltipBelow = false,
+}: SegmentProps) {
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      aria-label={label}
+      tabIndex={selected ? 0 : -1}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+      onPointerEnter={onPointerEnter}
+      onFocus={onFocus}
+      className={[
+        segmentClasses(selected),
+        expandHitArea ? EXPANDED_HIT_AREA : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <GlyphIcon glyph={glyph} />
+      <Tooltip below={tooltipBelow}>{tooltip}</Tooltip>
+    </button>
+  );
 }
 
 function Tooltip({
@@ -561,23 +670,19 @@ export function ThemeToggle() {
         onFocus={onDesktopFocus}
         onBlur={onDesktopBlur}
       >
-        <div
-          role="radiogroup"
-          aria-label="Theme"
-          className="flex h-8 w-[104px] items-center rounded-md bg-toggle-track p-0.5"
-        >
+        <SegmentTrack label="Theme" segments={OPTIONS.length}>
           {OPTIONS.map((option, index) => {
             const selected = option.mode === mode;
 
             return (
-              <button
+              <Segment
                 key={option.mode}
-                ref={option.mode === "day" ? dayRef : undefined}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                aria-label={option.label}
-                tabIndex={selected ? 0 : -1}
+                selected={selected}
+                label={option.label}
+                tooltip={option.tooltip}
+                glyph={option.mode}
+                tooltipBelow={dayActive}
+                buttonRef={option.mode === "day" ? dayRef : undefined}
                 onClick={() => {
                   setMode(option.mode);
 
@@ -606,14 +711,10 @@ export function ThemeToggle() {
                   }
                 }}
                 onKeyDown={(event) => onSegmentKeyDown(event, index)}
-                className={segmentClasses(selected)}
-              >
-                <GlyphIcon glyph={option.mode} />
-                <Tooltip below={dayActive}>{option.tooltip}</Tooltip>
-              </button>
+              />
             );
           })}
-        </div>
+        </SegmentTrack>
 
         {/* Bridges the 4px gap so moving from the toggle to the row keeps
             hovering, and keeps the whole journey one hover target. */}
@@ -625,10 +726,10 @@ export function ThemeToggle() {
          * Day-only phase row. It opens above the toggle in the gap below the
          * cards; absolute positioning keeps the page from moving.
          */}
-        <div
-          ref={rowRef}
-          role="radiogroup"
-          aria-label="Day phase"
+        <SegmentTrack
+          label="Day phase"
+          segments={PHASE_OPTIONS.length}
+          trackRef={rowRef}
           aria-hidden={!rowVisible}
           inert={!rowVisible}
           data-phase-row="true"
@@ -643,34 +744,25 @@ export function ThemeToggle() {
               clearExit();
             }
           }}
-          className="phase-row absolute right-0 bottom-full mb-1 flex h-8 w-[132px] items-center rounded-[6px] bg-toggle-track p-0.5 shadow-card"
+          className="phase-row absolute right-0 bottom-full mb-1 shadow-card"
         >
           {PHASE_OPTIONS.map((option, index) => {
             const selected = option.phase === dayPhase;
 
             return (
-              <button
+              <Segment
                 key={option.phase}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                aria-label={option.label}
-                tabIndex={selected ? 0 : -1}
+                selected={selected}
+                label={option.label}
+                tooltip={option.tooltip}
+                glyph={dayPhaseGlyph(option.phase)}
+                expandHitArea
                 onClick={() => setDayPhase(option.phase)}
                 onKeyDown={(event) => onPhaseKeyDown(event, index)}
-                className={[
-                  segmentClasses(selected),
-                  // The 28px pill keeps the toggle's size; this extends its hit
-                  // area into the 2px track inset, for a full 32px target.
-                  "before:absolute before:inset-x-0 before:-top-0.5 before:-bottom-0.5 before:content-['']",
-                ].join(" ")}
-              >
-                <GlyphIcon glyph={dayPhaseGlyph(option.phase)} />
-                <Tooltip>{option.tooltip}</Tooltip>
-              </button>
+              />
             );
           })}
-        </div>
+        </SegmentTrack>
       </div>
 
       {/* Below 768px: a 32x32 button that opens the menu above it. */}
