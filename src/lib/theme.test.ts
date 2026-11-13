@@ -1,21 +1,32 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  applyDayPhase,
   applyMode,
   applyPhase,
+  DAY_PHASE_STORAGE_KEY,
+  getActiveDayPhase,
   MODE_STORAGE_KEY,
   msUntilNextPhaseBoundary,
+  parseStoredDayPhase,
   parseStoredMode,
   phaseFor,
   phaseForHour,
+  readStoredDayPhase,
   readStoredMode,
+  writeStoredDayPhase,
   writeStoredMode,
 } from "@/lib/theme";
-import type { Phase } from "@/lib/theme";
+import type { DayPhase, Phase } from "@/lib/theme";
+import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 
 afterEach(() => {
+  // The module remembers the pin in memory as well as in storage; reset both
+  // so one test cannot pin a phase for the next.
+  applyDayPhase("clock");
   window.localStorage.clear();
   delete document.documentElement.dataset.mode;
   delete document.documentElement.dataset.phase;
+  delete document.documentElement.dataset.dayPhase;
   delete document.documentElement.dataset.phaseSwitching;
   document.documentElement.classList.remove("dark");
   vi.clearAllTimers();
@@ -78,6 +89,45 @@ describe("phaseFor", () => {
       expect(phaseFor(at(hour), "night")).toBe("night");
       expect(phaseForHour(hour, "night")).toBe("night");
     }
+  });
+});
+
+describe("Day phase pin", () => {
+  const PINNED: Exclude<DayPhase, "clock">[] = ["dawn", "day", "dusk"];
+
+  it("returns the pinned phase in Day mode, whatever the hour", () => {
+    for (const dayPhase of PINNED) {
+      for (let hour = 0; hour < 24; hour += 1) {
+        expect(phaseForHour(hour, "day", dayPhase)).toBe(dayPhase);
+      }
+    }
+  });
+
+  it("follows the clock in Day mode when the pin is clock", () => {
+    expect(phaseForHour(3, "day", "clock")).toBe("dawn");
+    expect(phaseForHour(12, "day", "clock")).toBe("day");
+    expect(phaseForHour(19, "day", "clock")).toBe("dusk");
+    expect(phaseForHour(23, "day", "clock")).toBe("day");
+    expect(phaseForHour(3, "day")).toBe("dawn");
+  });
+
+  it("ignores the pin in Auto mode", () => {
+    expect(phaseForHour(12, "auto", "dusk")).toBe("day");
+    expect(phaseForHour(19, "auto", "dawn")).toBe("dusk");
+    expect(phaseForHour(23, "auto", "day")).toBe("night");
+    expect(phaseForHour(4, "auto", "day")).toBe("night");
+  });
+
+  it("ignores the pin in Night mode", () => {
+    for (const dayPhase of PINNED) {
+      expect(phaseForHour(12, "night", dayPhase)).toBe("night");
+      expect(phaseForHour(19, "night", dayPhase)).toBe("night");
+    }
+  });
+
+  it("resolves a Date through the pin", () => {
+    expect(phaseFor(at(12), "day", "dusk")).toBe("dusk");
+    expect(phaseFor(at(12), "auto", "dusk")).toBe("day");
   });
 });
 
@@ -188,6 +238,58 @@ describe("writeStoredMode", () => {
   });
 });
 
+describe("parseStoredDayPhase", () => {
+  it("keeps the known pins", () => {
+    expect(parseStoredDayPhase("clock")).toBe("clock");
+    expect(parseStoredDayPhase("dawn")).toBe("dawn");
+    expect(parseStoredDayPhase("day")).toBe("day");
+    expect(parseStoredDayPhase("dusk")).toBe("dusk");
+  });
+
+  it("defaults to the clock for missing or unknown values", () => {
+    expect(parseStoredDayPhase(null)).toBe("clock");
+    expect(parseStoredDayPhase(undefined)).toBe("clock");
+    expect(parseStoredDayPhase("night")).toBe("clock");
+    expect(parseStoredDayPhase("toString")).toBe("clock");
+  });
+});
+
+describe("readStoredDayPhase", () => {
+  it("reads the stored pin", () => {
+    window.localStorage.setItem(DAY_PHASE_STORAGE_KEY, "dusk");
+
+    expect(readStoredDayPhase()).toBe("dusk");
+  });
+
+  it("returns clock when nothing is stored", () => {
+    expect(readStoredDayPhase()).toBe("clock");
+  });
+
+  it("returns clock when storage access throws", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage blocked");
+    });
+
+    expect(readStoredDayPhase()).toBe("clock");
+  });
+});
+
+describe("writeStoredDayPhase", () => {
+  it("stores the pin", () => {
+    writeStoredDayPhase("dawn");
+
+    expect(window.localStorage.getItem(DAY_PHASE_STORAGE_KEY)).toBe("dawn");
+  });
+
+  it("does not throw when storage access throws", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("storage blocked");
+    });
+
+    expect(() => writeStoredDayPhase("dusk")).not.toThrow();
+  });
+});
+
 describe("applyPhase", () => {
   it("pins the phase and the dark class for night", () => {
     applyPhase("night");
@@ -224,6 +326,118 @@ describe("applyMode", () => {
     expect(document.documentElement.dataset.mode).toBe("day");
     expect(document.documentElement.dataset.phase).toBe("day");
     expect(document.documentElement).not.toHaveClass("dark");
+  });
+
+  it("applies a pinned Day phase at any hour and records it", () => {
+    const phase = applyMode("day", at(12), "click", "dusk");
+
+    expect(phase).toBe("dusk");
+    expect(document.documentElement.dataset.phase).toBe("dusk");
+    expect(document.documentElement.dataset.dayPhase).toBe("dusk");
+    expect(getActiveDayPhase()).toBe("dusk");
+  });
+
+  it("ignores a pinned phase in Auto and Night", () => {
+    applyMode("auto", at(12), "click", "dusk");
+    expect(document.documentElement.dataset.phase).toBe("day");
+
+    applyMode("night", at(12), "click", "dusk");
+    expect(document.documentElement.dataset.phase).toBe("night");
+    // Kept for the next Day selection.
+    expect(document.documentElement.dataset.dayPhase).toBe("dusk");
+  });
+});
+
+describe("applyDayPhase", () => {
+  it("persists the pin and re-applies it in Day mode", () => {
+    document.documentElement.dataset.mode = "day";
+
+    applyDayPhase("dawn", at(19));
+
+    expect(document.documentElement.dataset.phase).toBe("dawn");
+    expect(document.documentElement.dataset.dayPhase).toBe("dawn");
+    expect(window.localStorage.getItem(DAY_PHASE_STORAGE_KEY)).toBe("dawn");
+  });
+
+  it("keeps the pin while Night is active", () => {
+    document.documentElement.dataset.mode = "night";
+
+    applyDayPhase("dusk", at(12));
+
+    expect(document.documentElement.dataset.mode).toBe("night");
+    expect(document.documentElement.dataset.phase).toBe("night");
+    expect(document.documentElement.dataset.dayPhase).toBe("dusk");
+  });
+
+  it("applies the pin on the next Day selection", () => {
+    applyMode("day", at(12), "click", "dusk");
+    applyMode("night", at(12));
+
+    expect(document.documentElement.dataset.phase).toBe("night");
+
+    applyMode("day", at(12));
+
+    expect(document.documentElement.dataset.phase).toBe("dusk");
+  });
+});
+
+describe("THEME_INIT_SCRIPT", () => {
+  function runInitScript() {
+    new Function(THEME_INIT_SCRIPT)();
+  }
+
+  it("applies a pinned Day phase before React runs", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(at(12));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    window.localStorage.setItem(DAY_PHASE_STORAGE_KEY, "dusk");
+
+    runInitScript();
+
+    expect(document.documentElement.dataset.mode).toBe("day");
+    expect(document.documentElement.dataset.phase).toBe("dusk");
+    expect(document.documentElement.dataset.dayPhase).toBe("dusk");
+  });
+
+  it("follows the clock when the pin is clock", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(at(19));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    window.localStorage.setItem(DAY_PHASE_STORAGE_KEY, "clock");
+
+    runInitScript();
+
+    expect(document.documentElement.dataset.phase).toBe("dusk");
+  });
+
+  it("ignores the pin in Auto and Night", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(at(12));
+    window.localStorage.setItem(DAY_PHASE_STORAGE_KEY, "dusk");
+
+    runInitScript();
+
+    expect(document.documentElement.dataset.mode).toBe("auto");
+    expect(document.documentElement.dataset.phase).toBe("day");
+
+    window.localStorage.setItem(MODE_STORAGE_KEY, "night");
+    runInitScript();
+
+    expect(document.documentElement.dataset.phase).toBe("night");
+  });
+
+  it("falls back to Auto with the clock phase when storage throws", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(at(19));
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage blocked");
+    });
+
+    runInitScript();
+
+    expect(document.documentElement.dataset.mode).toBe("auto");
+    expect(document.documentElement.dataset.phase).toBe("dusk");
+    expect(document.documentElement.dataset.dayPhase).toBe("clock");
   });
 });
 

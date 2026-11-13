@@ -293,8 +293,8 @@
      tuned to oklch(89% 0.0138 247.97) for more contrast on the bright bg. */
   --frame-line: oklch(89% 0.0138 247.97);
 
-  /* Frame-line spotlight. Day uses the tuned glow at full strength; the other
-     phases keep the primary at the original 0.85. */
+  /* Frame-line spotlight. Every light phase uses the tuned glow at full
+     strength; Dawn and Dusk keep their own accent hue. */
   --frame-spot-color: oklch(64% 0.147 251.74);
   --frame-spot-opacity: 1;
 
@@ -362,10 +362,11 @@
   --orb-2-at: 100%;
   --orb-3: #cb83ff;
 
-  --frame-line: #e5edf5;
+  --frame-line: oklch(89% 0.0138 247.97);
 
-  --frame-spot-color: var(--primary);
-  --frame-spot-opacity: 0.85;
+  /* Hover spotlight tuned to Midday's contrast at this phase's accent hue. */
+  --frame-spot-color: oklch(64% 0.147 309.23);
+  --frame-spot-opacity: 1;
 
   --shadow-card:
     0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06),
@@ -431,10 +432,11 @@
   --orb-2-at: 50%;
   --orb-3: #ffb451;
 
-  --frame-line: #e5edf5;
+  --frame-line: oklch(89% 0.0138 247.97);
 
-  --frame-spot-color: var(--primary);
-  --frame-spot-opacity: 0.85;
+  /* Hover spotlight tuned to Midday's contrast at this phase's accent hue. */
+  --frame-spot-color: oklch(64% 0.146 63.06);
+  --frame-spot-opacity: 1;
 
   --shadow-card:
     0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06),

@@ -9,13 +9,16 @@ import {
   useSyncExternalStore,
 } from "react";
 import {
+  applyDayPhase,
   applyMode,
+  DAY_PHASES,
+  getActiveDayPhase,
   msUntilNextPhaseBoundary,
   readStoredMode,
   THEME_CHANGE_EVENT,
   writeStoredMode,
 } from "@/lib/theme";
-import type { Mode, Phase } from "@/lib/theme";
+import type { DayPhase, Mode, Phase } from "@/lib/theme";
 
 /** Fire just after a boundary so the new phase is definitely current. */
 const PHASE_BOUNDARY_BUFFER_MS = 250;
@@ -26,7 +29,9 @@ const MAX_PHASE_TIMER_MS = 6 * 60 * 60 * 1000;
 type ThemeContextValue = {
   mode: Mode;
   phase: Phase;
+  dayPhase: DayPhase;
   setMode: (mode: Mode) => void;
+  setDayPhase: (dayPhase: DayPhase) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -35,7 +40,7 @@ const MODES: Mode[] = ["day", "night", "auto"];
 const PHASES: Phase[] = ["dawn", "day", "dusk", "night"];
 
 /** Server render and hydration start from a stable snapshot; the client follows. */
-const SERVER_SNAPSHOT = "auto:day";
+const SERVER_SNAPSHOT = "auto:day:clock";
 
 /**
  * The data attributes on <html> are the single source of truth: the pre-paint
@@ -43,11 +48,11 @@ const SERVER_SNAPSHOT = "auto:day";
  * before React re-reads them.
  */
 function readSnapshot(): string {
-  const { mode, phase } = document.documentElement.dataset;
+  const { mode, phase, dayPhase } = document.documentElement.dataset;
 
   return `${MODES.find((value) => value === mode) ?? "auto"}:${
     PHASES.find((value) => value === phase) ?? "day"
-  }`;
+  }:${DAY_PHASES.find((value) => value === dayPhase) ?? "clock"}`;
 }
 
 function subscribeToTheme(onStoreChange: () => void): () => void {
@@ -64,7 +69,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     readSnapshot,
     () => SERVER_SNAPSHOT,
   );
-  const [mode, phase] = snapshot.split(":") as [Mode, Phase];
+  const [mode, phase, dayPhase] = snapshot.split(":") as [
+    Mode,
+    Phase,
+    DayPhase,
+  ];
 
   const setMode = useCallback((next: Mode) => {
     applyMode(next);
@@ -72,6 +81,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // The theme-change listener below reschedules the boundary timer; it is the
     // single path for mode changes, dev previews and other theme mutations, so
     // a mode change never schedules twice.
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+  }, []);
+
+  const setDayPhase = useCallback((next: DayPhase) => {
+    applyDayPhase(next);
     window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   }, []);
 
@@ -128,8 +142,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
       const nextMode = currentMode();
 
-      // Night never leaves night; only Auto and Day follow the clock.
+      // Night never leaves night; only Auto and Day follow the clock. A pinned
+      // Day phase has no boundary either: it stays put until the pin changes.
       if (nextMode === "night") return;
+      if (nextMode === "day" && getActiveDayPhase() !== "clock") return;
 
       const delay = Math.min(
         msUntilNextPhaseBoundary(new Date(), nextMode) +
@@ -165,8 +181,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ mode, phase, setMode }),
-    [mode, phase, setMode],
+    () => ({ mode, phase, dayPhase, setMode, setDayPhase }),
+    [mode, phase, dayPhase, setMode, setDayPhase],
   );
 
   return <ThemeContext value={value}>{children}</ThemeContext>;
