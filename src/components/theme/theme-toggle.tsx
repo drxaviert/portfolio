@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  ChangeEvent,
   ComponentPropsWithoutRef,
   FocusEvent,
   KeyboardEvent,
@@ -11,11 +12,20 @@ import type {
 } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
 import {
+  formatSpeedReadout,
   parseRowMotion,
+  parseRowSpeed,
   readRowMotion,
+  readRowMotionSpeeds,
   ROW_MOTIONS,
+  ROW_SPEED_DEFAULT,
+  ROW_SPEED_MAX,
+  ROW_SPEED_MIN,
+  ROW_SPEED_STEP,
   writeRowMotion,
+  writeRowMotionSpeeds,
 } from "@/components/theme/row-motion";
+import type { RowMotion } from "@/components/theme/row-motion";
 import type { DayPhase, Mode } from "@/lib/theme";
 import "./theme-toggle.css";
 
@@ -971,12 +981,37 @@ export function ThemeToggle() {
 }
 
 /**
- * Dev-only switcher for the Day row's enter/exit motion. The value is applied
- * to <html> so the CSS can switch transitions, and remembered in
- * localStorage. Production renders nothing at all.
+ * Dev-only switcher for the Day row's enter/exit motion and speed. The motion
+ * and speed are applied to <html> so the CSS can switch transitions, and both
+ * are remembered in localStorage. Production renders nothing at all.
  */
 function RowMotionPicker() {
   const selectRef = useRef<HTMLSelectElement>(null);
+  const speedRef = useRef<HTMLInputElement>(null);
+  const readoutRef = useRef<HTMLOutputElement>(null);
+
+  function applySpeed(motion: RowMotion, speed: number) {
+    document.documentElement.style.setProperty(
+      "--row-motion-speed",
+      String(speed),
+    );
+
+    if (speedRef.current) {
+      speedRef.current.value = String(speed);
+    }
+
+    if (readoutRef.current) {
+      readoutRef.current.textContent = formatSpeedReadout(motion, speed);
+    }
+  }
+
+  function currentMotion(): RowMotion {
+    return parseRowMotion(selectRef.current?.value ?? 0);
+  }
+
+  function storedSpeed(motion: RowMotion): number {
+    return readRowMotionSpeeds()[motion] ?? ROW_SPEED_DEFAULT;
+  }
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") {
@@ -990,9 +1025,11 @@ function RowMotionPicker() {
     }
 
     document.documentElement.dataset.rowMotion = String(stored);
+    applySpeed(stored, storedSpeed(stored));
 
     return () => {
       delete document.documentElement.dataset.rowMotion;
+      document.documentElement.style.removeProperty("--row-motion-speed");
     };
   }, []);
 
@@ -1000,27 +1037,77 @@ function RowMotionPicker() {
     return null;
   }
 
-  return (
-    <label className="fixed top-2 left-2 z-[60] flex items-center gap-2 rounded-md bg-surface-container-low px-2 py-1 text-xs text-on-surface shadow-card">
-      <span className="text-on-surface-variant">Row</span>
-      <select
-        ref={selectRef}
-        defaultValue="0"
-        onChange={(event) => {
-          const next = parseRowMotion(event.currentTarget.value);
+  function onSpeedChange(event: ChangeEvent<HTMLInputElement>) {
+    const motion = currentMotion();
+    const speed = parseRowSpeed(event.currentTarget.value);
+    const speeds = readRowMotionSpeeds();
 
-          writeRowMotion(next);
-          document.documentElement.dataset.rowMotion = String(next);
+    speeds[motion] = speed;
+    writeRowMotionSpeeds(speeds);
+    applySpeed(motion, speed);
+  }
+
+  return (
+    <div className="fixed top-2 left-2 z-[60] flex flex-wrap items-center gap-3 rounded-md bg-surface-container-low px-2 py-1 text-xs text-on-surface shadow-card">
+      <label className="flex items-center gap-2">
+        <span className="text-on-surface-variant">Row</span>
+        <select
+          ref={selectRef}
+          defaultValue="0"
+          onChange={(event) => {
+            const next = parseRowMotion(event.currentTarget.value);
+
+            writeRowMotion(next);
+            document.documentElement.dataset.rowMotion = String(next);
+            applySpeed(next, storedSpeed(next));
+          }}
+          className="bg-transparent text-on-surface outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          {ROW_MOTIONS.map((motion) => (
+            <option key={motion.value} value={motion.value}>
+              {motion.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex items-center gap-2">
+        <span className="text-on-surface-variant">Speed</span>
+        <input
+          ref={speedRef}
+          type="range"
+          min={ROW_SPEED_MIN}
+          max={ROW_SPEED_MAX}
+          step={ROW_SPEED_STEP}
+          defaultValue={ROW_SPEED_DEFAULT}
+          onChange={onSpeedChange}
+          aria-label="Row motion speed"
+          className="h-1.5 w-24 accent-primary"
+        />
+      </label>
+
+      <button
+        type="button"
+        onClick={() => {
+          const motion = currentMotion();
+          const speeds = readRowMotionSpeeds();
+
+          speeds[motion] = ROW_SPEED_DEFAULT;
+          writeRowMotionSpeeds(speeds);
+          applySpeed(motion, ROW_SPEED_DEFAULT);
         }}
-        className="bg-transparent text-on-surface outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        aria-label="Reset speed to 1x"
+        className="rounded-md px-1.5 py-0.5 text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
       >
-        {ROW_MOTIONS.map((motion) => (
-          <option key={motion.value} value={motion.value}>
-            {motion.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        1x
+      </button>
+
+      <output
+        ref={readoutRef}
+        aria-live="polite"
+        className="tabular-nums text-on-surface-variant"
+      />
+    </div>
   );
 }
 
