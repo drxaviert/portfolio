@@ -427,3 +427,90 @@
     scale: 1;
   }
 }
+
+/* ---------- Metaball highlight (dev prototype) ---------- */
+
+/*
+ * The highlight is a clipped layer under the icons. Two same-coloured blobs
+ * travel (a lead and a lagging twin) and the goo filter turns the gap between
+ * them into a neck; when the twin catches up, the neck snaps and both are one
+ * pill again. Icons, labels and tooltips stay outside the filtered element, so
+ * they are never blurred. The layer is exactly the track, which keeps the
+ * filter area small; the filter itself is static per Goo value.
+ */
+.goo-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.goo-layer-filter {
+  position: absolute;
+  inset: 0;
+}
+
+.goo-blob {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 34px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--toggle-selected);
+  /* The rest place; JS takes over the inline transform while a blob travels. */
+  transform: translate3d(var(--goo-x, 2px), 2px, 0);
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+/* The hover goo fades as a layer, so the filter always sees full alpha. */
+.goo-layer--hover {
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .goo-layer--hover.is-visible {
+    opacity: 0.55;
+  }
+}
+
+/* "Hover goos too" hands the hover pill to the goo layer. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  [data-goo-hover="true"] .hover-pill {
+    opacity: 0;
+  }
+}
+
+/*
+ * Metaball mode paints the selected fill from the blob layer instead of the
+ * segment, so the fill has no transition of its own. Leaving the checked state
+ * behind a selection change never shows two fills: there is only ever one blob.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  [data-metaball="true"] .segment[aria-checked="true"] {
+    background-color: transparent;
+  }
+}
+
+/*
+ * Reduced motion drops the goo and the travel: the blob layer is hidden and the
+ * segment fill crossfades exactly like the Current highlight, 120ms in.
+ */
+@media (prefers-reduced-motion: reduce) {
+  [data-metaball="true"] .goo-layer {
+    display: none;
+  }
+
+  [data-metaball="true"] .segment[role="radio"] {
+    transition: color 150ms ease-out;
+  }
+
+  [data-metaball="true"] .segment[role="radio"][aria-checked="true"] {
+    transition:
+      background-color 120ms ease-out,
+      color 150ms ease-out;
+  }
+}

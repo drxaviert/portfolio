@@ -1,8 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type {
   ComponentPropsWithoutRef,
+  CSSProperties,
   FocusEvent,
   KeyboardEvent,
   PointerEvent as ReactPointerEvent,
@@ -273,6 +281,333 @@ function trackWidth(segments: number): string {
   return `${segments * SEGMENT_WIDTH + TRACK_INSET}px`;
 }
 
+/* ---------- Metaball highlight (dev prototype) ---------- */
+
+type HighlightMode = "current" | "metaball";
+
+const HIGHLIGHT_MODES: readonly { value: HighlightMode; label: string }[] = [
+  { value: "current", label: "Current" },
+  { value: "metaball", label: "Metaball" },
+];
+
+type HighlightConfig = {
+  mode: HighlightMode;
+  goo: number;
+  hoverGoos: boolean;
+  /** False when the browser cannot apply an SVG filter to an HTML layer. */
+  filterOk: boolean;
+};
+
+const GOO_STORAGE_KEY = "theme-toggle-highlight";
+const GOO_DEFAULT = 35;
+
+/** True only in `next dev`, so the comparison panel never ships. */
+const DEV_PANEL = process.env.NODE_ENV === "development";
+
+/**
+ * Dev-only settings for the comparison panel. A tiny external store keeps the
+ * localStorage read out of render effects; the server snapshot is the default
+ * and the client snapshot picks up storage after hydration.
+ */
+type GooSettings = {
+  mode: HighlightMode;
+  goo: number;
+  hoverGoos: boolean;
+};
+
+const GOO_DEFAULTS: GooSettings = {
+  mode: "metaball",
+  goo: GOO_DEFAULT,
+  hoverGoos: false,
+};
+
+const gooListeners = new Set<() => void>();
+let gooSnapshot: GooSettings | null = null;
+
+function normalizeGoo(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(100, Math.max(0, Math.round(value)))
+    : GOO_DEFAULTS.goo;
+}
+
+function readGooSettings(): GooSettings {
+  try {
+    const stored = window.localStorage.getItem(GOO_STORAGE_KEY);
+
+    if (!stored) {
+      return GOO_DEFAULTS;
+    }
+
+    const parsed = JSON.parse(stored) as Partial<GooSettings>;
+
+    return {
+      mode:
+        parsed.mode === "current" || parsed.mode === "metaball"
+          ? parsed.mode
+          : GOO_DEFAULTS.mode,
+      goo: normalizeGoo(parsed.goo),
+      hoverGoos:
+        typeof parsed.hoverGoos === "boolean"
+          ? parsed.hoverGoos
+          : GOO_DEFAULTS.hoverGoos,
+    };
+  } catch {
+    return GOO_DEFAULTS;
+  }
+}
+
+function getGooSettings(): GooSettings {
+  gooSnapshot ??= readGooSettings();
+
+  return gooSnapshot;
+}
+
+function getServerGooSettings(): GooSettings {
+  return GOO_DEFAULTS;
+}
+
+function subscribeGoo(listener: () => void): () => void {
+  gooListeners.add(listener);
+
+  return () => {
+    gooListeners.delete(listener);
+  };
+}
+
+function setGooSettings(patch: Partial<GooSettings>): void {
+  gooSnapshot = { ...getGooSettings(), ...patch };
+
+  try {
+    window.localStorage.setItem(GOO_STORAGE_KEY, JSON.stringify(gooSnapshot));
+  } catch {
+    // Storage can be blocked; the panel still works for this page load.
+  }
+
+  gooListeners.forEach((listener) => listener());
+}
+
+const BLOB_HEIGHT = 28;
+
+/** The rest box of a segment: 34x28 inside a 2px track inset. */
+type BlobRect = { x: number; y: number; w: number; h: number };
+
+function restBlob(index: number): BlobRect {
+  return {
+    x: TRACK_INSET / 2 + index * SEGMENT_WIDTH,
+    y: (32 - BLOB_HEIGHT) / 2,
+    w: SEGMENT_WIDTH,
+    h: BLOB_HEIGHT,
+  };
+}
+
+type GooParams = {
+  duration: number;
+  blur: number;
+  threshold: number;
+  stretch: number;
+  lag: number;
+  wobble: number;
+};
+
+/**
+ * The whole Goo slider is one interpolation: 0 is a 260ms stretch with a short
+ * soft neck and no landing wobble, 100 is a 480ms travel with a wide bridge
+ * that wobbles once as it settles. Blur and the alpha constant move together
+ * so the neck stays visible at every stop.
+ */
+function gooParams(goo: number): GooParams {
+  const t = Math.min(100, Math.max(0, goo)) / 100;
+
+  return {
+    duration: Math.round(260 + 220 * t),
+    blur: 2 + 6 * t,
+    threshold: 6 + 2 * t,
+    stretch: 0.04 + 0.18 * t,
+    lag: 3 + 7 * t,
+    wobble: 0.05 * t,
+  };
+}
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+/** Safari can accept the syntax and still paint nothing; this is the cheap gate. */
+function supportsGooFilter(): boolean {
+  return (
+    typeof CSS !== "undefined" &&
+    typeof CSS.supports === "function" &&
+    CSS.supports("filter", 'url("#goo")')
+  );
+}
+
+function subscribeToEnvironment(): () => void {
+  return () => {};
+}
+
+/** The server cannot know; the first client render upgrades to the real answer. */
+function serverGooSupport(): boolean {
+  return false;
+}
+
+function measureSegment(track: HTMLElement, index: number): BlobRect | null {
+  const segment = track.querySelectorAll<HTMLElement>('[role="radio"]')[index];
+
+  if (!segment || segment.offsetWidth === 0) {
+    return null;
+  }
+
+  // Layout units, not rects: the phase row can be mid-scale on its entrance,
+  // and a scaled measurement would shrink the pill. offset* is transform-free.
+  return {
+    x: segment.offsetLeft,
+    y: segment.offsetTop,
+    w: segment.offsetWidth,
+    h: segment.offsetHeight,
+  };
+}
+
+/** Reads the translate/scale we last wrote, so a retarget starts mid-air. */
+function readBlobTransform(element: HTMLElement): {
+  x: number;
+  scaleX: number;
+} {
+  const value = window.getComputedStyle(element).transform;
+
+  if (!value || value === "none") {
+    return { x: 0, scaleX: 1 };
+  }
+
+  const parts = value
+    .slice(value.indexOf("(") + 1, value.lastIndexOf(")"))
+    .split(",")
+    .map(Number);
+
+  if (value.startsWith("matrix3d")) {
+    return { x: parts[12] ?? 0, scaleX: parts[0] ?? 1 };
+  }
+
+  return { x: parts[4] ?? 0, scaleX: parts[0] ?? 1 };
+}
+
+function placeBlob(element: HTMLElement, rect: BlobRect): void {
+  element.style.width = `${rect.w}px`;
+  element.style.height = `${rect.h}px`;
+  element.style.transform = `translate3d(${rect.x}px, ${rect.y}px, 0)`;
+}
+
+/**
+ * The rest place is a custom property on the layer, never an inline transform
+ * on a blob: React re-rendering must not overwrite a flight in progress.
+ */
+type GooVars = CSSProperties & { "--goo-x": string };
+
+function blobVars(rect: BlobRect): GooVars {
+  return { "--goo-x": `${rect.x}px` };
+}
+/**
+ * Sends the lead blob to `rect` and drags a lagging twin behind it; the goo
+ * filter turns the gap into a neck, and the neck snaps when the twin catches up
+ * and both are a round pill again. rAF rather than WAAPI because the twin is a
+ * function of the lead's position and both must retarget from their current
+ * computed transform, so a new selection never restarts from zero.
+ */
+function flyBlobs(
+  lead: HTMLElement,
+  trail: HTMLElement | null,
+  rect: BlobRect,
+  params: GooParams,
+): () => void {
+  const leadStart = readBlobTransform(lead);
+  const trailStart = trail ? readBlobTransform(trail) : { x: 0, scaleX: 1 };
+  const to = rect.x;
+  const direction = Math.sign(to - leadStart.x) || 1;
+  // The first frame's timestamp is the clock, not the moment the effect ran:
+  // rAF timestamps can predate a long render, which would start mid-flight.
+  let startedAt = 0;
+  // Fake timers can freeze performance.now(); a frame cap still ends the flight.
+  const maxFrames = Math.ceil(params.duration / 8) + 2;
+  let frames = 0;
+  let raf = 0;
+  let cancelled = false;
+
+  lead.style.width = `${rect.w}px`;
+  lead.style.height = `${rect.h}px`;
+
+  if (trail) {
+    trail.style.width = `${rect.w}px`;
+    trail.style.height = `${rect.h}px`;
+  }
+
+  function frame(now: number) {
+    if (cancelled) {
+      return;
+    }
+
+    frames += 1;
+
+    if (startedAt === 0) {
+      startedAt = now;
+    }
+
+    const progress = Math.min(
+      1,
+      Math.max(0, (now - startedAt) / params.duration),
+    );
+    const eased = 1 - (1 - progress) ** 3;
+    const wave = Math.sin(Math.PI * progress);
+    const x = leadStart.x + (to - leadStart.x) * eased;
+
+    // Scale eases in from wherever the blob was caught mid-flight.
+    let scaleX =
+      leadStart.scaleX +
+      (1 + params.stretch * wave - leadStart.scaleX) *
+        Math.min(1, progress * 4);
+
+    // Landing wobble is scale-only, so the pill can never overshoot the track.
+    if (params.wobble > 0 && progress > 0.72) {
+      const q = (progress - 0.72) / 0.28;
+
+      scaleX += params.wobble * Math.sin(q * Math.PI * 2.5) * (1 - q);
+    }
+
+    lead.style.transform = `translate3d(${x}px, ${rect.y}px, 0) scaleX(${scaleX})`;
+
+    if (trail) {
+      // The twin keeps a bounded gap behind the lead (the neck), and an
+      // existing gap from an interrupted flight decays instead of jumping.
+      const catchUp = 1 - (1 - progress) ** 3;
+      const trailX =
+        x -
+        direction * params.lag * wave +
+        (trailStart.x - leadStart.x) * (1 - catchUp);
+
+      trail.style.transform = `translate3d(${trailX}px, ${rect.y}px, 0) scaleX(${1 + params.stretch * 0.5 * wave})`;
+    }
+
+    if (progress < 1 && frames < maxFrames) {
+      raf = window.requestAnimationFrame(frame);
+      return;
+    }
+
+    lead.style.transform = `translate3d(${to}px, ${rect.y}px, 0)`;
+
+    if (trail) {
+      trail.style.transform = `translate3d(${to}px, ${rect.y}px, 0)`;
+    }
+  }
+
+  raf = window.requestAnimationFrame(frame);
+
+  return () => {
+    cancelled = true;
+    window.cancelAnimationFrame(raf);
+  };
+}
+
 function segmentClasses(selected: boolean): string {
   return [
     // Figma 126:8942, rounded to 34x28 so both tracks share integer centers:
@@ -307,13 +642,22 @@ const HIT_AREA_CLASS = {
 type SegmentTrackProps = {
   label: string;
   segments: number;
-  trackRef?: Ref<HTMLDivElement>;
+  /** Index of the checked segment; the metaball blobs rest on it. */
+  selectedIndex: number;
+  highlight: HighlightConfig;
+  /** False while the track is hidden (the phase row before it opens). */
+  active?: boolean;
+  /** The parent needs the root node; a callback keeps React refs out of props. */
+  trackRef?: (node: HTMLDivElement | null) => void;
 } & ComponentPropsWithoutRef<"div">;
 
 /** Shared track shell: same height, inset, radius and fill for every count. */
 function SegmentTrack({
   label,
   segments,
+  selectedIndex,
+  highlight,
+  active = true,
   trackRef,
   className,
   children,
@@ -322,15 +666,125 @@ function SegmentTrack({
 }: SegmentTrackProps) {
   const pillRef = useRef<HTMLSpanElement>(null);
   const hoveredIndex = useRef<number | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectionLead = useRef<HTMLSpanElement>(null);
+  const selectionTrail = useRef<HTMLSpanElement>(null);
+  const hoverGoo = useRef<HTMLSpanElement>(null);
+  const hoverLead = useRef<HTMLSpanElement>(null);
+  const hoverTrail = useRef<HTMLSpanElement>(null);
+  const selectionFlight = useRef<(() => void) | null>(null);
+  const hoverFlight = useRef<(() => void) | null>(null);
+  /** The selection the blobs were last placed for, and whether they painted. */
+  const placed = useRef<{ index: number; active: boolean } | null>(null);
+  const metaball = highlight.mode === "metaball";
+  const params = gooParams(highlight.goo);
+  const filterId = `goo-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const restBox = restBlob(selectedIndex);
+  const filterStyle = highlight.filterOk
+    ? { filter: `url(#${filterId})` }
+    : undefined;
+  const gooHover = metaball && highlight.hoverGoos;
+
+  const setRoot = useCallback(
+    (node: HTMLDivElement | null) => {
+      rootRef.current = node;
+      trackRef?.(node);
+    },
+    [trackRef],
+  );
+
+  // Any flight still running when the track unmounts must not touch dead nodes.
+  useEffect(() => {
+    return () => {
+      selectionFlight.current?.();
+      hoverFlight.current?.();
+    };
+  }, []);
+
+  /**
+   * A selection change retargets the blobs from their computed transform, so a
+   * fast arrow sequence keeps one highlight moving toward the newest segment
+   * instead of stacking flights. Opening the row, switching the dev variant and
+   * reduced motion all place the blobs at rest with no travel.
+   */
+  useEffect(() => {
+    const root = rootRef.current;
+    const lead = selectionLead.current;
+    const trail = selectionTrail.current;
+    const previous = placed.current;
+    placed.current = { index: selectedIndex, active };
+
+    if (!root || !lead || !metaball) {
+      return;
+    }
+
+    const rect = measureSegment(root, selectedIndex);
+
+    if (!rect) {
+      return;
+    }
+
+    selectionFlight.current?.();
+    selectionFlight.current = null;
+
+    const retarget =
+      previous !== null &&
+      previous.active &&
+      active &&
+      previous.index !== selectedIndex &&
+      !prefersReducedMotion();
+
+    if (!retarget) {
+      placeBlob(lead, rect);
+
+      if (trail) {
+        placeBlob(trail, rect);
+      }
+
+      return;
+    }
+
+    selectionFlight.current = flyBlobs(
+      lead,
+      trail,
+      rect,
+      gooParams(highlight.goo),
+    );
+  }, [selectedIndex, active, metaball, highlight.filterOk, highlight.goo]);
+
+  // A resize can move the segments without changing the selection.
+  useEffect(() => {
+    if (!metaball) {
+      return;
+    }
+
+    function onResize() {
+      const root = rootRef.current;
+      const lead = selectionLead.current;
+      const rect = root ? measureSegment(root, selectedIndex) : null;
+
+      if (!lead || !rect) {
+        return;
+      }
+
+      selectionFlight.current?.();
+      selectionFlight.current = null;
+      placeBlob(lead, rect);
+
+      if (selectionTrail.current) {
+        placeBlob(selectionTrail.current, rect);
+      }
+    }
+
+    window.addEventListener("resize", onResize);
+
+    return () => window.removeEventListener("resize", onResize);
+  }, [metaball, selectedIndex]);
 
   function hidePill() {
     hoveredIndex.current = null;
-
-    const pill = pillRef.current;
-
-    if (pill) {
-      pill.classList.remove("is-visible");
-    }
+    pillRef.current?.classList.remove("is-visible");
+    hoverGoo.current?.classList.remove("is-visible");
   }
 
   /** Positions the single shared pill under the segment the pointer is on. */
@@ -377,15 +831,22 @@ function SegmentTrack({
       playIconSettle(target);
     }
 
+    const rect = {
+      x: target.offsetLeft,
+      y: target.offsetTop,
+      w: target.offsetWidth,
+      h: target.offsetHeight,
+    };
+
     if (previous === null) {
       // First entry fades in where the pointer already is: commit the
       // geometry with transitions off, then restore them and reveal on the
       // next frame so opacity actually has a 0 start to fade from.
       pill.classList.remove("is-visible");
       pill.style.transition = "none";
-      pill.style.width = `${target.offsetWidth}px`;
-      pill.style.height = `${target.offsetHeight}px`;
-      pill.style.transform = `translateX(${target.offsetLeft}px)`;
+      pill.style.width = `${rect.w}px`;
+      pill.style.height = `${rect.h}px`;
+      pill.style.transform = `translateX(${rect.x}px)`;
       void pill.offsetWidth;
 
       window.requestAnimationFrame(() => {
@@ -396,7 +857,35 @@ function SegmentTrack({
         }
       });
     } else {
-      pill.style.transform = `translateX(${target.offsetLeft}px)`;
+      pill.style.transform = `translateX(${rect.x}px)`;
+    }
+
+    // With "Hover goos too" on, the faint pill gets the same lead/twin goo.
+    // CSS hides the plain pill while the goo layer is in charge.
+    const layer = hoverGoo.current;
+    const lead = hoverLead.current;
+    const trail = hoverTrail.current;
+
+    if (layer && lead && gooHover) {
+      hoverFlight.current?.();
+      hoverFlight.current = null;
+
+      if (previous === null) {
+        placeBlob(lead, rect);
+
+        if (trail) {
+          placeBlob(trail, rect);
+        }
+      } else {
+        hoverFlight.current = flyBlobs(
+          lead,
+          trail,
+          rect,
+          gooParams(highlight.goo),
+        );
+      }
+
+      layer.classList.add("is-visible");
     }
 
     hoveredIndex.current = index;
@@ -405,10 +894,12 @@ function SegmentTrack({
   return (
     <div
       {...rest}
-      ref={trackRef}
+      ref={setRoot}
       role="radiogroup"
       aria-label={label}
       style={{ width: trackWidth(segments) }}
+      data-metaball={metaball ? "true" : undefined}
+      data-goo-hover={gooHover ? "true" : undefined}
       onPointerOver={showPill}
       onPointerLeave={(event) => {
         hidePill();
@@ -421,6 +912,77 @@ function SegmentTrack({
         .filter(Boolean)
         .join(" ")}
     >
+      {metaball ? (
+        <svg
+          className="absolute size-0"
+          aria-hidden="true"
+          focusable="false"
+          width="0"
+          height="0"
+        >
+          <defs>
+            {/*
+             * Static per Goo value: blur, then an alpha contrast that keeps
+             * only the merged core, then the source on top so the resting pill
+             * keeps its exact radius and size.
+             */}
+            <filter
+              id={filterId}
+              x="-20%"
+              y="-20%"
+              width="140%"
+              height="140%"
+              colorInterpolationFilters="sRGB"
+            >
+              <feGaussianBlur
+                in="SourceGraphic"
+                stdDeviation={params.blur}
+                result="blur"
+              />
+              <feColorMatrix
+                in="blur"
+                type="matrix"
+                values={`1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -${params.threshold}`}
+                result="goo"
+              />
+              <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+            </filter>
+          </defs>
+        </svg>
+      ) : null}
+
+      {/* Hover goo sits under the selection goo and under the icons. */}
+      {gooHover ? (
+        <span
+          ref={hoverGoo}
+          aria-hidden="true"
+          className="goo-layer goo-layer--hover"
+          style={blobVars(restBox)}
+        >
+          <span className="goo-layer-filter" style={filterStyle}>
+            <span ref={hoverLead} className="goo-blob" />
+            {highlight.filterOk ? (
+              <span ref={hoverTrail} className="goo-blob" />
+            ) : null}
+          </span>
+        </span>
+      ) : null}
+
+      {metaball ? (
+        <span
+          aria-hidden="true"
+          className="goo-layer"
+          style={blobVars(restBox)}
+        >
+          <span className="goo-layer-filter" style={filterStyle}>
+            <span ref={selectionLead} className="goo-blob" />
+            {highlight.filterOk ? (
+              <span ref={selectionTrail} className="goo-blob" />
+            ) : null}
+          </span>
+        </span>
+      ) : null}
+
       <span
         ref={pillRef}
         aria-hidden="true"
@@ -518,6 +1080,10 @@ export function ThemeToggle() {
   const desktopRef = useRef<HTMLDivElement>(null);
   const dayRef = useRef<HTMLButtonElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
+  /** Reports the phase row's root node without handing the child a ref object. */
+  const setRowRef = useCallback((node: HTMLDivElement | null) => {
+    rowRef.current = node;
+  }, []);
   const closeTimer = useRef<number | null>(null);
   const exitTimer = useRef<number | null>(null);
   const enterTimer = useRef<number | null>(null);
@@ -529,12 +1095,39 @@ export function ThemeToggle() {
   const suppressFocusOpen = useRef(false);
   /** Only keyboard focus may hold the row open; pointer focus may not. */
   const inputModality = useRef<"pointer" | "keyboard">("pointer");
+  /** Dev-only comparison: the metaball highlight and its knobs. */
+  const {
+    mode: highlightMode,
+    goo,
+    hoverGoos,
+  } = useSyncExternalStore(subscribeGoo, getGooSettings, getServerGooSettings);
+  const filterOk = useSyncExternalStore(
+    subscribeToEnvironment,
+    supportsGooFilter,
+    serverGooSupport,
+  );
 
   const currentMode =
     OPTIONS.find((option) => option.mode === mode) ?? OPTIONS[2];
   const dayActive = mode === "day";
   // The row belongs to Day: leaving Day hides it without a state effect.
   const rowVisible = rowOpen && dayActive;
+  // Production always runs the shipped highlight; only the dev panel can
+  // switch, and without it the metaball layer never renders.
+  const highlight: HighlightConfig = {
+    mode: DEV_PANEL ? highlightMode : "current",
+    goo,
+    hoverGoos: DEV_PANEL && hoverGoos,
+    filterOk,
+  };
+  const modeIndex = Math.max(
+    0,
+    OPTIONS.findIndex((option) => option.mode === mode),
+  );
+  const phaseIndex = Math.max(
+    0,
+    PHASE_OPTIONS.findIndex((option) => option.phase === dayPhase),
+  );
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimer.current !== null) {
@@ -798,6 +1391,48 @@ export function ThemeToggle() {
     selected?.focus();
   }, [menuOpen]);
 
+  /*
+   * `K` flips the variant unless focus is in a field or a modifier is held.
+   * The settings themselves live in the external store above.
+   */
+  useEffect(() => {
+    if (!DEV_PANEL) {
+      return;
+    }
+
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key !== "k" && event.key !== "K") {
+        return;
+      }
+
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+
+      const target =
+        (document.activeElement as HTMLElement | null) ??
+        (event.target as HTMLElement | null);
+
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      setGooSettings({
+        mode: getGooSettings().mode === "metaball" ? "current" : "metaball",
+      });
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   function onSegmentKeyDown(
     event: KeyboardEvent<HTMLButtonElement>,
     index: number,
@@ -1000,6 +1635,8 @@ export function ThemeToggle() {
         <SegmentTrack
           label="Theme"
           segments={OPTIONS.length}
+          selectedIndex={modeIndex}
+          highlight={highlight}
           className="relative"
           data-mode-track="true"
         >
@@ -1076,7 +1713,10 @@ export function ThemeToggle() {
         <SegmentTrack
           label="Day phase"
           segments={PHASE_OPTIONS.length}
-          trackRef={rowRef}
+          selectedIndex={phaseIndex}
+          highlight={highlight}
+          active={rowVisible}
+          trackRef={setRowRef}
           aria-hidden={!rowVisible}
           inert={!rowVisible}
           data-phase-row="true"
@@ -1208,15 +1848,122 @@ export function ThemeToggle() {
           </div>
         ) : null}
       </div>
+
+      {DEV_PANEL ? (
+        <GooPanel
+          mode={highlightMode}
+          goo={goo}
+          hoverGoos={hoverGoos}
+          filterOk={filterOk}
+          onMode={(mode) => setGooSettings({ mode })}
+          onGoo={(goo) => setGooSettings({ goo })}
+          onHoverGoos={(hoverGoos) => setGooSettings({ hoverGoos })}
+        />
+      ) : null}
     </>
   );
 }
 
 /**
- * Dev-only switcher for the Day row's enter/exit motion and speed. The motion
- * and speed are applied to <html> so the CSS can switch transitions, and both
- * are remembered in localStorage. Production renders nothing at all.
+ * Dev-only comparison panel for the selection highlight: Current is the shipped
+ * fill, Metaball is the goo prototype with its Goo slider and hover switch. The
+ * choice, the slider and the hover flag are remembered in localStorage; the
+ * panel renders only in development.
  */
+function GooPanel({
+  mode,
+  goo,
+  hoverGoos,
+  filterOk,
+  onMode,
+  onGoo,
+  onHoverGoos,
+}: {
+  mode: HighlightMode;
+  goo: number;
+  hoverGoos: boolean;
+  filterOk: boolean;
+  onMode: (mode: HighlightMode) => void;
+  onGoo: (goo: number) => void;
+  onHoverGoos: (enabled: boolean) => void;
+}) {
+  const { duration } = gooParams(goo);
+
+  return (
+    <div
+      role="group"
+      aria-label="Theme toggle highlight"
+      className="fixed bottom-3 left-[62px] z-[60] flex w-[220px] flex-col gap-2 rounded-lg bg-surface-container-low p-2.5 text-xs text-on-surface shadow-card"
+    >
+      <div className="flex items-center justify-between">
+        <span className="font-medium">Highlight</span>
+        <span className="text-[10px] text-on-surface-variant">K</span>
+      </div>
+
+      <div
+        role="group"
+        aria-label="Highlight variant"
+        className="flex items-center rounded-md bg-toggle-track p-0.5"
+      >
+        {HIGHLIGHT_MODES.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={mode === option.value}
+            onClick={() => onMode(option.value)}
+            className={[
+              "h-5 flex-1 rounded-[6px] px-1.5 text-[11px] leading-none outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary",
+              mode === option.value
+                ? "bg-toggle-selected text-on-surface"
+                : "text-on-surface-variant",
+            ].join(" ")}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "metaball" ? (
+        <>
+          <label className="flex flex-col gap-1">
+            <span className="flex items-baseline justify-between gap-2">
+              <span>Goo</span>
+              <span className="tabular-nums text-on-surface-variant">
+                {goo} · {duration}ms
+              </span>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={goo}
+              onChange={(event) => onGoo(Number(event.target.value))}
+              className="w-full accent-primary"
+            />
+          </label>
+
+          <label className="flex items-center justify-between gap-2">
+            <span>Hover goos too</span>
+            <input
+              type="checkbox"
+              checked={hoverGoos}
+              onChange={(event) => onHoverGoos(event.target.checked)}
+              className="size-3.5 accent-primary"
+            />
+          </label>
+
+          {!filterOk ? (
+            <span className="text-[10px] leading-tight text-on-surface-variant">
+              SVG filter unavailable: plain stretch fallback.
+            </span>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 function CheckIcon() {
   return (
     <svg
