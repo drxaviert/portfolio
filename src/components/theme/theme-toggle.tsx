@@ -276,8 +276,10 @@ function trackWidth(segments: number): string {
 function segmentClasses(selected: boolean): string {
   return [
     // Figma 126:8942, rounded to 34x28 so both tracks share integer centers:
-    // segments sit inside a 106x32 / 140x32 track with a 2px inset.
-    "segment group relative flex h-7 flex-1 items-center justify-center rounded-[6px] outline-hidden transition-[color,background-color,transform,scale] duration-150 ease-out",
+    // segments sit inside a 106x32 / 140x32 track with a 2px inset. The
+    // transitions live in theme-toggle.css so the selected fill can be
+    // enter-only.
+    "segment group relative flex h-7 flex-1 items-center justify-center rounded-[6px] outline-hidden",
     "active:scale-[0.96]",
     "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-primary",
     selected
@@ -496,7 +498,7 @@ function Tooltip({
     <span
       aria-hidden="true"
       className={[
-        "pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface opacity-0 transition-opacity duration-150 group-hover:delay-300 group-hover:opacity-100 group-focus-visible:opacity-100",
+        "segment-tooltip pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface",
         below ? "top-full mt-2" : "-top-9",
       ].join(" ")}
     >
@@ -999,6 +1001,7 @@ export function ThemeToggle() {
           label="Theme"
           segments={OPTIONS.length}
           className="relative"
+          data-mode-track="true"
         >
           {OPTIONS.map((option, index) => {
             const selected = option.mode === mode;

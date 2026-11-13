@@ -30,6 +30,30 @@ Hover only applies on `(hover: hover) and (pointer: fine)`; the pill is not show
 - `src/components/theme/theme-toggle.tsx:277` — `active:scale-[0.94]` and the 150ms `ease-out` segment transition
 - `src/components/theme/theme-toggle.tsx:483` — tooltip fade
 
+## Selection feedback
+
+Moving the selection fades the incoming fill and label in over 150ms and releases the outgoing one on the same frame, so a fast flip can never paint two selected segments or two labels. The phase-switch fade in `globals.css` sets a transition on every element for one theme change; the segment and tooltip rules are specific enough to keep their own timings through it.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Selection enters | fill `background-color` | 150ms | 0 | `ease-out` | transparent → `--toggle-selected` |
+| Selection leaves | fill `background-color` | 0 | 0 | — | `--toggle-selected` → transparent |
+| Segment focused | tooltip `opacity` | 150ms | 0 | `ease-out` | 0 → 1 |
+| Segment blurred | tooltip `opacity` | 0 | 0 | — | 1 → 0 |
+| Pointer enters a segment | tooltip `opacity` | 150ms | 300ms | `ease-out` | 0 → 1 |
+| Pointer leaves a segment | tooltip `opacity` | 0 | 0 | — | 1 → 0 |
+
+The enter-only timing is structural: the fill's transition is declared on the checked state and the label's on `:focus-visible`/`:hover`, so losing the state removes the transition instead of starting the reverse one. The phase-row entrance stagger delays only `opacity`/`translate`; colour, fill and scale are never delayed.
+
+- `src/components/theme/theme-toggle.css:60` — row segment list, no fill
+- `src/components/theme/theme-toggle.css:75` — row selected fill, enter-only
+- `src/components/theme/theme-toggle.css:105` — stagger delays opacity/translate only
+- `src/components/theme/theme-toggle.css:285` — mode segment feedback, enter-only fill
+- `src/components/theme/theme-toggle.css:306` — tooltip hidden by default
+- `src/components/theme/theme-toggle.css:310` — focused label fade-in
+- `src/components/theme/theme-toggle.css:316` — hovered label, 300ms
+- `src/components/theme/theme-toggle.css:323` — released label, no transition
+
 ## Day phase row entrance — "Stagger + icons"
 
 The row is a 4-segment track (Clock · Dawn · Midday · Dusk) above the toggle. It scales out of the toggle, then the segments fade and rise left to right, then each icon settles 60ms after its own segment.
@@ -127,7 +151,7 @@ One opacity fade for the whole row. No scale, no segment rise, no icon settle, n
 | Element | Behaviour |
 | --- | --- |
 | Row | opacity only, 120ms `ease-out`; `transform: none`; visibility delayed by the same 120ms |
-| Segments | no opacity or translate animation; colour and background still transition over 150ms |
+| Segments | no opacity or translate animation; colour always transitions over 150ms, and the selected fill only on the way in |
 | Icons | stay at rest; entrance poses and settles are inside `prefers-reduced-motion: no-preference` |
 | Hover settle | skipped entirely; the pill still follows the pointer without the 200ms transform transition |
 | Press | `scale: 1` (no 0.94 dip) |
