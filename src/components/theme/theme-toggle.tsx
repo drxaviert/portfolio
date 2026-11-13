@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type {
-  CSSProperties,
   ComponentPropsWithoutRef,
   FocusEvent,
   KeyboardEvent,
@@ -67,7 +66,10 @@ const ICON_HOVER_POSES: Record<string, { part: string; from: string }[]> = {
   night: [{ part: "", from: "rotate(-40deg) scale(0.745)" }],
   auto: [{ part: "[data-hands]", from: "rotate(-102deg)" }],
   dawn: [{ part: "[data-sun]", from: "translateY(6.8px)" }],
-  dusk: [{ part: "[data-sun]", from: "translateY(-6.8px)" }],
+  dusk: [
+    { part: "[data-sun]", from: "translateY(-6.8px)" },
+    { part: "[data-rays]", from: "translateY(-6.8px)" },
+  ],
   dayclock: [
     { part: "[data-rays]", from: "rotate(-76.5deg)" },
     { part: "[data-hands]", from: "rotate(-102deg)" },
@@ -107,8 +109,6 @@ function playIconSettle(segment: HTMLElement) {
     return;
   }
 
-  markSunSettling(svg);
-
   const glyph = svg.dataset.glyph ?? "";
 
   for (const pose of ICON_HOVER_POSES[glyph] ?? []) {
@@ -128,36 +128,9 @@ function playIconSettle(segment: HTMLElement) {
   }
 }
 
-const sunClipTimers = new WeakMap<Element, number>();
-
-/**
- * Dawn/dusk clip their moving sun above the horizon while it travels. The
- * clip is only on during the hover animation; the resting icon is unclipped.
- */
-function markSunSettling(svg: SVGElement) {
-  const clip = svg.querySelector("[data-sun-clip]");
-
-  if (!clip) {
-    return;
-  }
-
-  clip.setAttribute("data-settling", "true");
-
-  const pending = sunClipTimers.get(clip);
-
-  if (pending !== undefined) {
-    window.clearTimeout(pending);
-  }
-
-  const timer = window.setTimeout(() => {
-    clip.removeAttribute("data-settling");
-    sunClipTimers.delete(clip);
-  }, ICON_SETTLE_DURATION + 50);
-
-  sunClipTimers.set(clip, timer);
-}
-
 function GlyphIcon({ glyph }: { glyph: Glyph }) {
+  // The dusk rays lift above the box at the entrance pose; overflow visible
+  // keeps the viewBox from slicing them while they settle.
   const clipId = `sun-clip-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
   return (
@@ -171,6 +144,7 @@ function GlyphIcon({ glyph }: { glyph: Glyph }) {
       strokeWidth="1.4"
       strokeLinecap="round"
       strokeLinejoin="round"
+      overflow="visible"
       aria-hidden="true"
       focusable="false"
     >
@@ -191,15 +165,17 @@ function GlyphIcon({ glyph }: { glyph: Glyph }) {
       ) : glyph === "dawn" ? (
         <>
           <defs>
+            {/*
+             * Sunrise: hide the sun below the horizon while it rises. The
+             * edge clears the 1.4px horizon stroke (11.3-12.7), so clipping
+             * never touches the resting dome.
+             */}
             <clipPath id={clipId}>
-              <rect x="0" y="0" width="16" height="11.3" />
+              <rect x="0" y="0" width="16" height="13" />
             </clipPath>
           </defs>
           <path d="M2 12h12" />
-          <g
-            data-sun-clip
-            style={{ "--sun-clip": `url(#${clipId})` } as CSSProperties}
-          >
+          <g clipPath={`url(#${clipId})`}>
             <g data-sun>
               <path d="M5 12a3 3 0 0 1 6 0" />
               <path d="M8 2.5v1.7M4.7 4.4l1.2 1.2M11.3 4.4l-1.2 1.2" />
@@ -209,19 +185,28 @@ function GlyphIcon({ glyph }: { glyph: Glyph }) {
       ) : glyph === "dusk" ? (
         <>
           <defs>
+            {/*
+             * Sunset is the mirror image: the disk sits below the horizon at
+             * rest, so hide the part that would show above it while the sun
+             * sinks. The edge clears the horizon stroke (9.8-11.2), leaving
+             * the resting glyph pixel-identical.
+             */}
             <clipPath id={clipId}>
-              <rect x="0" y="0" width="16" height="9.8" />
+              <rect x="0" y="9.6" width="16" height="6.4" />
             </clipPath>
           </defs>
           <path d="M2 10.5h12" />
-          <g
-            data-sun-clip
-            style={{ "--sun-clip": `url(#${clipId})` } as CSSProperties}
-          >
+          <g clipPath={`url(#${clipId})`}>
             <g data-sun>
               <path d="M5 10.5a3 3 0 0 0 6 0" />
-              <path d="M8 2.5v1.5M4.8 4.4l1.1 1.1M11.2 4.4l-1.1 1.1" />
             </g>
+          </g>
+          {/*
+           * The dusk rays sit above the horizon, so they are never
+           * horizon-clipped.
+           */}
+          <g data-rays>
+            <path d="M8 2.5v1.5M4.8 4.4l1.1 1.1M11.2 4.4l-1.1 1.1" />
           </g>
         </>
       ) : glyph === "dayclock" ? (

@@ -777,6 +777,42 @@ describe("ThemeToggle", () => {
     expect(phaseRow()).toHaveAttribute("data-visible", "true");
   });
 
+  it("clips each sun on its own side of the horizon", () => {
+    vi.useFakeTimers();
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    mockHoverCanHover(true);
+    renderToggle();
+
+    fireEvent.pointerOver(screen.getByRole("radio", { name: "Day" }), {
+      relatedTarget: document.body,
+    });
+
+    const dawnClip = phaseRow().querySelector(
+      '[data-glyph="dawn"] clipPath rect',
+    )!;
+    const duskClip = phaseRow().querySelector(
+      '[data-glyph="dusk"] clipPath rect',
+    )!;
+
+    // Dawn rises, so its disk is clipped above the horizon; dusk has already
+    // set, so its disk is clipped below it. Both keep a clear margin so the
+    // resting icons are untouched.
+    expect(Number(dawnClip.getAttribute("y"))).toBe(0);
+    expect(Number(dawnClip.getAttribute("height"))).toBeGreaterThan(11);
+    expect(Number(duskClip.getAttribute("y"))).toBeGreaterThan(0);
+
+    // The dusk rays live above the horizon and must stay outside that clip,
+    // otherwise they vanish for the whole settle.
+    const dusk = phaseRow().querySelector('[data-glyph="dusk"]')!;
+    expect(dusk.querySelector("g[clip-path] [data-rays]")).toBeNull();
+    expect(dusk.querySelector("[data-rays]")).not.toBeNull();
+
+    const ids = Array.from(phaseRow().querySelectorAll("clipPath")).map(
+      (clip) => clip.id,
+    );
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("taps Day open and an outside tap closes on touch", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0));

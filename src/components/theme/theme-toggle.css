@@ -117,7 +117,10 @@
   }
   .phase-row[data-visible="false"]:not([data-exiting="true"])
     [data-glyph="dusk"]
-    [data-sun] {
+    [data-sun],
+  .phase-row[data-visible="false"]:not([data-exiting="true"])
+    [data-glyph="dusk"]
+    [data-rays] {
     transform: translateY(-6.8px);
   }
 
@@ -229,16 +232,6 @@
     transform-origin: center;
     transition: transform 600ms cubic-bezier(0.34, 1.3, 0.64, 1);
     transition-delay: 330ms;
-  }
-
-  /*
-   * Sunrise/sunset: clip the travelling sun (and its rays) above the horizon
-   * while it moves. The horizon line itself is outside this wrapper. At rest
-   * the clip is off, so the icons are unchanged.
-   */
-  .phase-row[data-entering="true"] [data-sun-clip],
-  [data-sun-clip][data-settling="true"] {
-    clip-path: var(--sun-clip);
   }
 }
 
