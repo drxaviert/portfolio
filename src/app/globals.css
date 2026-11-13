@@ -584,5 +584,9 @@
   body {
     background-color: var(--surface);
     color: var(--on-surface);
+    /* Match the dev chrome (glow-tuner-css.ts) so Work Sans renders the same
+       weight in the shipped page, especially Night text on macOS. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }

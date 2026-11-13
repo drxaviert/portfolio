@@ -278,8 +278,8 @@ function segmentClasses(selected: boolean): string {
     // Figma 126:8942, rounded to 34x28 so both tracks share integer centers:
     // segments sit inside a 106x32 / 140x32 track with a 2px inset.
     "segment group relative flex h-7 flex-1 items-center justify-center rounded-[6px] outline-hidden transition-[color,background-color,transform,scale] duration-150 ease-out",
-    "active:scale-[0.94]",
-    "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+    "active:scale-[0.96]",
+    "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-primary",
     selected
       ? "bg-toggle-selected text-on-surface"
       : "text-on-surface-variant hover:text-on-surface",
@@ -496,7 +496,7 @@ function Tooltip({
     <span
       aria-hidden="true"
       className={[
-        "pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100",
+        "pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface opacity-0 transition-opacity duration-150 group-hover:delay-300 group-hover:opacity-100 group-focus-visible:opacity-100",
         below ? "top-full mt-2" : "-top-9",
       ].join(" ")}
     >
@@ -1091,7 +1091,7 @@ export function ThemeToggle() {
             aria-label="Theme"
             onKeyDown={onMenuKeyDown}
             onBlur={onMenuBlur}
-            className="absolute right-0 bottom-full z-50 mb-2 flex max-h-[calc(100dvh-4rem)] w-[168px] flex-col gap-0.5 overflow-y-auto overscroll-contain rounded-lg bg-surface-container-low p-1 shadow-card"
+            className="absolute right-0 bottom-full z-[3] mb-2 flex max-h-[calc(100dvh-4rem)] w-[168px] flex-col gap-0.5 overflow-y-auto overscroll-contain rounded-lg bg-surface-container-low p-1 shadow-card"
           >
             {OPTIONS.map((option) => {
               const selected = option.mode === mode;
