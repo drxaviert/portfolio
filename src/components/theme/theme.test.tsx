@@ -59,8 +59,6 @@ beforeEach(() => {
   delete root().dataset.mode;
   delete root().dataset.phase;
   delete root().dataset.dayPhase;
-  delete root().dataset.rowMotion;
-  delete root().dataset.rowClose;
   delete root().dataset.phasePreview;
   delete root().dataset.phaseSwitching;
   root().classList.remove("dark");
@@ -508,7 +506,7 @@ describe("ThemeToggle", () => {
     fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
 
     act(() => {
-      vi.advanceTimersByTime(699);
+      vi.advanceTimersByTime(99);
     });
     expect(phaseRow()).toHaveAttribute("data-visible", "true");
 
@@ -528,7 +526,7 @@ describe("ThemeToggle", () => {
     fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
 
     act(() => {
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(50);
     });
 
     fireEvent.pointerOver(screen.getByRole("radio", { name: "Dusk" }), {
@@ -564,7 +562,7 @@ describe("ThemeToggle", () => {
 
     act(() => dusk.blur());
     act(() => {
-      vi.advanceTimersByTime(700);
+      vi.advanceTimersByTime(100);
     });
     expect(phaseRow()).toHaveAttribute("data-visible", "false");
   });
@@ -589,7 +587,7 @@ describe("ThemeToggle", () => {
     fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
 
     act(() => {
-      vi.advanceTimersByTime(699);
+      vi.advanceTimersByTime(99);
     });
     expect(phaseRow()).toHaveAttribute("data-visible", "true");
 
@@ -611,14 +609,14 @@ describe("ThemeToggle", () => {
     fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
 
     act(() => {
-      vi.advanceTimersByTime(700);
+      vi.advanceTimersByTime(100);
     });
     expect(phaseRow()).toHaveAttribute("data-visible", "false");
     expect(phaseRow()).toHaveAttribute("data-exiting", "true");
 
-    // The fallback is the CSS exit duration plus 50ms.
+    // The fallback is the CSS exit duration (240ms) plus 50ms.
     act(() => {
-      vi.advanceTimersByTime(169);
+      vi.advanceTimersByTime(289);
     });
     expect(phaseRow()).toHaveAttribute("data-exiting", "true");
 
@@ -638,7 +636,7 @@ describe("ThemeToggle", () => {
     fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
 
     act(() => {
-      vi.advanceTimersByTime(700);
+      vi.advanceTimersByTime(100);
     });
     expect(phaseRow()).toHaveAttribute("data-exiting", "true");
 
@@ -657,26 +655,25 @@ describe("ThemeToggle", () => {
     fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
 
     act(() => {
-      vi.advanceTimersByTime(700);
+      vi.advanceTimersByTime(100);
     });
 
     expect(phaseRow()).toHaveAttribute("data-visible", "false");
     expect(phaseRow()).toHaveAttribute("data-exiting", "false");
   });
 
-  it("follows the active option's exit duration for the fallback", () => {
+  it("follows the exit duration for the fallback", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
     mockHoverCanHover(true);
     renderToggle();
 
     fireEvent.click(screen.getByRole("radio", { name: "Day" }));
-    // What the option CSS would set for, say, Clip unfold.
     phaseRow().style.setProperty("--phase-row-exit-ms", "200");
     fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
 
     act(() => {
-      vi.advanceTimersByTime(700);
+      vi.advanceTimersByTime(100);
     });
     expect(phaseRow()).toHaveAttribute("data-exiting", "true");
 
@@ -691,11 +688,10 @@ describe("ThemeToggle", () => {
     expect(phaseRow()).toHaveAttribute("data-exiting", "false");
   });
 
-  it("sets the entering flag only for option 6 and clears it after the settle", () => {
+  it("sets the entering flag and clears it after the settle", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
     mockHoverCanHover(true);
-    root().dataset.rowMotion = "6";
     renderToggle();
 
     fireEvent.click(screen.getByRole("radio", { name: "Day" }));
@@ -703,7 +699,7 @@ describe("ThemeToggle", () => {
     expect(phaseRow()).toHaveAttribute("data-entering", "true");
 
     act(() => {
-      vi.advanceTimersByTime(474);
+      vi.advanceTimersByTime(989);
     });
     expect(phaseRow()).toHaveAttribute("data-entering", "true");
 
@@ -711,77 +707,6 @@ describe("ThemeToggle", () => {
       vi.advanceTimersByTime(1);
     });
     expect(phaseRow()).toHaveAttribute("data-entering", "false");
-  });
-
-  it("does not set the entering flag for option 5", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
-    mockHoverCanHover(true);
-    root().dataset.rowMotion = "5";
-    renderToggle();
-
-    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
-
-    expect(phaseRow()).toHaveAttribute("data-entering", "false");
-  });
-
-  it("closes immediately on pointer leave at 0ms", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
-    mockHoverCanHover(true);
-    root().dataset.rowClose = "0";
-    renderToggle();
-
-    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
-    expect(phaseRow()).toHaveAttribute("data-visible", "true");
-
-    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
-
-    expect(phaseRow()).toHaveAttribute("data-visible", "false");
-    expect(phaseRow()).toHaveAttribute("data-exiting", "true");
-  });
-
-  it("waits the configured close delay before exiting", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
-    mockHoverCanHover(true);
-    root().dataset.rowClose = "300";
-    renderToggle();
-
-    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
-    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
-
-    act(() => {
-      vi.advanceTimersByTime(299);
-    });
-    expect(phaseRow()).toHaveAttribute("data-visible", "true");
-
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-    expect(phaseRow()).toHaveAttribute("data-visible", "false");
-    expect(phaseRow()).toHaveAttribute("data-exiting", "true");
-  });
-
-  it("keeps keyboard focus holding the row at 0ms", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
-    mockHoverCanHover(true);
-    root().dataset.rowClose = "0";
-    renderToggle();
-
-    fireEvent.keyDown(document, { key: "Tab" });
-    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
-
-    const dusk = screen.getByRole("radio", { name: "Dusk" });
-
-    act(() => dusk.focus());
-    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
-
-    expect(phaseRow()).toHaveAttribute("data-visible", "true");
-
-    act(() => dusk.blur());
-    expect(phaseRow()).toHaveAttribute("data-visible", "false");
   });
 
   it("keeps the raise and clears exiting when the row reopens mid-fade", () => {
@@ -794,7 +719,7 @@ describe("ThemeToggle", () => {
     fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
 
     act(() => {
-      vi.advanceTimersByTime(700);
+      vi.advanceTimersByTime(100);
     });
     expect(phaseRow()).toHaveAttribute("data-exiting", "true");
 

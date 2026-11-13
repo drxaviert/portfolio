@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
-  ChangeEvent,
   ComponentPropsWithoutRef,
   FocusEvent,
   KeyboardEvent,
@@ -11,45 +10,17 @@ import type {
   Ref,
 } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
-import {
-  formatCloseDelayReadout,
-  formatIconStrengthReadout,
-  formatSpeedReadout,
-  ICON_STRENGTH_DEFAULT,
-  ICON_STRENGTH_MAX,
-  ICON_STRENGTH_MIN,
-  ICON_STRENGTH_STEP,
-  parseIconStrength,
-  parseRowCloseDelay,
-  parseRowMotion,
-  parseRowSpeed,
-  readRowCloseDelay,
-  readRowIconStrengths,
-  readRowMotion,
-  readRowMotionSpeeds,
-  ROW_CLOSE_DEFAULT,
-  ROW_CLOSE_MAX,
-  ROW_CLOSE_MIN,
-  ROW_CLOSE_STEP,
-  ROW_MOTIONS,
-  ROW_SPEED_DEFAULT,
-  ROW_SPEED_MAX,
-  ROW_SPEED_MIN,
-  ROW_SPEED_STEP,
-  writeRowCloseDelay,
-  writeRowIconStrengths,
-  writeRowMotion,
-  writeRowMotionSpeeds,
-} from "@/components/theme/row-motion";
-import type { RowMotion } from "@/components/theme/row-motion";
 import type { DayPhase, Mode } from "@/lib/theme";
 import "./theme-toggle.css";
 
 /** How long the phase row lingers after the pointer leaves it and the toggle. */
-export const PHASE_ROW_CLOSE_DELAY_MS = 700;
+export const PHASE_ROW_CLOSE_DELAY_MS = 100;
+
+/** Long enough for the last icon settle (330ms delay + 600ms swing). */
+const ROW_ENTER_SETTLE_MS = 990;
 
 /** Fallback for the CSS exit duration if it cannot be read. */
-export const PHASE_ROW_EXIT_MS = 120;
+export const PHASE_ROW_EXIT_MS = 240;
 
 type ModeOption = {
   mode: Mode;
@@ -462,28 +433,17 @@ export function ThemeToggle() {
   }, []);
 
   /**
-   * Option 6 only: keep the entering flag alive long enough for the last
-   * segment's icon settle (135ms segment delay + 30ms offset + 250ms swing).
+   * Keeps the entering flag alive long enough for the last icon settle
+   * (330ms segment delay + 600ms swing), so hover can bypass the delay while
+   * the icons are still arriving.
    */
   const startEnter = useCallback(() => {
     clearEnter();
-
-    if (parseRowMotion(document.documentElement.dataset.rowMotion) !== 6) {
-      return;
-    }
-
-    const speed =
-      Number.parseFloat(
-        window
-          .getComputedStyle(document.documentElement)
-          .getPropertyValue("--row-motion-speed"),
-      ) || 1;
-
     setRowEntering(true);
     enterTimer.current = window.setTimeout(() => {
       enterTimer.current = null;
       setRowEntering(false);
-    }, (135 + 30 + 250 + 60) * speed);
+    }, ROW_ENTER_SETTLE_MS);
   }, [clearEnter]);
 
   const openRow = useCallback(() => {
@@ -514,25 +474,15 @@ export function ThemeToggle() {
       return;
     }
 
-    // The configured wait after the pointer leaves the toggle + row region.
-    // 0 starts the exit on that same pointer-leave; the bridge keeps crossing
-    // from the toggle to the row inside the region for every value.
-    const delay = parseRowCloseDelay(
-      document.documentElement.dataset.rowClose,
-    );
-
-    if (delay <= 0) {
-      closeRow();
-      return;
-    }
-
+    // The bridge keeps travel between the toggle and the row inside the same
+    // hover region; this timer only starts once the pointer leaves both.
     closeTimer.current = window.setTimeout(() => {
       closeTimer.current = null;
 
       if (!holdsOpen()) {
         closeRow();
       }
-    }, delay);
+    }, PHASE_ROW_CLOSE_DELAY_MS);
   }, [clearCloseTimer, closeRow]);
 
   // Track the input modality independently of focus: a pointerdown marks the
@@ -1045,8 +995,6 @@ export function ThemeToggle() {
           </div>
         ) : null}
       </div>
-
-      <RowMotionPicker />
     </>
   );
 }
@@ -1056,275 +1004,6 @@ export function ThemeToggle() {
  * and speed are applied to <html> so the CSS can switch transitions, and both
  * are remembered in localStorage. Production renders nothing at all.
  */
-function RowMotionPicker() {
-  const selectRef = useRef<HTMLSelectElement>(null);
-  const speedRef = useRef<HTMLInputElement>(null);
-  const readoutRef = useRef<HTMLOutputElement>(null);
-  const iconRef = useRef<HTMLInputElement>(null);
-  const iconResetRef = useRef<HTMLButtonElement>(null);
-  const iconReadoutRef = useRef<HTMLOutputElement>(null);
-  const closeRef = useRef<HTMLInputElement>(null);
-  const closeReadoutRef = useRef<HTMLOutputElement>(null);
-
-  function applySpeed(motion: RowMotion, speed: number) {
-    document.documentElement.style.setProperty(
-      "--row-motion-speed",
-      String(speed),
-    );
-
-    if (speedRef.current) {
-      speedRef.current.value = String(speed);
-    }
-
-    if (readoutRef.current) {
-      readoutRef.current.textContent = formatSpeedReadout(motion, speed);
-    }
-  }
-
-  function applyIconStrength(motion: RowMotion, strength: number) {
-    document.documentElement.style.setProperty(
-      "--row-icon-strength",
-      String(strength),
-    );
-
-    if (iconRef.current) {
-      iconRef.current.value = String(strength);
-      iconRef.current.disabled = motion !== 6;
-    }
-
-    if (iconResetRef.current) {
-      iconResetRef.current.disabled = motion !== 6;
-    }
-
-    if (iconReadoutRef.current) {
-      iconReadoutRef.current.textContent =
-        formatIconStrengthReadout(strength);
-    }
-  }
-
-  function applyCloseDelay(delay: number) {
-    document.documentElement.dataset.rowClose = String(delay);
-
-    if (closeRef.current) {
-      closeRef.current.value = String(delay);
-    }
-
-    if (closeReadoutRef.current) {
-      closeReadoutRef.current.textContent = formatCloseDelayReadout(delay);
-    }
-  }
-
-  function currentMotion(): RowMotion {
-    return parseRowMotion(selectRef.current?.value ?? 0);
-  }
-
-  function storedSpeed(motion: RowMotion): number {
-    return readRowMotionSpeeds()[motion] ?? ROW_SPEED_DEFAULT;
-  }
-
-  function storedIconStrength(motion: RowMotion): number {
-    return readRowIconStrengths()[motion] ?? ICON_STRENGTH_DEFAULT;
-  }
-
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "development") {
-      return;
-    }
-
-    const stored = readRowMotion();
-
-    if (selectRef.current) {
-      selectRef.current.value = String(stored);
-    }
-
-    document.documentElement.dataset.rowMotion = String(stored);
-    applySpeed(stored, storedSpeed(stored));
-    applyIconStrength(stored, storedIconStrength(stored));
-    applyCloseDelay(readRowCloseDelay());
-
-    return () => {
-      delete document.documentElement.dataset.rowMotion;
-      delete document.documentElement.dataset.rowClose;
-      document.documentElement.style.removeProperty("--row-motion-speed");
-      document.documentElement.style.removeProperty("--row-icon-strength");
-    };
-  }, []);
-
-  if (process.env.NODE_ENV !== "development") {
-    return null;
-  }
-
-  function onSpeedChange(event: ChangeEvent<HTMLInputElement>) {
-    const motion = currentMotion();
-    const speed = parseRowSpeed(event.currentTarget.value);
-    const speeds = readRowMotionSpeeds();
-
-    speeds[motion] = speed;
-    writeRowMotionSpeeds(speeds);
-    applySpeed(motion, speed);
-  }
-
-  function onIconChange(event: ChangeEvent<HTMLInputElement>) {
-    const motion = currentMotion();
-
-    if (motion !== 6) {
-      return;
-    }
-
-    const strength = parseIconStrength(event.currentTarget.value);
-    const strengths = readRowIconStrengths();
-
-    strengths[motion] = strength;
-    writeRowIconStrengths(strengths);
-    applyIconStrength(motion, strength);
-  }
-
-  return (
-    <div className="fixed top-2 left-2 z-[60] flex flex-wrap items-center gap-3 rounded-md bg-surface-container-low px-2 py-1 text-xs text-on-surface shadow-card">
-      <label className="flex items-center gap-2">
-        <span className="text-on-surface-variant">Row</span>
-        <select
-          ref={selectRef}
-          defaultValue="0"
-          onChange={(event) => {
-            const next = parseRowMotion(event.currentTarget.value);
-
-            writeRowMotion(next);
-            document.documentElement.dataset.rowMotion = String(next);
-            applySpeed(next, storedSpeed(next));
-            applyIconStrength(next, storedIconStrength(next));
-          }}
-          className="bg-transparent text-on-surface outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        >
-          {ROW_MOTIONS.map((motion) => (
-            <option key={motion.value} value={motion.value}>
-              {motion.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="flex items-center gap-2">
-        <span className="text-on-surface-variant">Speed</span>
-        <input
-          ref={speedRef}
-          type="range"
-          min={ROW_SPEED_MIN}
-          max={ROW_SPEED_MAX}
-          step={ROW_SPEED_STEP}
-          defaultValue={ROW_SPEED_DEFAULT}
-          onChange={onSpeedChange}
-          aria-label="Row motion speed"
-          className="h-1.5 w-24 accent-primary"
-        />
-      </label>
-
-      <button
-        type="button"
-        onClick={() => {
-          const motion = currentMotion();
-          const speeds = readRowMotionSpeeds();
-
-          speeds[motion] = ROW_SPEED_DEFAULT;
-          writeRowMotionSpeeds(speeds);
-          applySpeed(motion, ROW_SPEED_DEFAULT);
-        }}
-        aria-label="Reset speed to 1x"
-        className="rounded-md px-1.5 py-0.5 text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
-      >
-        1x
-      </button>
-
-      <output
-        ref={readoutRef}
-        aria-live="polite"
-        className="tabular-nums text-on-surface-variant"
-      />
-
-      <label className="flex items-center gap-2">
-        <span className="text-on-surface-variant">Icon</span>
-        <input
-          ref={iconRef}
-          type="range"
-          min={ICON_STRENGTH_MIN}
-          max={ICON_STRENGTH_MAX}
-          step={ICON_STRENGTH_STEP}
-          defaultValue={ICON_STRENGTH_DEFAULT}
-          onChange={onIconChange}
-          aria-label="Icon settle strength"
-          className="h-1.5 w-20 accent-primary disabled:opacity-40"
-        />
-      </label>
-
-      <button
-        ref={iconResetRef}
-        type="button"
-        onClick={() => {
-          const motion = currentMotion();
-
-          if (motion !== 6) {
-            return;
-          }
-
-          const strengths = readRowIconStrengths();
-
-          strengths[motion] = ICON_STRENGTH_DEFAULT;
-          writeRowIconStrengths(strengths);
-          applyIconStrength(motion, ICON_STRENGTH_DEFAULT);
-        }}
-        aria-label="Reset icon strength to 1x"
-        className="rounded-md px-1.5 py-0.5 text-on-surface-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-40"
-      >
-        1x
-      </button>
-
-      <output
-        ref={iconReadoutRef}
-        aria-live="polite"
-        className="tabular-nums text-on-surface-variant"
-      />
-
-      <label className="flex items-center gap-2">
-        <span className="text-on-surface-variant">Close</span>
-        <input
-          ref={closeRef}
-          type="range"
-          min={ROW_CLOSE_MIN}
-          max={ROW_CLOSE_MAX}
-          step={ROW_CLOSE_STEP}
-          defaultValue={ROW_CLOSE_DEFAULT}
-          onChange={(event) => {
-            const next = parseRowCloseDelay(event.currentTarget.value);
-
-            writeRowCloseDelay(next);
-            applyCloseDelay(next);
-          }}
-          aria-label="Row close delay"
-          className="h-1.5 w-20 accent-primary"
-        />
-      </label>
-
-      <button
-        type="button"
-        onClick={() => {
-          writeRowCloseDelay(ROW_CLOSE_DEFAULT);
-          applyCloseDelay(ROW_CLOSE_DEFAULT);
-        }}
-        aria-label="Reset close delay to 700ms"
-        className="rounded-md px-1.5 py-0.5 text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
-      >
-        700ms
-      </button>
-
-      <output
-        ref={closeReadoutRef}
-        aria-live="polite"
-        className="tabular-nums text-on-surface-variant"
-      />
-    </div>
-  );
-}
-
 function CheckIcon() {
   return (
     <svg
