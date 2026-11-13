@@ -12,9 +12,16 @@ import type {
 } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
 import {
+  formatIconStrengthReadout,
   formatSpeedReadout,
+  ICON_STRENGTH_DEFAULT,
+  ICON_STRENGTH_MAX,
+  ICON_STRENGTH_MIN,
+  ICON_STRENGTH_STEP,
+  parseIconStrength,
   parseRowMotion,
   parseRowSpeed,
+  readRowIconStrengths,
   readRowMotion,
   readRowMotionSpeeds,
   ROW_MOTIONS,
@@ -22,6 +29,7 @@ import {
   ROW_SPEED_MAX,
   ROW_SPEED_MIN,
   ROW_SPEED_STEP,
+  writeRowIconStrengths,
   writeRowMotion,
   writeRowMotionSpeeds,
 } from "@/components/theme/row-motion";
@@ -1032,6 +1040,9 @@ function RowMotionPicker() {
   const selectRef = useRef<HTMLSelectElement>(null);
   const speedRef = useRef<HTMLInputElement>(null);
   const readoutRef = useRef<HTMLOutputElement>(null);
+  const iconRef = useRef<HTMLInputElement>(null);
+  const iconResetRef = useRef<HTMLButtonElement>(null);
+  const iconReadoutRef = useRef<HTMLOutputElement>(null);
 
   function applySpeed(motion: RowMotion, speed: number) {
     document.documentElement.style.setProperty(
@@ -1048,12 +1059,37 @@ function RowMotionPicker() {
     }
   }
 
+  function applyIconStrength(motion: RowMotion, strength: number) {
+    document.documentElement.style.setProperty(
+      "--row-icon-strength",
+      String(strength),
+    );
+
+    if (iconRef.current) {
+      iconRef.current.value = String(strength);
+      iconRef.current.disabled = motion !== 6;
+    }
+
+    if (iconResetRef.current) {
+      iconResetRef.current.disabled = motion !== 6;
+    }
+
+    if (iconReadoutRef.current) {
+      iconReadoutRef.current.textContent =
+        formatIconStrengthReadout(strength);
+    }
+  }
+
   function currentMotion(): RowMotion {
     return parseRowMotion(selectRef.current?.value ?? 0);
   }
 
   function storedSpeed(motion: RowMotion): number {
     return readRowMotionSpeeds()[motion] ?? ROW_SPEED_DEFAULT;
+  }
+
+  function storedIconStrength(motion: RowMotion): number {
+    return readRowIconStrengths()[motion] ?? ICON_STRENGTH_DEFAULT;
   }
 
   useEffect(() => {
@@ -1069,10 +1105,12 @@ function RowMotionPicker() {
 
     document.documentElement.dataset.rowMotion = String(stored);
     applySpeed(stored, storedSpeed(stored));
+    applyIconStrength(stored, storedIconStrength(stored));
 
     return () => {
       delete document.documentElement.dataset.rowMotion;
       document.documentElement.style.removeProperty("--row-motion-speed");
+      document.documentElement.style.removeProperty("--row-icon-strength");
     };
   }, []);
 
@@ -1090,6 +1128,21 @@ function RowMotionPicker() {
     applySpeed(motion, speed);
   }
 
+  function onIconChange(event: ChangeEvent<HTMLInputElement>) {
+    const motion = currentMotion();
+
+    if (motion !== 6) {
+      return;
+    }
+
+    const strength = parseIconStrength(event.currentTarget.value);
+    const strengths = readRowIconStrengths();
+
+    strengths[motion] = strength;
+    writeRowIconStrengths(strengths);
+    applyIconStrength(motion, strength);
+  }
+
   return (
     <div className="fixed top-2 left-2 z-[60] flex flex-wrap items-center gap-3 rounded-md bg-surface-container-low px-2 py-1 text-xs text-on-surface shadow-card">
       <label className="flex items-center gap-2">
@@ -1103,6 +1156,7 @@ function RowMotionPicker() {
             writeRowMotion(next);
             document.documentElement.dataset.rowMotion = String(next);
             applySpeed(next, storedSpeed(next));
+            applyIconStrength(next, storedIconStrength(next));
           }}
           className="bg-transparent text-on-surface outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
@@ -1147,6 +1201,49 @@ function RowMotionPicker() {
 
       <output
         ref={readoutRef}
+        aria-live="polite"
+        className="tabular-nums text-on-surface-variant"
+      />
+
+      <label className="flex items-center gap-2">
+        <span className="text-on-surface-variant">Icon</span>
+        <input
+          ref={iconRef}
+          type="range"
+          min={ICON_STRENGTH_MIN}
+          max={ICON_STRENGTH_MAX}
+          step={ICON_STRENGTH_STEP}
+          defaultValue={ICON_STRENGTH_DEFAULT}
+          onChange={onIconChange}
+          aria-label="Icon settle strength"
+          className="h-1.5 w-20 accent-primary disabled:opacity-40"
+        />
+      </label>
+
+      <button
+        ref={iconResetRef}
+        type="button"
+        onClick={() => {
+          const motion = currentMotion();
+
+          if (motion !== 6) {
+            return;
+          }
+
+          const strengths = readRowIconStrengths();
+
+          strengths[motion] = ICON_STRENGTH_DEFAULT;
+          writeRowIconStrengths(strengths);
+          applyIconStrength(motion, ICON_STRENGTH_DEFAULT);
+        }}
+        aria-label="Reset icon strength to 1x"
+        className="rounded-md px-1.5 py-0.5 text-on-surface-variant hover:bg-surface-container hover:text-on-surface disabled:opacity-40"
+      >
+        1x
+      </button>
+
+      <output
+        ref={iconReadoutRef}
         aria-live="polite"
         className="tabular-nums text-on-surface-variant"
       />

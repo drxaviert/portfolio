@@ -152,3 +152,101 @@ export function formatSpeedReadout(motion: RowMotion, speed: number): string {
     durations.enter * speed,
   )}ms / exit ${Math.round(durations.exit * speed)}ms`;
 }
+
+export const ROW_MOTION_ICON_STORAGE_KEY = "theme-row-motion-icon";
+export const ICON_STRENGTH_MIN = 0.5;
+export const ICON_STRENGTH_MAX = 3;
+export const ICON_STRENGTH_STEP = 0.1;
+export const ICON_STRENGTH_DEFAULT = 1;
+
+/** Base option-6 pose offsets; the strength multiplier scales these. */
+export const ICON_BASE_RAYS_DEG = 45;
+export const ICON_BASE_RISE_PX = 4;
+export const ICON_BASE_SCALE_OFFSET = 0.15;
+
+export type RowIconStrengths = Partial<Record<RowMotion, number>>;
+
+/** Clamps to 0.5x-3x and quantises to the 0.1 step. */
+export function parseIconStrength(value: unknown): number {
+  if (value === null || value === undefined || value === "") {
+    return ICON_STRENGTH_DEFAULT;
+  }
+
+  const parsed = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return ICON_STRENGTH_DEFAULT;
+  }
+
+  const clamped = Math.min(
+    ICON_STRENGTH_MAX,
+    Math.max(ICON_STRENGTH_MIN, parsed),
+  );
+
+  return Number(
+    (
+      Math.round(clamped / ICON_STRENGTH_STEP) * ICON_STRENGTH_STEP
+    ).toFixed(2),
+  );
+}
+
+/** Parses the option -> icon-strength JSON map, dropping unknown entries. */
+export function parseRowIconStrengths(value: unknown): RowIconStrengths {
+  if (typeof value !== "string") {
+    return {};
+  }
+
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return {};
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    return {};
+  }
+
+  const strengths: RowIconStrengths = {};
+
+  for (const [key, raw] of Object.entries(parsed as Record<string, unknown>)) {
+    const motion = Number(key);
+
+    if (Number.isInteger(motion) && motion >= 0 && motion <= 6) {
+      strengths[motion as RowMotion] = parseIconStrength(raw);
+    }
+  }
+
+  return strengths;
+}
+
+/** Reads the per-option icon-strength map; blocked/malformed storage is empty. */
+export function readRowIconStrengths(): RowIconStrengths {
+  try {
+    return parseRowIconStrengths(
+      window.localStorage.getItem(ROW_MOTION_ICON_STORAGE_KEY),
+    );
+  } catch {
+    return {};
+  }
+}
+
+/** Persists the per-option icon-strength map; a failed write is ignored. */
+export function writeRowIconStrengths(strengths: RowIconStrengths): void {
+  try {
+    window.localStorage.setItem(
+      ROW_MOTION_ICON_STORAGE_KEY,
+      JSON.stringify(strengths),
+    );
+  } catch {
+    // Intentionally ignored: the current page keeps the chosen strengths.
+  }
+}
+
+/** The dev readout, e.g. 1.5x - rays -68deg / rise 6px. */
+export function formatIconStrengthReadout(strength: number): string {
+  return `${Number(strength.toFixed(2))}x - rays -${Math.round(
+    ICON_BASE_RAYS_DEG * strength,
+  )}deg / rise ${Math.round(ICON_BASE_RISE_PX * strength)}px`;
+}
