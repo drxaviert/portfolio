@@ -264,11 +264,11 @@
 }
 
 /* 5 · Staggered segments */
-[data-row-motion="5"] .phase-row {
+:is([data-row-motion="5"], [data-row-motion="6"]) .phase-row {
   --phase-row-exit-ms: calc(120 * var(--row-motion-speed, 1));
   transform-origin: bottom right;
 }
-[data-row-motion="5"] .phase-row[data-visible="true"] {
+:is([data-row-motion="5"], [data-row-motion="6"]) .phase-row[data-visible="true"] {
   opacity: 1;
   visibility: visible;
   transform: none;
@@ -280,7 +280,7 @@
       cubic-bezier(0.23, 1, 0.32, 1),
     visibility 0s;
 }
-[data-row-motion="5"] .phase-row[data-visible="false"] {
+:is([data-row-motion="5"], [data-row-motion="6"]) .phase-row[data-visible="false"] {
   opacity: 0;
   transform: scale(0.96);
   transition:
@@ -288,7 +288,7 @@
     transform calc(var(--phase-row-exit-ms) * 1ms) ease-in,
     visibility 0s calc(var(--phase-row-exit-ms) * 1ms);
 }
-[data-row-motion="5"] .phase-row [role="radio"] {
+:is([data-row-motion="5"], [data-row-motion="6"]) .phase-row [role="radio"] {
   transition:
     opacity calc(180ms * var(--row-motion-speed, 1))
       cubic-bezier(0.23, 1, 0.32, 1),
@@ -299,36 +299,188 @@
     transform 150ms ease-out,
     scale 150ms ease-out;
 }
-[data-row-motion="5"] .phase-row[data-visible="true"] [role="radio"] {
+:is([data-row-motion="5"], [data-row-motion="6"]) .phase-row[data-visible="true"] [role="radio"] {
   opacity: 1;
   translate: 0 0;
 }
 /* Left to right: Clock first, then Dawn, Midday, Dusk. */
-[data-row-motion="5"]
+:is([data-row-motion="5"], [data-row-motion="6"])
   .phase-row[data-visible="true"]
   [role="radio"]:nth-of-type(1) {
   transition-delay: calc(60ms * var(--row-motion-speed, 1));
 }
-[data-row-motion="5"]
+:is([data-row-motion="5"], [data-row-motion="6"])
   .phase-row[data-visible="true"]
   [role="radio"]:nth-of-type(2) {
   transition-delay: calc(85ms * var(--row-motion-speed, 1));
 }
-[data-row-motion="5"]
+:is([data-row-motion="5"], [data-row-motion="6"])
   .phase-row[data-visible="true"]
   [role="radio"]:nth-of-type(3) {
   transition-delay: calc(110ms * var(--row-motion-speed, 1));
 }
-[data-row-motion="5"]
+:is([data-row-motion="5"], [data-row-motion="6"])
   .phase-row[data-visible="true"]
   [role="radio"]:nth-of-type(4) {
   transition-delay: calc(135ms * var(--row-motion-speed, 1));
 }
-[data-row-motion="5"] .phase-row[data-visible="false"] [role="radio"] {
+:is([data-row-motion="5"], [data-row-motion="6"]) .phase-row[data-visible="false"] [role="radio"] {
   opacity: 0;
   translate: 0 3px;
   transition-duration: calc(120ms * var(--row-motion-speed, 1));
   transition-delay: 0ms;
+}
+
+/* 6 · Stagger + icons: option 5 plus a per-icon settle. Icons hold an offset
+ * pose while the row is closed and not exiting, then swing to rest with their
+ * segment's delay + 30ms. On exit they stay at rest and merely fade. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-row-motion="6"]
+    .phase-row[data-visible="false"]:not([data-exiting="true"])
+    [data-glyph="dayclock"]
+    [data-rays] {
+    transform: rotate(-20deg);
+  }
+  [data-row-motion="6"]
+    .phase-row[data-visible="false"]:not([data-exiting="true"])
+    [data-glyph="dayclock"]
+    [data-hands] {
+    transform: rotate(-25deg);
+  }
+  [data-row-motion="6"]
+    .phase-row[data-visible="false"]:not([data-exiting="true"])
+    [data-glyph="dawn"]
+    [data-sun] {
+    transform: translateY(1.5px);
+  }
+  [data-row-motion="6"]
+    .phase-row[data-visible="false"]:not([data-exiting="true"])
+    [data-glyph="day"]
+    [data-rays] {
+    transform: rotate(-20deg);
+  }
+  [data-row-motion="6"]
+    .phase-row[data-visible="false"]:not([data-exiting="true"])
+    [data-glyph="dusk"]
+    [data-sun] {
+    transform: translateY(-1.5px);
+  }
+
+  /* The closed pose must not animate; only the next open does. */
+  [data-row-motion="6"]
+    .phase-row[data-visible="false"]:not([data-exiting="true"])
+    [data-glyph]
+    [data-rays],
+  [data-row-motion="6"]
+    .phase-row[data-visible="false"]:not([data-exiting="true"])
+    [data-glyph]
+    [data-hands],
+  [data-row-motion="6"]
+    .phase-row[data-visible="false"]:not([data-exiting="true"])
+    [data-glyph]
+    [data-sun] {
+    transition: none;
+  }
+
+  /* 250ms swing; delay = segment delay (60/85/110/135) + 30ms, scaled. */
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    [role="radio"]:nth-of-type(1)
+    [data-glyph]
+    [data-rays],
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    [role="radio"]:nth-of-type(1)
+    [data-glyph]
+    [data-hands],
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    [role="radio"]:nth-of-type(1)
+    [data-glyph]
+    [data-sun] {
+    transition: transform calc(250ms * var(--row-motion-speed, 1))
+      cubic-bezier(0.23, 1, 0.32, 1);
+    transition-delay: calc(90ms * var(--row-motion-speed, 1));
+  }
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    [role="radio"]:nth-of-type(2)
+    [data-glyph]
+    [data-rays],
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    [role="radio"]:nth-of-type(2)
+    [data-glyph]
+    [data-hands],
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    [role="radio"]:nth-of-type(2)
+    [data-glyph]
+    [data-sun] {
+    transition: transform calc(250ms * var(--row-motion-speed, 1))
+      cubic-bezier(0.23, 1, 0.32, 1);
+    transition-delay: calc(115ms * var(--row-motion-speed, 1));
+  }
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    [role="radio"]:nth-of-type(3)
+    [data-glyph]
+    [data-rays],
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    [role="radio"]:nth-of-type(3)
+    [data-glyph]
+    [data-hands],
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    [role="radio"]:nth-of-type(3)
+    [data-glyph]
+    [data-sun] {
+    transition: transform calc(250ms * var(--row-motion-speed, 1))
+      cubic-bezier(0.23, 1, 0.32, 1);
+    transition-delay: calc(140ms * var(--row-motion-speed, 1));
+  }
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    [role="radio"]:nth-of-type(4)
+    [data-glyph]
+    [data-rays],
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    [role="radio"]:nth-of-type(4)
+    [data-glyph]
+    [data-hands],
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    [role="radio"]:nth-of-type(4)
+    [data-glyph]
+    [data-sun] {
+    transition: transform calc(250ms * var(--row-motion-speed, 1))
+      cubic-bezier(0.23, 1, 0.32, 1);
+    transition-delay: calc(165ms * var(--row-motion-speed, 1));
+  }
+}
+
+/* If the pointer is already over a segment as it enters, the Classic hover
+ * pose wins immediately instead of waiting out the settle delay. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    .segment:hover
+    [data-glyph]
+    [data-rays],
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    .segment:hover
+    [data-glyph]
+    [data-hands],
+  [data-row-motion="6"]
+    .phase-row[data-visible="true"][data-entering="true"]
+    .segment:hover
+    [data-glyph]
+    [data-sun] {
+    transition-delay: 0ms;
+  }
 }
 
 /* Reduced motion: every option collapses to a 120ms opacity fade. */
@@ -358,3 +510,4 @@
       background-color 150ms ease-out;
   }
 }
+

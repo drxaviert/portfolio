@@ -59,6 +59,7 @@ beforeEach(() => {
   delete root().dataset.mode;
   delete root().dataset.phase;
   delete root().dataset.dayPhase;
+  delete root().dataset.rowMotion;
   delete root().dataset.phasePreview;
   delete root().dataset.phaseSwitching;
   root().classList.remove("dark");
@@ -687,6 +688,40 @@ describe("ThemeToggle", () => {
       vi.advanceTimersByTime(1);
     });
     expect(phaseRow()).toHaveAttribute("data-exiting", "false");
+  });
+
+  it("sets the entering flag only for option 6 and clears it after the settle", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    root().dataset.rowMotion = "6";
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+
+    expect(phaseRow()).toHaveAttribute("data-entering", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(474);
+    });
+    expect(phaseRow()).toHaveAttribute("data-entering", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(phaseRow()).toHaveAttribute("data-entering", "false");
+  });
+
+  it("does not set the entering flag for option 5", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    root().dataset.rowMotion = "5";
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+
+    expect(phaseRow()).toHaveAttribute("data-entering", "false");
   });
 
   it("keeps the raise and clears exiting when the row reopens mid-fade", () => {

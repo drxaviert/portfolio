@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Dev-only enter/exit motion options for the Day-phase row.
  *
  * 0 is the shipped transition. The choice is applied as `data-row-motion` on
@@ -9,12 +9,13 @@ export const ROW_MOTION_STORAGE_KEY = "theme-row-motion";
 export const ROW_MOTION_SPEED_STORAGE_KEY = "theme-row-motion-speed";
 
 export const ROW_MOTIONS = [
-  { value: 0, label: "0 · Current" },
-  { value: 1, label: "1 · Fade + rise" },
-  { value: 2, label: "2 · Popover scale" },
-  { value: 3, label: "3 · Soft blur" },
-  { value: 4, label: "4 · Clip unfold" },
-  { value: 5, label: "5 · Staggered segments" },
+  { value: 0, label: "0 Â· Current" },
+  { value: 1, label: "1 Â· Fade + rise" },
+  { value: 2, label: "2 Â· Popover scale" },
+  { value: 3, label: "3 Â· Soft blur" },
+  { value: 4, label: "4 Â· Clip unfold" },
+  { value: 5, label: "5 Â· Staggered segments" },
+  { value: 6, label: "6 Â· Stagger + icons" },
 ] as const;
 
 export type RowMotion = (typeof ROW_MOTIONS)[number]["value"];
@@ -33,6 +34,7 @@ export const ROW_MOTION_DURATIONS: Record<
   3: { enter: 220, exit: 140 },
   4: { enter: 220, exit: 150 },
   5: { enter: 200, exit: 120 },
+  6: { enter: 200, exit: 120 },
 };
 
 export const ROW_SPEED_MIN = 0.25;
@@ -42,11 +44,11 @@ export const ROW_SPEED_DEFAULT = 1;
 
 export type RowSpeeds = Partial<Record<RowMotion, number>>;
 
-/** Accepts 0-5 from storage or the select; anything else falls back to 0. */
+/** Accepts 0-6 from storage or the select; anything else falls back to 0. */
 export function parseRowMotion(value: unknown): RowMotion {
   const parsed = typeof value === "number" ? value : Number(value);
 
-  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 5
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 6
     ? (parsed as RowMotion)
     : 0;
 }
@@ -111,7 +113,7 @@ export function parseRowMotionSpeeds(value: unknown): RowSpeeds {
   for (const [key, raw] of Object.entries(parsed as Record<string, unknown>)) {
     const motion = Number(key);
 
-    if (Number.isInteger(motion) && motion >= 0 && motion <= 5) {
+    if (Number.isInteger(motion) && motion >= 0 && motion <= 6) {
       speeds[motion as RowMotion] = parseRowSpeed(raw);
     }
   }

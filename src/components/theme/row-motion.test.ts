@@ -18,16 +18,16 @@ afterEach(() => {
 });
 
 describe("parseRowMotion", () => {
-  it("keeps 0-5", () => {
+  it("keeps 0-6", () => {
     expect(parseRowMotion(0)).toBe(0);
     expect(parseRowMotion("1")).toBe(1);
-    expect(parseRowMotion(5)).toBe(5);
+    expect(parseRowMotion(6)).toBe(6);
   });
 
   it("falls back to the current motion for anything else", () => {
     expect(parseRowMotion(null)).toBe(0);
     expect(parseRowMotion(undefined)).toBe(0);
-    expect(parseRowMotion(6)).toBe(0);
+    expect(parseRowMotion(7)).toBe(0);
     expect(parseRowMotion(-1)).toBe(0);
     expect(parseRowMotion("blur")).toBe(0);
     expect(parseRowMotion(2.5)).toBe(0);
@@ -93,8 +93,8 @@ describe("parseRowSpeed", () => {
 describe("parseRowMotionSpeeds", () => {
   it("reads a per-option map and drops unknown keys", () => {
     expect(
-      parseRowMotionSpeeds('{"0":1.5,"2":0.5,"9":3,"nope":2}'),
-    ).toEqual({ 0: 1.5, 2: 0.5 });
+      parseRowMotionSpeeds('{"0":1.5,"2":0.5,"6":3,"9":3,"nope":2}'),
+    ).toEqual({ 0: 1.5, 2: 0.5, 6: 3 });
   });
 
   it("returns an empty map for malformed values", () => {
@@ -155,6 +155,9 @@ describe("formatSpeedReadout", () => {
   it("shows the speed and the option's scaled enter and exit", () => {
     expect(formatSpeedReadout(2, 1.5)).toBe(
       "1.50x - enter 300ms / exit 210ms",
+    );
+    expect(formatSpeedReadout(6, 2)).toBe(
+      "2.00x - enter 400ms / exit 240ms",
     );
     expect(formatSpeedReadout(0, 0.25)).toBe(
       "0.25x - enter 45ms / exit 30ms",

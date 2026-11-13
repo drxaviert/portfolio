@@ -378,6 +378,7 @@ export function ThemeToggle() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [rowOpen, setRowOpen] = useState(false);
   const [rowExiting, setRowExiting] = useState(false);
+  const [rowEntering, setRowEntering] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const desktopRef = useRef<HTMLDivElement>(null);
@@ -385,6 +386,7 @@ export function ThemeToggle() {
   const rowRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | null>(null);
   const exitTimer = useRef<number | null>(null);
+  const enterTimer = useRef<number | null>(null);
   const focusInside = useRef(false);
   const pointerInside = useRef(false);
   const suppressFocusOpen = useRef(false);
@@ -434,21 +436,57 @@ export function ThemeToggle() {
     }, exitMs + 50);
   }, [clearExit]);
 
+  const clearEnter = useCallback(() => {
+    if (enterTimer.current !== null) {
+      window.clearTimeout(enterTimer.current);
+      enterTimer.current = null;
+    }
+
+    setRowEntering(false);
+  }, []);
+
+  /**
+   * Option 6 only: keep the entering flag alive long enough for the last
+   * segment's icon settle (135ms segment delay + 30ms offset + 250ms swing).
+   */
+  const startEnter = useCallback(() => {
+    clearEnter();
+
+    if (parseRowMotion(document.documentElement.dataset.rowMotion) !== 6) {
+      return;
+    }
+
+    const speed =
+      Number.parseFloat(
+        window
+          .getComputedStyle(document.documentElement)
+          .getPropertyValue("--row-motion-speed"),
+      ) || 1;
+
+    setRowEntering(true);
+    enterTimer.current = window.setTimeout(() => {
+      enterTimer.current = null;
+      setRowEntering(false);
+    }, (135 + 30 + 250 + 60) * speed);
+  }, [clearEnter]);
+
   const openRow = useCallback(() => {
     clearCloseTimer();
     clearExit();
+    startEnter();
     setRowOpen(true);
-  }, [clearCloseTimer, clearExit]);
+  }, [clearCloseTimer, clearExit, startEnter]);
 
   const closeRow = useCallback(() => {
     clearCloseTimer();
+    clearEnter();
     // data-visible flips false now, but the row keeps painting for the exit
     // fade; hold the nav raise until that finishes.
     if (rowVisible) {
       startExit();
     }
     setRowOpen(false);
-  }, [clearCloseTimer, rowVisible, startExit]);
+  }, [clearCloseTimer, clearEnter, rowVisible, startExit]);
 
   const scheduleClose = useCallback(() => {
     clearCloseTimer();
@@ -505,6 +543,10 @@ export function ThemeToggle() {
 
       if (exitTimer.current !== null) {
         window.clearTimeout(exitTimer.current);
+      }
+
+      if (enterTimer.current !== null) {
+        window.clearTimeout(enterTimer.current);
       }
     };
   }, []);
@@ -851,6 +893,7 @@ export function ThemeToggle() {
           data-phase-row="true"
           data-visible={rowVisible}
           data-exiting={rowExiting}
+          data-entering={rowEntering}
           onTransitionEnd={(event) => {
             if (event.target !== event.currentTarget) {
               return;
