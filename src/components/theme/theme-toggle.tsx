@@ -299,6 +299,7 @@ function SegmentTrack({
   trackRef,
   className,
   children,
+  onPointerLeave,
   ...rest
 }: SegmentTrackProps) {
   const pillRef = useRef<HTMLSpanElement>(null);
@@ -391,7 +392,10 @@ function SegmentTrack({
       aria-label={label}
       style={{ width: trackWidth(segments) }}
       onPointerOver={showPill}
-      onPointerLeave={hidePill}
+      onPointerLeave={(event) => {
+        hidePill();
+        onPointerLeave?.(event);
+      }}
       className={[
         "flex h-8 items-center rounded-md bg-toggle-track p-0.5",
         className,
@@ -418,6 +422,7 @@ type SegmentProps = {
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
   buttonRef?: Ref<HTMLButtonElement>;
   onPointerEnter?: () => void;
+  onPointerLeave?: () => void;
   onFocus?: () => void;
   expandHitArea?: boolean;
   tooltipBelow?: boolean;
@@ -433,6 +438,7 @@ function Segment({
   onKeyDown,
   buttonRef,
   onPointerEnter,
+  onPointerLeave,
   onFocus,
   expandHitArea = false,
   tooltipBelow = false,
@@ -448,6 +454,7 @@ function Segment({
       onClick={onClick}
       onKeyDown={onKeyDown}
       onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
       onFocus={onFocus}
       className={[
         segmentClasses(selected),
@@ -497,7 +504,8 @@ export function ThemeToggle() {
   const exitTimer = useRef<number | null>(null);
   const enterTimer = useRef<number | null>(null);
   const focusInside = useRef(false);
-  const pointerInside = useRef(false);
+  /** True while the pointer is over Day, the gap bridge, or the row. */
+  const hoverRegion = useRef(false);
   const suppressFocusOpen = useRef(false);
   /** Only keyboard focus may hold the row open; pointer focus may not. */
   const inputModality = useRef<"pointer" | "keyboard">("pointer");
@@ -874,17 +882,23 @@ export function ThemeToggle() {
     setMenuOpen(false);
   }
 
-  /** The desktop host: hovering or focusing anywhere in it keeps the row up. */
-  function onDesktopPointerEnter() {
-    pointerInside.current = true;
+  /**
+   * The desktop host only tracks the pointer for blur/leave bookkeeping. The
+   * hover region that holds the row open is Day plus the gap bridge plus the
+   * row; entering any other segment must not cancel a pending close.
+   */
+  function enterHoverRegion() {
+    hoverRegion.current = true;
+    clearCloseTimer();
+  }
 
-    if (canHover()) {
-      clearCloseTimer();
-    }
+  function leaveHoverRegion() {
+    hoverRegion.current = false;
+    scheduleClose();
   }
 
   function onDesktopPointerLeave() {
-    pointerInside.current = false;
+    hoverRegion.current = false;
 
     if (canHover()) {
       scheduleClose();
@@ -908,7 +922,7 @@ export function ThemeToggle() {
 
     focusInside.current = false;
 
-    if (!pointerInside.current) {
+    if (!hoverRegion.current) {
       scheduleClose();
     }
   }
@@ -919,7 +933,6 @@ export function ThemeToggle() {
       <div
         ref={desktopRef}
         className="relative hidden md:block"
-        onPointerEnter={onDesktopPointerEnter}
         onPointerLeave={onDesktopPointerLeave}
         onFocus={onDesktopFocus}
         onBlur={onDesktopBlur}
@@ -951,10 +964,19 @@ export function ThemeToggle() {
                   }
                 }}
                 onPointerEnter={() => {
-                  if (option.mode === "day" && dayActive) {
+                  if (option.mode !== "day") {
+                    return;
+                  }
+
+                  enterHoverRegion();
+
+                  if (dayActive) {
                     openRow();
                   }
                 }}
+                onPointerLeave={
+                  option.mode === "day" ? leaveHoverRegion : undefined
+                }
                 onFocus={() => {
                   if (suppressFocusOpen.current) {
                     return;
@@ -977,7 +999,12 @@ export function ThemeToggle() {
         {/* Bridges the 4px gap so moving from the toggle to the row keeps
             hovering, and keeps the whole journey one hover target. */}
         {rowVisible ? (
-          <span aria-hidden="true" className="absolute inset-x-0 -top-1 h-1" />
+          <span
+            aria-hidden="true"
+            className="absolute inset-x-0 -top-1 h-1"
+            onPointerEnter={enterHoverRegion}
+            onPointerLeave={leaveHoverRegion}
+          />
         ) : null}
 
         {/*
@@ -994,6 +1021,8 @@ export function ThemeToggle() {
           data-visible={rowVisible}
           data-exiting={rowExiting}
           data-entering={rowEntering}
+          onPointerEnter={enterHoverRegion}
+          onPointerLeave={leaveHoverRegion}
           onTransitionEnd={(event) => {
             if (event.target !== event.currentTarget) {
               return;

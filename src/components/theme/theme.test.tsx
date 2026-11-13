@@ -540,6 +540,113 @@ describe("ThemeToggle", () => {
     expect(phaseRow()).toHaveAttribute("data-visible", "true");
   });
 
+  it("closes after the pointer leaves Day for another segment", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+    const night = screen.getByRole("radio", { name: "Night" });
+
+    fireEvent.pointerOver(day, { relatedTarget: document.body });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    // Moving onto Night counts as leaving Day, even though the pointer never
+    // leaves the toggle.
+    fireEvent.pointerOut(day, { relatedTarget: night });
+    fireEvent.pointerOver(night, { relatedTarget: day });
+
+    act(() => {
+      vi.advanceTimersByTime(99);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+  });
+
+  it("keeps the row open when the pointer moves from Day into the row", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+
+    fireEvent.pointerOver(day, { relatedTarget: document.body });
+    const dusk = screen.getByRole("radio", { name: "Dusk" });
+    fireEvent.pointerOut(day, { relatedTarget: dusk });
+    fireEvent.pointerOver(dusk, { relatedTarget: day });
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+  });
+
+  it("keeps the row open while crossing the gap bridge", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+
+    fireEvent.pointerOver(day, { relatedTarget: document.body });
+    const bridge = themeHost().querySelector(":scope > span")!;
+    fireEvent.pointerOut(day, { relatedTarget: bridge });
+    fireEvent.pointerOver(bridge, { relatedTarget: day });
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    // Moving off the bridge into Night is a leave again.
+    const night = screen.getByRole("radio", { name: "Night" });
+    fireEvent.pointerOut(bridge, { relatedTarget: night });
+    fireEvent.pointerOver(night, { relatedTarget: bridge });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+  });
+
+  it("closes when keyboard focus leaves while the pointer sits on Night", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+    const night = screen.getByRole("radio", { name: "Night" });
+
+    // Keyboard focus holds the row open even with the pointer on Night.
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => day.focus());
+    fireEvent.pointerOut(day, { relatedTarget: night });
+    fireEvent.pointerOver(night, { relatedTarget: day });
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    // Once the focus is gone, Night is outside the hover region.
+    act(() => day.blur());
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+  });
+
   it("keeps the row open while keyboard focus is inside, then closes after focus leaves", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
