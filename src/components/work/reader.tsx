@@ -39,7 +39,7 @@ export function Reader({ meta, children, mode }: ReaderProps) {
     >
       <ReaderNavSlot />
 
-      <BlurStack height="calc(var(--wd-nav-inset) + 64px)" />
+      <BlurStack height="calc(var(--wd-nav-inset) + var(--wd-nav-height))" />
 
       <div id={READER_SCROLL_ID} className="wd-reader-scroll">
         <div className="wd-reader-column">

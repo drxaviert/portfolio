@@ -15,10 +15,12 @@ describe("BlurStack", () => {
 
   it("takes its height from the nav's bottom edge", () => {
     const { container } = render(
-      <BlurStack height="calc(var(--wd-nav-inset) + 64px)" />,
+      <BlurStack height="calc(var(--wd-nav-inset) + var(--wd-nav-height))" />,
     );
     const stack = container.firstElementChild as HTMLElement;
 
-    expect(stack.style.height).toBe("calc(var(--wd-nav-inset) + 64px)");
+    expect(stack.style.height).toBe(
+      "calc(var(--wd-nav-inset) + var(--wd-nav-height))",
+    );
   });
 });

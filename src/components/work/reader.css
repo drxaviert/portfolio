@@ -9,10 +9,12 @@
  */
 
 .wd-reader-panel {
-  /* The panel's own inset and the header nav's top inset, in one place: the
-     nav wrapper, the nav bar and the scroll column all derive from these. */
+  /* The panel's own inset and the header nav's top inset and height, in one
+     place: the nav wrapper, the nav bar, the blur zone and the scroll column
+     all derive from these. */
   --wd-panel-inset: 0px;
   --wd-nav-inset: 8px;
+  --wd-nav-height: 4rem; /* HomeNav's h-16 */
 
   position: fixed;
   inset: var(--wd-panel-inset);
@@ -65,6 +67,15 @@
 }
 
 /*
+ * The bar's height is the variable, not a second copy of HomeNav's h-16: the
+ * blur zone's bottom edge and the scroll column's clearance are both derived
+ * from it, so the three cannot drift. The homepage keeps h-16.
+ */
+.wd-reader-nav-bar > nav {
+  height: var(--wd-nav-height);
+}
+
+/*
  * The nav is the reader's top edge, so a tooltip or the Day row opening above
  * it would be clipped by the panel and, at 375, by the viewport. HomeNav's own
  * popovers are unchanged on the homepage; here they open downward instead.
@@ -81,31 +92,6 @@
   bottom: auto;
   margin-top: 0;
   margin-bottom: 0;
-}
-
-/*
- * The blur replaces the bar's opaque fill in the reader (spec 2), so content
- * scrolls behind the nav and stays visible, blurred, in the gaps above and
- * beside it. The fill returns while the bar is the hover or focus target, the
- * state it is always in on the homepage, so the capsule reads as the same
- * surface there and the glow stays behind it instead of washing the bar.
- */
-.wd-reader-nav .ring-surface {
-  background-color: transparent;
-}
-
-.wd-reader-nav .ring-host:hover .ring-surface,
-.wd-reader-nav .ring-host:has(:focus-visible) .ring-surface {
-  background-color: var(--surface-container-low);
-}
-
-/* The fill fades in; the clip-path timing stays ring-hover.css's own. */
-@media (prefers-reduced-motion: no-preference) {
-  .wd-reader-nav .ring-surface {
-    transition:
-      clip-path var(--ring-grow) var(--ring-ease),
-      background-color 150ms ease-out;
-  }
 }
 
 @media (min-width: 768px) {
@@ -127,8 +113,8 @@
   width: 100%;
   max-width: 582px; /* 550px measure + 2 × 16px gutters */
   margin-inline: auto;
-  /* Clears the header nav: its top inset, its 64px bar and a 12px gap. */
-  padding: calc(var(--wd-nav-inset) + 76px) 16px 64px;
+  /* Clears the header nav: its top inset, its bar and a 12px gap. */
+  padding: calc(var(--wd-nav-inset) + var(--wd-nav-height) + 12px) 16px 64px;
 }
 
 /* Anchors the margin notes and the wide breakouts without pixel geometry. */
