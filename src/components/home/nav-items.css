@@ -51,10 +51,18 @@
 /*
  * The 0.55 weight is the toggle's hover capsule. Touch never sees it: the
  * runner only follows a fine pointer, and this reveal is gated too.
+ *
+ * `data-visible` means the pointer is in the run and is never removed while a
+ * move is in flight; a group break adds `data-fading` on top, which blanks the
+ * capsule for the instant it is re-placed across the divider.
  */
 @media (hover: hover) and (pointer: fine) {
   .nav-glide[data-visible] {
     opacity: 0.55;
+  }
+
+  .nav-glide[data-visible][data-fading] {
+    opacity: 0;
   }
 }
 

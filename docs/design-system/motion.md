@@ -80,35 +80,55 @@ The timings are the shipped constants `LEADING_DURATION_MS = 180`, `TRAILING_DUR
 
 ## Nav hover (Glide)
 
-The home nav's three labels and the design-system glyph share one capsule instead of each carrying its own hover fill. The glyph is the fourth target of the same run — the capsule crosses the divider to it and back — and the run sits to the right of the orb head, which the capsule never reaches. The motion is the selection highlight's stretch & snap, imported rather than re-declared: the nav reads `LEADING_DURATION_MS`, `TRAILING_DELAY_MS`, `TRAILING_DURATION_MS`, `leadingEase` and `trailingEase` from `theme-toggle.tsx`, so the nav and the toggle cannot drift.
+The home nav's three labels and the design-system glyph share one capsule instead of each carrying its own hover fill. The glyph is the fourth target of the same run — the capsule crosses the divider to it and back — and the run sits to the right of the orb head, which the capsule never reaches. The nav keeps the selection highlight's stretch & snap shape but not its implementation: it is a state-driven pair of springs (below), not the toggle's fixed-duration flight, because a pointer can retarget it faster than a flight can finish. The toggle's own 180 / 120 + 220 motion is unchanged.
 
-The glyph carries `data-glide-break`, which cuts the run: a move across that boundary never glides — the capsule fades out where it is, then snaps onto the new item on the first-entry path, so it never stretches across the divider (every other pair still glides).
+The capsule is two edges, each its own damped spring (`src/components/home/glide-spring.ts`). A move only changes where the springs are heading, so both edges keep their current position **and** velocity: the pill can be redirected mid-flight the way a CSS transition retargets, instead of replaying a flight from a stored start. Nothing snaps while the pointer is inside the run, and `data-visible` (the "pointer is in the run" state) is never removed by a move.
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
-| Hover moves between items | capsule `clip-path` | 180ms / 220ms | 0 / 120ms | ease-out cubic / quint | current edges → target edges |
-| Hover moves mid-flight | capsule `clip-path` | same as above | same | same | retargeted from the current edges, never from zero |
+| Hover moves, leading edge | capsule `clip-path` | ~185ms to rest | 0 | spring `k=1100`, `ζ=0.9` | current edge → target edge |
+| Hover moves, trailing edge | capsule `clip-path` | ~205ms to rest | 100ms from rest | spring `k=900`, `ζ=0.9` | current edge → target edge |
+| Hover moves mid-flight | both edges | remaining spring travel | not re-armed | same springs, new target | current edge and velocity → new target edge |
+| Reversing mid-flight | both edges | as above | 0 | same springs, roles swap | current edge and velocity → target edge |
 | First item entered | capsule layer `opacity` | 150ms | 0 | `ease-out` | 0 → 0.55, placed on the item with no travel |
 | Pointer leaves the run | capsule layer `opacity` | 150ms | 0 | `ease-out` | 0.55 → 0 |
+| Move across `data-glide-break` | capsule layer `opacity` | 150ms out, 150ms in | 0 | `ease-out` | fades out where it is, re-places while blank, fades back in |
 | Item hovered | item `color` | 150ms | 0 | `ease-out` | `on-surface-variant` → `on-surface` |
 | Item pressed | `scale` | 150ms | 0 | `ease-out` | 1 → 0.96 |
 | Glyph hovered | tooltip `opacity` | 150ms | 300ms | `ease-out` | 0 → 1 |
 | Glyph focused | tooltip `opacity` | 150ms | 0 | `ease-out` | 0 → 1 |
 | Hover enters, reduced motion | item fill `background-color` | 120ms | 0 | `ease-out` | transparent → 55% `surface-container` |
 
-A frame writes one property: the capsule keeps the run's width and carries the pill as a `clip-path` inset, so the leading and trailing edges move independently while no width or other layout property changes. At rest the pill is the hovered item's box at the `--radius-md` token. Hover is gated to `(hover: hover) and (pointer: fine)`, focus is a 2px `primary` ring on the item, and Work keeps `aria-current="page"`. Reduced motion hides the capsule: the hovered item carries the 55% `surface-container` fill and crossfades it in 120ms with no travel, so the state change survives without the movement.
+Spring constants, from `glide-spring.ts`: `GLIDE_LEAD_SPRING = { stiffness: 1100, dampingRatio: 0.9 }`, `GLIDE_TRAIL_SPRING = { stiffness: 900, dampingRatio: 0.9 }`. The runner steps them by the frame's `dt`, clamped to `GLIDE_MAX_STEP_S = 1/30`, and treats an edge as at rest under `GLIDE_REST_PX = 0.4` and `GLIDE_REST_VELOCITY = 12` px/s, then stops the rAF loop. The step is the closed-form solution of the oscillator, so the path does not depend on how the interval is split.
 
-- `src/components/home/nav-items.tsx:5` — durations and curves imported from the toggle
-- `src/components/home/nav-items.tsx:82` — the one capsule runner shared by every item
-- `src/components/home/nav-items.tsx:140` — per-frame `clip-path` inset (paint only)
-- `src/components/home/nav-items.tsx:180` — first entry and reduced motion snap with no travel
-- `src/components/home/nav-items.tsx:199` — group break: fade out, then snap, never stretch
-- `src/components/home/nav-items.tsx:296` — the item run: labels, divider, glyph as the fourth target
+The leading edge is whichever edge points the way the pill is travelling and gets the stiff spring; the trailing edge gets the soft one. A move from rest also holds the trailing edge for `TRAIL_HOLD_MS = 100` so the capsule stretches out of the old item before it closes. The hold is never re-armed by a retarget and is dropped when the direction reverses, so a fast sweep can never freeze the trail. Measured against the toggle's curve, a single move still peaks at the same width within a couple of pixels and settles by ~300ms.
+
+`data-glide-break` cuts the run: the capsule never stretches across the divider, so a move across it sets `data-fading` (fade out in place), re-places while blank and fades back in. `data-visible` is not touched by that, so the trace still reads "in the run" throughout. A retarget during the fade only updates the pending destination — the timer is never restarted — so a sweep cannot leave the capsule hidden; a pointer that leaves during the fade cancels the re-place.
+
+A frame writes one property: the capsule keeps the run's width and carries the pill as a `clip-path` inset, so the edges move independently while no width or other layout property changes. At rest the pill is the hovered item's box at the `--radius-md` token. Hover is gated to `(hover: hover) and (pointer: fine)`, focus is a 2px `primary` ring on the item, and Work keeps `aria-current="page"`. Reduced motion hides the capsule: the hovered item carries the 55% `surface-container` fill and crossfades it in 120ms with no travel, so the state change survives without the movement.
+
+- `src/components/home/glide-spring.ts:32` — lead spring `k=1100`, `ζ=0.9`
+- `src/components/home/glide-spring.ts:43` — trail spring `k=900`, `ζ=0.9`
+- `src/components/home/glide-spring.ts:52` — frame clamp `1/30`
+- `src/components/home/glide-spring.ts:55` — rest thresholds
+- `src/components/home/glide-spring.ts:82` — closed-form edge step (retarget keeps `v0`)
+- `src/components/home/nav-items.tsx:40` — break fade, matched to the CSS 150ms
+- `src/components/home/nav-items.tsx:45` — `TRAIL_HOLD_MS = 100`
+- `src/components/home/nav-items.tsx:90` — the one capsule runner shared by every item
+- `src/components/home/nav-items.tsx:125` — `data-glide-break` detection
+- `src/components/home/nav-items.tsx:162` — the only snap paths: entry and break re-place
+- `src/components/home/nav-items.tsx:176` — per-frame spring step and `clip-path` write
+- `src/components/home/nav-items.tsx:240` — break: fade out, re-place, fade in; timer never restarted
+- `src/components/home/nav-items.tsx:266` — pointer left the run: fade out, keep the edges
+- `src/components/home/nav-items.tsx:299` — real entry: place, no travel
+- `src/components/home/nav-items.tsx:336` — direction, hold arming, reversal
+- `src/components/home/nav-items.tsx:380` — the item run: labels, divider, glyph as the fourth target
 - `src/components/home/nav-items.css:19` — press `scale: 0.96`, 150ms `ease-out`
-- `src/components/home/nav-items.css:57` — hover weight 0.55
-- `src/components/home/nav-items.css:75` — glyph tooltip, 300ms delay
-- `src/components/home/nav-items.css:104` — reduced-motion capsule hide
-- `src/components/home/nav-items.css:111` — reduced-motion 55% fill crossfade
+- `src/components/home/nav-items.css:61` — hover weight 0.55
+- `src/components/home/nav-items.css:64` — `data-fading` blanks the capsule for a break
+- `src/components/home/nav-items.css:83` — glyph tooltip, 300ms delay
+- `src/components/home/nav-items.css:111` — reduced-motion capsule hide
+- `src/components/home/nav-items.css:119` — reduced-motion 55% fill crossfade
 
 ## Day phase row entrance — "Stagger + icons"
 
