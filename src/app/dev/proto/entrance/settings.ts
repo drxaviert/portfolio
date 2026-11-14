@@ -133,6 +133,33 @@ export type SoftSettings = {
   stagger: number;
 };
 
+/** How soft focus gets its blur. Not a slider: it changes the mechanism. */
+export const SOFT_METHODS = [
+  { id: "split", label: "Split blur" },
+  { id: "lighter", label: "Lighter" },
+  { id: "grain", label: "Grain" },
+  { id: "overlay", label: "Overlay" },
+] as const;
+
+export type SoftMethod = (typeof SOFT_METHODS)[number]["id"];
+
+export const DEFAULT_SOFT_METHOD: SoftMethod = "split";
+
+/**
+ * Slider values a method wants instead of the sheet's. The overlay's own blur
+ * is what goes blotchy at 8px over a card layout, so the lighter method keeps
+ * the mechanism and drops the radius; the others keep Dat's numbers.
+ */
+export const SOFT_METHOD_PATCH: Record<
+  SoftMethod,
+  { blur: number; veil: number }
+> = {
+  split: { blur: 8, veil: 24 },
+  lighter: { blur: 4, veil: 32 },
+  grain: { blur: 8, veil: 24 },
+  overlay: { blur: 8, veil: 24 },
+};
+
 export type Settings = {
   scale: ScaleSettings;
   rise: RiseSettings;
@@ -225,16 +252,16 @@ export const DEFAULT_SETTINGS: Settings = {
     contentDuration: 600,
     stagger: 25,
   },
-  // Horizon clear's gentler cousin, on Dat's tuned values: a 9px backdrop blur,
-  // a 24% veil and a 1400ms dissolve, with the cards rising 6px into place over
-  // 1075ms each, 60ms apart from the bottom up.
+  // Horizon clear's gentler cousin, on Dat's second sheet: an 8px backdrop
+  // blur, a 24% veil and a 1400ms dissolve, with the cards rising 16px into
+  // place over 1100ms each, 60ms apart from the bottom up.
   soft: {
-    blur: 9,
+    blur: 8,
     veil: 24,
     duration: 1400,
-    cardDelay: 600,
-    cardDuration: 1075,
-    rise: 6,
+    cardDelay: 75,
+    cardDuration: 1100,
+    rise: 16,
     stagger: 60,
   },
 };
@@ -1158,6 +1185,7 @@ export function copyBlock(
   settings: Settings,
   easing: string,
   total: number,
+  method?: SoftMethod,
 ): string {
   const easingName =
     EASINGS.find((entry) => entry.value === easing)?.id ?? "custom";
@@ -1173,6 +1201,9 @@ export function copyBlock(
     `/* home entrance · ${variant} · ${curve} */`,
     steps
       ? `/* --entrance-ease is the marker fade only; cards do not tween */`
+      : null,
+    method
+      ? `/* blur method: ${method} (data-soft-method on .entrance-scope) */`
       : null,
     `--entrance-ease: ${easing};`,
     ...vars.map(([name, value]) => `${name}: ${value};`),

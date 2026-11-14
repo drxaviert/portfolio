@@ -93,6 +93,12 @@ uniform float uScale2;
 uniform float uOpacity1;
 uniform float uOpacity2;
 uniform float uDither;
+/*
+ * Soft-focus radius, in UV units of the coverage texture. 0 is the default on
+ * every route and the branch below is skipped entirely, so the output is
+ * bit-identical to the shader before this uniform existed.
+ */
+uniform vec2 uSoftUv;
 
 float hash21(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -122,6 +128,26 @@ void main() {
   }
 
   vec2 blurred = texture2D(uBlurTex, blobUv(world, uScale1, uDrift1)).rg;
+
+  /*
+   * Soft focus: a four-tap box on the coverage texture, scaled by the radius.
+   * Both blobs share one coverage UV (the texture carries blob 1 in .r and blob
+   * 2 in .g), so one box softens both. Sampling the low-frequency coverage is
+   * the cheap "mip-like" route, and the dither below is still added per pixel
+   * afterwards, so the grain that hides banding survives the softening.
+   */
+  if (uSoftUv.x > 0.0 || uSoftUv.y > 0.0) {
+    vec2 uv = blobUv(world, uScale1, uDrift1);
+    vec2 dx = vec2(uSoftUv.x, 0.0);
+    vec2 dy = vec2(0.0, uSoftUv.y);
+
+    blurred = (blurred * 2.0
+      + texture2D(uBlurTex, uv + dx).rg
+      + texture2D(uBlurTex, uv - dx).rg
+      + texture2D(uBlurTex, uv + dy).rg
+      + texture2D(uBlurTex, uv - dy).rg) / 6.0;
+  }
+
   color = mix(color, uBlobColor1, uAlpha1 * uOpacity1 * blurred.r);
   color = mix(color, uBlobColor2, uAlpha2 * uOpacity2 * blurred.g);
 
@@ -314,6 +340,19 @@ function readNightBlend(element: HTMLElement): number {
   );
 
   return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+}
+
+/**
+ * Soft-focus radius in CSS px, read from the registered `--soft-softness`
+ * length that the prototype animates on this layer. No other route sets it, so
+ * this resolves to 0 there and the shader's soft branch is never taken.
+ */
+function readSoftness(element: HTMLElement): number {
+  const value = Number.parseFloat(
+    getComputedStyle(element).getPropertyValue("--soft-softness"),
+  );
+
+  return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
 /**
@@ -553,6 +592,7 @@ export function HorizonShader({
       opacity1: uniform("uOpacity1"),
       opacity2: uniform("uOpacity2"),
       dither: uniform("uDither"),
+      softUv: uniform("uSoftUv"),
     };
 
     const root = document.documentElement;
@@ -653,6 +693,15 @@ export function HorizonShader({
       gl.uniform1f(
         uniforms.alpha2,
         tokens.alpha2 * animated.base * animated.intensity2,
+      );
+      // Soft focus: a CSS length the proto animates on this layer, in CSS px.
+      // Unset on every other route, so both components stay 0 and the shader
+      // branch below is skipped (byte-identical output).
+      const softPx = readSoftness(layer);
+      gl.uniform2f(
+        uniforms.softUv,
+        softPx / blurTexture.worldWidth,
+        softPx / blurTexture.worldHeight,
       );
       gl.uniform2f(
         uniforms.uvScale,

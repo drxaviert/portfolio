@@ -153,6 +153,39 @@ describe("entrance harness", () => {
     expect(document.querySelector(".entrance-soft")).toBeNull();
   });
 
+  it("switches the soft-focus blur method from the panel", () => {
+    mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "Soft focus" }));
+
+    const scope = document.querySelector(".entrance-scope");
+
+    expect(scope?.getAttribute("data-soft-method")).toBe("split");
+    expect(screen.getByRole("button", { name: "Split blur" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // Split keeps the veil and drops the backdrop filter; the CSS does the rest.
+    expect(document.querySelector(".entrance-soft-grain")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Grain" }));
+
+    expect(scope?.getAttribute("data-soft-method")).toBe("grain");
+    expect(document.querySelectorAll(".entrance-soft-grain")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Lighter" }));
+
+    expect(scope?.getAttribute("data-soft-method")).toBe("lighter");
+    expect(document.querySelector(".entrance-soft-grain")).toBeNull();
+    // The lighter method writes its own radius and veil into the sliders.
+    expect(
+      document.querySelector<HTMLInputElement>("#ent-soft-blur")?.value,
+    ).toBe("4");
+    expect(
+      document.querySelector<HTMLInputElement>("#ent-soft-veil")?.value,
+    ).toBe("32");
+  });
+
   it("switches the soft-focus card order from the panel", () => {
     mount();
 

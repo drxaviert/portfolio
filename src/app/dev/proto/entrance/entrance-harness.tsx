@@ -8,6 +8,9 @@ import {
   CONTROLS,
   DEFAULT_EASING,
   DEFAULT_SETTINGS,
+  DEFAULT_SOFT_METHOD,
+  SOFT_METHODS,
+  SOFT_METHOD_PATCH,
   EASINGS,
   copyBlock,
   cssVars,
@@ -19,7 +22,7 @@ import {
   totalMs,
   valueOf,
 } from "./settings";
-import type { Control, Settings } from "./settings";
+import type { Control, Settings, SoftMethod } from "./settings";
 import { PANEL_CSS } from "./panel-css";
 import { ClearOverlay } from "./clear-overlay";
 import { MistOverlay } from "./mist-overlay";
@@ -62,6 +65,7 @@ export function EntranceHarness() {
   const [easing, setEasing] = useState<string>(DEFAULT_EASING);
   const [open, setOpen] = useState(true);
   const [softOrder, setSoftOrder] = useState<"horizon" | "reading">("horizon");
+  const [softMethod, setSoftMethod] = useState<SoftMethod>(DEFAULT_SOFT_METHOD);
   const [reduced, setReduced] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
     "idle",
@@ -227,12 +231,37 @@ export function EntranceHarness() {
     replay();
   }
 
+  /**
+   * Soft focus only: pick the blur mechanism. The lighter method also drops the
+   * overlay's radius to its own defaults (the sliders stay live afterwards).
+   */
+  function changeSoftMethod(method: SoftMethod) {
+    if (method === softMethod) return;
+
+    setSoftMethod(method);
+
+    const preset = SOFT_METHOD_PATCH[method];
+    settingsRef.current = {
+      ...settingsRef.current,
+      soft: {
+        ...settingsRef.current.soft,
+        blur: preset.blur,
+        veil: preset.veil,
+      },
+    };
+    writeVars(variant, settingsRef.current, easing);
+    setSaved(settingsRef.current);
+    setResetToken((value) => value + 1);
+    replay();
+  }
+
   async function copyValues() {
     const text = copyBlock(
       variant,
       settingsRef.current,
       easing,
       totalMs(variant, settingsRef.current),
+      variant === "soft" ? softMethod : undefined,
     );
 
     try {
@@ -259,6 +288,7 @@ export function EntranceHarness() {
         className="entrance-scope"
         ref={scopeRef}
         data-soft-order={softOrder}
+        data-soft-method={softMethod}
       >
         <HomeLayout key={take} entrance={playing ?? undefined} />
         {/* Above the layout, below the panel. Keyed with the layout so the
@@ -267,7 +297,9 @@ export function EntranceHarness() {
         {playing === "clear" ? <ClearOverlay key={`clear-${take}`} /> : null}
         {playing === "mist" ? <MistOverlay key={`mist-${take}`} /> : null}
         {playing === "dawn" ? <DawnOverlay key={`dawn-${take}`} /> : null}
-        {playing === "soft" ? <SoftOverlay key={`soft-${take}`} /> : null}
+        {playing === "soft" ? (
+          <SoftOverlay key={`soft-${take}`} method={softMethod} />
+        ) : null}
       </div>
 
       <aside
@@ -419,6 +451,30 @@ export function EntranceHarness() {
                   >
                     Reading
                   </button>
+                </div>
+              </div>
+            ) : null}
+
+            {variant === "soft" ? (
+              <div className="ent-panel-easing">
+                <span>Blur method</span>
+                <div
+                  className="ent-panel-variants"
+                  role="group"
+                  aria-label="Blur method"
+                >
+                  {SOFT_METHODS.map((entry) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      className="ent-panel-variant"
+                      data-active={softMethod === entry.id ? "" : undefined}
+                      aria-pressed={softMethod === entry.id}
+                      onClick={() => changeSoftMethod(entry.id)}
+                    >
+                      {entry.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             ) : null}

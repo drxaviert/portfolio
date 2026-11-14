@@ -147,12 +147,12 @@
      this one, so the rule keeps applying. */
   --dawn-phase-mix: 1;
 
-  --soft-blur: 9px;
+  --soft-blur: 8px;
   --soft-veil: 0.24;
   --soft-duration: 1400ms;
-  --soft-card-delay: 600ms;
-  --soft-card-duration: 1075ms;
-  --soft-rise: 6px;
+  --soft-card-delay: 75ms;
+  --soft-card-duration: 1100ms;
+  --soft-rise: 16px;
   --soft-stagger: 60ms;
 }
 
@@ -824,24 +824,32 @@
 }
 
 /*
- * 12 — Soft focus: horizon clear's gentler cousin. A 9px backdrop blur plus a
- * 24% brightness veil covers the whole composition with no mask and no radial
- * edge; one opacity animation dissolves both at once, so the page goes from
- * soft to sharp evenly rather than clearing outward from a point.
+ * 12 — Soft focus: horizon clear's gentler cousin. A theme-tinted veil with a
+ * small backdrop blur covers the whole composition (no mask, no radial edge)
+ * and dissolves over `--soft-duration`; the cards arrive under it with a small
+ * rise and a fade, 60ms apart from the bottom up.
  *
- * The cards arrive under it with a small 6px rise and a fade, same duration
- * (1075ms) and curve for both, no blur on the content and nothing that can
- * overshoot — `translate` plus opacity keeps the move on the compositor and
- * leaves `transform` free for the ring hover. They are 60ms apart from the
- * bottom up; the harness can swap in reading order through
- * `data-soft-order="reading"` on the scope, and both orders span the same six
- * steps so the settle readout does not change.
+ * That dissolve is why the blur looked blotchy at 8px: the overlay samples the
+ * whole composition, so a card layout of white cards, grey gutters and soft
+ * shadows is averaged into patches the size of the blur radius, and the veil
+ * then compresses what is left into a handful of 8-bit plateaus. Measured on
+ * the glow band: the blur drops the dither's high-frequency energy 15x
+ * (1.35 -> 0.087) while the 1-24px residual falls only from 4.19 to 1.08 at
+ * 8px versus 2.05 at 4px — the leftovers are card edges, not noise.
  *
- * This is the only calm variant with a real filter, and it is deliberately
- * small (9px default, 16px ceiling) and short-lived: the layer is removed at
- * animationend, so nothing stays composited. Safari rasterises backdrop filters
- * in software more often than Chrome, and a full-viewport blur over the WebGL
- * canvas is the most expensive thing in this prototype — see the report.
+ * Hence the blur *method*:
+ *   split    no backdrop filter; each card blurs its own content, the glow
+ *            blurs itself (shader uniform, or `filter: blur()` on the CSS
+ *            fallback with its grain left sharp), and the veil stays flat
+ *   lighter  the overlay at 4px instead of 8px
+ *   grain    the overlay plus a static grain layer on top, so the blurred area
+ *            keeps texture
+ *   overlay  the original full-viewport backdrop filter
+ * `data-soft-method` on the scope picks it; the harness writes it.
+ *
+ * Safari rasterises backdrop filters in software more often than Chrome, and a
+ * full-viewport blur over the WebGL canvas is the most expensive thing here —
+ * which is the other reason `split` is the default.
  */
 .entrance-soft {
   position: fixed;
@@ -858,6 +866,12 @@
   );
   animation: entrance-soft-clear var(--soft-duration) var(--entrance-ease)
     forwards;
+}
+
+/* Split: the veil stays, the full-viewport filter goes. */
+.entrance-scope[data-soft-method="split"] .entrance-soft {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 [data-entrance="soft"] .entrance-body {
@@ -877,12 +891,62 @@
   );
 }
 
+/*
+ * Split: the card blurs its own content on the same clock as its fade, so no
+ * card edge is ever sampled from a neighbouring card. `filter` is back to none
+ * the moment the animation ends (backwards fill, no forwards).
+ */
+.entrance-scope[data-soft-method="split"]
+  [data-entrance="soft"]
+  .entrance-body {
+  animation-name: entrance-soft-card-split;
+}
+
+/*
+ * Split, CSS fallback glow: blur the blob layer only, and only when there is no
+ * shader painting on top of it. The grain layer is its sibling, so the dither
+ * stays sharp on top of the softened glow.
+ */
+.entrance-scope[data-soft-method="split"]:not(:has(.horizon-canvas-layer))
+  .horizon-motion-layer {
+  animation: entrance-soft-glow var(--soft-duration) var(--entrance-ease)
+    backwards;
+}
+
+/*
+ * The grain layer for the "grain" method: the grain-sky tile, static, above
+ * the overlay so the blurred field keeps texture. It fades with the overlay
+ * and stops painting at the end (`forwards` + visibility).
+ */
+.entrance-soft-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+  background-repeat: repeat;
+  animation: entrance-soft-grain var(--soft-duration) var(--entrance-ease)
+    forwards;
+}
+
 @keyframes entrance-soft-clear {
   from {
     opacity: 1;
   }
   to {
     opacity: 0;
+  }
+}
+
+@keyframes entrance-soft-grain {
+  from {
+    opacity: 0.07;
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
   }
 }
 
@@ -895,6 +959,59 @@
   to {
     opacity: 1;
     translate: 0 0;
+  }
+}
+
+/* Split: the card softens and sharpens on its own fade clock, so the blur never
+   sees a neighbour's edge. `filter` is released with the animation (backwards
+   fill only), leaving nothing composited after the card lands. */
+@keyframes entrance-soft-card-split {
+  from {
+    opacity: 0;
+    translate: 0 var(--soft-rise, 6px);
+    filter: blur(var(--soft-blur, 8px));
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    filter: blur(0);
+  }
+}
+
+/* Split, CSS fallback glow: only the blob layer softens; its grain sibling is
+   outside this element, so the dither stays sharp. */
+@keyframes entrance-soft-glow {
+  from {
+    filter: blur(var(--soft-blur, 8px));
+  }
+  to {
+    filter: blur(0);
+  }
+}
+
+/*
+ * Split, WebGL glow: the shader reads this registered length once a frame and
+ * turns it into a couple of coverage-texture taps (dither is applied after the
+ * taps, so it stays per-pixel). Unregistered elsewhere, so the initial 0px is
+ * what the shader reads on every other route and the uniform is a no-op.
+ */
+@property --soft-softness {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.entrance-scope[data-soft-method="split"] .horizon-canvas-layer {
+  animation: entrance-soft-softness var(--soft-duration) var(--entrance-ease)
+    backwards;
+}
+
+@keyframes entrance-soft-softness {
+  from {
+    --soft-softness: var(--soft-blur, 8px);
+  }
+  to {
+    --soft-softness: 0px;
   }
 }
 
@@ -1022,6 +1139,24 @@
   /* Soft focus is a blur: reduced motion goes straight to sharp. */
   .entrance-soft {
     display: none;
+  }
+
+  /* No texture layer, no card blur, no glow blur, no shader softness. */
+  .entrance-soft-grain {
+    display: none;
+  }
+
+  .entrance-scope[data-soft-method="split"]
+    [data-entrance="soft"]
+    .entrance-body {
+    animation-name: entrance-fade-in;
+    filter: none;
+  }
+
+  .entrance-scope[data-soft-method="split"] .horizon-motion-layer,
+  .entrance-scope[data-soft-method="split"] .horizon-canvas-layer {
+    animation: none;
+    filter: none;
   }
 
   /* No blur at all; the content takes the fade above and this layer is gone. */

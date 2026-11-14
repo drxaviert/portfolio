@@ -1,36 +1,42 @@
 "use client";
 
 import { useState } from "react";
+import type { SoftMethod } from "./settings";
 
-/** The CSS animation this layer removes itself on (home-entrance.css). */
+/** The CSS animation the overlay removes itself on (home-entrance.css). */
 const ANIMATION_NAME = "entrance-soft-clear";
 
 /**
  * Throwaway prototype (dev route only): the uniform unblur for the "soft"
- * variant.
+ * variant, in whichever blur method the panel has picked.
  *
- * One fixed layer paints a small backdrop blur plus a faint brightness veil
- * over the whole composition, with no mask and no radial edge. A single
- * opacity animation dissolves the blurred backdrop and the veil together, so
- * the page goes from soft to sharp evenly. The layer leaves the tree at
- * animationend, so no backdrop filter stays composited over the page.
+ * - overlay / lighter / grain: one fixed layer paints a backdrop blur plus a
+ *   faint brightness veil over the whole composition, and a single opacity
+ *   animation dissolves both. `grain` adds a static texture layer above it so
+ *   the blurred field keeps some tooth.
+ * - split: the same veil, no backdrop filter (the cards and the glow blur
+ *   themselves, see home-entrance.css), so the veil is only a flat wash.
  *
- * `pointer-events: none` keeps it out of the way for the whole 1000ms; a
- * remount (variant switch, reset, replay) starts a fresh instance through the
- * caller's key.
+ * The layer leaves the tree at animationend, so nothing stays composited;
+ * `pointer-events: none` keeps it out of the way for the whole dissolve.
  */
-export function SoftOverlay() {
+export function SoftOverlay({ method }: { method: SoftMethod }) {
   const [done, setDone] = useState(false);
 
   if (done) return null;
 
   return (
-    <div
-      aria-hidden="true"
-      className="entrance-soft"
-      onAnimationEnd={(event) => {
-        if (event.animationName === ANIMATION_NAME) setDone(true);
-      }}
-    />
+    <>
+      <div
+        aria-hidden="true"
+        className="entrance-soft"
+        onAnimationEnd={(event) => {
+          if (event.animationName === ANIMATION_NAME) setDone(true);
+        }}
+      />
+      {method === "grain" ? (
+        <div aria-hidden="true" className="entrance-soft-grain" />
+      ) : null}
+    </>
   );
 }

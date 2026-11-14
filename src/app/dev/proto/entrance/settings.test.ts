@@ -3,6 +3,9 @@ import {
   BUDGET_MS,
   CALM_EASING,
   DEFAULT_SETTINGS,
+  DEFAULT_SOFT_METHOD,
+  SOFT_METHODS,
+  SOFT_METHOD_PATCH,
   EASINGS,
   copyBlock,
   cssVars,
@@ -132,14 +135,14 @@ describe("entrance settings", () => {
     const soft = DEFAULT_SETTINGS.soft;
     const cardsEnd = soft.cardDelay + 6 * soft.stagger + soft.cardDuration;
 
-    // Dat's tuned defaults: the stagger tail closes the entrance, not the blur.
-    expect(cardsEnd).toBe(2035);
-    expect(totalMs("soft", DEFAULT_SETTINGS)).toBe(2035);
+    // Dat's second sheet: 75ms + 6 x 60 + 1100 = 1535ms, past the 1400ms blur.
+    expect(cardsEnd).toBe(1535);
+    expect(totalMs("soft", DEFAULT_SETTINGS)).toBe(1535);
     expect(cardsEnd).toBeGreaterThan(soft.duration);
 
-    // Without a stagger the cards finish six beats earlier.
+    // Without a stagger the cards land inside the dissolve, so the blur ends it.
     expect(totalMs("soft", patch(DEFAULT_SETTINGS, "soft", "stagger", 0))).toBe(
-      soft.cardDelay + soft.cardDuration,
+      soft.duration,
     );
 
     // A long dissolve outlasts the cards once they are quicker.
@@ -322,13 +325,38 @@ describe("entrance settings", () => {
 
     const soft = cssVars("soft", DEFAULT_SETTINGS, CALM_EASING);
 
-    expect(soft["--soft-blur"]).toBe("9px");
+    expect(soft["--soft-blur"]).toBe("8px");
     expect(soft["--soft-veil"]).toBe("0.24");
     expect(soft["--soft-duration"]).toBe("1400ms");
-    expect(soft["--soft-card-delay"]).toBe("600ms");
-    expect(soft["--soft-card-duration"]).toBe("1075ms");
-    expect(soft["--soft-rise"]).toBe("6px");
+    expect(soft["--soft-card-delay"]).toBe("75ms");
+    expect(soft["--soft-card-duration"]).toBe("1100ms");
+    expect(soft["--soft-rise"]).toBe("16px");
     expect(soft["--soft-stagger"]).toBe("60ms");
+  });
+
+  it("carries the blur method into Copy values and defaults to split", () => {
+    expect(DEFAULT_SOFT_METHOD).toBe("split");
+    expect(SOFT_METHODS.map((entry) => entry.id)).toEqual([
+      "split",
+      "lighter",
+      "grain",
+      "overlay",
+    ]);
+    expect(SOFT_METHOD_PATCH.lighter).toEqual({ blur: 4, veil: 32 });
+    expect(SOFT_METHOD_PATCH.split).toEqual({ blur: 8, veil: 24 });
+
+    const block = copyBlock(
+      "soft",
+      DEFAULT_SETTINGS,
+      CALM_EASING,
+      totalMs("soft", DEFAULT_SETTINGS),
+      "split",
+    );
+
+    expect(block).toContain("/* blur method: split");
+    expect(block).toContain("--soft-rise: 16px;");
+    expect(block).toContain("--soft-stagger: 60ms;");
+    expect(block).toContain("/* settles by 1535ms */");
   });
 
   it("shows steps(n) instead of a curve for the step cut", () => {
