@@ -324,8 +324,16 @@
 /* ----------------------------------------------------------------- hero ---- */
 
 .wd-hero {
-  aspect-ratio: 16 / 9;
+  /* The faux-UI card's canvas: the cover scene and the featured card carry the
+     same picture, so the hero reserves the same box and lets it scale. */
+  aspect-ratio: 753 / 416;
   border-radius: 12px;
+  /* Holds the 753px canvas (scale 1) until the fit hook measures the box. */
+  overflow: hidden;
+}
+
+/* The MDX `<Hero />` without a scene keeps the neutral media surface. */
+.wd-hero-neutral {
   background: var(--surface-container);
 }
 

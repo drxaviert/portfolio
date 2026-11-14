@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import type { WorkMeta } from "@/lib/work";
 import { HorizonLive } from "@/components/horizon/horizon-live";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
@@ -48,7 +49,7 @@ type HomeLayoutProps = {
    * intercepted reader; the title is read on the server so the client graph
    * never touches the content loader.
    */
-  featured?: { slug: string; title: string };
+  featured?: { slug: string; title: string; cover: WorkMeta["cover"] };
 };
 
 export function HomeLayout({ work, featured }: HomeLayoutProps = {}) {
@@ -101,7 +102,11 @@ export function HomeLayout({ work, featured }: HomeLayoutProps = {}) {
             {work ? (
               <ProjectCard title={work.title} onOpen={work.onOpen} />
             ) : (
-              <ProjectCard title={featured?.title} slug={featured?.slug} />
+              <ProjectCard
+                title={featured?.title}
+                slug={featured?.slug}
+                scene={featured?.cover}
+              />
             )}
             <WorkSlivers items={work?.slivers} />
           </div>

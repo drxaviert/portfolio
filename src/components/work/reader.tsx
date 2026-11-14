@@ -48,7 +48,7 @@ export function Reader({ meta, children, mode }: ReaderProps) {
 
       <div id={READER_SCROLL_ID} className="wd-reader-scroll">
         <div className="wd-reader-column">
-          <Hero />
+          <Hero scene={meta.cover} />
 
           <div className="wd-reader-main">
             <div className="wd-rail">

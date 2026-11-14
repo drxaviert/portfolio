@@ -7,7 +7,13 @@ export default function Home() {
   return (
     <HomeLayout
       featured={
-        featured ? { slug: featured.slug, title: featured.title } : undefined
+        featured
+          ? {
+              slug: featured.slug,
+              title: featured.title,
+              cover: featured.cover,
+            }
+          : undefined
       }
     />
   );

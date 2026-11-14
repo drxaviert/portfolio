@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import type { WorkMeta } from "@/lib/work";
+import { Cover } from "./cover";
 
 /**
  * The Margin layout's parts. Media is always a plain gray box: the site's
@@ -31,9 +32,22 @@ function jumpTo(id: string) {
   target.focus({ preventScroll: true });
 }
 
-/** Placeholder until the cover scene lands; a 16:9 neutral box. */
-export function Hero() {
-  return <div className="wd-hero" aria-hidden="true" />;
+/**
+ * The cover scene at the top of the study, carrying the featured card's
+ * picture across the expand morph. Without a scene it stays the neutral media
+ * box, which is what the MDX `<Hero />` maps to.
+ */
+export function Hero({ scene }: { scene?: WorkMeta["cover"] }) {
+  return (
+    <div
+      className={["wd-hero", !scene && "wd-hero-neutral"]
+        .filter(Boolean)
+        .join(" ")}
+      aria-hidden="true"
+    >
+      {scene ? <Cover scene={scene} /> : null}
+    </div>
+  );
 }
 
 export function Intro({

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { KeyboardEvent, MouseEvent } from "react";
+import { Cover } from "@/components/work/cover";
+import type { WorkMeta } from "@/lib/work";
 import { RingLayers } from "./ring-hover";
 
 /**
@@ -46,6 +48,8 @@ type ProjectCardProps = {
   title?: string;
   /** With a slug the card links to the study and becomes the morph's source. */
   slug?: string;
+  /** The featured study's scene, drawn edge-to-edge behind the title. */
+  scene?: WorkMeta["cover"];
   onOpen?: (element: HTMLElement) => void;
 };
 
@@ -56,14 +60,23 @@ const CARD_CLASS =
 export function ProjectCard({
   title = "Project name",
   slug,
+  scene,
   onOpen,
 }: ProjectCardProps = {}) {
   const content = (
     <>
       <RingLayers fill="bg-surface-container-low" />
+      {scene ? (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 z-0 flex items-center overflow-hidden"
+        >
+          <Cover scene={scene} />
+        </div>
+      ) : null}
       <h1
         data-work-card-title={slug ? "" : undefined}
-        className="ring-title text-balance text-title-sm font-semibold md:text-title"
+        className="ring-title relative z-10 text-balance text-title-sm font-semibold md:text-title"
       >
         {title}
       </h1>
