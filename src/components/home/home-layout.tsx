@@ -30,7 +30,22 @@ const frameGapStyle = {
  * is one ring surface that grows into its own box and is lit by a glow in the
  * phase's horizon palette (see ring-hover.css).
  */
-export function HomeLayout() {
+export type HomeWorkSource = {
+  title: string;
+  onOpen: (element: HTMLElement) => void;
+  slivers?: { title: string; onOpen: (element: HTMLElement) => void }[];
+};
+
+type HomeLayoutProps = {
+  /**
+   * Dev-prototype hook only (work-drawer): makes the work cards clickable and
+   * labels the slivers. Omitted on /, where every card keeps its shipped,
+   * non-interactive behaviour.
+   */
+  work?: HomeWorkSource;
+};
+
+export function HomeLayout({ work }: HomeLayoutProps = {}) {
   return (
     <main className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface">
       <HorizonLive />
@@ -77,8 +92,8 @@ export function HomeLayout() {
           </div>
 
           <div className="grid gap-3 md:h-[560px] md:grid-cols-[444fr_120fr_52fr_52fr] lg:h-[360px] lg:grid-cols-[656fr_140fr_64fr_64fr] xl:h-[416px] xl:grid-cols-[753fr_180fr_83fr_84fr]">
-            <ProjectCard />
-            <WorkSlivers />
+            <ProjectCard title={work?.title} onOpen={work?.onOpen} />
+            <WorkSlivers items={work?.slivers} />
           </div>
 
           <HomeNav />

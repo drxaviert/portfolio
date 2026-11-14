@@ -1,3 +1,4 @@
+import type { KeyboardEvent, MouseEvent } from "react";
 import { RingLayers } from "./ring-hover";
 
 /**
@@ -21,20 +22,90 @@ const WORK_SLIVERS = [
   },
 ];
 
+/**
+ * Optional interactive mode used by the work-drawer prototype. When `onOpen`
+ * is absent the card is exactly the shipped, non-interactive article.
+ */
+function cardInteraction(onOpen: (element: HTMLElement) => void) {
+  return {
+    role: "button" as const,
+    tabIndex: 0,
+    "aria-label": "Open case study",
+    style: { cursor: "pointer" },
+    onClick: (event: MouseEvent<HTMLElement>) => onOpen(event.currentTarget),
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      onOpen(event.currentTarget);
+    },
+  };
+}
+
+type ProjectCardProps = {
+  title?: string;
+  onOpen?: (element: HTMLElement) => void;
+};
+
 /** Highlight card: the only card with a title. */
-export function ProjectCard() {
+export function ProjectCard({
+  title = "Project name",
+  onOpen,
+}: ProjectCardProps = {}) {
   return (
-    <article className="ring-host flex h-[420px] flex-col justify-end rounded-lg p-5 md:h-auto md:p-8">
+    <article
+      className="ring-host flex h-[420px] flex-col justify-end rounded-lg p-5 md:h-auto md:p-8"
+      {...(onOpen ? cardInteraction(onOpen) : {})}
+    >
       <RingLayers fill="bg-surface-container-low" />
       <h1 className="ring-title text-balance text-title-sm font-semibold md:text-title">
-        Project name
+        {title}
       </h1>
     </article>
   );
 }
 
+type WorkSliver = {
+  title: string;
+  onOpen: (element: HTMLElement) => void;
+};
+
+type WorkSliversProps = {
+  /** Omitted on /, where the slivers stay decorative. */
+  items?: WorkSliver[];
+};
+
 /** Decorative work-column stand-ins; empty by design. */
-export function WorkSlivers() {
+export function WorkSlivers({ items }: WorkSliversProps = {}) {
+  if (items) {
+    return (
+      <>
+        {items.map((item, index) => {
+          const sliver = WORK_SLIVERS[index % WORK_SLIVERS.length];
+
+          return (
+            <button
+              key={item.title}
+              type="button"
+              aria-label={`Open case study: ${item.title}`}
+              onClick={(event) => item.onOpen(event.currentTarget)}
+              className={`wd-sliver ring-host rounded-lg md:h-auto ${sliver.height}`}
+            >
+              <RingLayers fill={sliver.fill} />
+              <span
+                aria-hidden="true"
+                className="wd-sliver-tint"
+                data-index={index}
+              />
+              <span aria-hidden="true" className="wd-sliver-label">
+                {item.title}
+              </span>
+            </button>
+          );
+        })}
+      </>
+    );
+  }
+
   return (
     <>
       {WORK_SLIVERS.map((sliver, index) => (
