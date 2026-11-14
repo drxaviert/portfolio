@@ -19,12 +19,14 @@ import {
 } from "./settings";
 import type { Control, Settings } from "./settings";
 import { PANEL_CSS } from "./panel-css";
+import { ClearOverlay } from "./clear-overlay";
 
 const VARIANTS: { id: EntranceVariant; label: string }[] = [
   { id: "scale", label: "Scale + blur" },
   { id: "rise", label: "Rise" },
   { id: "ring", label: "Ring reveal" },
   { id: "sky", label: "Sky first" },
+  { id: "clear", label: "Horizon clear" },
 ];
 
 /** Input settles for this long before the entrance replays. */
@@ -214,6 +216,10 @@ export function EntranceHarness() {
           HomeLayout never loses the tuning. */}
       <div className="entrance-scope" ref={scopeRef}>
         <HomeLayout key={take} entrance={playing ?? undefined} />
+        {/* Above the layout, below the panel. Keyed with the layout so the
+            mask animation restarts on every replay — but with its own prefix,
+            since two siblings sharing one key is a React duplicate. */}
+        {playing === "clear" ? <ClearOverlay key={`clear-${take}`} /> : null}
       </div>
 
       <aside

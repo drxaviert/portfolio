@@ -9,7 +9,8 @@ import type { EntranceVariant } from "@/components/home/entrance-cell";
  * slider drag repaints the layout without re-rendering React; the values are
  * inherited into HomeLayout and read by home-entrance.css.
  *
- * The defaults are the shipped 76f8961 values, which is what "Reset" restores.
+ * The defaults are the shipped 76f8961 values (plus the prototype-only tuning
+ * for "clear"), which is what "Reset" restores.
  */
 
 export const BUDGET_MS = 700;
@@ -44,11 +45,20 @@ export type SkySettings = {
   blur: number;
 };
 
+export type ClearSettings = {
+  blur: number;
+  duration: number;
+  /** Soft edge on the clearing mask, in vh so it tracks the viewport height. */
+  feather: number;
+  delay: number;
+};
+
 export type Settings = {
   scale: ScaleSettings;
   rise: RiseSettings;
   ring: RingSettings;
   sky: SkySettings;
+  clear: ClearSettings;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -69,6 +79,10 @@ export const DEFAULT_SETTINGS: Settings = {
     from: 0.98,
     blur: 4,
   },
+  // 20px of blur over the whole viewport, clearing from the horizon outwards.
+  // 680ms keeps the whole reveal inside the 700ms budget; the feather is 25vh
+  // — a quarter of the screen tall at the reference 1440x900.
+  clear: { blur: 20, duration: 680, feather: 25, delay: 0 },
 };
 
 /** Curves already in docs/design-system/motion.md; no new ones. */
@@ -103,7 +117,7 @@ export type Control = {
   min: number;
   max: number;
   step: number;
-  unit: "ms" | "px" | "×";
+  unit: "ms" | "px" | "vh" | "×";
   digits?: number;
 };
 
@@ -250,6 +264,40 @@ export const CONTROLS: Record<EntranceVariant, Control[]> = {
       digits: 1,
     },
   ],
+  clear: [
+    {
+      key: "blur",
+      label: "Start blur",
+      min: 0,
+      max: 40,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "duration",
+      label: "Clear duration",
+      min: 120,
+      max: 1600,
+      step: 20,
+      unit: "ms",
+    },
+    {
+      key: "feather",
+      label: "Feather width",
+      min: 0,
+      max: 60,
+      step: 1,
+      unit: "vh",
+    },
+    {
+      key: "delay",
+      label: "Delay",
+      min: 0,
+      max: 500,
+      step: 10,
+      unit: "ms",
+    },
+  ],
 };
 
 /** 7 reading-order items: the last one starts at 6 x stagger. */
@@ -288,6 +336,9 @@ export function totalMs(variant: EntranceVariant, settings: Settings): number {
           LAST_ITEM * settings.sky.stagger +
           settings.sky.duration,
       );
+    case "clear":
+      // One layer, one reveal: the mask radius is the whole animation.
+      return settings.clear.delay + settings.clear.duration;
   }
 }
 
@@ -346,6 +397,17 @@ export function cssVars(
         "--sky-duration": `${s.duration}ms`,
         "--sky-from": String(s.from),
         "--sky-blur": `${s.blur}px`,
+      };
+    }
+    case "clear": {
+      const s = settings.clear;
+
+      return {
+        ...shared,
+        "--clear-blur": `${s.blur}px`,
+        "--clear-duration": `${s.duration}ms`,
+        "--clear-feather": `${s.feather}vh`,
+        "--clear-delay": `${s.delay}ms`,
       };
     }
   }

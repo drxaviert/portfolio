@@ -20,6 +20,7 @@
  *   rise   rows at 0/60/120ms, 380ms each                      → ends 500ms
  *   ring   edge at item*40ms, fill at +80ms                    → ends 620ms
  *   sky    glow 0-300ms, cards 120 + item*36ms, 360ms each     → ends 696ms
+ *   clear  one mask radius, 0-680ms                            → ends 680ms
  *
  * Fill mode is `backwards`, not `both`. Backwards still paints the from-state
  * during the delay (the server-rendered HTML starts hidden, no flash, no JS),
@@ -30,8 +31,27 @@
  * ring hover. The end keyframes match the base styles, so the handover is
  * invisible.
  *
+ * The clear variant is the exception: its one layer is `forwards` so the last
+ * frame of the mask cannot snap back to a blurred screen for the frame between
+ * `animationend` and React dropping the node (clear-overlay.tsx).
+ *
  * Reduced motion replaces all of it with one 120ms opacity fade.
  */
+
+/*
+ * The clear variant's mask radius. Registered so the browser can interpolate
+ * it as a length-percentage; an unregistered custom property would step
+ * between the keyframes instead. Percentages resolve against the radial
+ * gradient's own ray (centre to farthest corner), so 100% is the farthest
+ * corner on any viewport and 105% is safely past it. Support floor is the
+ * @property syntax itself (Chrome 85, Safari 16.4, Firefox 128), which every
+ * browser that paints a `backdrop-filter` here also has.
+ */
+@property --clear-r {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
 
 .entrance-scope {
   --entrance-ease: cubic-bezier(0.23, 1, 0.32, 1);
@@ -59,6 +79,11 @@
   --sky-duration: 360ms;
   --sky-from: 0.98;
   --sky-blur: 4px;
+
+  --clear-blur: 20px;
+  --clear-duration: 680ms;
+  --clear-feather: 25vh;
+  --clear-delay: 0ms;
 }
 
 /*
@@ -203,6 +228,64 @@
   );
 }
 
+/*
+ * 5 — Horizon clear: the whole scope starts under one heavy backdrop blur and a
+ * radial mask punches a clear hole out of it that grows from the horizon glow
+ * past the farthest corner. Nothing else animates — the background, cards and
+ * nav are revealed in place through the hole, so there is no layout shift and
+ * no per-item stagger.
+ *
+ * The layer is the only node the prototype adds outside the layout. It is
+ * `pointer-events: none` for its whole life, and clear-overlay.tsx drops it on
+ * animationend so no blur stays composited over an already-sharp page.
+ *
+ * Origin 50% 88%: the horizon is two blurred ellipses whose centres sit below
+ * the fold (blob 1 at 17.5% x / 104.5% y, blob 2 at 83.5% / 102.5%), so the
+ * visible glow is the band where they surface and the backdrop ramp lifts
+ * (--horizon-mid-at: 82% Day/Dawn, 80% Dusk, 90% Night). 50% is the midpoint
+ * of the two blob centres; 88% is the middle of that visible band, which keeps
+ * the first clear pixels inside the glow instead of on the screen edge.
+ *
+ * Blur is held at one value instead of fading out with the radius: the feather
+ * already softens the front, and a blur fade makes the last third of the
+ * reveal invisible — the corners would be sharp before the radius reached
+ * them, so the front would stop reading as it travelled.
+ */
+.entrance-clear {
+  --clear-r: 0%;
+
+  position: fixed;
+  inset: 0;
+  /* Above the nav's z-3 popover, below the tuner panel. */
+  z-index: 10;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(var(--clear-blur));
+  backdrop-filter: blur(var(--clear-blur));
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 88%,
+    transparent var(--clear-r),
+    black calc(var(--clear-r) + var(--clear-feather))
+  );
+  mask-image: radial-gradient(
+    circle at 50% 88%,
+    transparent var(--clear-r),
+    black calc(var(--clear-r) + var(--clear-feather))
+  );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: entrance-clear-mask var(--clear-duration) var(--entrance-ease)
+    var(--clear-delay) forwards;
+}
+
+@keyframes entrance-clear-mask {
+  from {
+    --clear-r: 0%;
+  }
+  to {
+    --clear-r: 105%;
+  }
+}
+
 @keyframes entrance-scale-in {
   from {
     opacity: 0;
@@ -268,5 +351,26 @@
 
   [data-entrance] .entrance-cell::before {
     animation: none;
+  }
+
+  /* No blur at all; the content takes the fade above and this layer is gone. */
+  .entrance-clear {
+    display: none;
+  }
+}
+
+/*
+ * No backdrop-filter: no blur layer. The content takes the reduced-motion fade
+ * so the entrance still reads as an entrance instead of a hard cut.
+ */
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .entrance-clear {
+    display: none;
+  }
+
+  [data-entrance="clear"] .entrance-body {
+    animation: entrance-fade-in 120ms ease-out backwards;
   }
 }

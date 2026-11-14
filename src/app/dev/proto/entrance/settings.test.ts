@@ -17,10 +17,20 @@ describe("entrance settings", () => {
     expect(totalMs("rise", DEFAULT_SETTINGS)).toBe(500);
     expect(totalMs("ring", DEFAULT_SETTINGS)).toBe(620);
     expect(totalMs("sky", DEFAULT_SETTINGS)).toBe(696);
+    expect(totalMs("clear", DEFAULT_SETTINGS)).toBe(680);
 
-    for (const variant of ["scale", "rise", "ring", "sky"] as const) {
+    for (const variant of ["scale", "rise", "ring", "sky", "clear"] as const) {
       expect(totalMs(variant, DEFAULT_SETTINGS)).toBeLessThanOrEqual(BUDGET_MS);
     }
+  });
+
+  it("adds the clear reveal's delay to its single mask animation", () => {
+    const delayed = patch(DEFAULT_SETTINGS, "clear", "delay", 200);
+
+    expect(totalMs("clear", delayed)).toBe(880);
+    expect(totalMs("clear", patch(delayed, "clear", "duration", 400))).toBe(
+      600,
+    );
   });
 
   it("splits the ring edge into symmetric fades around the hold", () => {
@@ -62,6 +72,13 @@ describe("entrance settings", () => {
     expect(
       cssVars("sky", DEFAULT_SETTINGS, EASINGS[0].value)["--sky-from"],
     ).toBe("0.98");
+
+    const clear = cssVars("clear", DEFAULT_SETTINGS, EASINGS[0].value);
+
+    expect(clear["--clear-blur"]).toBe("20px");
+    expect(clear["--clear-duration"]).toBe("680ms");
+    expect(clear["--clear-feather"]).toBe("25vh");
+    expect(clear["--clear-delay"]).toBe("0ms");
   });
 
   it("copies a paste-ready block with the total", () => {

@@ -65,4 +65,19 @@ describe("entrance harness", () => {
     expect(document.querySelector("main")?.dataset.entrance).toBe("rise");
     expect(document.querySelectorAll("[data-entrance-item]")).toHaveLength(7);
   });
+
+  it("mounts one blur layer for horizon clear and none for the others", () => {
+    mount();
+
+    expect(document.querySelector(".entrance-clear")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Horizon clear" }));
+
+    expect(document.querySelector("main")?.dataset.entrance).toBe("clear");
+    expect(document.querySelectorAll(".entrance-clear")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Rise" }));
+
+    expect(document.querySelector(".entrance-clear")).toBeNull();
+  });
 });
