@@ -1,4 +1,4 @@
-﻿/*
+/*
  * The Margin reader: one fixed panel, one scroll container, a 550px measure
  * with notes and captions in the right margin from 1024px up, and 880px
  * figure breakouts from 768px up.
@@ -41,7 +41,7 @@
 .wd-reader-column {
   position: relative;
   width: 100%;
-  max-width: 582px; /* 550px measure + 2 Ã— 16px gutters */
+  max-width: 582px; /* 550px measure + 2 × 16px gutters */
   margin-inline: auto;
   /* Clears the header nav: its top inset, its bar and a 12px gap. */
   padding: calc(var(--wd-nav-inset) + var(--wd-nav-height) + 12px) 16px 64px;
@@ -55,13 +55,13 @@
 /* ------------------------------------------------------------ ways back ---- */
 
 /*
- * The left margin rail from 1024px: "â† Work" pinned under the nav for the whole
- * scroll, "â†‘ Top" near the foot of the panel. Both use the margin notes' type
+ * The left margin rail from 1024px: "← Work" pinned under the nav for the whole
+ * scroll, "↑ Top" near the foot of the panel. Both use the margin notes' type
  * and neither has a surface, so the rail reads as a note beside the article
  * rather than as chrome.
  *
  * The rail is the column's own box, so its sticky child starts at the top of
- * the scroll area (not at the article below the cover, where "â† Work" used to
+ * the scroll area (not at the article below the cover, where "← Work" used to
  * scroll away with the title) and holds there until the article ends.
  */
 .wd-rail {
@@ -274,12 +274,24 @@
 /* ----------------------------------------------------------------- hero ---- */
 
 .wd-hero {
-  /* The faux-UI card's canvas: the cover scene and the featured card carry the
-     same picture, so the hero reserves the same box and lets it scale. */
-  aspect-ratio: 753 / 416;
+  /* The faux-UI canvas is 753 x 416 with a 32px inset, so the shot Dat reads as
+     "the cover" is the 689 x 352 panel inside it. The hero is the shot, not the
+     canvas: it takes the shot's aspect and the stage below bleeds the inset, so
+     the cover's own edges are the reading column's edges. Without the bleed the
+     hero box aligned with the text while the picture sat 32 * scale (23px at
+     550) right of it and as far below the nav. */
+  aspect-ratio: 689 / 352;
   border-radius: 12px;
   /* Holds the 753px canvas (scale 1) until the fit hook measures the box. */
   overflow: hidden;
+}
+
+/* Re-scale the canvas so the shot, not the padded frame, is the hero's width,
+   then shift the frame by the same inset. 689 = 753 - 2 x 32px. */
+.wd-hero .fu-stage > .fu-card {
+  top: calc(var(--fu-scale) * -32px * 753 / 689);
+  left: calc(var(--fu-scale) * -32px * 753 / 689);
+  transform: scale(calc(var(--fu-scale) * 753 / 689));
 }
 
 /* The MDX `<Hero />` without a scene keeps the neutral media surface. */
