@@ -188,22 +188,34 @@
 }
 
 .wd-rail-work:focus-visible,
-.wd-rail-top:focus-visible,
-.wd-reader-action:focus-visible {
+.wd-rail-top:focus-visible {
   border-radius: 4px;
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
-/* The 150ms fade the design system uses for pointer chrome. `visibility` steps
-   at the end of the fade out and immediately on the way in, so the hidden item
-   leaves the tab order and the accessibility tree with it. */
+/*
+ * The thumb targets keep their own shape: a focus rule that also set a radius
+ * would outrank the 999px circle above and turn the button into a rounded
+ * square the moment it takes keyboard focus. Only the ring is added here.
+ */
+.wd-reader-action:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/*
+ * The 150ms fade the design system uses for pointer chrome: the entrance curve
+ * on the way in, ease-in on the way out. `visibility` steps at the end of the
+ * fade out and immediately on the way in, so the hidden item leaves the tab
+ * order and the accessibility tree with it.
+ */
 .wd-rail-top,
 .wd-reader-action {
   opacity: 1;
   visibility: visible;
   transition:
-    opacity 150ms ease-out,
+    opacity 150ms cubic-bezier(0.23, 1, 0.32, 1),
     visibility 0s linear 0s;
 }
 
@@ -211,8 +223,10 @@
 .wd-reader-action[data-visible="false"] {
   opacity: 0;
   visibility: hidden;
+  /* An invisible control is not a control: no click target either. */
+  pointer-events: none;
   transition:
-    opacity 150ms ease-out,
+    opacity 150ms ease-in,
     visibility 0s linear 150ms;
 }
 
@@ -260,9 +274,11 @@
 }
 
 /* In the overlay the thumb buttons are part of the content, so they fade with
-   the scroll column instead of floating over the open and close morphs. */
+   the scroll column instead of floating over the open and close morphs. Until
+   the fade has played they are present but invisible, so they take no clicks. */
 .wd-expand-layer[data-phase="opening"] .wd-reader-actions {
   opacity: 0;
+  pointer-events: none;
 }
 
 .wd-expand-layer[data-phase="open"] .wd-reader-actions {
@@ -272,7 +288,14 @@
 
 .wd-expand-layer[data-phase="closing"] .wd-reader-actions {
   opacity: 0;
-  transition: opacity 140ms ease-out;
+  pointer-events: none;
+  transition: opacity 140ms ease-in;
+}
+
+/* The container's `pointer-events: none` cannot beat the buttons' own `auto`. */
+.wd-expand-layer[data-phase="opening"] .wd-reader-action,
+.wd-expand-layer[data-phase="closing"] .wd-reader-action {
+  pointer-events: none;
 }
 
 /* Reduced motion keeps the fade and drops it to the 120ms the design system

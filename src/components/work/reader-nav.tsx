@@ -35,9 +35,9 @@ export function useReaderClose(): (() => void) | undefined {
 
 /** The nav slot inside the reader panel; a direct load has no shell to close. */
 export function ReaderNavSlot() {
-  const close = useContext(ReaderCloseContext);
+  const close = useReaderClose();
 
-  return <ReaderNav onClose={close ?? undefined} />;
+  return <ReaderNav onClose={close} />;
 }
 
 /** Escape closes the reader from anywhere, including from inside the nav. */
