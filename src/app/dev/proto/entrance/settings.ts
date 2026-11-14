@@ -85,6 +85,18 @@ export type GrowSettings = {
   stagger: number;
 };
 
+export type BreathSettings = {
+  /** The glow's one inhale, start to settle. */
+  inhale: number;
+  /** Vertical squash the glow starts at; 1 is no swell. */
+  swell: number;
+  /** How far into the inhale the cards start. */
+  delay: number;
+  duration: number;
+  blur: number;
+  stagger: number;
+};
+
 export type Settings = {
   scale: ScaleSettings;
   rise: RiseSettings;
@@ -94,6 +106,7 @@ export type Settings = {
   step: StepSettings;
   grain: GrainSettings;
   grow: GrowSettings;
+  breath: BreathSettings;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -143,6 +156,16 @@ export const DEFAULT_SETTINGS: Settings = {
   // Base44's box-grow, bottom-anchored: 40% of the card's height grows back in
   // while the content rises 12px, one row per 70ms from the nav up.
   grow: { from: 0.6, rise: 12, duration: 420, stagger: 70 },
+  // Calm family: the glow inhales over 1200ms, cards start at 40% into it and
+  // take 540ms each, 30ms apart — five cards in flight at once.
+  breath: {
+    inhale: 1200,
+    swell: 0.9,
+    delay: 480,
+    duration: 540,
+    blur: 2.5,
+    stagger: 30,
+  },
 };
 
 /** Curves already in docs/design-system/motion.md; no new ones. */
@@ -167,9 +190,40 @@ export const EASINGS = [
     label: "Frame glow (0.32, 0.72, 0, 1)",
     value: "cubic-bezier(0.32, 0.72, 0, 1)",
   },
+  {
+    id: "calm",
+    label: "Calm (proposed, not in motion.md)",
+    value: "cubic-bezier(0.4, 0, 0.2, 1)",
+  },
 ] as const;
 
 export const DEFAULT_EASING = EASINGS[0].value;
+
+/**
+ * The calm family's own default curve: 0.4/0/0.2/1 leaves at zero velocity and
+ * settles on a long tail, so nothing ever launches. The alternative,
+ * 0.25/0.1/0.25/1, is a decelerate curve that starts at full speed — that is a
+ * "snappy premium" shape, not a calm one. It is not in motion.md yet; the label
+ * says so.
+ */
+export const CALM_EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
+
+/** The calm family, which defaults to CALM_EASING instead of the house curve. */
+const CALM_VARIANTS: readonly EntranceVariant[] = [
+  "breath",
+  "mist",
+  "dawn",
+  "soft",
+];
+
+export function isCalm(variant: EntranceVariant): boolean {
+  return CALM_VARIANTS.includes(variant);
+}
+
+/** The curve a fresh pick of this variant should use, or null to keep the pick. */
+export function defaultEasing(variant: EntranceVariant): string | null {
+  return isCalm(variant) ? CALM_EASING : null;
+}
 
 export type Control = {
   key: string;
@@ -502,6 +556,58 @@ export const CONTROLS: Record<EntranceVariant, Control[]> = {
       unit: "ms",
     },
   ],
+  breath: [
+    {
+      key: "inhale",
+      label: "Inhale duration",
+      min: 600,
+      max: 2000,
+      step: 50,
+      unit: "ms",
+    },
+    {
+      key: "swell",
+      label: "Swell amount",
+      min: 0.8,
+      max: 1,
+      step: 0.01,
+      unit: "×",
+      digits: 2,
+    },
+    {
+      key: "delay",
+      label: "Card delay",
+      min: 0,
+      max: 1200,
+      step: 20,
+      unit: "ms",
+    },
+    {
+      key: "duration",
+      label: "Card duration",
+      min: 200,
+      max: 1600,
+      step: 20,
+      unit: "ms",
+    },
+    {
+      key: "blur",
+      label: "Card blur",
+      min: 0,
+      max: 6,
+      step: 0.5,
+      unit: "px",
+      digits: 1,
+    },
+    {
+      key: "stagger",
+      label: "Card stagger",
+      min: 0,
+      max: 80,
+      step: 2,
+      unit: "ms",
+    },
+  ],
 };
 
 /** 7 reading-order items: the last one starts at 6 x stagger. */
@@ -577,6 +683,15 @@ export function totalMs(variant: EntranceVariant, settings: Settings): number {
     case "grow":
       // Row 3 (the nav) starts at 0 and row 1 at 2 x stagger.
       return LAST_ROW * settings.grow.stagger + settings.grow.duration;
+    case "breath":
+      // The inhale can outlast the cards, or the last card can land after the
+      // inhale has settled; whichever is later is the end.
+      return Math.max(
+        settings.breath.inhale,
+        settings.breath.delay +
+          LAST_ITEM * settings.breath.stagger +
+          settings.breath.duration,
+      );
   }
 }
 
@@ -685,6 +800,19 @@ export function cssVars(
         "--grow-rise": `${s.rise}px`,
         "--grow-duration": `${s.duration}ms`,
         "--grow-stagger": `${s.stagger}ms`,
+      };
+    }
+    case "breath": {
+      const s = settings.breath;
+
+      return {
+        ...shared,
+        "--breath-inhale": `${s.inhale}ms`,
+        "--breath-swell": String(s.swell),
+        "--breath-delay": `${s.delay}ms`,
+        "--breath-duration": `${s.duration}ms`,
+        "--breath-blur": `${s.blur}px`,
+        "--breath-stagger": `${s.stagger}ms`,
       };
     }
   }

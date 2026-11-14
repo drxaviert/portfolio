@@ -25,6 +25,12 @@
  *          (markers fade out 360ms after their card's first cut)
  *   grain  grain 0-460ms, cards 160 + item*32ms, 320ms each     → ends 672ms
  *   grow   rows at 0/70/140ms, 420ms each                       → ends 560ms
+ *   breath glow 0-1200ms, cards 480 + item*30ms, 540ms each     → ends 1200ms
+ *
+ * The calm family (breath and the variants that follow) deliberately runs past
+ * the 700ms budget and past motion.md's curves: it is one slow atmospheric
+ * move, timed so the parts overlap almost completely. The panel's over-budget
+ * warning staying red is the point of the test, not a regression.
  *
  * Fill mode is `backwards`, not `both`. Backwards still paints the from-state
  * during the delay (the server-rendered HTML starts hidden, no flash, no JS),
@@ -111,6 +117,13 @@
   --grow-rise: 12px;
   --grow-duration: 420ms;
   --grow-stagger: 70ms;
+
+  --breath-inhale: 1200ms;
+  --breath-swell: 0.9;
+  --breath-delay: 480ms;
+  --breath-duration: 540ms;
+  --breath-blur: 2.5px;
+  --breath-stagger: 30ms;
 }
 
 /*
@@ -562,6 +575,78 @@
   }
 }
 
+/*
+ * 9 — Breath: the light arrives first. The glow takes one slow inhale — opacity
+ * from 0 up to full at 55%, then back to 94%, with a 10% upward swell anchored
+ * on the bottom edge — and only 40% into it do the cards start, each fading
+ * from a 2.5px blur over 540ms at a 30ms beat. Seven cards over 180ms of
+ * stagger with 540ms each means five are in flight at once: there is no
+ * sequence to read, only one soft arrival.
+ *
+ * The glow animation lands on the WebGL canvas when it exists (that is the
+ * picture the shader paints; the CSS background is only its fallback floor),
+ * and on the CSS motion layer when it does not — `:has` picks. The canvas rests
+ * at 0.94 afterwards because the keyframes end exactly there; a fill-forwards
+ * end that matches the rest state is what makes the brightness peak (100%)
+ * read as a peak rather than a jump back.
+ *
+ * Card order is --entrance-h: the bottom row lifts first, matching the light.
+ */
+[data-entrance="breath"] .horizon-canvas-layer,
+[data-entrance="breath"]:not(:has(.horizon-canvas-layer))
+  .horizon-motion-layer {
+  transform-origin: bottom center;
+  animation: entrance-breath-glow var(--breath-inhale) var(--entrance-ease)
+    forwards;
+}
+
+/*
+ * While the shader is painting, the CSS fallback's blobs are the same picture
+ * again: a half-transparent canvas would sit over a full-strength glow, so the
+ * inhale would never read as arriving from nothing. Hide the fallback blobs
+ * only once the canvas has drawn its first frame; the base gradient stays, so
+ * the glow rises out of a flat field. If the canvas drops out, this stops
+ * matching and the CSS layer takes the animation instead.
+ */
+[data-entrance="breath"]:has(> .horizon-canvas-layer[data-ready="true"])
+  .horizon-motion-layer {
+  opacity: 0;
+}
+
+[data-entrance="breath"] .entrance-body {
+  animation: entrance-breath-card var(--breath-duration) var(--entrance-ease)
+    backwards;
+  animation-delay: calc(
+    var(--breath-delay) + var(--entrance-h) * var(--breath-stagger)
+  );
+}
+
+@keyframes entrance-breath-glow {
+  from {
+    opacity: 0;
+    transform: scaleY(var(--breath-swell, 0.9));
+  }
+  55% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  to {
+    opacity: 0.94;
+    transform: none;
+  }
+}
+
+@keyframes entrance-breath-card {
+  from {
+    opacity: 0;
+    filter: blur(var(--breath-blur, 2.5px));
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
 @keyframes entrance-scale-in {
   from {
     opacity: 0;
@@ -646,6 +731,14 @@
   /* No surface squash: the body fade above is the whole entrance. */
   [data-entrance="grow"] .ring-surface {
     animation: none;
+  }
+
+  /* No glow inhale: the light is simply there. */
+  [data-entrance="breath"] .horizon-canvas-layer,
+  [data-entrance="breath"]:not(:has(.horizon-canvas-layer))
+    .horizon-motion-layer {
+    animation: none;
+    transform: none;
   }
 
   /* No blur at all; the content takes the fade above and this layer is gone. */

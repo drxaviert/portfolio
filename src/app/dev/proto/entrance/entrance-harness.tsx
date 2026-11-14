@@ -11,6 +11,7 @@ import {
   EASINGS,
   copyBlock,
   cssVars,
+  defaultEasing,
   formatValue,
   patch,
   resetVariant,
@@ -31,6 +32,7 @@ const VARIANTS: { id: EntranceVariant; label: string }[] = [
   { id: "step", label: "Step cut" },
   { id: "grain", label: "Grain sky" },
   { id: "grow", label: "Horizon grow" },
+  { id: "breath", label: "Breath" },
 ];
 
 /** Input settles for this long before the entrance replays. */
@@ -176,9 +178,15 @@ export function EntranceHarness() {
       replayTimer.current = null;
     }
 
+    // The calm family ships on the proposed calm curve, so picking one sets it.
+    // The original variants keep whatever curve is already selected.
+    const curve = defaultEasing(next) ?? easing;
+
+    if (curve !== easing) setEasing(curve);
+
     // Some variants share a wrapper with the previous one; write this
     // variant's saved tuning before the remount reads it.
-    writeVars(next, settingsRef.current, easing);
+    writeVars(next, settingsRef.current, curve);
     setSaved(settingsRef.current);
     setVariant(next);
     replay(next);
@@ -186,7 +194,13 @@ export function EntranceHarness() {
 
   function reset() {
     settingsRef.current = resetVariant(settingsRef.current, variant);
-    writeVars(variant, settingsRef.current, easing);
+
+    // Reset to defaults restores the calm curve for the calm family too.
+    const curve = defaultEasing(variant) ?? easing;
+
+    if (curve !== easing) setEasing(curve);
+
+    writeVars(variant, settingsRef.current, curve);
     setSaved(settingsRef.current);
     setResetToken((value) => value + 1);
     replay();

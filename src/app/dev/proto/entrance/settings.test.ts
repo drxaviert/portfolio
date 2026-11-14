@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   BUDGET_MS,
+  CALM_EASING,
   DEFAULT_SETTINGS,
   EASINGS,
   copyBlock,
   cssVars,
+  defaultEasing,
   edgeFades,
   patch,
   resetVariant,
@@ -23,6 +25,7 @@ describe("entrance settings", () => {
     expect(totalMs("step", DEFAULT_SETTINGS)).toBe(600);
     expect(totalMs("grain", DEFAULT_SETTINGS)).toBe(672);
     expect(totalMs("grow", DEFAULT_SETTINGS)).toBe(560);
+    expect(totalMs("breath", DEFAULT_SETTINGS)).toBe(1200);
 
     for (const variant of [
       "scale",
@@ -36,6 +39,47 @@ describe("entrance settings", () => {
     ] as const) {
       expect(totalMs(variant, DEFAULT_SETTINGS)).toBeLessThanOrEqual(BUDGET_MS);
     }
+  });
+
+  it("lets the breath settle on whichever of glow or cards ends last", () => {
+    const breath = DEFAULT_SETTINGS.breath;
+
+    // Cards land exactly with the inhale at the defaults.
+    expect(breath.delay + 6 * breath.stagger + breath.duration).toBe(
+      breath.inhale,
+    );
+
+    // A long inhale holds the sequence open past the cards.
+    expect(
+      totalMs("breath", patch(DEFAULT_SETTINGS, "breath", "inhale", 2000)),
+    ).toBe(2000);
+
+    // A late card streak outlasts a short inhale.
+    expect(
+      totalMs(
+        "breath",
+        patch(
+          patch(
+            patch(DEFAULT_SETTINGS, "breath", "inhale", 600),
+            "breath",
+            "delay",
+            400,
+          ),
+          "breath",
+          "duration",
+          800,
+        ),
+      ),
+    ).toBe(400 + 6 * breath.stagger + 800);
+  });
+
+  it("defaults the calm family to the proposed calm curve only", () => {
+    expect(defaultEasing("breath")).toBe(CALM_EASING);
+    expect(defaultEasing("scale")).toBeNull();
+    expect(EASINGS.some((entry) => entry.value === CALM_EASING)).toBe(true);
+    expect(
+      EASINGS.find((entry) => entry.value === CALM_EASING)?.label,
+    ).toContain("not in motion.md");
   });
 
   it("staggers the grow by row, bottom row first", () => {
@@ -174,6 +218,15 @@ describe("entrance settings", () => {
     expect(grow["--grow-rise"]).toBe("12px");
     expect(grow["--grow-duration"]).toBe("420ms");
     expect(grow["--grow-stagger"]).toBe("70ms");
+
+    const breath = cssVars("breath", DEFAULT_SETTINGS, CALM_EASING);
+
+    expect(breath["--breath-inhale"]).toBe("1200ms");
+    expect(breath["--breath-swell"]).toBe("0.9");
+    expect(breath["--breath-delay"]).toBe("480ms");
+    expect(breath["--breath-duration"]).toBe("540ms");
+    expect(breath["--breath-blur"]).toBe("2.5px");
+    expect(breath["--entrance-ease"]).toBe(CALM_EASING);
   });
 
   it("shows steps(n) instead of a curve for the step cut", () => {
