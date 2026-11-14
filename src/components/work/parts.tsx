@@ -313,7 +313,14 @@ export function ContactSheet({ caption }: { caption: string }) {
   );
 }
 
-export function NextLink({ next }: { next: WorkMeta }) {
+export function NextLink({
+  next,
+  replace = false,
+}: {
+  next: WorkMeta;
+  /** The overlay replaces the entry so one Back always returns home. */
+  replace?: boolean;
+}) {
   return (
     <section className="wd-nextlink" aria-labelledby="wd-nextlink-title">
       <p className="wd-kicker" id="wd-nextlink-title">
@@ -321,6 +328,7 @@ export function NextLink({ next }: { next: WorkMeta }) {
       </p>
       <Link
         href={`/work/${next.slug}`}
+        replace={replace}
         className="wd-nextlink-link"
         aria-label={`Next project: ${next.title}`}
       >

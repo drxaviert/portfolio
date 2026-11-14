@@ -27,6 +27,16 @@ export default function ModalLayout({ children }: { children: ReactNode }) {
     setEntry({ path: pathname, node: children });
   }
 
+  // Reopening a study must run a fresh morph. A kept entry shares the returning
+  // pathname's key, so React would reuse the finished reader (phase "open",
+  // startedRef still set) and skip findCard entirely. Drop the entry as soon as
+  // the route leaves the reader. Browser Back also takes this path: Next hides
+  // the slot with React Activity in the same commit as the URL change, so no
+  // exit morph can run there and the reader is gone before it could.
+  if (!onWork && entry) {
+    setEntry(null);
+  }
+
   useEffect(() => {
     const path = entry?.path;
     if (!path) return;

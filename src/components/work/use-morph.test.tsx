@@ -190,7 +190,7 @@ describe("ExpandShell", () => {
     card.setRect(CARD_B);
     fireEvent.click(document.querySelector<HTMLElement>(".wd-expand-backdrop")!);
 
-    await waitFor(() => expect(mocks.back).toHaveBeenCalled());
+    await waitFor(() => expect(panel.style.opacity).toBe("0"));
 
     const calls = mocks.animate.mock.calls.filter(([element]) => element === panel);
     const close = calls[calls.length - 1][1];
@@ -198,5 +198,66 @@ describe("ExpandShell", () => {
     expect(close).toMatchObject(closePose);
     expect(close.scaleX).toBeCloseTo(720 / 1408);
     expect(close.scaleY).toBeCloseTo(450 / 868);
+  });
+
+  it("goes back when the entry is the in-app overlay", async () => {
+    placeCard(CARD_A);
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    fireEvent.click(document.querySelector<HTMLElement>(".wd-expand-backdrop")!);
+
+    await waitFor(() => expect(mocks.back).toHaveBeenCalledTimes(1));
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it("pushes home when the entry is not marked as the in-app overlay", async () => {
+    placeCard(CARD_A);
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    window.history.replaceState({}, "");
+    fireEvent.click(document.querySelector<HTMLElement>(".wd-expand-backdrop")!);
+
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/"));
+    expect(mocks.back).not.toHaveBeenCalled();
+  });
+
+  it("stays put when the route already left the reader", async () => {
+    placeCard(CARD_A);
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    const panel = panelElement();
+    window.history.replaceState({}, "", "/");
+    fireEvent.click(document.querySelector<HTMLElement>(".wd-expand-backdrop")!);
+
+    await waitFor(() => expect(panel.style.opacity).toBe("0"));
+    expect(mocks.back).not.toHaveBeenCalled();
+    expect(mocks.push).not.toHaveBeenCalled();
   });
 });

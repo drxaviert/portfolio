@@ -45,7 +45,7 @@ export function Reader({ meta, children, mode }: ReaderProps) {
 
             <div className="wd-prose">{children}</div>
 
-            <NextLink next={nextWork(meta.slug)} />
+            <NextLink next={nextWork(meta.slug)} replace={overlay} />
           </div>
         </div>
       </div>
