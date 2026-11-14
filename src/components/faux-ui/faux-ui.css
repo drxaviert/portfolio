@@ -38,6 +38,22 @@
   transform-origin: 0 0;
 }
 
+/* Cover fit: the stage takes the slot's own box instead of reserving 753:416.
+   Anchored top-right: at portrait sizes the visible window lands on the bento's
+   column gutter, so the Notifications and Team tiles stay whole and only the
+   chart is cropped. The toggle, the scene's one strong mark, stays top-right,
+   away from the card's bottom-left title. The cover root clips the overflow. */
+.fu-stage[data-fit="cover"] {
+  position: absolute;
+  inset: 0;
+  aspect-ratio: auto;
+}
+
+.fu-stage[data-fit="cover"] > .fu-card {
+  top: 0;
+  left: calc(100% - 753px * var(--fu-scale, 1));
+}
+
 .fu-shot {
   position: relative;
   flex: 1 1 auto;

@@ -9,6 +9,7 @@ import {
 } from "@/components/faux-ui/scenes";
 import type { Mode } from "@/components/faux-ui/scenes";
 import { useSceneFit } from "@/components/faux-ui/use-scene-fit";
+import type { SceneFit } from "@/components/faux-ui/use-scene-fit";
 import { useScenePause } from "@/components/faux-ui/use-scene-pause";
 import type { WorkMeta } from "@/lib/work";
 import "@/components/faux-ui/faux-ui.css";
@@ -27,19 +28,28 @@ const SCENES: Record<string, ComponentType<{ mode: Mode }> | undefined> = {
  * faux-UI CSS holds the still frame under reduced motion, so there is no mode
  * switch here. A scene the map cannot resolve falls back to the neutral
  * surface the design system already uses for media.
+ *
+ * `fit` is the slot's contract: the hero contains the whole 753:416 canvas;
+ * the featured card covers its own box and crops the overflow.
  */
-export function Cover({ scene }: { scene: WorkMeta["cover"] }) {
+export function Cover({
+  scene,
+  fit = "contain",
+}: {
+  scene: WorkMeta["cover"];
+  fit?: SceneFit;
+}) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const shotRef = useRef<HTMLDivElement | null>(null);
   const Scene = SCENES[scene];
 
-  useSceneFit(stageRef);
+  useSceneFit(stageRef, fit);
   useScenePause(shotRef);
 
   if (!Scene) {
     return (
       <div
-        className="aspect-[753/416] w-full rounded-[12px] bg-surface-container"
+        className="h-full w-full rounded-[12px] bg-surface-container"
         data-cover="neutral"
         aria-hidden="true"
       />
@@ -47,8 +57,11 @@ export function Cover({ scene }: { scene: WorkMeta["cover"] }) {
   }
 
   return (
-    <div className="relative w-full overflow-hidden" data-scene={scene}>
-      <div ref={stageRef} className="fu-stage">
+    <div
+      className="relative h-full w-full overflow-hidden"
+      data-scene={scene}
+    >
+      <div ref={stageRef} className="fu-stage" data-fit={fit}>
         <div className="fu-card">
           <div ref={shotRef} className="fu-shot" aria-hidden="true">
             <Scene mode="loop" />

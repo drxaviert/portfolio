@@ -71,17 +71,15 @@ export function ProjectCard({
         <>
           <div
             aria-hidden="true"
-            className="absolute inset-0 z-0 flex items-center overflow-hidden"
+            className="absolute inset-0 z-0 overflow-hidden"
           >
-            <Cover scene={scene} />
+            <Cover scene={scene} fit="cover" />
           </div>
           {/* The shot's own colour comes back under the title, so the bars
-              recede instead of running through the text. Below lg the card is
-              portrait and the title sits under the scene, so there is nothing
-              to fade. */}
+              recede instead of running through the text. */}
           <span
             aria-hidden="true"
-            className="card-fade pointer-events-none absolute inset-8 z-[1] hidden rounded-[8px] lg:block"
+            className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]"
           />
         </>
       ) : null}
