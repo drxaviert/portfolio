@@ -30,6 +30,7 @@ const VARIANTS: { id: EntranceVariant; label: string }[] = [
   { id: "clear", label: "Horizon clear" },
   { id: "step", label: "Step cut" },
   { id: "grain", label: "Grain sky" },
+  { id: "grow", label: "Horizon grow" },
 ];
 
 /** Input settles for this long before the entrance replays. */

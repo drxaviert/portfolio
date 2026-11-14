@@ -24,6 +24,7 @@
  *   step   cards 240ms apart from the nav up, 180ms each        → ends 600ms
  *          (markers fade out 360ms after their card's first cut)
  *   grain  grain 0-460ms, cards 160 + item*32ms, 320ms each     → ends 672ms
+ *   grow   rows at 0/70/140ms, 420ms each                       → ends 560ms
  *
  * Fill mode is `backwards`, not `both`. Backwards still paints the from-state
  * during the delay (the server-rendered HTML starts hidden, no flash, no JS),
@@ -105,6 +106,11 @@
   --grain-delay: 160ms;
   --grain-stagger: 32ms;
   --grain-item-duration: 320ms;
+
+  --grow-from: 0.6;
+  --grow-rise: 12px;
+  --grow-duration: 420ms;
+  --grow-stagger: 70ms;
 }
 
 /*
@@ -508,6 +514,54 @@
   }
 }
 
+/*
+ * 8 — Horizon grow: the cards grow up out of the horizon, lowest row first, and
+ * rise a few pixels while they fade in. Two tracks, not one: the card *surface*
+ * does the scaleY (anchored on its bottom edge) and the body does the rise and
+ * the fade. Scaling the whole card would squash its text — the project title,
+ * the nav links, the tracker grid — for the length of the animation, so the
+ * surface carries the grow and the content only translates, which keeps every
+ * glyph crisp at every frame.
+ *
+ * The surface is .ring-surface, the hover ring's own fill layer: it is clipped
+ * to the card box at rest, so scaling it grows the visible card and leaves the
+ * 1px edge and the glow (separate layers, transparent at rest) alone. `backwards`
+ * fill means the transform is gone once the animation ends, so the hover
+ * clip-path handover is untouched.
+ */
+[data-entrance="grow"] .entrance-body {
+  animation: entrance-grow-content var(--grow-duration) var(--entrance-ease)
+    backwards;
+  animation-delay: calc((2 - var(--entrance-r)) * var(--grow-stagger));
+}
+
+[data-entrance="grow"] .ring-surface {
+  transform-origin: bottom center;
+  animation: entrance-grow-surface var(--grow-duration) var(--entrance-ease)
+    backwards;
+  animation-delay: calc((2 - var(--entrance-r)) * var(--grow-stagger));
+}
+
+@keyframes entrance-grow-surface {
+  from {
+    transform: scaleY(var(--grow-from, 0.6));
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes entrance-grow-content {
+  from {
+    opacity: 0;
+    transform: translateY(var(--grow-rise, 12px));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes entrance-scale-in {
   from {
     opacity: 0;
@@ -586,6 +640,11 @@
   }
 
   [data-entrance="grain"] .horizon-motion-layer {
+    animation: none;
+  }
+
+  /* No surface squash: the body fade above is the whole entrance. */
+  [data-entrance="grow"] .ring-surface {
     animation: none;
   }
 

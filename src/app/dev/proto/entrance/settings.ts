@@ -77,6 +77,14 @@ export type GrainSettings = {
   itemDuration: number;
 };
 
+export type GrowSettings = {
+  /** Where the card surface starts on its vertical scale, 1 = no grow. */
+  from: number;
+  rise: number;
+  duration: number;
+  stagger: number;
+};
+
 export type Settings = {
   scale: ScaleSettings;
   rise: RiseSettings;
@@ -85,6 +93,7 @@ export type Settings = {
   clear: ClearSettings;
   step: StepSettings;
   grain: GrainSettings;
+  grow: GrowSettings;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -131,6 +140,9 @@ export const DEFAULT_SETTINGS: Settings = {
     stagger: 32,
     itemDuration: 320,
   },
+  // Base44's box-grow, bottom-anchored: 40% of the card's height grows back in
+  // while the content rises 12px, one row per 70ms from the nav up.
+  grow: { from: 0.6, rise: 12, duration: 420, stagger: 70 },
 };
 
 /** Curves already in docs/design-system/motion.md; no new ones. */
@@ -455,6 +467,41 @@ export const CONTROLS: Record<EntranceVariant, Control[]> = {
       unit: "ms",
     },
   ],
+  grow: [
+    {
+      key: "from",
+      label: "Start scaleY",
+      min: 0.4,
+      max: 1,
+      step: 0.01,
+      unit: "×",
+      digits: 2,
+    },
+    {
+      key: "rise",
+      label: "Rise distance",
+      min: 0,
+      max: 32,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "duration",
+      label: "Card duration",
+      min: 120,
+      max: 800,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "stagger",
+      label: "Row stagger",
+      min: 0,
+      max: 120,
+      step: 5,
+      unit: "ms",
+    },
+  ],
 };
 
 /** 7 reading-order items: the last one starts at 6 x stagger. */
@@ -527,6 +574,9 @@ export function totalMs(variant: EntranceVariant, settings: Settings): number {
           LAST_ITEM * settings.grain.stagger +
           settings.grain.itemDuration,
       );
+    case "grow":
+      // Row 3 (the nav) starts at 0 and row 1 at 2 x stagger.
+      return LAST_ROW * settings.grow.stagger + settings.grow.duration;
   }
 }
 
@@ -624,6 +674,17 @@ export function cssVars(
         "--grain-delay": `${s.delay}ms`,
         "--grain-stagger": `${s.stagger}ms`,
         "--grain-item-duration": `${s.itemDuration}ms`,
+      };
+    }
+    case "grow": {
+      const s = settings.grow;
+
+      return {
+        ...shared,
+        "--grow-from": String(s.from),
+        "--grow-rise": `${s.rise}px`,
+        "--grow-duration": `${s.duration}ms`,
+        "--grow-stagger": `${s.stagger}ms`,
       };
     }
   }

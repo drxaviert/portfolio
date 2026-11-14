@@ -4,9 +4,9 @@ import { EntranceHarness } from "./entrance-harness";
 
 /**
  * Throwaway prototype: the real home composition with a page-load entrance,
- * switched live from a floating panel. Five variants to compare — scale+blur,
- * rise, ring reveal, sky first, horizon clear — all inside a 700ms sequence on
- * the design system's entrance curve.
+ * switched live from a floating panel. Eight variants to compare — scale+blur,
+ * rise, ring reveal, sky first, horizon clear, step cut, grain sky, horizon
+ * grow — all inside a 700ms sequence on the design system's entrance curve.
  *
  * Dev-only; deep links 404 in a production build. The layout it renders is
  * src/components/home/home-layout, so anything decided here moves over cleanly.

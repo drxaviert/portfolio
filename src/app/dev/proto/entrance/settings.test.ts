@@ -22,6 +22,7 @@ describe("entrance settings", () => {
     expect(totalMs("clear", DEFAULT_SETTINGS)).toBe(680);
     expect(totalMs("step", DEFAULT_SETTINGS)).toBe(600);
     expect(totalMs("grain", DEFAULT_SETTINGS)).toBe(672);
+    expect(totalMs("grow", DEFAULT_SETTINGS)).toBe(560);
 
     for (const variant of [
       "scale",
@@ -31,9 +32,22 @@ describe("entrance settings", () => {
       "clear",
       "step",
       "grain",
+      "grow",
     ] as const) {
       expect(totalMs(variant, DEFAULT_SETTINGS)).toBeLessThanOrEqual(BUDGET_MS);
     }
+  });
+
+  it("staggers the grow by row, bottom row first", () => {
+    const grow = DEFAULT_SETTINGS.grow;
+
+    // Row 3 (nav) has no delay, row 1 waits two rows.
+    expect(totalMs("grow", DEFAULT_SETTINGS)).toBe(
+      2 * grow.stagger + grow.duration,
+    );
+    expect(totalMs("grow", patch(DEFAULT_SETTINGS, "grow", "stagger", 0))).toBe(
+      grow.duration,
+    );
   });
 
   it("settles the grain sky on whichever ends later: grain or cards", () => {
@@ -153,6 +167,13 @@ describe("entrance settings", () => {
     expect(grain["--grain-rate"]).toBe("100ms");
     expect(grain["--grain-duration"]).toBe("460ms");
     expect(grain["--grain-item-duration"]).toBe("320ms");
+
+    const grow = cssVars("grow", DEFAULT_SETTINGS, EASINGS[0].value);
+
+    expect(grow["--grow-from"]).toBe("0.6");
+    expect(grow["--grow-rise"]).toBe("12px");
+    expect(grow["--grow-duration"]).toBe("420ms");
+    expect(grow["--grow-stagger"]).toBe("70ms");
   });
 
   it("shows steps(n) instead of a curve for the step cut", () => {
