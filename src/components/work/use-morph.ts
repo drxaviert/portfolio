@@ -37,7 +37,14 @@ export function cardSelector(slug: string): string {
 export function findCard(
   slug: string,
 ): { card: Box; title: Box | null } | null {
-  const card = document.querySelector<HTMLElement>(cardSelector(slug));
+  // Below md the stacked card and the carousel card can both exist; only the
+  // one that is laid out (display: none has no box) is the morph's source.
+  const candidates = Array.from(
+    document.querySelectorAll<HTMLElement>(cardSelector(slug)),
+  );
+  const card =
+    candidates.find((candidate) => candidate.getClientRects().length > 0) ??
+    candidates[0];
   if (!card) return null;
 
   const title = card.querySelector<HTMLElement>("[data-work-card-title]");

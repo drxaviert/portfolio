@@ -14,7 +14,7 @@ import "./home-cards.css";
  * placeholder project title.
  */
 
-const WORK_SLIVERS = [
+export const WORK_SLIVERS = [
   { fill: "bg-surface-container", height: "h-[72px]" },
   {
     fill: "bg-surface dark:bg-surface-container-high",

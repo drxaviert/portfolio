@@ -37,9 +37,13 @@ export function RingHoverPointer() {
     function flush() {
       frame = 0;
 
-      if (!glow || !rect) {
+      if (!glow || !host) {
         return;
       }
+
+      // A card can be moved under a still pointer (the carousel steps), so the
+      // box is read each frame rather than trusted from when the pointer entered.
+      rect = host.getBoundingClientRect();
 
       glow.style.setProperty(
         "--ring-mx",

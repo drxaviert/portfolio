@@ -1,0 +1,139 @@
+/*
+ * Home carousel geometry.
+ *
+ * The slot widths are the Figma columns (444/120/52/52, 656/140/64/64,
+ * 753/180/83/84) with 12px gaps. Until the client measures the row, a card's
+ * box comes from these rules so the server HTML already shows the right
+ * layout; after that (`data-ready`) the script writes every box in pixels and
+ * these rules stop applying.
+ */
+
+.car-row {
+  --c0: 444;
+  --c1: 120;
+  --c2: 52;
+  --c3: 52;
+  --cols: 444fr 120fr 52fr 52fr;
+  --u: calc((100% - 36px) / (var(--c0) + var(--c1) + var(--c2) + var(--c3)));
+
+  position: relative;
+  height: 560px;
+  /* Clips cards at the row's edges (the seam enters from beyond the right
+     edge) while leaving room for the hover ring, the shadow and the focus
+     outline, which grow past a resting card's box. */
+  clip-path: inset(-12px -6px);
+}
+
+@media (min-width: 1024px) {
+  .car-row {
+    --c0: 656;
+    --c1: 140;
+    --c2: 64;
+    --c3: 64;
+    --cols: 656fr 140fr 64fr 64fr;
+    height: 360px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .car-row {
+    --c0: 753;
+    --c1: 180;
+    --c2: 83;
+    --c3: 84;
+    --cols: 753fr 180fr 83fr 84fr;
+    height: 416px;
+  }
+}
+
+/* The unseen grid the script measures the real slot boxes from. */
+.car-guide {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: var(--cols);
+  gap: 12px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.car-slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+}
+
+/* A hovered or focused card's ring grows into the gutters, over its
+   neighbours. */
+.car-slide:hover,
+.car-slide:focus-within {
+  z-index: 2;
+}
+
+.car-slide[data-ghost] {
+  pointer-events: none;
+}
+
+.car-host {
+  display: block;
+  width: 100%;
+  height: 100%;
+  text-align: left;
+}
+
+/* Crops the content to the card's own box (the slot at rest). */
+.car-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* The wide slot's layout, fixed: a narrow card only shows its left strip. */
+.car-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: var(--car-wide, 100%);
+}
+
+.car-grey {
+  opacity: 0;
+}
+
+.car-title {
+  position: absolute;
+  left: 32px;
+  right: 32px;
+  bottom: 32px;
+  z-index: 10;
+}
+
+/* Before the client has measured: slot boxes from the Figma ratios. */
+.car-row:not([data-ready]) .car-slide[data-slot="0"] {
+  width: calc(var(--u) * var(--c0));
+}
+
+.car-row:not([data-ready]) .car-slide[data-slot="1"] {
+  left: calc(var(--u) * var(--c0) + 12px);
+  width: calc(var(--u) * var(--c1));
+}
+
+.car-row:not([data-ready]) .car-slide[data-slot="2"] {
+  left: calc(var(--u) * (var(--c0) + var(--c1)) + 24px);
+  width: calc(var(--u) * var(--c2));
+}
+
+.car-row:not([data-ready]) .car-slide[data-slot="3"] {
+  left: calc(var(--u) * (var(--c0) + var(--c1) + var(--c2)) + 36px);
+  width: calc(var(--u) * var(--c3));
+}
+
+.car-row:not([data-ready]) .car-slide[data-offscreen] {
+  visibility: hidden;
+}
+
+.car-row:not([data-ready]) .car-slide:not([data-slot="0"]) [data-car-title] {
+  opacity: 0;
+}
