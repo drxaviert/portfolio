@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { pinPhase, unpinPhase } from "@/lib/theme";
 import type { Phase } from "@/lib/theme";
-import type { NavMode, Setup, Variant } from "./types";
+import type { ContentVariant, NavMode, Setup, Variant } from "./types";
 
 /**
  * Dev-only control panel, top-right. Dark neutral glass so it never reads as
@@ -26,6 +26,12 @@ const NAVS: { value: NavMode; label: string }[] = [
   { value: "stay", label: "Stay" },
   { value: "float", label: "Float" },
   { value: "header", label: "Header" },
+];
+
+const CONTENTS: { value: ContentVariant; label: string }[] = [
+  { value: "essay", label: "Essay" },
+  { value: "margin", label: "Margin" },
+  { value: "visual", label: "Visual" },
 ];
 
 function Segmented<T extends string>({
@@ -61,16 +67,20 @@ export function DrawerPanel({
   setup,
   variant,
   nav,
+  content,
   onSetup,
   onVariant,
   onNav,
+  onContent,
 }: {
   setup: Setup;
   variant: Variant;
   nav: NavMode;
+  content: ContentVariant;
   onSetup: (setup: Setup) => void;
   onVariant: (variant: Variant) => void;
   onNav: (nav: NavMode) => void;
+  onContent: (content: ContentVariant) => void;
 }) {
   const [open, setOpen] = useState(true);
   const [phase, setPhase] = useState<Phase | null>(null);
@@ -128,6 +138,14 @@ export function DrawerPanel({
             value={nav}
             options={NAVS}
             onChange={onNav}
+          />
+
+          <p className="wd-panel-group">Content · expand only</p>
+          <Segmented
+            label="Reader content"
+            value={content}
+            options={CONTENTS}
+            onChange={onContent}
           />
 
           <p className="wd-panel-group">Theme</p>

@@ -6,7 +6,14 @@ import { WorkDrawer } from "./drawer";
 import { DrawerPanel } from "./panel";
 import { measureHomeNav } from "./nav-layout";
 import { nextProject, projectBySlug, PROJECTS } from "./works";
-import type { NavMode, Origin, Rect, Setup, Variant } from "./types";
+import type {
+  ContentVariant,
+  NavMode,
+  Origin,
+  Rect,
+  Setup,
+  Variant,
+} from "./types";
 import "./work-drawer.css";
 
 /**
@@ -41,6 +48,7 @@ export function DrawerProto() {
   const [setup, setSetup] = useState<Setup>("featured");
   const [variant, setVariant] = useState<Variant>("expand");
   const [nav, setNav] = useState<NavMode>("stay");
+  const [content, setContent] = useState<ContentVariant>("essay");
   const [slug, setSlugState] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [origin, setOrigin] = useState<Origin | null>(null);
@@ -225,6 +233,7 @@ export function DrawerProto() {
           setup={setup}
           variant={variant}
           nav={nav}
+          content={content}
           navOrigin={navOrigin}
           origin={origin}
           closing={closing}
@@ -238,9 +247,11 @@ export function DrawerProto() {
         setup={setup}
         variant={variant}
         nav={nav}
+        content={content}
         onSetup={setSetup}
         onVariant={setVariant}
         onNav={setNav}
+        onContent={setContent}
       />
     </div>
   );

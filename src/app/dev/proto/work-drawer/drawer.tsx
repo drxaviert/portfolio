@@ -11,12 +11,20 @@ import type { CSSProperties, RefObject } from "react";
 import { CaseStudy } from "./case-study";
 import { CloseButton } from "./close-button";
 import { NavHeaderBar, ReaderNav } from "./nav-layer";
+import { ReaderContent } from "./reader-content";
 import { computeReaderLayout } from "./nav-layout";
 import type { ReaderLayout } from "./nav-layout";
 import { CLOSE_S, EASE_ENTER, MORPH_S } from "./motion";
 import { nextProject, projectIndex, PROJECTS } from "./works";
 import type { Project } from "./works";
-import type { NavMode, Origin, Rect, Setup, Variant } from "./types";
+import type {
+  ContentVariant,
+  NavMode,
+  Origin,
+  Rect,
+  Setup,
+  Variant,
+} from "./types";
 
 /**
  * Throwaway drawer prototype. Three opening treatments share one reader:
@@ -39,6 +47,7 @@ export type DrawerProps = {
   setup: Setup;
   variant: Variant;
   nav: NavMode;
+  content: ContentVariant;
   /** The page nav's box, measured before opening. */
   navOrigin: Rect | null;
   origin: Origin | null;
@@ -202,17 +211,20 @@ function useDrawerFocus(
 function DrawerContent({
   project,
   setup,
+  content,
   reduce,
   onNext,
   scrollRef,
 }: {
   project: Project;
   setup: Setup;
+  content?: ContentVariant;
   reduce: boolean;
   onNext: () => void;
   scrollRef: RefObject<HTMLDivElement | null>;
 }) {
   const index = Math.max(0, projectIndex(project.slug));
+  const next = nextProject(project.slug);
 
   function onExitComplete() {
     scrollRef.current?.scrollTo({ top: 0 });
@@ -228,14 +240,14 @@ function DrawerContent({
 
   return (
     <div ref={scrollRef} className="wd-scroll">
-      <div className="wd-column">
+      <div className="wd-column" data-content={content}>
         <AnimatePresence
           mode="wait"
           initial={false}
           onExitComplete={onExitComplete}
         >
           <motion.div
-            key={project.slug}
+            key={`${project.slug}-${content ?? "classic"}`}
             initial={reduce ? { opacity: 0 } : { opacity: 0, y: 12 }}
             animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -10 }}
@@ -244,14 +256,23 @@ function DrawerContent({
               ease: [0.23, 1, 0.32, 1],
             }}
           >
-            <CaseStudy
-              project={project}
-              next={nextProject(project.slug)}
-              index={index}
-              total={PROJECTS.length}
-              setup={setup}
-              onNext={onNext}
-            />
+            {content ? (
+              <ReaderContent
+                project={project}
+                next={next}
+                content={content}
+                onNext={onNext}
+              />
+            ) : (
+              <CaseStudy
+                project={project}
+                next={next}
+                index={index}
+                total={PROJECTS.length}
+                setup={setup}
+                onNext={onNext}
+              />
+            )}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -395,6 +416,7 @@ function ExpandDrawer({
   project,
   setup,
   nav,
+  content,
   origin,
   closing,
   reduce,
@@ -496,6 +518,7 @@ function ExpandDrawer({
           <DrawerContent
             project={project}
             setup={setup}
+            content={content}
             reduce={reduce}
             onNext={onNext}
             scrollRef={scrollRef}

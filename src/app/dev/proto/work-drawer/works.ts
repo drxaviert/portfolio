@@ -15,6 +15,8 @@ export type Project = {
   role: string;
   team: string;
   summary: string;
+  /** One short line for the narrow reader intro. */
+  tagline: string;
   /** 0–3: which CSS-drawn tint the hero and figure blocks use. */
   art: number;
   stats: { value: string; label: string }[];
@@ -30,6 +32,7 @@ export const PROJECTS: Project[] = [
     team: "3 designers, 2 engineers",
     summary:
       "A component library rebuilt around waiting: slower defaults, calmer states, and controls that stop asking to be noticed.",
+    tagline: "A design system rebuilt around waiting.",
     art: 0,
     stats: [
       { value: "38%", label: "fewer support tickets" },
@@ -46,6 +49,7 @@ export const PROJECTS: Project[] = [
     team: "2 researchers",
     summary:
       "Eight months inside a branch library, mapping the small rituals that keep a public service running without a queue.",
+    tagline: "Eight months inside one branch library.",
     art: 1,
     stats: [
       { value: "240h", label: "observed in branch" },
@@ -62,6 +66,7 @@ export const PROJECTS: Project[] = [
     team: "Solo, with two readers",
     summary:
       "A workhorse text face for screens read at arm's length: on trains, at seven in the morning, with the brightness down.",
+    tagline: "A text face for screens read in bad light.",
     art: 2,
     stats: [
       { value: "5", label: "weights" },
@@ -78,6 +83,7 @@ export const PROJECTS: Project[] = [
     team: "2 designers, 1 writer",
     summary:
       "A naming and identity system for a studio that had outgrown the name it started with in a shared kitchen.",
+    tagline: "A studio outgrows its first name.",
     art: 3,
     stats: [
       { value: "1", label: "wordmark" },
@@ -94,6 +100,7 @@ export const PROJECTS: Project[] = [
     team: "Solo",
     summary:
       "Nine procedural horizons, each built from a different rule about where the light goes when the sun is almost gone.",
+    tagline: "Nine ways to lose the sun.",
     art: 1,
     stats: [
       { value: "9", label: "studies" },

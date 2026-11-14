@@ -1,0 +1,631 @@
+/*
+ * Three reading layouts for the expanded case study.
+ *
+ * Media is always a plain gray box: the site's neutral container-highest
+ * (#D9D9D9 Day / #404040 Night), 12px radius, nothing inside. Body copy is
+ * 14/20; section headings are small and plain, not display type.
+ */
+
+/* The reader column hands its width to the layout root. */
+.wd-column[data-content] {
+  max-width: none;
+  padding-right: 0;
+  padding-left: 0;
+}
+
+/* V3's full-width hero sits flush with the top of the reader. */
+.wd-expand .wd-column[data-content="visual"] {
+  padding-top: var(--wd-pad-top, 0px);
+}
+
+.wd-reader {
+  width: 100%;
+  color: var(--on-surface);
+}
+
+.wd-reader-essay,
+.wd-reader-margin {
+  max-width: 582px; /* 550px measure + 2 × 16px gutters */
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.wd-reader-col {
+  width: 100%;
+  max-width: 582px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* --------------------------------------------------------------- intro ---- */
+
+.wd-intro {
+  padding-top: 8px;
+}
+
+.wd-kicker {
+  margin: 0;
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.wd-intro-title {
+  margin: 12px 0 0;
+}
+
+.wd-intro-summary {
+  margin: 14px 0 0;
+  color: var(--on-surface);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.wd-intro-meta {
+  margin: 14px 0 0;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* ---------------------------------------------------------------- text ---- */
+
+.wd-p {
+  margin: 14px 0 0;
+  color: var(--on-surface-variant);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.wd-lede {
+  margin-top: 20px;
+  color: var(--on-surface);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.wd-sec {
+  margin-top: 40px;
+}
+
+.wd-h3 {
+  margin: 0;
+  color: var(--on-surface);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.wd-sec .wd-h3 + .wd-p {
+  margin-top: 10px;
+}
+
+/* --------------------------------------------------------------- media ---- */
+
+.wd-media {
+  background: var(--surface-container-highest);
+  border-radius: 12px;
+}
+
+.wd-fig {
+  position: relative;
+  margin: 24px 0 0;
+}
+
+.wd-fig > .wd-media {
+  width: 100%;
+}
+
+.wd-caption {
+  margin: 8px 0 0;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* V2: captions become sidenotes at >=1024. */
+@media (min-width: 1024px) {
+  .wd-caption-margin {
+    position: absolute;
+    top: 4px;
+    left: calc(100% + 20px);
+    width: 170px;
+    margin: 0;
+  }
+}
+
+/* V2: two figures break the column out to ~880px. */
+@media (min-width: 768px) {
+  .wd-fig-wide {
+    width: min(880px, calc(100vw - 96px));
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+.wd-pair {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+  margin-top: 24px;
+  align-items: stretch;
+}
+
+.wd-pair-fig {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+}
+
+.wd-pair-fig:first-child .wd-pair-media {
+  aspect-ratio: 3 / 2;
+}
+
+.wd-pair-media {
+  flex: 1;
+  min-height: 110px;
+}
+
+.wd-pair-fig .wd-caption {
+  margin-top: 8px;
+}
+
+@media (max-width: 559px) {
+  .wd-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .wd-pair-fig:last-child .wd-pair-media {
+    aspect-ratio: 3 / 2;
+  }
+}
+
+/* ---------------------------------------------------- margin sidenotes ---- */
+
+.wd-note-block {
+  position: relative;
+  margin-top: 14px;
+}
+
+.wd-note-block .wd-p {
+  margin: 0;
+}
+
+.wd-margin-note {
+  margin-top: 10px;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.wd-note-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.wd-margin-note:focus-visible,
+.wd-notes li:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (min-width: 1024px) {
+  .wd-margin-note {
+    position: absolute;
+    top: 2px;
+    left: calc(100% + 20px);
+    width: 170px;
+    margin: 0;
+  }
+}
+
+/* ------------------------------------------------------------ footnotes ---- */
+
+.wd-fnref {
+  margin-left: 1px;
+  font-size: 9px;
+  line-height: 0;
+  vertical-align: super;
+}
+
+.wd-fnref a {
+  color: var(--on-surface);
+  text-decoration: underline;
+  text-decoration-color: var(--outline);
+  text-underline-offset: 2px;
+  scroll-margin-top: calc(var(--wd-pad-top, 0px) + 24px);
+}
+
+.wd-fnref a:hover {
+  text-decoration-color: var(--on-surface);
+}
+
+.wd-fnref a:focus-visible,
+.wd-backlink:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.wd-backlink {
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  text-decoration: underline;
+  text-decoration-color: var(--outline);
+  text-underline-offset: 2px;
+}
+
+.wd-backlink:hover {
+  color: var(--on-surface);
+  text-decoration-color: var(--on-surface);
+}
+
+.wd-notes {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--outline-variant);
+}
+
+.wd-notes ol {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wd-notes li {
+  margin: 8px 0 0;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 17px;
+  scroll-margin-top: calc(var(--wd-pad-top, 0px) + 24px);
+}
+
+/* --------------------------------------------------------------- brief ---- */
+
+.wd-brief {
+  margin: 28px 0 0;
+}
+
+.wd-brief figcaption {
+  margin: 0 0 8px;
+}
+
+.wd-brief pre {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  border-radius: 12px;
+  background: var(--surface-container);
+  color: var(--on-surface);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 20px;
+  white-space: pre-wrap;
+}
+
+/* --------------------------------------------------------------- table ---- */
+
+.wd-table-fig {
+  margin: 28px 0 0;
+}
+
+.wd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.wd-table caption {
+  margin: 0 0 8px;
+  text-align: left;
+}
+
+.wd-table th,
+.wd-table td {
+  padding: 10px 0;
+  text-align: left;
+  vertical-align: top;
+  border-top: 1px solid var(--outline-variant);
+}
+
+.wd-table thead th {
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wd-table tbody th {
+  width: 42%;
+  padding-right: 16px;
+  color: var(--on-surface);
+  font-weight: 500;
+}
+
+.wd-table td {
+  color: var(--on-surface-variant);
+}
+
+.wd-table tbody tr:last-child th,
+.wd-table tbody tr:last-child td {
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+/* ---------------------------------------------------------- step figure ---- */
+
+.wd-step {
+  margin: 32px 0 0;
+}
+
+.wd-step-panel {
+  position: relative;
+}
+
+.wd-step-media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.wd-step-bar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.wd-step-tabs {
+  display: flex;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.wd-step-tab {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+}
+
+.wd-step-tab[aria-selected="true"] {
+  background: var(--on-surface);
+  color: var(--surface-container-low);
+}
+
+.wd-step-tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.wd-step-replay {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-size: 11px;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.wd-step-replay:hover {
+  color: var(--on-surface);
+}
+
+.wd-step-replay:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.wd-step-panel .wd-caption {
+  margin-top: 8px;
+}
+
+/* -------------------------------------------------------- contact sheet ---- */
+
+.wd-contact {
+  margin: 32px 0 0;
+}
+
+.wd-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.wd-contact-grid .wd-media {
+  aspect-ratio: 4 / 3;
+}
+
+@media (max-width: 559px) {
+  .wd-contact-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* --------------------------------------------------------------- visual ---- */
+
+.wd-v3-hero {
+  width: 100%;
+  aspect-ratio: 2.4 / 1;
+}
+
+.wd-reader-visual .wd-intro {
+  padding-top: 24px;
+}
+
+.wd-v3-wide {
+  width: 100%;
+  padding: 0 16px;
+  margin-top: 32px;
+}
+
+.wd-v3-wide .wd-caption {
+  margin-top: 8px;
+}
+
+.wd-bento {
+  display: grid;
+  grid-template-rows: 170px 170px 170px;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-areas:
+    "a a b c"
+    "a a d d"
+    "e f f f";
+  gap: 10px;
+}
+
+.wd-bento-a {
+  grid-area: a;
+}
+
+.wd-bento-b {
+  grid-area: b;
+}
+
+.wd-bento-c {
+  grid-area: c;
+}
+
+.wd-bento-d {
+  grid-area: d;
+}
+
+.wd-bento-e {
+  grid-area: e;
+}
+
+.wd-bento-f {
+  grid-area: f;
+}
+
+@media (max-width: 767px) {
+  .wd-bento {
+    grid-template-rows: 120px 110px 110px 110px;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-areas:
+      "a a"
+      "b c"
+      "d d"
+      "e f";
+  }
+}
+
+.wd-v3-seq {
+  width: 100%;
+  margin: 32px 0 0;
+}
+
+.wd-v3-16x9 {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.wd-v3-seq .wd-caption {
+  margin: 8px 16px 0;
+}
+
+/* --------------------------------------------------------------- stats ---- */
+
+.wd-vstats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 40px 0 0;
+  padding: 20px 0;
+  border-top: 1px solid var(--outline-variant);
+  border-bottom: 1px solid var(--outline-variant);
+  list-style: none;
+}
+
+.wd-vstat-value {
+  margin: 0;
+  color: var(--on-surface);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wd-vstat-label {
+  margin: 6px 0 0;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+@media (max-width: 420px) {
+  .wd-vstat-value {
+    font-size: 20px;
+  }
+}
+
+/* ----------------------------------------------------------- next link ---- */
+
+.wd-nextlink {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--outline-variant);
+}
+
+.wd-nextlink-button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--on-surface);
+  font: inherit;
+  font-size: 16px;
+  line-height: 22px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wd-nextlink-button span:last-child {
+  flex-shrink: 0;
+  color: var(--on-surface-variant);
+}
+
+.wd-nextlink-button:hover span:first-child {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wd-nextlink-button:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+/* ------------------------------------------------------ reduced motion ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-nextlink-button span:first-child {
+    text-decoration: none;
+  }
+}
