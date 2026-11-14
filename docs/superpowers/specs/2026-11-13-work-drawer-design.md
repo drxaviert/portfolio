@@ -1,6 +1,6 @@
 # Work drawer: case-study reader design
 
-Date: 2026-11-13 · Status: draft for Dat's approval · Worktree: `work-drawer`
+Date: 2026-11-13 · Status: approved by Dat 2026-11-13 · Worktree: `work-drawer`
 
 ## Intent
 
@@ -203,7 +203,7 @@ New motion:
   - `title`, `subtitle`, `year`, `role`, `summary`, and an optional `cover`.
   - `cover` is one of `window`, `phone` or `tiles`, the faux-UI scenes settled on branch `drxaviert/faux-ui` (see `docs/handoffs/2026-11-13-faux-ui-scenes.md` there). Each scene is a Loop that scales to the ProjectCard's 753×416 box and pauses offscreen. Still is used only for reduced motion. The reader renders the same scene as its hero, so the morph carries the picture across. The reader never builds scenes itself.
   - Getting the scenes into this branch: once Dat OKs it, merge `drxaviert/faux-ui` into `main`, then merge `main` into `work-drawer`. Do not copy files across. If faux-UI hasn't merged when the build starts, the hero uses a neutral surface until it lands.
-  - The three placeholder studies use one scene each. **Which scene sits on the featured card: Dat to decide (open).**
+  - The three placeholder studies use one scene each. **The featured card uses `tiles`** (Dat, 2026-11-13).
 
 ### 7. Accessibility
 
