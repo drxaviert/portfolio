@@ -1,0 +1,212 @@
+"use client";
+
+import { animate, useReducedMotion } from "motion/react";
+import { usePathname } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import type { MouseEvent } from "react";
+import { HomeNav } from "@/components/home/home-nav";
+import {
+  SLOT_SELECTOR,
+  hasReaderClose,
+  registerNavDock,
+  requestReaderClose,
+} from "./nav-flight";
+import type { NavDockState, NavFlightMode } from "./nav-flight";
+import "./nav-dock.css";
+
+const EASE_OPEN: [number, number, number, number] = [0.32, 0.72, 0, 1];
+const OPEN_S = 0.48;
+const CLOSE_S = 0.3;
+/** Half of the 120ms reduced-motion crossfade. */
+const FADE_S = 0.06;
+const SNAP_PX = 0.5;
+
+type Flight = ReturnType<typeof animate>;
+
+/**
+ * The homepage's nav, and the drawer's, as one element. It lives in the root
+ * layout, so a soft navigation never remounts it: hover Glide, the theme
+ * toggle and the phase picker keep their state when the drawer opens.
+ *
+ * At rest on the home route it is placed absolutely over the empty slot the
+ * home layout reserves (`[data-nav-slot]`), so the page looks and scrolls
+ * exactly as before. In the reader it is fixed at the panel's nav position. The
+ * move between the two is a FLIP: measure where it appears, switch state,
+ * compensate with a transform, then animate that transform to zero in sync with
+ * the panel morph. Nothing here goes through React state per frame.
+ */
+export function NavDock() {
+  const ref = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion() ?? false;
+  const readerRoute = usePathname().startsWith("/work/");
+  // Read once: later pathname changes must not snap the nav while a flight or
+  // the reader owns it. The live state is the DOM attribute, which the flights
+  // write directly.
+  const [initial] = useState<NavDockState>(() =>
+    readerRoute ? "reader" : "home",
+  );
+  const stateRef = useRef<NavDockState>(initial);
+  const flyingRef = useRef<Flight | null>(null);
+  const alignHomeRef = useRef<(() => void) | null>(null);
+
+  const fly = useCallback(async (to: NavDockState, mode: NavFlightMode) => {
+    const el = ref.current;
+    if (!el) return;
+    if (stateRef.current === to && !flyingRef.current) return;
+
+    const from = el.getBoundingClientRect().top;
+    flyingRef.current?.stop();
+    flyingRef.current = null;
+
+    if (mode === "fade") {
+      const out = animate(
+        el,
+        { opacity: 0 },
+        { duration: FADE_S, ease: "easeOut" },
+      );
+      flyingRef.current = out;
+      await out.finished.catch(() => undefined);
+
+      el.style.removeProperty("top");
+      el.style.removeProperty("transform");
+      el.dataset.navState = to;
+      stateRef.current = to;
+
+      const fadeIn = animate(
+        el,
+        { opacity: 1 },
+        { duration: FADE_S, ease: "easeOut" },
+      );
+      flyingRef.current = fadeIn;
+      await fadeIn.finished.catch(() => undefined);
+
+      if (flyingRef.current !== fadeIn) return;
+      flyingRef.current = null;
+      if (to === "home") alignHomeRef.current?.();
+      return;
+    }
+
+    // Switching state moves the element's CSS box; measure where it would
+    // paint untransformed, then start from where it appears right now.
+    el.style.removeProperty("top");
+    el.style.transform = "none";
+    el.dataset.navState = to;
+    stateRef.current = to;
+    const target = el.getBoundingClientRect().top;
+    const delta = from - target;
+
+    const flight = animate(
+      el,
+      { transform: [`translateY(${delta}px)`, "translateY(0px)"] },
+      {
+        duration: to === "reader" ? OPEN_S : CLOSE_S,
+        ease: to === "reader" ? EASE_OPEN : "easeIn",
+      },
+    );
+    flyingRef.current = flight;
+
+    // A resize mid-flight lands the move, the way the panel's morph does.
+    const finish = () => flight.complete();
+    window.addEventListener("resize", finish);
+    await flight.finished.catch(() => undefined);
+    window.removeEventListener("resize", finish);
+
+    if (flyingRef.current !== flight) return;
+
+    flyingRef.current = null;
+    el.style.removeProperty("transform");
+    if (to === "home") alignHomeRef.current?.();
+
+    // Motion writes the final keyframe as an inline style on the frame after
+    // `finished` resolves; clear it again so no identity transform lingers.
+    requestAnimationFrame(() => {
+      if (!flyingRef.current) el.style.removeProperty("transform");
+    });
+  }, []);
+
+  const toReader = useCallback(
+    (mode: NavFlightMode) => fly("reader", reduce ? "fade" : mode),
+    [fly, reduce],
+  );
+  const toHome = useCallback(
+    (mode: NavFlightMode) => fly("home", reduce ? "fade" : mode),
+    [fly, reduce],
+  );
+
+  useLayoutEffect(
+    () => registerNavDock({ toReader, toHome }),
+    [toReader, toHome],
+  );
+
+  // The CSS formula mirrors the home layout; this keeps the placement exact by
+  // reading the slot itself, and corrects the CSS if the two ever drift.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const align = () => {
+      const slot = document.querySelector<HTMLElement>(SLOT_SELECTOR);
+      if (!slot || stateRef.current !== "home" || flyingRef.current) return;
+
+      const slotTop = slot.getBoundingClientRect().top + window.scrollY;
+      const navTop = el.getBoundingClientRect().top + window.scrollY;
+
+      if (Math.abs(slotTop - navTop) > SNAP_PX) {
+        el.style.top = `${slotTop}px`;
+      }
+    };
+
+    alignHomeRef.current = align;
+    align();
+    window.addEventListener("resize", align);
+
+    return () => {
+      alignHomeRef.current = null;
+      window.removeEventListener("resize", align);
+    };
+  }, []);
+
+  // Leaving the reader without a flight (browser Back, a direct load's logo)
+  // still has to put the nav back over the home slot.
+  useEffect(() => {
+    if (readerRoute || stateRef.current === "home") return;
+
+    void fly("home", "fade");
+  }, [readerRoute, fly]);
+
+  // Capture, not bubble: Next's Link starts routing in its own click handler,
+  // which would otherwise outrun the close.
+  function onClickCapture(event: MouseEvent<HTMLDivElement>) {
+    if (stateRef.current !== "reader") return;
+    if (event.defaultPrevented || event.button !== 0) return;
+    if (!hasReaderClose()) return;
+
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+
+    if (!(event.target as Element).closest('a[href="/"]')) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    requestReaderClose();
+  }
+
+  return (
+    <div
+      ref={ref}
+      className="wd-nav-dock"
+      data-nav-dock=""
+      data-nav-state={initial}
+      onClickCapture={onClickCapture}
+    >
+      <HomeNav />
+    </div>
+  );
+}

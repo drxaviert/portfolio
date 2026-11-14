@@ -13,6 +13,7 @@ import type { RefObject } from "react";
 import { flipFrom, toBox } from "./morph";
 import type { Box } from "./morph";
 import { announceOverlayExit } from "./overlay-exit";
+import { moveNav } from "@/components/nav/nav-flight";
 import { READER_TITLE_ID } from "./parts";
 
 export type MorphPhase = "opening" | "open" | "closing";
@@ -187,6 +188,7 @@ export function useMorph(
         { duration: FADE_S, ease: "easeOut" },
       );
       openingRef.current = fade;
+      void moveNav("reader", "fade");
       void fade.finished.then(settle);
       return;
     }
@@ -194,6 +196,7 @@ export function useMorph(
     // "Next project" opens a study with no card to morph from. The panel is
     // already the destination, so it keeps its opaque surface and only the new
     // content changes: a fade here would show the homepage through the reader.
+    // The nav is already in the drawer's position, so it stays put.
     if (!card) {
       settle();
       return;
@@ -212,6 +215,10 @@ export function useMorph(
     );
     openingRef.current = morph;
     void morph.finished.then(settle);
+
+    // The nav is the same element on both sides: it flies from the homepage
+    // row into the panel's row with the morph, on the same curve.
+    void moveNav("reader", "flip");
 
     // The content starts arriving under the landing panel rather than after
     // it, so the reader is readable at the moment the morph ends.
@@ -252,17 +259,22 @@ export function useMorph(
       if (!panel) return;
 
       const card = findCard(slug);
+      // The nav returns on the same timing as whatever the panel does: the
+      // 300ms reverse morph, or the 120ms fade.
+      const navHome = moveNav("home", card && !reduce ? "flip" : "fade");
 
       if (!card || reduce) {
-        await animate(
-          panel,
-          { opacity: 0 },
-          { duration: FADE_S, ease: "easeOut" },
-        ).finished;
+        await Promise.all([
+          animate(panel, { opacity: 0 }, { duration: FADE_S, ease: "easeOut" })
+            .finished,
+          navHome,
+        ]);
       } else {
         const pose = flipFrom(card.card, layoutBox(panel));
-        await animate(panel, pose, { duration: CLOSE_S, ease: "easeIn" })
-          .finished;
+        await Promise.all([
+          animate(panel, pose, { duration: CLOSE_S, ease: "easeIn" }).finished,
+          navHome,
+        ]);
       }
 
       closedRef.current = true;

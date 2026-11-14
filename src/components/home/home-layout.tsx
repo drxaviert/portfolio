@@ -3,7 +3,6 @@ import type { WorkMeta } from "@/lib/work";
 import { HorizonLive } from "@/components/horizon/horizon-live";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
-import { HomeNav } from "./home-nav";
 import { RingHoverPointer } from "./ring-pointer";
 import { TrackerWidget } from "./tracker-widget";
 import "./ring-hover.css";
@@ -111,7 +110,10 @@ export function HomeLayout({ work, featured }: HomeLayoutProps = {}) {
             <WorkSlivers items={work?.slivers} />
           </div>
 
-          <HomeNav />
+          {/* The nav itself lives in the root layout, so one element carries
+              from the homepage into the drawer. This slot reserves its box and
+              gives the dock its home position. */}
+          <div className="h-16" aria-hidden="true" data-nav-slot="" />
         </div>
 
         <FrameLineSpotlight />

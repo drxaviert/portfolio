@@ -235,10 +235,28 @@
   }
 }
 
+/*
+ * Reader and nav geometry. These are on the root element because they are
+ * shared by two trees: the reader panel (inside the modal slot) and the single
+ * nav dock (root layout). The nav's height is HomeNav's h-16, and the reader's
+ * blur zone, column clearance and rail offset all derive from it.
+ */
+:root {
+  --wd-panel-inset: 0px;
+  --wd-nav-inset: 8px;
+  --wd-nav-height: 4rem;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --wd-panel-inset: 16px;
+    --wd-nav-inset: 12px;
+  }
+}
+
 :root,
 [data-phase="day"] {
   color-scheme: light;
-
   --surface: #e5e5e5;
   --surface-dim: #d9d9d9;
   --surface-bright: #ffffff;

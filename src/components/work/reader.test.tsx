@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme/theme-provider";
@@ -83,13 +83,14 @@ describe("reader overlay", () => {
     expect(rail?.parentElement).toBe(column);
   });
 
-  it("keeps the homepage nav inside the dialog", () => {
+  it("does not render a second nav inside the panel", () => {
     renderReader(<p>Case-study body</p>);
 
     const dialog = screen.getByRole("dialog");
-    const nav = screen.getByRole("navigation", { name: "Primary" });
 
-    expect(dialog).toContainElement(nav);
+    expect(
+      within(dialog).queryByRole("navigation", { name: "Primary" }),
+    ).not.toBeInTheDocument();
   });
 
   it("replaces history when the next study opens from the overlay", () => {

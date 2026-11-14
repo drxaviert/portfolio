@@ -4,8 +4,16 @@ import { useCallback, useEffect, useRef } from "react";
 import type { ReactNode, RefObject } from "react";
 import { cardSelector, useMorph } from "./use-morph";
 import { READER_TITLE_ID } from "./parts";
-import { ReaderCloseProvider } from "./reader-nav";
+import {
+  DOCK_SELECTOR,
+  registerReaderClose,
+} from "@/components/nav/nav-flight";
+import { ReaderCloseProvider, useEscToClose } from "./reader-close";
 import "./expand-shell.css";
+
+/** One tab stop selector for both roots: the nav dock and the panel. */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 /**
  * The intercepted reader. The page passes its `<Reader mode="overlay">` in as
@@ -28,11 +36,12 @@ export function ExpandShell({
       layer?.querySelector<HTMLElement>(".wd-reader-panel") ?? null;
   }, []);
 
-  useOverlayBehaviour(panelRef, slug);
+  // Esc and the nav's logo/"Work" both close through this shell: Esc here, the
+  // nav through nav-flight (it lives in the root layout, outside this panel).
+  useEscToClose(close);
+  useEffect(() => registerReaderClose(close), [close]);
 
-  // The reader's nav and Esc gestures live inside the panel: the nav is a
-  // server-rendered slot, so the close callback reaches it through context.
-  // Esc is one listener, owned by the nav (see reader-nav.tsx).
+  useOverlayBehaviour(panelRef, slug);
 
   // The inert boundary comes off with the same commit that sets the phase, so
   // the title can only take focus after React has rendered the open state.
@@ -115,38 +124,45 @@ function useOverlayBehaviour(
       const root = panelRef.current;
       if (!root) return;
 
-      // Unrendered nodes are not tab stops: the mobile actions stay in the DOM
-      // at 1024px and up, so without this the forward wrap keys off a control
-      // that cannot be reached.
-      const nodes = [
-        ...root.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        ),
-      ].filter(
-        (node) => !node.closest("[inert]") && node.getClientRects().length > 0,
-      );
+      // The nav is one element in the root layout, outside the panel; the
+      // reader's tab order is nav → content → back.
+      const dock = document.querySelector<HTMLElement>(DOCK_SELECTOR);
+      const stops = (element: HTMLElement | null) =>
+        element
+          ? [...element.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+              // Unrendered nodes are not tab stops: the mobile actions stay in
+              // the DOM at 1024px and up, so without this the forward wrap keys
+              // off a control that cannot be reached.
+              (node) =>
+                !node.closest("[inert]") && node.getClientRects().length > 0,
+            )
+          : [];
+
+      const nodes = [...stops(dock), ...stops(root)];
       if (nodes.length === 0) return;
 
       const first = nodes[0];
       const last = nodes[nodes.length - 1];
       const active = document.activeElement;
-      const inPanel = active instanceof HTMLElement && root.contains(active);
+      const inside =
+        active instanceof HTMLElement &&
+        (root.contains(active) || (dock?.contains(active) ?? false));
 
       // Open focuses the tabindex="-1" title, which is deliberately not in the
       // list. Sequential navigation from it restarts at the document in WebKit,
-      // so an in-panel focus that is not a stop counts as the panel's edge.
+      // so an in-reader focus that is not a stop counts as the reader's edge.
       const stranded =
-        active instanceof HTMLElement && inPanel && !nodes.includes(active);
+        active instanceof HTMLElement && inside && !nodes.includes(active);
 
       if (event.shiftKey) {
-        if (!inPanel || stranded || active === first) {
+        if (!inside || stranded || active === first) {
           event.preventDefault();
           last.focus();
         }
         return;
       }
 
-      if (!inPanel || stranded || active === last) {
+      if (!inside || stranded || active === last) {
         event.preventDefault();
         first.focus();
       }

@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { READER_SCROLL_ID, READER_TITLE_ID } from "./parts";
 import { ReaderMobileActions, ReaderRail } from "./reader-rail";
-import { ReaderCloseProvider } from "./reader-nav";
+import { ReaderCloseProvider } from "./reader-close";
 
 vi.mock("next/link", () => ({
   default: ({

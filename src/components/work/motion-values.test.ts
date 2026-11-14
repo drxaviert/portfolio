@@ -66,12 +66,14 @@ describe("drawer motion values", () => {
     expect(reduced).not.toContain("transition-duration");
   });
 
-  it("opens the reader's nav tooltips inward instead of into the panel edge", () => {
-    expect(reader).toMatch(
-      /\.wd-reader-nav \.nav-tooltip \{[^}]*top: calc\(100% \+ 8px\);/,
+  it("opens the reader's nav tooltips inward instead of into the viewport edge", () => {
+    const dock = read("../nav/nav-dock.css");
+
+    expect(dock).toMatch(
+      /\.wd-nav-dock\[data-nav-state="reader"\] \.nav-tooltip \{[^}]*top: calc\(100% \+ 8px\);/,
     );
-    expect(reader).toMatch(
-      /\.wd-reader-nav \[data-mode-track\] \.segment:last-child \.segment-tooltip \{[^}]*right: 0;/,
+    expect(dock).toMatch(
+      /\[data-nav-state="reader"\]\s*\[data-mode-track\]\s*\.segment:last-child\s*\.segment-tooltip \{[^}]*right: 0;/,
     );
   });
 

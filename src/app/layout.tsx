@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Work_Sans } from "next/font/google";
 import type { ReactNode } from "react";
+import { NavDock } from "@/components/nav/nav-dock";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ENTRANCE_INIT_SCRIPT } from "@/lib/entrance-script";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
@@ -34,6 +35,9 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           {children}
+          {/* One nav for the whole site, between the page and the modal so it
+              comes before the reader in tab order. */}
+          <NavDock />
           {modal}
         </ThemeProvider>
       </body>

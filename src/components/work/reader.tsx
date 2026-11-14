@@ -8,7 +8,6 @@ import {
   READER_SCROLL_ID,
   READER_TITLE_ID,
 } from "./parts";
-import { ReaderNavSlot } from "./reader-nav";
 import { ReaderMobileActions, ReaderRail } from "./reader-rail";
 import { BlurStack } from "./blur-stack";
 import "@/components/home/ring-hover.css";
@@ -43,8 +42,6 @@ export function Reader({ meta, children, mode }: ReaderProps) {
       aria-modal={overlay ? true : undefined}
       aria-labelledby={READER_TITLE_ID}
     >
-      <ReaderNavSlot />
-
       <BlurStack height="calc(var(--wd-nav-inset) + var(--wd-nav-height))" />
 
       <div id={READER_SCROLL_ID} className="wd-reader-scroll">

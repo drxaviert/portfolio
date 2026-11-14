@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import type { MouseEvent } from "react";
 import { READER_SCROLL_ID, READER_TITLE_ID } from "./parts";
-import { useReaderClose } from "./reader-nav";
+import { useReaderClose } from "./reader-close";
 import { useShowTop } from "./use-show-top";
 
 /**
