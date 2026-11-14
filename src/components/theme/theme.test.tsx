@@ -344,7 +344,7 @@ describe("ThemeToggle", () => {
     expect(root().dataset.phase).toBe("dusk");
   });
 
-  it("shows the Day phase row only while Day is active", async () => {
+  it("shows the Day phase row only after Day opens it", async () => {
     const user = userEvent.setup();
     renderToggle();
 
@@ -475,7 +475,7 @@ describe("ThemeToggle", () => {
     expect(window.localStorage.getItem(DAY_PHASE_STORAGE_KEY)).toBe("dusk");
   });
 
-  it("hides the phone phase choices when Day is not the mode", async () => {
+  it("hides the phone phase choices in Auto", async () => {
     const user = userEvent.setup();
     renderToggle();
 
@@ -489,6 +489,29 @@ describe("ThemeToggle", () => {
     expect(
       screen.queryByRole("menuitemradio", { name: "Dusk" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("offers the phase choices under Day in Night and picks Day plus that phase", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem(MODE_STORAGE_KEY, "night");
+    renderToggle();
+
+    await user.click(
+      screen.getByRole("button", { name: /Choose theme, currently Night/ }),
+    );
+
+    expect(
+      screen.getByRole("menuitemradio", { name: "Clock" }),
+    ).toBeChecked();
+
+    await user.click(screen.getByRole("menuitemradio", { name: "Dusk" }));
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(root().dataset.mode).toBe("day");
+    expect(root().dataset.phase).toBe("dusk");
+    expect(root().dataset.dayPhase).toBe("dusk");
+    expect(window.localStorage.getItem(MODE_STORAGE_KEY)).toBe("day");
+    expect(window.localStorage.getItem(DAY_PHASE_STORAGE_KEY)).toBe("dusk");
   });
 
   it("opens the Day row on click and closes it after the pointer leaves", () => {
@@ -882,6 +905,195 @@ describe("ThemeToggle", () => {
       vi.advanceTimersByTime(2000);
     });
     expect(phaseRow()).toHaveAttribute("data-visible", "true");
+  });
+
+  it("opens the row from Night and picking a phase lands in Day at it", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "night");
+    mockHoverCanHover(true);
+    renderToggle();
+
+    expect(root().dataset.mode).toBe("night");
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+
+    fireEvent.pointerOver(screen.getByRole("radio", { name: "Day" }), {
+      relatedTarget: document.body,
+    });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    // Night shows the stored pin as checked; picking one switches and pins.
+    expect(screen.getByRole("radio", { name: "Clock" })).toBeChecked();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Dusk" }));
+
+    expect(root().dataset.mode).toBe("day");
+    expect(root().dataset.phase).toBe("dusk");
+    expect(root().dataset.dayPhase).toBe("dusk");
+    expect(root()).not.toHaveClass("dark");
+    expect(window.localStorage.getItem(MODE_STORAGE_KEY)).toBe("day");
+    expect(window.localStorage.getItem(DAY_PHASE_STORAGE_KEY)).toBe("dusk");
+    expect(screen.getByRole("radio", { name: "Dusk" })).toBeChecked();
+  });
+
+  it("closes the row from Night after the pointer leaves", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "night");
+    mockHoverCanHover(true);
+    renderToggle();
+
+    fireEvent.pointerOver(screen.getByRole("radio", { name: "Day" }), {
+      relatedTarget: document.body,
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(99);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+  });
+
+  it("reaches the row from Day by keyboard in Night and picks Day plus the phase", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "night");
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+
+    // Keyboard focus on Day opens the row in Night exactly as it does in Day.
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => day.focus());
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    // Night's own segment is a tab stop between Day and the row, so Tab from
+    // Day has to hand focus to the checked phase itself.
+    fireEvent.keyDown(day, { key: "Tab" });
+    const clock = screen.getByRole("radio", { name: "Clock" });
+
+    expect(clock).toHaveFocus();
+
+    fireEvent.keyDown(clock, { key: "ArrowRight" });
+
+    expect(screen.getByRole("radio", { name: "Dawn" })).toBeChecked();
+    expect(root().dataset.mode).toBe("day");
+    expect(root().dataset.phase).toBe("dawn");
+    expect(screen.getByRole("radio", { name: "Dawn" })).toHaveFocus();
+  });
+
+  it("reopens the row from Day by Tab in Night after Escape", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "night");
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => day.focus());
+
+    const clock = screen.getByRole("radio", { name: "Clock" });
+
+    act(() => clock.focus());
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+    expect(day).toHaveFocus();
+
+    // The row is closed but Day keeps focus, so Tab reopens it and lands on
+    // the checked phase instead of walking on to the Night segment.
+    fireEvent.keyDown(day, { key: "Tab" });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(clock).toHaveFocus();
+  });
+
+  it("moves up from Day into the phase row with the Up arrow", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => day.focus());
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    const clock = screen.getByRole("radio", { name: "Clock" });
+
+    fireEvent.keyDown(day, { key: "ArrowUp" });
+
+    expect(clock).toHaveFocus();
+    // Up reaches the row instead of stepping the mode back to Auto.
+    expect(day).toBeChecked();
+    expect(root().dataset.mode).toBe("day");
+
+    // With the row closed, Up opens it and lands on the checked phase.
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+    expect(day).toHaveFocus();
+
+    fireEvent.keyDown(day, { key: "ArrowUp" });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(clock).toHaveFocus();
+  });
+
+  it("moves up from Day into the phase row in Night without changing mode", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "night");
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => day.focus());
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    fireEvent.keyDown(day, { key: "ArrowUp" });
+
+    expect(screen.getByRole("radio", { name: "Clock" })).toHaveFocus();
+    expect(root().dataset.mode).toBe("night");
+  });
+
+  it("leaves Auto unchanged: hovering Day opens no row", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    fireEvent.pointerOver(screen.getByRole("radio", { name: "Day" }), {
+      relatedTarget: document.body,
+    });
+
+    expect(root().dataset.mode).toBe("auto");
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+    expect(
+      screen.queryByRole("radiogroup", { name: "Day phase" }),
+    ).not.toBeInTheDocument();
   });
 
   it("clips each sun on its own side of the horizon", () => {
