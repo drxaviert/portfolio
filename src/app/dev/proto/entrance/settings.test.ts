@@ -98,6 +98,36 @@ describe("entrance settings", () => {
     ).toBe(2000);
   });
 
+  it("settles the dawn on the bloom or the last content row", () => {
+    const dawn = DEFAULT_SETTINGS.dawn;
+
+    // The content starts halfway through the bloom and lands with it.
+    expect(dawn.contentDelay).toBe(dawn.bloomDuration / 2);
+    expect(totalMs("dawn", DEFAULT_SETTINGS)).toBe(dawn.bloomDuration);
+    expect(dawn.contentDelay + 2 * dawn.stagger + dawn.contentDuration).toBe(
+      dawn.bloomDuration,
+    );
+
+    // A long bloom holds it open.
+    expect(totalMs("dawn", DEFAULT_SETTINGS)).toBe(1300);
+    expect(
+      totalMs("dawn", patch(DEFAULT_SETTINGS, "dawn", "bloomDuration", 2500)),
+    ).toBe(2500);
+
+    // A slow content streak outlives a short bloom.
+    expect(
+      totalMs(
+        "dawn",
+        patch(
+          patch(DEFAULT_SETTINGS, "dawn", "bloomDuration", 500),
+          "dawn",
+          "contentDuration",
+          300,
+        ),
+      ),
+    ).toBe(dawn.contentDelay + 2 * dawn.stagger + 300);
+  });
+
   it("staggers the grow by row, bottom row first", () => {
     const grow = DEFAULT_SETTINGS.grow;
 
@@ -251,6 +281,16 @@ describe("entrance settings", () => {
     expect(mist["--mist-duration"]).toBe("1100ms");
     expect(mist["--mist-card-duration"]).toBe("900ms");
     expect(mist["--mist-stagger"]).toBe("30ms");
+
+    const dawn = cssVars("dawn", DEFAULT_SETTINGS, CALM_EASING);
+
+    expect(dawn["--dawn-dim"]).toBe("0.6");
+    expect(dawn["--dawn-bloom-duration"]).toBe("1300ms");
+    expect(dawn["--dawn-bloom-scale"]).toBe("0.96");
+    expect(dawn["--dawn-content-delay"]).toBe("650ms");
+    expect(dawn["--dawn-rise"]).toBe("4px");
+    expect(dawn["--dawn-content-duration"]).toBe("600ms");
+    expect(dawn["--dawn-stagger"]).toBe("25ms");
   });
 
   it("shows steps(n) instead of a curve for the step cut", () => {

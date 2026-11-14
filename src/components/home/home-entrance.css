@@ -27,6 +27,7 @@
  *   grow   rows at 0/70/140ms, 420ms each                       → ends 560ms
  *   breath glow 0-1200ms, cards 480 + item*30ms, 540ms each     → ends 1200ms
  *   mist   haze 0-1100ms, cards item*30ms + 900ms each          → ends 1100ms
+ *   dawn   veil 0-1300ms, bloom 0-1300ms, content 650 + row*25   → ends 1300ms
  *
  * The calm family (breath and the variants that follow) deliberately runs past
  * the 700ms budget and past motion.md's curves: it is one slow atmospheric
@@ -131,6 +132,23 @@
   --mist-duration: 1100ms;
   --mist-card-duration: 900ms;
   --mist-stagger: 30ms;
+
+  /* Day's dim is its own grey scrim; Night's surface-dim is black. */
+  --dawn-scrim: color-mix(in oklab, var(--on-surface) 8%, var(--surface-dim));
+  --dawn-dim: 0.6;
+  --dawn-bloom-duration: 1300ms;
+  --dawn-bloom-scale: 0.96;
+  --dawn-content-delay: 650ms;
+  --dawn-rise: 4px;
+  --dawn-content-duration: 600ms;
+  --dawn-stagger: 25ms;
+  /* The phase halves the bloom's scale delta at Night; the panel never writes
+     this one, so the rule keeps applying. */
+  --dawn-phase-mix: 1;
+}
+
+:root[data-phase="night"] .entrance-scope {
+  --dawn-phase-mix: 0.5;
 }
 
 /*
@@ -711,6 +729,91 @@
   }
 }
 
+/*
+ * 11 — Dawn bloom: the page starts at low exposure. A theme-tinted scrim at
+ * 60% sits over everything and clears over the same 1300ms the glow blooms in:
+ * a 4% scale up from the horizon-clear origin (50% 88%) plus a fade from
+ * nothing, so the light rises out of the horizon rather than appearing.
+ *
+ * Night halves the bloom's scale delta through --dawn-phase-mix (a stylesheet
+ * token the panel never writes), so the same slider reads subtler on the dark
+ * phase; the scrim needs no special case because Night's --surface-dim is black
+ * and Day's is grey.
+ *
+ * Content lifts 4px and fades in on rows from the bottom up, starting at the
+ * bloom's halfway point (650ms of 1300ms). The scrim is harness chrome
+ * (dawn-overlay.tsx) and leaves the tree at animationend.
+ *
+ * The glow animation follows breath's split: the canvas paints the glow and the
+ * CSS layer is its fallback, so the fallback's blobs are hidden while the
+ * canvas has drawn (otherwise a half-transparent canvas would sit over a
+ * full-strength copy of the same picture and the bloom would never read).
+ */
+.entrance-dawn {
+  position: fixed;
+  inset: 0;
+  /* Above the layout's z-index 3 popover, below the tuner panel. */
+  z-index: 10;
+  pointer-events: none;
+  background-color: var(--dawn-scrim);
+  opacity: var(--dawn-dim);
+  animation: entrance-dawn-dim var(--dawn-bloom-duration) var(--entrance-ease)
+    forwards;
+}
+
+[data-entrance="dawn"] .horizon-canvas-layer,
+[data-entrance="dawn"]:not(:has(.horizon-canvas-layer)) .horizon-motion-layer {
+  transform-origin: 50% 88%;
+  animation: entrance-dawn-bloom var(--dawn-bloom-duration) var(--entrance-ease)
+    backwards;
+}
+
+[data-entrance="dawn"]:has(> .horizon-canvas-layer[data-ready="true"])
+  .horizon-motion-layer {
+  opacity: 0;
+}
+
+[data-entrance="dawn"] .entrance-body {
+  animation: entrance-dawn-content var(--dawn-content-duration)
+    var(--entrance-ease) backwards;
+  animation-delay: calc(
+    var(--dawn-content-delay) + (2 - var(--entrance-r)) * var(--dawn-stagger)
+  );
+}
+
+@keyframes entrance-dawn-dim {
+  from {
+    opacity: var(--dawn-dim, 0.6);
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes entrance-dawn-bloom {
+  from {
+    opacity: 0;
+    transform: scale(
+      calc(1 - (1 - var(--dawn-bloom-scale, 0.96)) * var(--dawn-phase-mix, 1))
+    );
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes entrance-dawn-content {
+  from {
+    opacity: 0;
+    transform: translateY(var(--dawn-rise, 4px));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes entrance-scale-in {
   from {
     opacity: 0;
@@ -808,6 +911,18 @@
   /* Mist is atmosphere, not content: drop the layer. */
   .entrance-mist {
     display: none;
+  }
+
+  /* No scrim, no bloom: the light is simply there. */
+  .entrance-dawn {
+    display: none;
+  }
+
+  [data-entrance="dawn"] .horizon-canvas-layer,
+  [data-entrance="dawn"]:not(:has(.horizon-canvas-layer))
+    .horizon-motion-layer {
+    animation: none;
+    transform: none;
   }
 
   /* No blur at all; the content takes the fade above and this layer is gone. */

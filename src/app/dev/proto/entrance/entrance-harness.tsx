@@ -23,6 +23,7 @@ import type { Control, Settings } from "./settings";
 import { PANEL_CSS } from "./panel-css";
 import { ClearOverlay } from "./clear-overlay";
 import { MistOverlay } from "./mist-overlay";
+import { DawnOverlay } from "./dawn-overlay";
 
 const VARIANTS: { id: EntranceVariant; label: string }[] = [
   { id: "scale", label: "Scale + blur" },
@@ -35,6 +36,7 @@ const VARIANTS: { id: EntranceVariant; label: string }[] = [
   { id: "grow", label: "Horizon grow" },
   { id: "breath", label: "Breath" },
   { id: "mist", label: "Mist lift" },
+  { id: "dawn", label: "Dawn bloom" },
 ];
 
 /** Input settles for this long before the entrance replays. */
@@ -249,6 +251,7 @@ export function EntranceHarness() {
             since two siblings sharing one key is a React duplicate. */}
         {playing === "clear" ? <ClearOverlay key={`clear-${take}`} /> : null}
         {playing === "mist" ? <MistOverlay key={`mist-${take}`} /> : null}
+        {playing === "dawn" ? <DawnOverlay key={`dawn-${take}`} /> : null}
       </div>
 
       <aside

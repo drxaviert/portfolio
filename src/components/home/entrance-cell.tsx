@@ -24,7 +24,8 @@ export type EntranceVariant =
   | "grain"
   | "grow"
   | "breath"
-  | "mist";
+  | "mist"
+  | "dawn";
 
 export function EntranceCell({
   variant,

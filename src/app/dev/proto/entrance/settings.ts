@@ -107,6 +107,19 @@ export type MistSettings = {
   stagger: number;
 };
 
+export type DawnSettings = {
+  /** Veil opacity at full exposure, 0-1. */
+  dim: number;
+  bloomDuration: number;
+  /** Where the glow's scale starts; 1 is no bloom. */
+  bloomScale: number;
+  contentDelay: number;
+  rise: number;
+  contentDuration: number;
+  /** Per row, from the nav up. */
+  stagger: number;
+};
+
 export type Settings = {
   scale: ScaleSettings;
   rise: RiseSettings;
@@ -118,6 +131,7 @@ export type Settings = {
   grow: GrowSettings;
   breath: BreathSettings;
   mist: MistSettings;
+  dawn: DawnSettings;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -185,6 +199,17 @@ export const DEFAULT_SETTINGS: Settings = {
     duration: 1100,
     cardDuration: 900,
     stagger: 30,
+  },
+  // Low exposure: 60% scrim, a 4% bloom from (50% 88%), content from the
+  // halfway point up 4px per row. Everything lands at 1300ms.
+  dawn: {
+    dim: 0.6,
+    bloomDuration: 1300,
+    bloomScale: 0.96,
+    contentDelay: 650,
+    rise: 4,
+    contentDuration: 600,
+    stagger: 25,
   },
 };
 
@@ -670,6 +695,66 @@ export const CONTROLS: Record<EntranceVariant, Control[]> = {
       unit: "ms",
     },
   ],
+  dawn: [
+    {
+      key: "dim",
+      label: "Dim strength",
+      min: 0,
+      max: 0.9,
+      step: 0.05,
+      unit: "×",
+      digits: 2,
+    },
+    {
+      key: "bloomDuration",
+      label: "Bloom duration",
+      min: 500,
+      max: 2500,
+      step: 50,
+      unit: "ms",
+    },
+    {
+      key: "bloomScale",
+      label: "Bloom scale",
+      min: 0.85,
+      max: 1,
+      step: 0.01,
+      unit: "×",
+      digits: 2,
+    },
+    {
+      key: "contentDelay",
+      label: "Content delay",
+      min: 0,
+      max: 1500,
+      step: 25,
+      unit: "ms",
+    },
+    {
+      key: "rise",
+      label: "Content rise",
+      min: 0,
+      max: 12,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "contentDuration",
+      label: "Content duration",
+      min: 200,
+      max: 1400,
+      step: 20,
+      unit: "ms",
+    },
+    {
+      key: "stagger",
+      label: "Row stagger",
+      min: 0,
+      max: 80,
+      step: 2,
+      unit: "ms",
+    },
+  ],
 };
 
 /** 7 reading-order items: the last one starts at 6 x stagger. */
@@ -759,6 +844,15 @@ export function totalMs(variant: EntranceVariant, settings: Settings): number {
       return Math.max(
         settings.mist.duration,
         LAST_ITEM * settings.mist.stagger + settings.mist.cardDuration,
+      );
+    case "dawn":
+      // The scrim and the bloom share one clock; the content starts at its
+      // halfway point, one row per stagger from the nav up.
+      return Math.max(
+        settings.dawn.bloomDuration,
+        settings.dawn.contentDelay +
+          LAST_ROW * settings.dawn.stagger +
+          settings.dawn.contentDuration,
       );
   }
 }
@@ -893,6 +987,20 @@ export function cssVars(
         "--mist-duration": `${s.duration}ms`,
         "--mist-card-duration": `${s.cardDuration}ms`,
         "--mist-stagger": `${s.stagger}ms`,
+      };
+    }
+    case "dawn": {
+      const s = settings.dawn;
+
+      return {
+        ...shared,
+        "--dawn-dim": String(s.dim),
+        "--dawn-bloom-duration": `${s.bloomDuration}ms`,
+        "--dawn-bloom-scale": String(s.bloomScale),
+        "--dawn-content-delay": `${s.contentDelay}ms`,
+        "--dawn-rise": `${s.rise}px`,
+        "--dawn-content-duration": `${s.contentDuration}ms`,
+        "--dawn-stagger": `${s.stagger}ms`,
       };
     }
   }

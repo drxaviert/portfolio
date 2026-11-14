@@ -122,4 +122,19 @@ describe("entrance harness", () => {
 
     expect(document.querySelector(".entrance-mist")).toBeNull();
   });
+
+  it("mounts the dawn veil only for dawn bloom", () => {
+    mount();
+
+    expect(document.querySelector(".entrance-dawn")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Dawn bloom" }));
+
+    expect(document.querySelector("main")?.dataset.entrance).toBe("dawn");
+    expect(document.querySelectorAll(".entrance-dawn")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Rise" }));
+
+    expect(document.querySelector(".entrance-dawn")).toBeNull();
+  });
 });
