@@ -1024,6 +1024,10 @@ export function ThemeToggle() {
         return;
       }
 
+      // The row consumed this Escape. Marking the event keeps a reader-level
+      // Esc (which closes the whole work drawer) from firing on the same
+      // keypress, so one Esc dismisses the row and the next one leaves.
+      event.preventDefault();
       closeRow();
 
       // Restoring focus to Day must not count as "focus entered Day" and
@@ -1076,6 +1080,9 @@ export function ThemeToggle() {
 
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
+        // Same contract as the Day row: dismiss the menu, and let anything
+        // above it (the reader) know the keypress was already used.
+        event.preventDefault();
         setMenuOpen(false);
         triggerRef.current?.focus();
       }

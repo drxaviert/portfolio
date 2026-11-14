@@ -1,4 +1,10 @@
-﻿import { act, fireEvent, render, screen } from "@testing-library/react";
+﻿import {
+  act,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
@@ -151,6 +157,23 @@ describe("ThemeToggle", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(root().dataset.mode).toBe("day");
     expect(window.localStorage.getItem(MODE_STORAGE_KEY)).toBe("day");
+  });
+
+  it("closes the phone menu on Escape and marks the keypress handled", async () => {
+    const user = userEvent.setup();
+    renderToggle();
+
+    await user.click(
+      screen.getByRole("button", { name: "Choose theme, currently Auto" }),
+    );
+
+    const escape = createEvent.keyDown(document, { key: "Escape" });
+    fireEvent(document, escape);
+
+    // The reader's own Esc listener sits on window and skips a handled press,
+    // so the menu takes the first Escape and the drawer the second.
+    expect(escape.defaultPrevented).toBe(true);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("fires at the next boundary and reschedules", () => {
@@ -851,8 +874,10 @@ describe("ThemeToggle", () => {
     fireEvent.click(day);
 
     act(() => screen.getByRole("radio", { name: "Dawn" }).focus());
-    fireEvent.keyDown(document, { key: "Escape" });
+    const escape = createEvent.keyDown(document, { key: "Escape" });
+    fireEvent(document, escape);
 
+    expect(escape.defaultPrevented).toBe(true);
     expect(phaseRow()).toHaveAttribute("data-visible", "false");
     expect(day).toHaveFocus();
 

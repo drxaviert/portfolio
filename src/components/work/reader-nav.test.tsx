@@ -90,4 +90,46 @@ describe("ReaderNav", () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("dismisses the theme menu before closing the reader", () => {
+    const onClose = vi.fn();
+    renderNav(onClose);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Choose theme, currently Auto" }),
+    );
+    expect(screen.getByRole("menu", { name: "Theme" })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(
+      screen.queryByRole("menu", { name: "Theme" }),
+    ).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("dismisses the Day phase row before closing the reader", () => {
+    const onClose = vi.fn();
+    renderNav(onClose);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
+
+function phaseRow(): HTMLElement {
+  return document.querySelector<HTMLElement>('[data-phase-row="true"]')!;
+}

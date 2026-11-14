@@ -39,8 +39,12 @@ export function useEscToClose(onClose: (() => void) | undefined) {
 
     const close = onClose;
 
+    // A popover that handled this Escape calls preventDefault(). ThemeToggle
+    // listens on document, which is on the event's path before window, so its
+    // decision is already recorded by the time this runs: one Esc dismisses the
+    // open row or menu, the next one leaves the reader.
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || event.defaultPrevented) return;
       event.preventDefault();
       close();
     }
