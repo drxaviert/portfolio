@@ -25,11 +25,11 @@
   --ring-radius: 12px;
   --ring-inner-radius: 11px;
   --ring-glow-size: 614px;
-  --ring-grow: 800ms;
-  --ring-follow: 1000ms;
-  --ring-fade: 250ms;
-  --ring-ease: cubic-bezier(0.165, 0.84, 0.44, 1);
-  --ring-follow-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ring-grow: var(--duration-long-3);
+  --ring-follow: var(--duration-long-4);
+  --ring-fade: var(--duration-medium-2);
+  --ring-ease: var(--ease-spring-grow);
+  --ring-follow-ease: var(--ease-spring-follow);
   --ring-shift-x: 5px;
   --ring-shift-y: 4px;
   --ring-line: var(--frame-line);
@@ -44,7 +44,7 @@
      switch swaps the token without animating the edge. */
   background-color: transparent;
   box-shadow: var(--shadow-card);
-  transition: z-index 100ms steps(1);
+  transition: z-index var(--duration-short-1) steps(1);
 }
 
 .ring-frame {
@@ -62,7 +62,7 @@
   opacity: 0;
   transition:
     clip-path var(--ring-grow) var(--ring-ease),
-    opacity 100ms linear var(--ring-grow);
+    opacity var(--duration-short-1) var(--ease-linear) var(--ring-grow);
 }
 
 .ring-glow {
@@ -89,7 +89,7 @@
   transform: translate3d(var(--ring-mx, 0px), var(--ring-my, 0px), 0);
   transition:
     transform var(--ring-follow) var(--ring-follow-ease),
-    opacity var(--ring-fade) linear;
+    opacity var(--ring-fade) var(--ease-linear);
 }
 
 .ring-surface {
@@ -118,7 +118,7 @@
     opacity: 1;
     transition:
       clip-path var(--ring-grow) var(--ring-ease),
-      opacity 100ms linear;
+      opacity var(--duration-short-1) var(--ease-linear);
   }
 
   .ring-host:hover .ring-surface {
@@ -150,7 +150,7 @@
   opacity: 1;
   transition:
     clip-path var(--ring-grow) var(--ring-ease),
-    opacity 100ms linear;
+    opacity var(--duration-short-1) var(--ease-linear);
 }
 
 .ring-host:focus-visible .ring-surface,
@@ -183,7 +183,7 @@
     clip-path: inset(
       var(--ring-grow-y) var(--ring-grow-x) round var(--ring-radius)
     );
-    transition: opacity 100ms linear;
+    transition: opacity var(--duration-short-1) var(--ease-linear);
   }
 
   .ring-surface {
@@ -206,7 +206,7 @@
   /* Glow fades only: no trailing movement, it stays centred. */
   .ring-glow {
     transform: none;
-    transition: opacity var(--ring-fade) linear;
+    transition: opacity var(--ring-fade) var(--ease-linear);
   }
 
   .ring-title,

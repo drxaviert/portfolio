@@ -141,13 +141,13 @@
 
   /* Horizon phase crossfade when the theme is clicked; tunable from the glow
      panel. A click is a direct answer to the user, so it stays quick. */
-  --horizon-transition-duration: 400ms;
-  --horizon-transition-ease: ease-in-out;
+  --horizon-transition-duration: var(--duration-long-1);
+  --horizon-transition-ease: var(--ease-standard);
 
   /* Clock-driven (Auto / Day) phase switches. Nobody asked for these, so they
      arrive slowly enough to read as a change in light, not a repaint. */
-  --phase-auto-transition-duration: 4000ms;
-  --phase-auto-transition-ease: ease-in-out;
+  --phase-auto-transition-duration: var(--duration-extra-long-1);
+  --phase-auto-transition-ease: var(--ease-standard);
 
   /*
    * Nav orb: the same gradient shape in every phase, composed from the
@@ -165,11 +165,58 @@
 /* Reduced motion keeps the change legible without a full crossfade. */
 @media (prefers-reduced-motion: reduce) {
   :root {
-    --horizon-transition-duration: 150ms !important;
-    --phase-auto-transition-duration: 150ms !important;
+    --horizon-transition-duration: var(--duration-short-3) !important;
+    --phase-auto-transition-duration: var(--duration-short-3) !important;
   }
 }
 
+/*
+ * Motion scale.
+ *
+ * One token per distinct value the app actually runs: 180ms and 200ms would
+ * stay separate steps rather than round together. Curves are named by role
+ * (M3-style decelerate / accelerate / emphasized / spring), durations by step
+ * (short, medium, long, extra-long, ambient). Component CSS may keep its own
+ * variable, but only as an alias of one of these.
+ */
+:root {
+  --ease-standard: ease-in-out;
+  --ease-decelerate: ease-out;
+  --ease-accelerate: ease-in;
+  --ease-linear: linear;
+  --ease-emphasized-decelerate: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-emphasized-standard: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-spring: cubic-bezier(0.34, 1.3, 0.64, 1);
+  --ease-spring-grow: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --ease-spring-follow: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-step: steps(1);
+
+  --duration-short-1: 100ms;
+  --duration-short-2: 120ms;
+  --duration-short-3: 150ms;
+  --duration-short-4: 160ms;
+  --duration-short-5: 170ms;
+  --duration-short-6: 180ms;
+  --duration-short-7: 220ms;
+  --duration-short-8: 230ms;
+  --duration-medium-1: 240ms;
+  --duration-medium-2: 250ms;
+  --duration-medium-3: 270ms;
+  --duration-medium-4: 280ms;
+  --duration-medium-5: 300ms;
+  --duration-medium-6: 330ms;
+  --duration-medium-7: 360ms;
+  --duration-long-1: 400ms;
+  --duration-long-2: 600ms;
+  --duration-long-3: 800ms;
+  --duration-long-4: 1000ms;
+  --duration-extra-long-1: 4000ms;
+  --duration-extra-long-2: 7800ms;
+  --duration-extra-long-3: 8000ms;
+  --duration-extra-long-4: 8200ms;
+  --duration-ambient-1: 16s;
+  --duration-ambient-2: 110s;
+}
 :root,
 [data-phase="day"] {
   color-scheme: light;

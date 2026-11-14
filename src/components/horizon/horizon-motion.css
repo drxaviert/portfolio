@@ -29,7 +29,7 @@
  */
 .horizon-canvas-layer {
   opacity: 0;
-  transition: opacity 300ms ease-out;
+  transition: opacity var(--duration-medium-5) var(--ease-decelerate);
 }
 
 .horizon-canvas-layer[data-ready="true"] {
@@ -63,7 +63,10 @@
    */
   --horizon-base-strength: calc(
     var(--horizon-base-intensity, 1) +
-      (var(--horizon-night-base-intensity, 1) - var(--horizon-base-intensity, 1)) *
+      (
+        var(--horizon-night-base-intensity, 1) -
+          var(--horizon-base-intensity, 1)
+      ) *
       var(--horizon-night-blend)
   );
 }
@@ -79,7 +82,8 @@
  */
 .horizon-motion-layer[data-motion="drift"] .horizon-motion-drift,
 .horizon-motion-layer[data-motion="drift-breathe"] .horizon-motion-drift {
-  animation: horizon-drift-a var(--horizon-drift-period, 110s) ease-in-out
+  animation: horizon-drift-a
+    var(--horizon-drift-period, var(--duration-ambient-2)) var(--ease-standard)
     var(--horizon-drift-delay, 0s) infinite alternate;
 }
 
@@ -95,8 +99,9 @@
  */
 .horizon-motion-layer[data-motion="breathe"] .horizon-motion-breathe,
 .horizon-motion-layer[data-motion="drift-breathe"] .horizon-motion-breathe {
-  animation: horizon-breathe var(--horizon-breathe-period, 16s) ease-in-out
-    var(--horizon-breathe-delay, 0s) infinite alternate;
+  animation: horizon-breathe
+    var(--horizon-breathe-period, var(--duration-ambient-1))
+    var(--ease-standard) var(--horizon-breathe-delay, 0s) infinite alternate;
 }
 
 /*
@@ -126,10 +131,15 @@
    */
   --horizon-intensity-peak: calc(
     var(--horizon-intensity-amp, 0) *
-      (1 - var(--horizon-night-blend, 0) * (1 - var(--horizon-intensity-night, 1)))
+      (
+        1 - var(--horizon-night-blend, 0) *
+          (1 - var(--horizon-intensity-night, 1))
+      )
   );
-  animation: horizon-intensity var(--horizon-breathe-period, 16s) ease-in-out
-    var(--horizon-breathe-delay, 0s) infinite alternate-reverse;
+  animation: horizon-intensity
+    var(--horizon-breathe-period, var(--duration-ambient-1))
+    var(--ease-standard) var(--horizon-breathe-delay, 0s) infinite
+    alternate-reverse;
 }
 
 @supports (opacity: calc(1 / (1 - 0.5))) {
@@ -137,12 +147,17 @@
   .horizon-motion-layer .horizon-motion-intensity {
     --horizon-intensity-peak: calc(
       var(--horizon-intensity-amp, 0) *
-        (1 - var(--horizon-night-blend, 0) * (1 - var(--horizon-intensity-night, 1))) /
-        (1 -
-          min(
-            0.9,
-            var(--horizon-blob-alpha, 0.06) * var(--horizon-base-strength, 1)
-          ))
+        (
+          1 - var(--horizon-night-blend, 0) *
+            (1 - var(--horizon-intensity-night, 1))
+        ) /
+        (
+          1 -
+            min(
+              0.9,
+              var(--horizon-blob-alpha, 0.06) * var(--horizon-base-strength, 1)
+            )
+        )
     );
   }
 }
