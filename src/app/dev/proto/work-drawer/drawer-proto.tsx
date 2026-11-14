@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HomeLayout } from "@/components/home/home-layout";
 import { WorkDrawer } from "./drawer";
 import { DrawerPanel } from "./panel";
+import { measureHomeNav } from "./nav-layout";
 import { nextProject, projectBySlug, PROJECTS } from "./works";
-import type { Origin, Rect, Setup, Variant } from "./types";
+import type { NavMode, Origin, Rect, Setup, Variant } from "./types";
 import "./work-drawer.css";
 
 /**
@@ -38,10 +39,12 @@ function slugFromUrl(): string | null {
 
 export function DrawerProto() {
   const [setup, setSetup] = useState<Setup>("featured");
-  const [variant, setVariant] = useState<Variant>("sheet");
+  const [variant, setVariant] = useState<Variant>("expand");
+  const [nav, setNav] = useState<NavMode>("stay");
   const [slug, setSlugState] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [origin, setOrigin] = useState<Origin | null>(null);
+  const [navOrigin, setNavOrigin] = useState<Rect | null>(null);
 
   const slugRef = useRef<string | null>(null);
   const pushedRef = useRef(false);
@@ -61,6 +64,7 @@ export function DrawerProto() {
       const title = element?.querySelector<HTMLElement>("h1");
 
       setOrigin(card ? { card, title: title ? toRect(title) : null } : null);
+      setNavOrigin(measureHomeNav());
       triggerRef.current =
         element ??
         (document.activeElement instanceof HTMLElement
@@ -107,6 +111,7 @@ export function DrawerProto() {
     setSlug(null);
     setClosing(false);
     setOrigin(null);
+    setNavOrigin(null);
 
     if (stillInUrl) {
       if (wasPushed) {
@@ -131,6 +136,7 @@ export function DrawerProto() {
 
       if (next !== slugRef.current) {
         setOrigin(null);
+        setNavOrigin(measureHomeNav());
         setSlug(next);
         setClosing(false);
       }
@@ -214,9 +220,12 @@ export function DrawerProto() {
 
       {project ? (
         <WorkDrawer
+          key={variant === "expand" ? `expand-${nav}` : variant}
           project={project}
           setup={setup}
           variant={variant}
+          nav={nav}
+          navOrigin={navOrigin}
           origin={origin}
           closing={closing}
           onNext={goNext}
@@ -228,8 +237,10 @@ export function DrawerProto() {
       <DrawerPanel
         setup={setup}
         variant={variant}
+        nav={nav}
         onSetup={setSetup}
         onVariant={setVariant}
+        onNav={setNav}
       />
     </div>
   );

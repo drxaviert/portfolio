@@ -6,12 +6,17 @@ import {
   useDragControls,
   useReducedMotion,
 } from "motion/react";
-import { useEffect, useRef, useState } from "react";
-import type { RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { CSSProperties, RefObject } from "react";
 import { CaseStudy } from "./case-study";
+import { CloseButton } from "./close-button";
+import { NavHeaderBar, ReaderNav } from "./nav-layer";
+import { computeReaderLayout } from "./nav-layout";
+import type { ReaderLayout } from "./nav-layout";
+import { CLOSE_S, EASE_ENTER, MORPH_S } from "./motion";
 import { nextProject, projectIndex, PROJECTS } from "./works";
 import type { Project } from "./works";
-import type { Origin, Rect, Setup, Variant } from "./types";
+import type { NavMode, Origin, Rect, Setup, Variant } from "./types";
 
 /**
  * Throwaway drawer prototype. Three opening treatments share one reader:
@@ -23,12 +28,19 @@ import type { Origin, Rect, Setup, Variant } from "./types";
  * `closing` is owned by the prototype page so every way out (Escape, close,
  * backdrop, browser Back, drag) runs the same exit and only unmounts after
  * `onClosed`. That is what makes an interrupted open reverse from where it is.
+ *
+ * For the expanded reader the real HomeNav is rendered inside the dialog
+ * (above the reader and backdrop), in one of three placements, so the visitor
+ * keeps the nav and its live ThemeToggle the whole time.
  */
 
 export type DrawerProps = {
   project: Project;
   setup: Setup;
   variant: Variant;
+  nav: NavMode;
+  /** The page nav's box, measured before opening. */
+  navOrigin: Rect | null;
   origin: Origin | null;
   closing: boolean;
   onNext: () => void;
@@ -36,14 +48,24 @@ export type DrawerProps = {
   onClosed: () => void;
 };
 
-const EASE_ENTER = [0.32, 0.72, 0, 1] as const;
-
 function useReduceMotion(): boolean {
   return Boolean(useReducedMotion());
 }
 
 export function WorkDrawer(props: DrawerProps) {
   const reduce = useReduceMotion();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const [layout] = useState<ReaderLayout>(() =>
+    computeReaderLayout(
+      props.nav,
+      props.navOrigin,
+      window.innerWidth,
+      window.innerHeight,
+    ),
+  );
+  const [ready, setReady] = useState(props.variant !== "expand" || reduce);
+
+  useDrawerFocus(dialogRef, ready);
 
   return (
     <>
@@ -52,15 +74,48 @@ export function WorkDrawer(props: DrawerProps) {
         reduce={reduce}
         onRequestClose={props.onRequestClose}
       />
-      {props.variant === "sheet" ? (
-        <SheetDrawer {...props} reduce={reduce} />
-      ) : null}
-      {props.variant === "side" ? (
-        <SideDrawer {...props} reduce={reduce} />
-      ) : null}
-      {props.variant === "expand" ? (
-        <ExpandDrawer {...props} reduce={reduce} />
-      ) : null}
+
+      <div
+        ref={dialogRef}
+        className="wd-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Case study: ${props.project.title}`}
+        data-variant={props.variant}
+        data-nav={props.nav}
+      >
+        {props.variant === "expand" && props.nav === "header" ? (
+          <NavHeaderBar
+            layout={layout}
+            visible={ready && !props.closing}
+            onRequestClose={props.onRequestClose}
+          />
+        ) : null}
+
+        {props.variant === "expand" ? (
+          <ReaderNav
+            mode={props.nav}
+            layout={layout}
+            closing={props.closing}
+            reduce={reduce}
+          />
+        ) : null}
+
+        {props.variant === "sheet" ? (
+          <SheetDrawer {...props} reduce={reduce} />
+        ) : null}
+        {props.variant === "side" ? (
+          <SideDrawer {...props} reduce={reduce} />
+        ) : null}
+        {props.variant === "expand" ? (
+          <ExpandDrawer
+            {...props}
+            reduce={reduce}
+            layout={layout}
+            onReady={() => setReady(true)}
+          />
+        ) : null}
+      </div>
     </>
   );
 }
@@ -90,8 +145,9 @@ function Backdrop({
 }
 
 /**
- * Focus lands on the close button when the surface is ready and is trapped in
- * the dialog until it unmounts; the page restores the card's focus afterwards.
+ * Keeps Tab inside the dialog (the nav is part of it), and moves the initial
+ * focus to the close button once the reader is ready — the nav stays usable
+ * and visible while the surface is still morphing.
  */
 function useDrawerFocus(
   rootRef: RefObject<HTMLDivElement | null>,
@@ -99,18 +155,16 @@ function useDrawerFocus(
 ) {
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || !ready) return;
-
-    root.querySelector<HTMLElement>("[data-wd-close]")?.focus({
-      preventScroll: true,
-    });
+    if (!root) return;
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Tab" || !root) return;
 
-      const nodes = root.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
+      const nodes = [
+        ...root.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((node) => !node.closest("[inert]"));
       if (nodes.length === 0) return;
 
       const first = nodes[0];
@@ -133,40 +187,15 @@ function useDrawerFocus(
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [rootRef, ready]);
-}
+  }, [rootRef]);
 
-function CloseButton({
-  onRequestClose,
-  className = "",
-}: {
-  onRequestClose: () => void;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      data-wd-close
-      aria-label="Close case study"
-      className={`wd-close ${className}`}
-      onClick={onRequestClose}
-      onPointerDown={(event) => event.stopPropagation()}
-    >
-      <svg
-        viewBox="0 0 20 20"
-        width="18"
-        height="18"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <path d="M5 5l10 10M15 5L5 15" />
-      </svg>
-    </button>
-  );
+  useEffect(() => {
+    if (!ready) return;
+
+    rootRef.current
+      ?.querySelector<HTMLElement>("[data-wd-close]")
+      ?.focus({ preventScroll: true });
+  }, [rootRef, ready]);
 }
 
 /** One reader, mounted by every variant. */
@@ -239,22 +268,15 @@ function SheetDrawer({
   onRequestClose,
   onClosed,
 }: DrawerProps & { reduce: boolean }) {
-  const rootRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragControls = useDragControls();
-
-  useDrawerFocus(rootRef, true);
 
   const openPose = reduce ? { opacity: 1 } : { y: 0 };
   const closedPose = reduce ? { opacity: 0 } : { y: "100%" };
 
   return (
     <motion.div
-      ref={rootRef}
       className="wd-sheet"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="wd-study-title"
       drag={reduce ? false : "y"}
       dragControls={dragControls}
       dragListener={false}
@@ -309,21 +331,14 @@ function SideDrawer({
   onRequestClose,
   onClosed,
 }: DrawerProps & { reduce: boolean }) {
-  const rootRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  useDrawerFocus(rootRef, true);
 
   const openPose = reduce ? { opacity: 1 } : { x: 0 };
   const closedPose = reduce ? { opacity: 0 } : { x: "100%" };
 
   return (
     <motion.div
-      ref={rootRef}
       className="wd-side"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="wd-study-title"
       initial={reduce ? { opacity: 0 } : { x: "100%" }}
       animate={closing ? closedPose : openPose}
       transition={
@@ -354,17 +369,6 @@ function SideDrawer({
   );
 }
 
-function targetRect(): Rect {
-  const inset = window.innerWidth >= 768 ? 16 : 0;
-
-  return {
-    left: inset,
-    top: inset,
-    width: window.innerWidth - inset * 2,
-    height: window.innerHeight - inset * 2,
-  };
-}
-
 function fallbackStart(target: Rect): Rect {
   return {
     left: target.left + target.width * 0.22,
@@ -374,61 +378,121 @@ function fallbackStart(target: Rect): Rect {
   };
 }
 
+function panelStyle(target: Rect, layout: ReaderLayout): CSSProperties {
+  return {
+    position: "fixed",
+    left: target.left,
+    top: target.top,
+    width: target.width,
+    height: target.height,
+    transformOrigin: "top left",
+    "--wd-pad-top": `${layout.padTop}px`,
+    "--wd-pad-bottom": `${layout.padBottom}px`,
+  } as CSSProperties;
+}
+
 function ExpandDrawer({
   project,
   setup,
+  nav,
   origin,
   closing,
   reduce,
+  layout,
   onNext,
   onRequestClose,
   onClosed,
-}: DrawerProps & { reduce: boolean }) {
-  const rootRef = useRef<HTMLDivElement>(null);
+  onReady,
+}: DrawerProps & {
+  reduce: boolean;
+  layout: ReaderLayout;
+  onReady: () => void;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [target] = useState(targetRect);
-  const [start] = useState<Rect>(() =>
-    origin ? origin.card : fallbackStart(target),
+  const [phase, setPhase] = useState<"morph" | "open">(
+    reduce ? "open" : "morph",
   );
-  const [morphed, setMorphed] = useState(!origin || reduce);
+  const [titleTo, setTitleTo] = useState<Rect | null>(null);
 
-  useDrawerFocus(rootRef, morphed && !closing);
+  const target = layout.panel;
+  const from = origin?.card ?? fallbackStart(target);
+  const titleFrom = origin?.title ?? null;
+  const contentVisible = phase === "open" && !closing;
 
-  const from = reduce ? { ...target, opacity: 0 } : { ...start, opacity: 1 };
-  const to = { ...target, opacity: 1 };
-  const narrowOrigin = start.width < 240;
+  // Measure the reader title in the panel's target space. Because the panel
+  // is only transformed (never resized), dividing by its current scale gives
+  // the untransformed layout rect — no duplicate hidden tree needed.
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    const title = panel?.querySelector<HTMLElement>("#wd-study-title");
+    if (!panel || !title || !titleFrom) return;
+
+    const panelRect = panel.getBoundingClientRect();
+    const titleRect = title.getBoundingClientRect();
+    const scaleX = panelRect.width / target.width || 1;
+    const scaleY = panelRect.height / target.height || 1;
+
+    setTitleTo({
+      left: target.left + (titleRect.left - panelRect.left) / scaleX,
+      top: target.top + (titleRect.top - panelRect.top) / scaleY,
+      width: titleRect.width / scaleX,
+      height: titleRect.height / scaleY,
+    });
+  }, [target, titleFrom]);
+
+  const closedPose = reduce
+    ? { opacity: 0 }
+    : {
+        x: from.left - target.left,
+        y: from.top - target.top,
+        scaleX: from.width / target.width,
+        scaleY: from.height / target.height,
+      };
+  const openPose = reduce
+    ? { opacity: 1 }
+    : { x: 0, y: 0, scaleX: 1, scaleY: 1 };
 
   return (
-    <motion.div
-      ref={rootRef}
-      className="wd-expand"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Case study: ${project.title}`}
-      initial={from}
-      animate={closing ? from : to}
-      transition={
-        closing
-          ? { duration: reduce ? 0.12 : 0.3, ease: "easeIn" }
-          : {
-              duration: reduce ? 0.12 : 0.48,
-              ease: reduce ? "easeOut" : EASE_ENTER,
-            }
-      }
-      onAnimationComplete={() => {
-        if (closing) {
-          onClosed();
-          return;
+    <>
+      <motion.div
+        ref={panelRef}
+        className="wd-expand"
+        data-nav={nav}
+        style={panelStyle(target, layout)}
+        initial={closedPose}
+        animate={closing ? closedPose : openPose}
+        transition={
+          reduce
+            ? { duration: 0.12, ease: "easeOut" }
+            : {
+                duration: closing ? CLOSE_S : MORPH_S,
+                ease: closing ? "easeIn" : EASE_ENTER,
+              }
         }
-        setMorphed(true);
-      }}
-    >
-      {morphed && !closing ? (
-        <div className="wd-expand-reader">
-          <CloseButton
-            className="wd-float-close"
-            onRequestClose={onRequestClose}
-          />
+        onAnimationComplete={() => {
+          if (closing) {
+            onClosed();
+            return;
+          }
+
+          setPhase("open");
+          onReady();
+        }}
+      >
+        <div
+          className="wd-expand-reader"
+          data-visible={contentVisible ? "" : undefined}
+          data-closing={closing ? "" : undefined}
+          inert={!contentVisible}
+        >
+          {nav !== "header" ? (
+            <CloseButton
+              className="wd-float-close"
+              onRequestClose={onRequestClose}
+            />
+          ) : null}
+
           <DrawerContent
             project={project}
             setup={setup}
@@ -437,16 +501,52 @@ function ExpandDrawer({
             scrollRef={scrollRef}
           />
         </div>
-      ) : (
-        <div className="wd-face" aria-hidden="true">
-          {narrowOrigin ? null : (
-            <>
-              <p className="wd-eyebrow">Case study</p>
-              <p className="wd-face-title">{project.title}</p>
-            </>
-          )}
-        </div>
-      )}
-    </motion.div>
+      </motion.div>
+
+      {titleFrom && !reduce ? (
+        <motion.h2
+          aria-hidden="true"
+          className="wd-title-fly text-balance text-title-sm font-semibold md:text-title"
+          initial={{
+            left: titleFrom.left,
+            top: titleFrom.top,
+            width: titleFrom.width,
+          }}
+          animate={{
+            left: (closing ? titleFrom : (titleTo ?? titleFrom)).left,
+            top: (closing ? titleFrom : (titleTo ?? titleFrom)).top,
+            width: (closing ? titleFrom : (titleTo ?? titleFrom)).width,
+            opacity: contentVisible ? 0 : 1,
+          }}
+          transition={{
+            left: {
+              duration: closing ? CLOSE_S : MORPH_S,
+              ease: closing ? "easeIn" : EASE_ENTER,
+            },
+            top: {
+              duration: closing ? CLOSE_S : MORPH_S,
+              ease: closing ? "easeIn" : EASE_ENTER,
+            },
+            width: {
+              duration: closing ? CLOSE_S : MORPH_S,
+              ease: closing ? "easeIn" : EASE_ENTER,
+            },
+            opacity: {
+              duration: 0.18,
+              ease: "easeOut",
+              delay: contentVisible ? 0.05 : 0,
+            },
+          }}
+          style={{
+            position: "fixed",
+            zIndex: 3,
+            margin: 0,
+            pointerEvents: "none",
+          }}
+        >
+          {project.title}
+        </motion.h2>
+      ) : null}
+    </>
   );
 }

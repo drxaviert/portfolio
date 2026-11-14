@@ -37,6 +37,16 @@
   background: rgb(0 0 0 / 0.62);
 }
 
+/* One dialog root: the reader/sheet and the live nav are its children, so the
+   focus trap and aria-modal cover both. Clicks outside still reach the
+   backdrop because the wrapper itself is pointer-events: none. */
+.wd-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
 /* ------------------------------------------------------ stacked slivers ---- */
 
 .wd-sliver {
@@ -203,7 +213,7 @@
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 50;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   border-radius: 12px 12px 0 0;
@@ -213,6 +223,7 @@
     var(--shadow-card),
     0 24px 60px -24px rgb(0 0 0 / 0.4);
   touch-action: pan-y;
+  pointer-events: auto;
 }
 
 @media (min-width: 768px) {
@@ -228,7 +239,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 50;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -237,6 +248,7 @@
   box-shadow:
     var(--shadow-card),
     -24px 0 60px -30px rgb(0 0 0 / 0.4);
+  pointer-events: auto;
 }
 
 .wd-side .wd-column {
@@ -254,7 +266,7 @@
 
 .wd-expand {
   position: fixed;
-  z-index: 50;
+  z-index: 1;
   overflow: hidden;
   border-radius: 12px;
   background: var(--surface-container-low);
@@ -262,23 +274,119 @@
   box-shadow:
     var(--shadow-card),
     0 30px 70px -30px rgb(0 0 0 / 0.45);
+  pointer-events: auto;
 }
 
 @media (max-width: 767px) {
   .wd-expand {
     border-radius: 0;
   }
+
+  /* Stay keeps the reader a card above the docked nav. */
+  .wd-expand[data-nav="stay"] {
+    border-radius: 12px;
+  }
 }
 
 .wd-expand-reader {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  opacity: 0;
+  transition: opacity 240ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.wd-expand-reader[data-visible] {
+  opacity: 1;
+}
+
+.wd-expand-reader[data-closing] {
+  transition-duration: 140ms;
 }
 
 .wd-expand .wd-column {
-  padding-top: 16px;
+  padding-top: calc(4px + var(--wd-pad-top, 0px));
+  padding-bottom: calc(56px + var(--wd-pad-bottom, 0px));
+}
+
+/* True title hand-off: a fixed copy flies from the card title's measured box
+   to the reader title's measured box, then dissolves as the reader fades in. */
+.wd-title-fly {
+  z-index: 3;
+  font-weight: 600;
+  color: var(--on-surface);
+  pointer-events: none;
+}
+
+/* ----------------------------------------------------------- reader nav --- */
+
+.wd-nav {
+  position: fixed;
+  z-index: 4;
+  pointer-events: auto;
+}
+
+.wd-nav-float {
+  background: var(--surface-container-low);
+  box-shadow:
+    0 1px 2px -1px rgb(0 0 0 / 0.08),
+    0 10px 24px -14px rgb(0 0 0 / 0.3);
+}
+
+[data-phase="night"] .wd-nav-float {
+  box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.8);
+}
+
+/* The wrapper paints the pill; the nav's own ring layers would add a second
+   outline (and their clip would fight the pill radius). */
+.wd-nav-float .ring-host {
+  border-radius: inherit;
+  background: transparent;
+  box-shadow: none;
+}
+
+.wd-nav-float .ring-frame,
+.wd-nav-float .ring-surface,
+.wd-nav-float .ring-glow {
+  display: none;
+}
+
+.wd-nav-header .ring-host {
+  border-radius: 12px;
+}
+
+@media (max-width: 767px) {
+  .wd-nav-header .ring-host {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+}
+
+.wd-nav-header-bar {
+  position: fixed;
+  z-index: 2;
+  border-radius: 12px 12px 0 0;
+  background: var(--surface-container-low);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.wd-nav-header-bar[data-visible] {
+  opacity: 1;
+}
+
+@media (max-width: 767px) {
+  .wd-nav-header-bar {
+    border-radius: 0;
+  }
+}
+
+.wd-header-close {
+  pointer-events: auto;
+  box-shadow: var(--shadow-card);
 }
 
 .wd-close.wd-float-close {
@@ -675,7 +783,7 @@
 
 .wd-panel {
   position: fixed;
-  top: 64px;
+  top: 104px;
   right: 12px;
   z-index: 60;
   display: flex;
@@ -802,6 +910,11 @@
   .wd-page[data-open="true"][data-variant="sheet"] .wd-home {
     transform: none;
     transition: none;
+  }
+
+  .wd-expand-reader,
+  .wd-nav-header-bar {
+    transition-duration: 120ms;
   }
 
   .wd-close,

@@ -1,6 +1,9 @@
 export type Setup = "featured" | "stack";
 export type Variant = "sheet" | "expand" | "side";
 
+/** How the real HomeNav is carried into the expanded reader. */
+export type NavMode = "stay" | "float" | "header";
+
 export type Rect = {
   left: number;
   top: number;
