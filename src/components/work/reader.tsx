@@ -3,6 +3,7 @@ import { nextWork } from "@/lib/work";
 import type { WorkMeta } from "@/lib/work";
 import { Hero, Intro, NextLink, READER_TITLE_ID } from "./parts";
 import { ReaderNavSlot } from "./reader-nav";
+import "@/components/home/ring-hover.css";
 import "./reader.css";
 
 export { READER_TITLE_ID } from "./parts";
