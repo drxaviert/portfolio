@@ -22,8 +22,8 @@
   /* How far the ring grows past the host box on hover (into the gutters). */
   --ring-grow-y: 6px;
   --ring-grow-x: 3.5px;
-  --ring-radius: 12px;
-  --ring-inner-radius: 11px;
+  --ring-radius: var(--radius-lg);
+  --ring-inner-radius: calc(var(--radius-lg) - 1px);
   --ring-glow-size: 614px;
   --ring-grow: var(--duration-long-3);
   --ring-follow: var(--duration-long-4);
