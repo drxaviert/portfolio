@@ -137,4 +137,19 @@ describe("entrance harness", () => {
 
     expect(document.querySelector(".entrance-dawn")).toBeNull();
   });
+
+  it("mounts the soft-focus layer only for soft focus", () => {
+    mount();
+
+    expect(document.querySelector(".entrance-soft")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Soft focus" }));
+
+    expect(document.querySelector("main")?.dataset.entrance).toBe("soft");
+    expect(document.querySelectorAll(".entrance-soft")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Rise" }));
+
+    expect(document.querySelector(".entrance-soft")).toBeNull();
+  });
 });

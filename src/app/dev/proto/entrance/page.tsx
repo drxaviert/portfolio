@@ -4,9 +4,11 @@ import { EntranceHarness } from "./entrance-harness";
 
 /**
  * Throwaway prototype: the real home composition with a page-load entrance,
- * switched live from a floating panel. Eight variants to compare — scale+blur,
+ * switched live from a floating panel. Twelve variants to compare — scale+blur,
  * rise, ring reveal, sky first, horizon clear, step cut, grain sky, horizon
- * grow — all inside a 700ms sequence on the design system's entrance curve.
+ * grow, then the calm family: breath, mist lift, dawn bloom, soft focus.
+ * Variants 1-8 land inside a 700ms sequence; the calm family is a deliberate
+ * test of 1000-1300ms and of the proposed calm curve.
  *
  * Dev-only; deep links 404 in a production build. The layout it renders is
  * src/components/home/home-layout, so anything decided here moves over cleanly.

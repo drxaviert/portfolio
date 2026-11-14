@@ -128,6 +128,33 @@ describe("entrance settings", () => {
     ).toBe(dawn.contentDelay + 2 * dawn.stagger + 300);
   });
 
+  it("settles soft focus on the dissolve or the card fade", () => {
+    const soft = DEFAULT_SETTINGS.soft;
+
+    expect(totalMs("soft", DEFAULT_SETTINGS)).toBe(1000);
+
+    // The cards land inside the dissolve.
+    expect(soft.cardDelay + soft.cardDuration).toBeLessThan(soft.duration);
+
+    // A late, slow card fade outlasts a short dissolve.
+    expect(
+      totalMs(
+        "soft",
+        patch(
+          patch(
+            patch(DEFAULT_SETTINGS, "soft", "duration", 400),
+            "soft",
+            "cardDelay",
+            600,
+          ),
+          "soft",
+          "cardDuration",
+          800,
+        ),
+      ),
+    ).toBe(1400);
+  });
+
   it("staggers the grow by row, bottom row first", () => {
     const grow = DEFAULT_SETTINGS.grow;
 
@@ -291,6 +318,14 @@ describe("entrance settings", () => {
     expect(dawn["--dawn-rise"]).toBe("4px");
     expect(dawn["--dawn-content-duration"]).toBe("600ms");
     expect(dawn["--dawn-stagger"]).toBe("25ms");
+
+    const soft = cssVars("soft", DEFAULT_SETTINGS, CALM_EASING);
+
+    expect(soft["--soft-blur"]).toBe("6px");
+    expect(soft["--soft-veil"]).toBe("0.12");
+    expect(soft["--soft-duration"]).toBe("1000ms");
+    expect(soft["--soft-card-delay"]).toBe("200ms");
+    expect(soft["--soft-card-duration"]).toBe("600ms");
   });
 
   it("shows steps(n) instead of a curve for the step cut", () => {

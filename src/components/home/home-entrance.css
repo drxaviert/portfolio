@@ -28,6 +28,7 @@
  *   breath glow 0-1200ms, cards 480 + item*30ms, 540ms each     → ends 1200ms
  *   mist   haze 0-1100ms, cards item*30ms + 900ms each          → ends 1100ms
  *   dawn   veil 0-1300ms, bloom 0-1300ms, content 650 + row*25   → ends 1300ms
+ *   soft   unblur 0-1000ms, cards 200 + 600ms                  → ends 1000ms
  *
  * The calm family (breath and the variants that follow) deliberately runs past
  * the 700ms budget and past motion.md's curves: it is one slow atmospheric
@@ -145,6 +146,12 @@
   /* The phase halves the bloom's scale delta at Night; the panel never writes
      this one, so the rule keeps applying. */
   --dawn-phase-mix: 1;
+
+  --soft-blur: 6px;
+  --soft-veil: 0.12;
+  --soft-duration: 1000ms;
+  --soft-card-delay: 200ms;
+  --soft-card-duration: 600ms;
 }
 
 :root[data-phase="night"] .entrance-scope {
@@ -814,6 +821,61 @@
   }
 }
 
+/*
+ * 12 — Soft focus: horizon clear's gentler cousin. A 6px backdrop blur plus a
+ * faint brightness veil covers the whole composition with no mask and no
+ * radial edge; one opacity animation dissolves both at once, so the page goes
+ * from soft to sharp evenly rather than clearing outward from a point. The
+ * cards fade in underneath with no movement at all.
+ *
+ * This is the only calm variant with a real filter, and it is deliberately
+ * small (6px default, 16px ceiling) and short-lived: the layer is removed at
+ * animationend, so nothing stays composited. Safari rasterises backdrop filters
+ * in software more often than Chrome, and a full-viewport blur over the WebGL
+ * canvas is the most expensive thing in this prototype — see the report.
+ */
+.entrance-soft {
+  position: fixed;
+  inset: 0;
+  /* Above the layout's z-index 3 popover, below the tuner panel. */
+  z-index: 10;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(var(--soft-blur));
+  backdrop-filter: blur(var(--soft-blur));
+  background-color: color-mix(
+    in oklab,
+    var(--surface-bright) calc(var(--soft-veil) * 100%),
+    transparent
+  );
+  animation: entrance-soft-clear var(--soft-duration) var(--entrance-ease)
+    forwards;
+}
+
+[data-entrance="soft"] .entrance-body {
+  animation: entrance-fade-in var(--soft-card-duration) var(--entrance-ease)
+    backwards;
+  animation-delay: var(--soft-card-delay);
+}
+
+@keyframes entrance-soft-clear {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* No backdrop filter: the veil still fades, so the entrance stays intact. */
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .entrance-soft {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
 @keyframes entrance-scale-in {
   from {
     opacity: 0;
@@ -923,6 +985,11 @@
     .horizon-motion-layer {
     animation: none;
     transform: none;
+  }
+
+  /* Soft focus is a blur: reduced motion goes straight to sharp. */
+  .entrance-soft {
+    display: none;
   }
 
   /* No blur at all; the content takes the fade above and this layer is gone. */

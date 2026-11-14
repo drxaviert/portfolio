@@ -120,6 +120,15 @@ export type DawnSettings = {
   stagger: number;
 };
 
+export type SoftSettings = {
+  blur: number;
+  /** Veil strength, in percent. */
+  veil: number;
+  duration: number;
+  cardDelay: number;
+  cardDuration: number;
+};
+
 export type Settings = {
   scale: ScaleSettings;
   rise: RiseSettings;
@@ -132,6 +141,7 @@ export type Settings = {
   breath: BreathSettings;
   mist: MistSettings;
   dawn: DawnSettings;
+  soft: SoftSettings;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -210,6 +220,15 @@ export const DEFAULT_SETTINGS: Settings = {
     rise: 4,
     contentDuration: 600,
     stagger: 25,
+  },
+  // Horizon clear's gentler cousin: a 6px backdrop blur, a 12% brightness veil
+  // and a 1000ms dissolve; the cards only fade, over the second half.
+  soft: {
+    blur: 6,
+    veil: 12,
+    duration: 1000,
+    cardDelay: 200,
+    cardDuration: 600,
   },
 };
 
@@ -755,6 +774,48 @@ export const CONTROLS: Record<EntranceVariant, Control[]> = {
       unit: "ms",
     },
   ],
+  soft: [
+    {
+      key: "blur",
+      label: "Start blur",
+      min: 0,
+      max: 16,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "veil",
+      label: "Veil strength",
+      min: 0,
+      max: 40,
+      step: 1,
+      unit: "%",
+    },
+    {
+      key: "duration",
+      label: "Duration",
+      min: 400,
+      max: 2000,
+      step: 50,
+      unit: "ms",
+    },
+    {
+      key: "cardDelay",
+      label: "Card delay",
+      min: 0,
+      max: 1000,
+      step: 25,
+      unit: "ms",
+    },
+    {
+      key: "cardDuration",
+      label: "Card duration",
+      min: 200,
+      max: 1600,
+      step: 25,
+      unit: "ms",
+    },
+  ],
 };
 
 /** 7 reading-order items: the last one starts at 6 x stagger. */
@@ -853,6 +914,12 @@ export function totalMs(variant: EntranceVariant, settings: Settings): number {
         settings.dawn.contentDelay +
           LAST_ROW * settings.dawn.stagger +
           settings.dawn.contentDuration,
+      );
+    case "soft":
+      // One dissolve; the cards finish inside it.
+      return Math.max(
+        settings.soft.duration,
+        settings.soft.cardDelay + settings.soft.cardDuration,
       );
   }
 }
@@ -1001,6 +1068,18 @@ export function cssVars(
         "--dawn-rise": `${s.rise}px`,
         "--dawn-content-duration": `${s.contentDuration}ms`,
         "--dawn-stagger": `${s.stagger}ms`,
+      };
+    }
+    case "soft": {
+      const s = settings.soft;
+
+      return {
+        ...shared,
+        "--soft-blur": `${s.blur}px`,
+        "--soft-veil": String(s.veil / 100),
+        "--soft-duration": `${s.duration}ms`,
+        "--soft-card-delay": `${s.cardDelay}ms`,
+        "--soft-card-duration": `${s.cardDuration}ms`,
       };
     }
   }
