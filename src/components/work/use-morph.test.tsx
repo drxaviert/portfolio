@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Box } from "./morph";
 import { flipFrom } from "./morph";
@@ -126,6 +126,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   HTMLElement.prototype.getBoundingClientRect = nativeRect;
   document.body.innerHTML = "";
   vi.unstubAllGlobals();
@@ -167,7 +168,9 @@ describe("ExpandShell", () => {
     );
 
     const panel = panelElement();
-    const open = mocks.animate.mock.calls.filter(([element]) => element === panel);
+    const open = mocks.animate.mock.calls.filter(
+      ([element]) => element === panel,
+    );
 
     expect(open).toHaveLength(0);
     expect(panel.style.opacity).toBe("");
@@ -188,11 +191,83 @@ describe("ExpandShell", () => {
     );
 
     const panel = panelElement();
-    const open = mocks.animate.mock.calls.filter(([element]) => element === panel);
+    const open = mocks.animate.mock.calls.filter(
+      ([element]) => element === panel,
+    );
 
     expect(open).toHaveLength(1);
     expect(open[0][1]).toEqual({ opacity: 1 });
     expect(open[0][2]).toMatchObject({ duration: 0.12, ease: "easeOut" });
+  });
+
+  it("starts the content entrance 120ms before the morph lands", async () => {
+    placeCard(CARD_A);
+    mocks.animate.mockReturnValue({
+      finished: new Promise(() => {}),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+    vi.useFakeTimers();
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    expect(layerElement()).toHaveAttribute("data-reveal", "pending");
+
+    act(() => {
+      vi.advanceTimersByTime(359);
+    });
+    expect(layerElement()).toHaveAttribute("data-reveal", "pending");
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(layerElement()).toHaveAttribute("data-reveal", "on");
+  });
+
+  it("releases the content at once when there is no morph to wait for", async () => {
+    document.body.innerHTML = "";
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-reveal", "on"),
+    );
+  });
+
+  it("drops a pending entrance when the reader closes mid-morph", async () => {
+    placeCard(CARD_A);
+    mocks.animate.mockReturnValue({
+      finished: new Promise(() => {}),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+    vi.useFakeTimers();
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    act(() => {
+      fireEvent.click(
+        document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+      );
+    });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(layerElement()).toHaveAttribute("data-phase", "closing");
+    expect(layerElement()).toHaveAttribute("data-reveal", "pending");
   });
 
   it("measures the card again for the close morph", async () => {
@@ -212,11 +287,15 @@ describe("ExpandShell", () => {
     const closePose = flipFrom(CARD_B, PANEL);
 
     card.setRect(CARD_B);
-    fireEvent.click(document.querySelector<HTMLElement>(".wd-expand-backdrop")!);
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
 
     await waitFor(() => expect(panel.style.opacity).toBe("0"));
 
-    const calls = mocks.animate.mock.calls.filter(([element]) => element === panel);
+    const calls = mocks.animate.mock.calls.filter(
+      ([element]) => element === panel,
+    );
     const close = calls[calls.length - 1][1];
 
     expect(close).toMatchObject(closePose);
@@ -237,7 +316,9 @@ describe("ExpandShell", () => {
       expect(layerElement()).toHaveAttribute("data-phase", "open"),
     );
 
-    fireEvent.click(document.querySelector<HTMLElement>(".wd-expand-backdrop")!);
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
 
     await waitFor(() => expect(mocks.back).toHaveBeenCalledTimes(1));
     expect(mocks.push).not.toHaveBeenCalled();
@@ -257,7 +338,9 @@ describe("ExpandShell", () => {
     );
 
     window.history.replaceState({}, "");
-    fireEvent.click(document.querySelector<HTMLElement>(".wd-expand-backdrop")!);
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/"));
     expect(mocks.back).not.toHaveBeenCalled();
@@ -278,7 +361,9 @@ describe("ExpandShell", () => {
 
     const panel = panelElement();
     window.history.replaceState({}, "", "/");
-    fireEvent.click(document.querySelector<HTMLElement>(".wd-expand-backdrop")!);
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
 
     await waitFor(() => expect(panel.style.opacity).toBe("0"));
     expect(mocks.back).not.toHaveBeenCalled();

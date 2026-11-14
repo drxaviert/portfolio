@@ -13,6 +13,7 @@ import { ReaderMobileActions, ReaderRail } from "./reader-rail";
 import { BlurStack } from "./blur-stack";
 import "@/components/home/ring-hover.css";
 import "./reader.css";
+import "./entrance.css";
 
 export { READER_SCROLL_ID, READER_TITLE_ID } from "./parts";
 

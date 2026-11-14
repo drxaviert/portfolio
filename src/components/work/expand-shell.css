@@ -62,16 +62,8 @@
   pointer-events: none;
 }
 
-/* Content fades in after the morph, and out over the first 140ms of the close. */
-.wd-expand-layer[data-phase="opening"] .wd-reader-scroll {
-  opacity: 0;
-}
-
-.wd-expand-layer[data-phase="open"] .wd-reader-scroll {
-  opacity: 1;
-  transition: opacity var(--wd-content-in);
-}
-
+/* Content leaves over the first 140ms of the close. Its entrance is the reveal
+   state, not the phase, so it can start before the morph lands (entrance.css). */
 .wd-expand-layer[data-phase="closing"] .wd-reader-scroll {
   opacity: 0;
   transition: opacity var(--wd-content-out);
@@ -118,10 +110,6 @@
 
   .wd-expand-layer[data-phase="closing"] .wd-expand-backdrop {
     animation: wd-backdrop-out var(--wd-fade-reduced) both;
-  }
-
-  .wd-expand-layer[data-phase="open"] .wd-reader-scroll {
-    transition: opacity var(--wd-fade-reduced);
   }
 
   .wd-expand-layer[data-phase="closing"] .wd-reader-scroll {
