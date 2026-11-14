@@ -5,6 +5,7 @@ The shipped motion of the theme toggle, the Day phase row and the home nav's Gli
 ## Principles
 
 - One curve family per job: `cubic-bezier(0.23, 1, 0.32, 1)` for entrances, `ease-in` for exits, `cubic-bezier(0.34, 1.3, 0.64, 1)` for the icon settle.
+- A theme change is one crossfade of the whole page, not a colour transition per element: everything changes on the same frame because it is the same image pair.
 - Entrances stagger left to right; exits leave together. Nothing waits on the pointer.
 - Hover never restarts the entrance: it replays the icon settle once from its resting pose and ends at rest.
 - Reduced motion keeps the state change and drops the movement: one opacity fade, no icon motion.
@@ -31,9 +32,37 @@ Hover only applies on `(hover: hover) and (pointer: fine)`; the hover capsule is
 - `src/components/theme/theme-toggle.tsx:576` — `active:scale-[0.96]` and the 150ms `ease-out` segment transition
 - `src/components/theme/theme-toggle.css:310` — tooltip fade
 
+## Theme change
+
+Switching mode (or crossing a clock boundary in Auto/Day) replaces the colour tokens on `<html>`. That one change is animated as a **single crossfade of the whole page**: `src/lib/theme.ts` applies the write inside `document.startViewTransition()`, and the browser snapshots the page before and after it and blends the two images itself. Nothing animates a colour per element, so the horizon, the cards, the text, the nav, the toggle and the phase row are inside one image pair and start and finish together by construction — and the fade costs two captures instead of a full-page repaint on every frame.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Mode click, phase change | whole-page snapshot `opacity` | 400ms | 0 | `ease-in-out` | old snapshot 1 → 0 over the new one |
+| Clock-driven change (Auto / Day) | whole-page snapshot `opacity` | 4000ms | 0 | `ease-in-out` | same |
+| Reduced motion | whole-page snapshot `opacity` | 150ms | 0 | `ease-in-out` | same |
+| No View Transitions API | — | 0 | — | — | instant switch, one frame |
+| Phase row opened by the same click | see "Day phase row entrance" | + crossfade duration | — | — | entrance waits for the crossfade |
+
+Details that keep it one piece:
+
+- **The page is a snapshot for the fade.** The live document is not painted (and stops receiving hit tests) for the crossfade, so anything that starts animating on the same click would play invisibly. The row's entrance therefore waits for the crossfade (`--phase-enter-delay`), and the two hover surfaces ignore the phantom pointer-leave it causes (`isPhaseSwitching()`), so the nav capsule and the row keep their state and recover on the next real pointer event.
+- **No per-element colour transitions.** The old blanket rule (`:root[data-phase-switching] *`) and the twelve inherited `--horizon-*` / `--orb-*` token transitions were removed. Measured on the 1440x900 home page they cost 9-10ms of style recalc *per frame* and 8-11 dropped frames per switch; the crossfade measures 0.
+- **The glow switches in the same frame as the snapshot.** The shader reads the tokens on the `data-phase` mutation, so it draws once with the new palette inside the rendering update that the browser snapshots — no late glow, no texture rebuild, no per-frame token read.
+- **The selection capsule crossfades with the page** when the theme changes, instead of flying: a snapshot cannot contain live motion. It still runs the full stretch & snap on every selection change that is not a theme change (the Day phase row, and Day/Night/Auto when the theme is already that mode).
+- `data-phase-switching` stays on `<html>` for the length of the crossfade and carries the kind (`click` / `auto`), which is what selects the duration in CSS.
+
+- `src/lib/theme.ts:334` — the crossfade runner (snapshot, write, announce, settle)
+- `src/lib/theme.ts:256` — `isPhaseSwitching()`, the "the page is a snapshot" predicate
+- `src/app/globals.css:103` — `::view-transition-old(root)` fade and the 400ms / auto tokens
+- `src/app/globals.css:16` — why the tokens are no longer transitioned
+- `src/components/theme/theme-toggle.css:49` — `--phase-enter-delay` holds the row entrance
+- `src/components/horizon/horizon-shader.tsx:621` — one draw per token mutation
+- `src/components/home/nav-items.tsx:397` — hover kept through the crossfade
+
 ## Selection feedback
 
-Selection is painted by the stretch highlight (next section); the segment itself no longer carries a fill in the default path, so a fast flip can never paint two selected segments. The incoming label still fades over 150ms and is released on the same frame. The phase-switch fade in `globals.css` sets a transition on every element for one theme change; the segment and tooltip rules are specific enough to keep their own timings through it.
+Selection is painted by the stretch highlight (next section); the segment itself no longer carries a fill in the default path, so a fast flip can never paint two selected segments. The incoming label still fades over 150ms and is released on the same frame. A theme change is a page-wide crossfade (see "Theme change"), so it does not retime any of these rules.
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
@@ -152,11 +181,12 @@ The enter/exit durations are read from `--phase-row-exit-ms` so the component an
 
 - `src/components/theme/theme-toggle.css:25` — registered `--phase-row-exit-ms` (240)
 - `src/components/theme/theme-toggle.css:36` — closed rest pose `scale(0.96)`, origin bottom right
-- `src/components/theme/theme-toggle.css:46` — 400ms enter transition, 0s visibility
-- `src/components/theme/theme-toggle.css:52` — 240ms `ease-in` exit, visibility delayed by the exit
-- `src/components/theme/theme-toggle.css:61` — 360ms segment fade/rise
-- `src/components/theme/theme-toggle.css:73` — stagger 120 / 170 / 220 / 270ms
-- `src/components/theme/theme-toggle.css:87` — segment closed pose `0 3px`
+- `src/components/theme/theme-toggle.css:41` — `--phase-enter-delay`, raised to the crossfade duration during a theme change
+- `src/components/theme/theme-toggle.css:55` — 400ms enter transition, delayed by `--phase-enter-delay`
+- `src/components/theme/theme-toggle.css:62` — 240ms `ease-in` exit, visibility delayed by the exit
+- `src/components/theme/theme-toggle.css:72` — 360ms segment fade/rise
+- `src/components/theme/theme-toggle.css:85` — stagger 120 / 170 / 220 / 270ms
+- `src/components/theme/theme-toggle.css:99` — segment closed pose `0 3px`
 - `src/components/theme/theme-toggle.css:9` — nav raise while open or exiting
 - `src/components/theme/theme-toggle.tsx:23` — `PHASE_ROW_EXIT_MS = 240` fallback
 - `src/components/theme/theme-toggle.tsx:550` — exit fallback timer, exit + 50ms
@@ -222,10 +252,11 @@ The row belongs to Day. It closes 100ms after the pointer leaves the region form
 
 ## Reduced motion
 
-One opacity fade for the whole row. No scale, no segment rise, no icon settle, no press scale.
+The theme change keeps its crossfade — a colour change is not motion — but at 150ms instead of 400ms. Everything else drops movement: one opacity fade for the whole row, no scale, no segment rise, no icon settle, no press scale.
 
 | Element | Behaviour |
 | --- | --- |
+| Theme change | same whole-page crossfade, 150ms `ease-in-out` (`--horizon-transition-duration`) |
 | Row | opacity only, 120ms `ease-out`; `transform: none`; visibility delayed by the same 120ms |
 | Selection highlight | layer hidden; the segment fill crossfades over 120ms and the label colour over 150ms |
 | Segments | no opacity or translate animation; colour always transitions over 150ms |

@@ -166,7 +166,10 @@ describe("ThemeToggle", () => {
 
     expect(root().dataset.mode).toBe("auto");
     expect(root().dataset.phase).toBe("day");
-    expect(root().dataset.phaseSwitching).toBe("auto");
+
+    // jsdom has no View Transitions, so the clock-driven switch is applied in
+    // one frame with no marker to clean up. The crossfade duration is CSS-only.
+    expect(root().dataset.phaseSwitching).toBeUndefined();
 
     act(() => {
       vi.advanceTimersByTime(500);

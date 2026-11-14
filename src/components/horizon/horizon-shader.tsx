@@ -28,9 +28,10 @@ import "./horizon-motion.css";
  * analytic falloff that misses the CSS alpha by a couple of levels.
  *
  * Phase colours, alphas and geometry still come from the computed --horizon-*
- * tokens, re-read every frame while data-phase-switching is set (so the shader
- * follows the browser's interpolated custom properties), and on mutation
- * otherwise.
+ * tokens, read on a mutation (data-phase, data-mode, class) and on resize. The
+ * theme change itself is a crossfade of two page snapshots, so the shader has
+ * nothing to interpolate: it draws one frame with the new palette, inside the
+ * same frame the browser snapshots.
  *
  * The motion clock starts from the CSS layer's own animation time so the two
  * renderers are in phase when the canvas fades in, and it advances only while
@@ -617,7 +618,7 @@ export function HorizonShader({
     const draw = () => {
       if (disposed || !blurTexture) return;
 
-      if (dirty || root.dataset.phaseSwitching) {
+      if (dirty) {
         tokens = readTokens();
         nightBlend = readNightBlend(canvas);
         dirty = false;
@@ -704,8 +705,9 @@ export function HorizonShader({
         !reduceQuery.matches &&
         paramsRef.current.motion !== "none";
 
-      // Keep going while the ambient loop runs or a phase fade is in flight.
-      if (animating || root.dataset.phaseSwitching) {
+      // Keep going while the ambient loop runs; a phase change is one extra
+      // frame, not a second loop.
+      if (animating) {
         frame = requestAnimationFrame(tick);
       } else {
         lastTimestamp = null;

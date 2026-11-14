@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+﻿import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   applyDayPhase,
   applyMode,
@@ -13,6 +13,7 @@ import {
   phaseForHour,
   readStoredDayPhase,
   readStoredMode,
+  THEME_CHANGE_EVENT,
   writeStoredDayPhase,
   writeStoredMode,
 } from "@/lib/theme";
@@ -442,169 +443,222 @@ describe("THEME_INIT_SCRIPT", () => {
 });
 
 describe("phase switching", () => {
-  it("marks a changed phase and clears it after the fade", () => {
-    vi.useFakeTimers();
+  /** Records every transition the module starts and settles it on demand. */
+  function installViewTransitions() {
+    const transitions: Array<{
+      callback?: () => Promise<void>;
+      finish: () => void;
+    }> = [];
 
-    applyPhase("day");
-    applyPhase("night");
+    Object.defineProperty(document, "startViewTransition", {
+      configurable: true,
+      value: (callback?: () => Promise<void>) => {
+        let finish = () => {};
 
-    expect(document.documentElement.dataset.phaseSwitching).toBe("click");
+        const finished = new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        const entry = { callback, finish };
 
-    vi.advanceTimersByTime(500);
+        transitions.push(entry);
 
-    expect(document.documentElement.dataset.phaseSwitching).toBeUndefined();
-  });
-
-  it("does not mark a switch when the phase is unchanged", () => {
-    vi.useFakeTimers();
-
-    applyPhase("day");
-    vi.advanceTimersByTime(500);
-    applyPhase("day");
-
-    expect(document.documentElement.dataset.phaseSwitching).toBeUndefined();
-  });
-
-  it("marks clock-driven switches as auto", () => {
-    vi.useFakeTimers();
-
-    applyMode("night", at(12), "auto");
-
-    expect(document.documentElement.dataset.phaseSwitching).toBe("auto");
-
-    vi.advanceTimersByTime(500);
-
-    expect(document.documentElement.dataset.phaseSwitching).toBeUndefined();
-  });
-
-  it("reads the duration token before the phase attribute changes", () => {
-    let phaseAtRead: string | undefined;
-
-    vi.spyOn(window, "getComputedStyle").mockImplementation(() => {
-      phaseAtRead = document.documentElement.dataset.phase;
-
-      return {
-        getPropertyValue: () => "0ms",
-      } as unknown as CSSStyleDeclaration;
+        return {
+          finished,
+          updateCallbackDone: Promise.resolve(),
+          ready: Promise.resolve(),
+        };
+      },
     });
 
-    document.documentElement.dataset.phase = "day";
+    return transitions;
+  }
 
-    applyPhase("night");
+  function removeViewTransitions() {
+    Reflect.deleteProperty(document, "startViewTransition");
+  }
 
-    // A flush after the phase write would commit the new colours before the
-    // switch rule exists, so the page would snap instead of fading.
-    expect(phaseAtRead).toBe("day");
-  });
-
-  it("keeps the switch attribute for the live tuned duration", () => {
-    vi.useFakeTimers();
-    vi.spyOn(window, "getComputedStyle").mockReturnValue({
-      getPropertyValue: (name: string) =>
-        name === "--horizon-transition-duration" ? "3000ms" : "",
-    } as CSSStyleDeclaration);
-
-    applyPhase("night");
-
-    vi.advanceTimersByTime(2900);
-    expect(document.documentElement.dataset.phaseSwitching).toBe("click");
-
-    vi.advanceTimersByTime(200);
-    expect(document.documentElement.dataset.phaseSwitching).toBeUndefined();
-  });
-
-  it("restarts the removal window on a mid-fade switch", () => {
-    vi.useFakeTimers();
-    vi.spyOn(window, "getComputedStyle").mockReturnValue({
-      getPropertyValue: (name: string) =>
-        name === "--horizon-transition-duration" ? "3000ms" : "",
-    } as CSSStyleDeclaration);
-
-    applyPhase("day");
-    vi.advanceTimersByTime(1000);
-    applyPhase("night");
-
-    vi.advanceTimersByTime(2500);
-    expect(document.documentElement.dataset.phaseSwitching).toBe("click");
-
-    vi.advanceTimersByTime(600);
-    expect(document.documentElement.dataset.phaseSwitching).toBeUndefined();
-  });
-
-  it("reads the auto token for clock-driven removal timing", () => {
-    vi.useFakeTimers();
-    vi.spyOn(window, "getComputedStyle").mockReturnValue({
-      getPropertyValue: (name: string) =>
-        name === "--phase-auto-transition-duration" ? "0.5s" : "",
-    } as CSSStyleDeclaration);
-
-    applyMode("night", at(12), "auto");
-
-    vi.advanceTimersByTime(450);
-    expect(document.documentElement.dataset.phaseSwitching).toBe("auto");
-
-    vi.advanceTimersByTime(120);
-    expect(document.documentElement.dataset.phaseSwitching).toBeUndefined();
-  });
-
-  it("keeps the switch attribute until the colour transitions finish", () => {
+  /** Queues the rAF callbacks `nextFrames` asks for; call `drain` to run them. */
+  function stubFrames() {
     const frames: FrameRequestCallback[] = [];
+
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
       frames.push(callback);
+
       return frames.length;
     });
 
-    const animation = { transitionProperty: "color", playState: "running" };
+    return async function drain(rounds = 4) {
+      for (let round = 0; round < rounds; round += 1) {
+        const pending = frames.splice(0);
 
-    Object.defineProperty(document, "getAnimations", {
-      configurable: true,
-      value: () => [animation],
-    });
+        for (const callback of pending) callback(0);
 
-    try {
-      applyPhase("day");
-      applyPhase("night");
+        await Promise.resolve();
+      }
+    };
+  }
 
-      expect(document.documentElement.dataset.phaseSwitching).toBe("click");
-      expect(frames.length).toBeGreaterThan(0);
+  it("applies a changed phase and announces it without the API", () => {
+    const listener = vi.fn();
 
-      // A renderer that has not painted yet must not cut the fade.
-      frames.pop()?.(0);
-      expect(document.documentElement.dataset.phaseSwitching).toBe("click");
+    window.addEventListener(THEME_CHANGE_EVENT, listener);
+    applyPhase("day");
+    listener.mockClear();
+    applyPhase("night");
 
-      animation.playState = "finished";
-      frames.pop()?.(0);
-      expect(document.documentElement.dataset.phaseSwitching).toBeUndefined();
-    } finally {
-      Reflect.deleteProperty(document, "getAnimations");
-    }
+    expect(document.documentElement.dataset.phase).toBe("night");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(document.documentElement.dataset.phaseSwitching).toBeUndefined();
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    window.removeEventListener(THEME_CHANGE_EVENT, listener);
   });
 
-  it("removes the switch attribute at the hard cap even if a transition never ends", () => {
-    vi.useFakeTimers();
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+  it("does not announce or transition an unchanged phase", () => {
+    const transitions = installViewTransitions();
+    const listener = vi.fn();
 
-    const animation = { transitionProperty: "color", playState: "running" };
+    window.addEventListener(THEME_CHANGE_EVENT, listener);
+    applyPhase("day");
+    applyPhase("day");
 
-    Object.defineProperty(document, "getAnimations", {
-      configurable: true,
-      value: () => [animation],
-    });
+    expect(transitions).toHaveLength(0);
+    expect(listener).not.toHaveBeenCalled();
 
-    try {
-      applyPhase("day");
-      applyPhase("night");
+    window.removeEventListener(THEME_CHANGE_EVENT, listener);
+    removeViewTransitions();
+  });
 
-      expect(document.documentElement.dataset.phaseSwitching).toBe("click");
+  it("applies the write inside the snapshot and clears the marker when it ends", async () => {
+    const drain = stubFrames();
+    const transitions = installViewTransitions();
 
-      // A 400ms token caps at max(4 * duration, 2000ms).
-      vi.advanceTimersByTime(1900);
-      expect(document.documentElement.dataset.phaseSwitching).toBe("click");
+    applyPhase("day");
+    applyPhase("night");
 
-      vi.advanceTimersByTime(200);
-      expect(document.documentElement.dataset.phaseSwitching).toBeUndefined();
-    } finally {
-      Reflect.deleteProperty(document, "getAnimations");
-    }
+    // Nothing is written until the browser has captured the old state.
+    expect(document.documentElement.dataset.phase).toBeUndefined();
+
+    await vi.waitFor(() => expect(transitions).toHaveLength(1));
+
+    const [transition] = transitions;
+
+    const applied = transition.callback?.();
+
+    // The write and the marker land together, inside the update callback; a
+    // renderer that has not painted yet must not cut the crossfade.
+    expect(document.documentElement.dataset.phase).toBe("night");
+    expect(document.documentElement.dataset.phaseSwitching).toBe("click");
+
+    await drain();
+    await applied;
+
+    transition.finish();
+    await Promise.resolve();
+
+    expect(document.documentElement.dataset.phaseSwitching).toBeUndefined();
+
+    removeViewTransitions();
+  });
+
+  it("shares one transition between the pin and the mode change", async () => {
+    const drain = stubFrames();
+    const transitions = installViewTransitions();
+
+    applyDayPhase("dusk", at(12));
+    applyMode("day", at(12));
+
+    await vi.waitFor(() => expect(transitions.length).toBeGreaterThan(0));
+
+    expect(transitions).toHaveLength(1);
+
+    const applied = transitions[0].callback?.();
+
+    expect(document.documentElement.dataset.phase).toBe("dusk");
+
+    await drain();
+    await applied;
+
+    removeViewTransitions();
+  });
+
+  it("marks clock-driven switches as auto", async () => {
+    const drain = stubFrames();
+    const transitions = installViewTransitions();
+
+    applyMode("night", at(12), "auto");
+
+    await vi.waitFor(() => expect(transitions).toHaveLength(1));
+
+    const applied = transitions[0].callback?.();
+
+    expect(document.documentElement.dataset.phaseSwitching).toBe("auto");
+
+    await drain();
+    await applied;
+    transitions[0].finish();
+
+    removeViewTransitions();
+  });
+
+  it("switches instantly when the duration token is zero", async () => {
+    const transitions = installViewTransitions();
+
+    vi.spyOn(window, "getComputedStyle").mockReturnValue({
+      getPropertyValue: () => "0ms",
+    } as unknown as CSSStyleDeclaration);
+
+    const listener = vi.fn();
+
+    window.addEventListener(THEME_CHANGE_EVENT, listener);
+    applyPhase("day");
+    applyPhase("night");
+
+    await vi.waitFor(() =>
+      expect(document.documentElement.dataset.phase).toBe("night"),
+    );
+
+    expect(transitions).toHaveLength(0);
+    expect(listener).toHaveBeenCalled();
+
+    window.removeEventListener(THEME_CHANGE_EVENT, listener);
+    removeViewTransitions();
+  });
+
+  it("lets a newer switch own the marker", async () => {
+    const drain = stubFrames();
+    const transitions = installViewTransitions();
+
+    applyPhase("day");
+    applyPhase("night");
+
+    await vi.waitFor(() => expect(transitions).toHaveLength(1));
+
+    const first = transitions[0].callback?.();
+
+    await drain();
+    await first;
+
+    applyPhase("day");
+
+    await vi.waitFor(() => expect(transitions).toHaveLength(2));
+
+    const second = transitions[1].callback?.();
+
+    await drain();
+    await second;
+
+    // The old transition finishing must not clear the new switch's marker.
+    transitions[0].finish();
+    await Promise.resolve();
+
+    expect(document.documentElement.dataset.phaseSwitching).toBe("click");
+
+    transitions[1].finish();
+    await Promise.resolve();
+
+    expect(document.documentElement.dataset.phaseSwitching).toBeUndefined();
+
+    removeViewTransitions();
   });
 });
