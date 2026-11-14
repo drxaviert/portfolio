@@ -39,7 +39,10 @@ export function Reader({ meta, children, mode }: ReaderProps) {
       className="wd-reader-panel"
       data-mode={mode}
       role={overlay ? "dialog" : undefined}
-      aria-modal={overlay ? true : undefined}
+      // Deliberately not aria-modal: the one nav lives in the root layout, at
+      // this panel's sibling, and must stay in the accessibility tree. The
+      // homepage is inert and the focus trap holds, so the dialog is modal in
+      // behaviour without telling screen readers to hide everything else.
       aria-labelledby={READER_TITLE_ID}
     >
       <BlurStack height="calc(var(--wd-nav-inset) + var(--wd-nav-height))" />

@@ -104,7 +104,7 @@ function placeCard() {
 function placeDock() {
   const dock = document.createElement("div");
   dock.dataset.navDock = "";
-  dock.innerHTML = '<a href="/">Home</a>';
+  dock.innerHTML = '<a href="/" aria-label="Home">Home</a>';
   document.body.append(dock);
 
   return dock;
@@ -224,12 +224,8 @@ describe("ExpandShell focus containment", () => {
     expect(document.activeElement).toBe(card);
   });
 
-  it("returns focus to the nav when the study has no homepage card", async () => {
-    const home = document.querySelector<HTMLElement>("body > main")!;
-    const logo = document.createElement("a");
-    logo.href = "/";
-    logo.setAttribute("aria-label", "Home");
-    home.append(logo);
+  it("returns focus to the persistent nav when the study has no homepage card", async () => {
+    const logo = screen.getByRole("link", { name: "Home" });
 
     const { unmount } = await renderShell();
 

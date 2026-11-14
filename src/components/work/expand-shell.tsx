@@ -79,13 +79,16 @@ export function ExpandShell({
   );
 }
 
-/** The control focus came from: its card, or the nav when a study has none. */
+/** The control focus came from: its card, or the persistent nav with no card. */
 function returnTarget(slug: string): HTMLElement | null {
   return (
     document.querySelector<HTMLElement>(cardSelector(slug)) ??
-    // A study opened from "Next project" has no card of its own; the homepage
-    // nav's logo is the nearest thing a keyboard user met on the page.
-    document.querySelector<HTMLElement>('body > main a[aria-label="Home"]')
+    // A study opened from "Next project" has no card of its own; the nav's logo
+    // is the nearest thing a keyboard user met. It lives in the root layout's
+    // dock, not inside the homepage, so the fallback has to reach outside main.
+    document.querySelector<HTMLElement>(
+      `${DOCK_SELECTOR} a[aria-label="Home"]`,
+    )
   );
 }
 

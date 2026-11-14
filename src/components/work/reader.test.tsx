@@ -64,11 +64,13 @@ function renderReader(
 }
 
 describe("reader overlay", () => {
-  it("renders a labelled modal dialog", () => {
+  it("renders a labelled dialog without claiming to be aria-modal", () => {
     renderReader(<p>Case-study body</p>);
 
     const dialog = screen.getByRole("dialog");
-    expect(dialog).toHaveAttribute("aria-modal", "true");
+    // The nav is the dialog's sibling in the root layout: aria-modal would
+    // remove it from the accessibility tree.
+    expect(dialog).not.toHaveAttribute("aria-modal");
     expect(dialog).toHaveAttribute("aria-labelledby", READER_TITLE_ID);
   });
 
