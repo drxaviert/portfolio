@@ -1023,6 +1023,62 @@ describe("ThemeToggle", () => {
     expect(clock).toHaveFocus();
   });
 
+  it("moves up from Day into the phase row with the Up arrow", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => day.focus());
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    const clock = screen.getByRole("radio", { name: "Clock" });
+
+    fireEvent.keyDown(day, { key: "ArrowUp" });
+
+    expect(clock).toHaveFocus();
+    // Up reaches the row instead of stepping the mode back to Auto.
+    expect(day).toBeChecked();
+    expect(root().dataset.mode).toBe("day");
+
+    // With the row closed, Up opens it and lands on the checked phase.
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+    expect(day).toHaveFocus();
+
+    fireEvent.keyDown(day, { key: "ArrowUp" });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(clock).toHaveFocus();
+  });
+
+  it("moves up from Day into the phase row in Night without changing mode", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "night");
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => day.focus());
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    fireEvent.keyDown(day, { key: "ArrowUp" });
+
+    expect(screen.getByRole("radio", { name: "Clock" })).toHaveFocus();
+    expect(root().dataset.mode).toBe("night");
+  });
+
   it("leaves Auto unchanged: hovering Day opens no row", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0));

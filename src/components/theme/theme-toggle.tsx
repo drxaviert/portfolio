@@ -1113,6 +1113,21 @@ export function ThemeToggle() {
       [phaseIndex]?.focus();
   }
 
+  /**
+   * Opens the row if needed and puts focus on the checked phase. A row that is
+   * still inert cannot take focus until this commit lands, so that case waits
+   * a task.
+   */
+  function enterPhaseRow() {
+    if (rowVisible) {
+      focusPhaseRow();
+      return;
+    }
+
+    openRow();
+    window.setTimeout(focusPhaseRow, 0);
+  }
+
   function onSegmentKeyDown(
     event: KeyboardEvent<HTMLButtonElement>,
     index: number,
@@ -1133,25 +1148,28 @@ export function ThemeToggle() {
       option.mode === "day" &&
       phaseRowActive
     ) {
-      const rowWasOpen = rowVisible;
-
-      if (!rowVisible) {
-        openRow();
-      }
-
       if (dayActive) {
+        if (!rowVisible) {
+          openRow();
+        }
+
         return;
       }
 
       event.preventDefault();
+      enterPhaseRow();
 
-      if (rowWasOpen) {
-        focusPhaseRow();
-      } else {
-        // The row is inert until this commit lands, and React flushes the
-        // update after the handler returns; focus it on the next task.
-        window.setTimeout(focusPhaseRow, 0);
-      }
+      return;
+    }
+
+    /*
+     * Up from Day reaches the phase group above it, matching where the row
+     * sits on screen. Night offers the same row, so it takes the same key
+     * instead of walking the mode selection back to Auto.
+     */
+    if (event.key === "ArrowUp" && option.mode === "day" && phaseRowActive) {
+      event.preventDefault();
+      enterPhaseRow();
 
       return;
     }
