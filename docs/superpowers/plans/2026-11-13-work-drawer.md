@@ -99,7 +99,7 @@
 | Action | Path |
 |---|---|
 | Create | `src/components/work/reader.tsx`, `src/components/work/reader.css` |
-| Create | `src/components/work/parts.tsx`: copied from the proto's `reader-parts.tsx` (`Intro`, `Figure`, `NoteBlock`, `FootnoteLink`, `Footnotes`, `BriefQuote`, `DecisionTable`, `StepFigure`, `ContactSheet`) |
+| Create | `src/components/work/parts.tsx`: copied from the proto's `reader-parts.tsx` (`Intro`, `Figure`, `NoteBlock`, `FootnoteLink`, `Footnotes`, `BriefQuote`, `DecisionTable`, `StepFigure`, `ContactSheet`, `NextLink`) |
 | Create | `src/components/work/mdx-components.tsx` |
 | Create | `src/app/work/[slug]/page.tsx` |
 | Test | `src/app/work/[slug]/page.test.tsx` |
@@ -139,6 +139,7 @@
 - [ ] **Step 1: Write the failing tests** in `page.test.tsx`:
   - Rendering `systems-in-motion` gives a heading with its title and `id=READER_TITLE_ID`.
   - There is **no** `role="dialog"` in page mode.
+  - The reader ends with a "Next project" link to `/work/<next slug>`, wrapping around: the last study links to the first. Add `nextWork(slug): WorkMeta` to Task 1's `work.ts`.
   - Calling the page with `slug:'nope'` throws Next's not-found error. Mock `next/navigation`'s `notFound` to throw, and assert that it was called.
 - [ ] **Step 2: Run them and confirm they fail.**
 - [ ] **Step 3: Implement it.**

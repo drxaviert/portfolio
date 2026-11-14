@@ -198,7 +198,7 @@ New motion:
 - **Slugs with no card on the homepage:**
   - Only the featured study has a card. The other placeholder slugs exist to test the MDX components and direct loads.
   - If no source card is found, the reader opens with the reduced-motion fade instead of the morph.
-  - The reader has no next or previous links yet.
+  - The reader ends with a "Next project" link to the following study, which wraps around. Dat restored this on 2026-11-13. The next study opens with the fade, because it has no source card.
 - **Frontmatter:**
   - `title`, `subtitle`, `year`, `role`, `summary`, and an optional `cover`.
   - `cover` is one of `window`, `phone` or `tiles`, the faux-UI scenes settled on branch `drxaviert/faux-ui` (see `docs/handoffs/2026-11-13-faux-ui-scenes.md` there). Each scene is a Loop that scales to the ProjectCard's 753×416 box and pauses offscreen. Still is used only for reduced motion. The reader renders the same scene as its hero, so the morph carries the picture across. The reader never builds scenes itself.
