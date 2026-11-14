@@ -3,6 +3,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { Cover } from "@/components/work/cover";
 import type { WorkMeta } from "@/lib/work";
 import { RingLayers } from "./ring-hover";
+import "./home-cards.css";
 
 /**
  * The home page's cards, shared by / and /dev/prototype.
@@ -67,12 +68,22 @@ export function ProjectCard({
     <>
       <RingLayers fill="bg-surface-container-low" />
       {scene ? (
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 z-0 flex items-center overflow-hidden"
-        >
-          <Cover scene={scene} />
-        </div>
+        <>
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 z-0 flex items-center overflow-hidden"
+          >
+            <Cover scene={scene} />
+          </div>
+          {/* The shot's own colour comes back under the title, so the bars
+              recede instead of running through the text. Below lg the card is
+              portrait and the title sits under the scene, so there is nothing
+              to fade. */}
+          <span
+            aria-hidden="true"
+            className="card-fade pointer-events-none absolute inset-8 z-[1] hidden rounded-[8px] lg:block"
+          />
+        </>
       ) : null}
       <h1
         data-work-card-title={slug ? "" : undefined}
