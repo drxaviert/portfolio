@@ -3,11 +3,15 @@ import {
   GAP,
   advance,
   clickAction,
-  easeFn,
+  RETARGET_BEZIER,
+  bezierSpec,
+  easeSpec,
   entityKey,
   exitLeft,
   keyStep,
   linearEasing,
+  parseBezier,
+  titleKeys,
   offRight,
   restEntities,
   retarget,
@@ -29,7 +33,9 @@ const G: Geometry = {
   rowWidth: 1136,
   gap: GAP,
 };
-const TIMING: TitleTiming = { delay: 400, duration: 200, outDuration: 100 };
+const TIMING: TitleTiming = { start: 0.75, span: 0.2, outEnd: 0.12 };
+const SMOOTH = easeSpec("smooth", [0.5, 0, 0.1, 1]);
+const EXPO = easeSpec("expo-out", [0.5, 0, 0.1, 1]);
 
 describe("ring order", () => {
   it("wraps four items by modulo", () => {
@@ -84,17 +90,49 @@ describe("clicks and keys", () => {
 });
 
 describe("easing", () => {
-  it("is the exact expo curve", () => {
-    const ease = easeFn("expo");
-    expect(ease(0)).toBe(0);
-    expect(ease(1)).toBe(1);
-    expect(ease(0.5)).toBeCloseTo(1 - 2 ** -5, 10);
+  it("defaults to smooth: a gentle start, not expo's snap", () => {
+    expect(SMOOTH.css).toBe("cubic-bezier(0.5, 0, 0.1, 1)");
+    // easeOutExpo is already ~40% of the way at 7% of the time; smooth is not.
+    expect(EXPO.fn(0.07)).toBeGreaterThan(0.35);
+    expect(SMOOTH.fn(0.07)).toBeLessThan(0.05);
+    expect(SMOOTH.fn(0)).toBe(0);
+    expect(SMOOTH.fn(1)).toBe(1);
+    expect(SMOOTH.fn(0.7)).toBeGreaterThan(0.85);
   });
 
-  it("samples the curve into a linear() list ending at 1", () => {
-    const css = linearEasing(easeFn("expo"));
-    expect(css.startsWith("linear(0 0%")).toBe(true);
-    expect(css.endsWith("1 100%)")).toBe(true);
+  it("offers the named presets as CSS beziers", () => {
+    expect(easeSpec("glide", [0, 0, 1, 1]).css).toBe(
+      "cubic-bezier(0.65, 0, 0.35, 1)",
+    );
+    expect(easeSpec("quint-out", [0, 0, 1, 1]).css).toBe(
+      "cubic-bezier(0.22, 1, 0.36, 1)",
+    );
+    expect(easeSpec("sheet", [0, 0, 1, 1]).css).toBe(
+      "cubic-bezier(0.32, 0.72, 0, 1)",
+    );
+  });
+
+  it("keeps the exact expo curve, sampled for linear()", () => {
+    expect(EXPO.fn(0.5)).toBeCloseTo(1 - 2 ** -5, 10);
+    expect(EXPO.css.startsWith("linear(0 0%")).toBe(true);
+    expect(EXPO.css.endsWith("1 100%)")).toBe(true);
+    expect(linearEasing(EXPO.fn)).toBe(EXPO.css);
+  });
+
+  it("takes a free cubic-bezier", () => {
+    expect(easeSpec("custom", [0.2, 0, 0.8, 1]).css).toBe(
+      "cubic-bezier(0.2, 0, 0.8, 1)",
+    );
+    expect(parseBezier("0.5, 0, 0.1, 1")).toEqual([0.5, 0, 0.1, 1]);
+    expect(parseBezier("cubic-bezier(0.3 0 0.7 1)")).toEqual([0.3, 0, 0.7, 1]);
+    expect(parseBezier("1.5, 0, 0.1, 1")).toBeNull();
+    expect(parseBezier("0.5, 0, 0.1")).toBeNull();
+    expect(parseBezier("a, b, c, d")).toBeNull();
+  });
+
+  it("retargets on an ease-out that starts moving", () => {
+    const retargeted = bezierSpec(RETARGET_BEZIER);
+    expect(retargeted.fn(0.07)).toBeGreaterThan(SMOOTH.fn(0.07) * 5);
   });
 });
 
@@ -142,7 +180,7 @@ describe("wrap seam", () => {
 describe("interrupt", () => {
   it("retargets from the current pose with one entity per item", () => {
     const first = retarget(G, 4, 0, 1, restEntities(G, 4, 0));
-    const midway = sampleEntities(first, 150, 1000, easeFn("expo"), TIMING);
+    const midway = sampleEntities(first, 150, 1000, SMOOTH.fn, TIMING);
     const second = retarget(G, 4, 1, 1, midway);
 
     // No pile-up: still one main per item, plus at most one copy per item.
@@ -164,7 +202,7 @@ describe("interrupt", () => {
 
   it("lands every item on its slot after two quick steps", () => {
     const first = retarget(G, 4, 0, 1, restEntities(G, 4, 0));
-    const midway = sampleEntities(first, 100, 1000, easeFn("expo"), TIMING);
+    const midway = sampleEntities(first, 100, 1000, SMOOTH.fn, TIMING);
     const second: Entity[] = retarget(G, 4, 1, 1, midway);
     const offset = advance(advance(0, 1, 4), 1, 4);
 
@@ -177,26 +215,28 @@ describe("interrupt", () => {
 });
 
 describe("title timing", () => {
-  it("fades in after the delay and out immediately", () => {
-    const entering = { fromTitle: 0, toTitle: 1 };
-    const leaving = { fromTitle: 1, toTitle: 0 };
+  it("rides the step's own progress: in late, out early", () => {
+    const entering = titleKeys({ fromTitle: 0, toTitle: 1 }, TIMING);
+    expect(entering[1]).toEqual({ offset: 0.75, opacity: 0 });
+    expect(entering[2]).toEqual({ offset: 0.95, opacity: 1 });
 
-    const early = sampleEntities(
-      [{ ...restEntities(G, 4, 0)[0], ...entering }],
-      300,
-      1000,
-      easeFn("expo"),
-      TIMING,
-    )[0];
-    expect(early.fromTitle).toBe(0);
+    const leaving = titleKeys({ fromTitle: 1, toTitle: 0 }, TIMING);
+    expect(leaving[1]).toEqual({ offset: 0.12, opacity: 0 });
+  });
 
-    const out = sampleEntities(
-      [{ ...restEntities(G, 4, 0)[0], ...leaving }],
-      100,
-      1000,
-      easeFn("expo"),
-      TIMING,
-    )[0];
-    expect(out.fromTitle).toBe(0);
+  it("is still hidden while the card is mostly narrow", () => {
+    const run = (p: number, entity: { fromTitle: number; toTitle: number }) =>
+      sampleEntities(
+        [{ ...restEntities(G, 4, 0)[0], ...entity }],
+        p * 1000,
+        1000,
+        (t) => t,
+        TIMING,
+      )[0].fromTitle;
+
+    expect(run(0.5, { fromTitle: 0, toTitle: 1 })).toBe(0);
+    expect(run(0.85, { fromTitle: 0, toTitle: 1 })).toBeCloseTo(0.5, 5);
+    expect(run(0.06, { fromTitle: 1, toTitle: 0 })).toBeCloseTo(0.5, 5);
+    expect(run(0.3, { fromTitle: 1, toTitle: 0 })).toBe(0);
   });
 });

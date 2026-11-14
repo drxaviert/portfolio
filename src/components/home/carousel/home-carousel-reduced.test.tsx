@@ -10,7 +10,14 @@ const ITEMS: CarouselItem[] = [
   { kind: "placeholder", title: "More work soon" },
 ];
 
-type Recorded = { target: Element; keyframes: PropertyIndexedKeyframes };
+/** Property-indexed keyframes, or the array form (the title's). */
+type Frames = Record<string, unknown[]> & { length?: number };
+
+type Recorded = { target: Element; keyframes: Frames };
+
+function hasProp(r: { keyframes: Frames }, key: string): boolean {
+  return !Array.isArray(r.keyframes) && key in r.keyframes;
+}
 
 let recorded: Recorded[] = [];
 
@@ -33,7 +40,7 @@ beforeEach(() => {
   );
   Element.prototype.animate = function animate(
     this: Element,
-    keyframes: PropertyIndexedKeyframes,
+    keyframes: Frames,
   ) {
     recorded.push({ target: this, keyframes });
     return { cancel: vi.fn() } as unknown as Animation;
@@ -47,6 +54,21 @@ afterEach(() => {
 });
 
 describe("HomeCarousel with reduced motion", () => {
+  it("keeps only a static peek: no blur or edge animation", () => {
+    window.history.pushState({}, "", "/?blur=peek");
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    const first = container.querySelector("[data-work-card]")!;
+
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+
+    expect(container.querySelector(".car-peek")).not.toBeNull();
+    expect(recorded.some((r) => hasProp(r, "filter"))).toBe(false);
+    expect(
+      recorded.every((r) => r.target === container.querySelector(".car-row")),
+    ).toBe(true);
+    window.history.pushState({}, "", "/");
+  });
+
   it("crossfades the row and never tweens a transform", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     const first = container.querySelector("[data-work-card]")!;
@@ -56,10 +78,10 @@ describe("HomeCarousel with reduced motion", () => {
     expect(
       screen.getByRole("group", { name: "1 of 4: Titles" }),
     ).toBeInTheDocument();
-    expect(recorded.some((r) => "transform" in r.keyframes)).toBe(false);
-    expect(recorded.some((r) => "clipPath" in r.keyframes)).toBe(false);
+    expect(recorded.some((r) => hasProp(r, "transform"))).toBe(false);
+    expect(recorded.some((r) => hasProp(r, "clipPath"))).toBe(false);
 
-    const fade = recorded.find((r) => "opacity" in r.keyframes);
+    const fade = recorded.find((r) => hasProp(r, "opacity"));
     expect(fade?.target).toBe(container.querySelector(".car-row"));
     expect(container.querySelector("[data-ghost]")).toBeNull();
   });

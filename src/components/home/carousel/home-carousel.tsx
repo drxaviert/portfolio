@@ -9,12 +9,20 @@ import {
   useRef,
   useState,
 } from "react";
-import type { KeyboardEvent, MouseEvent } from "react";
+import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
 import { flushSync } from "react-dom";
 import { Cover } from "@/components/work/cover";
 import type { WorkMeta } from "@/lib/work";
 import { WORK_SLIVERS } from "../home-cards";
 import { RingLayers } from "../ring-hover";
+import {
+  EDGE_KEYFRAMES,
+  PEEK_GAP,
+  blur,
+  motionBlurAt,
+  parseBlurMode,
+} from "./blur-mode";
+import type { BlurMode } from "./blur-mode";
 import { restStyle, playEntity } from "./carousel-dom";
 import {
   EMPTY_GEOMETRY,
@@ -22,10 +30,12 @@ import {
   VISIBLE_SLOTS,
   advance,
   clickAction,
-  easeFn,
+  RETARGET_BEZIER,
+  bezierSpec,
+  easeSpec,
   entityKey,
   keyStep,
-  linearEasing,
+  offRight,
   restEntities,
   retarget,
   sampleEntities,
@@ -50,11 +60,16 @@ type Tween = {
   duration: number;
   ease: Ease;
   timing: TitleTiming;
+  blurMode: BlurMode;
+  motionPeak: number;
   animations: Animation[];
 };
 
 const FALLBACK_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
 const CROSSFADE_MS = 120;
+const STRIP_FADE_MS = 120;
+const STRIP_RETURN_MS = 240;
+const TITLE_OUT_END = 0.12;
 
 function supportsLinearEasing(): boolean {
   return (
@@ -67,6 +82,7 @@ function supportsLinearEasing(): boolean {
 function measureGeometry(
   row: HTMLElement,
   guide: HTMLElement,
+  rightGap: number | undefined,
 ): Geometry | null {
   const rowRect = row.getBoundingClientRect();
   if (rowRect.width === 0) return null;
@@ -78,7 +94,7 @@ function measureGeometry(
       return { x: rect.left - rowRect.left, w: rect.width };
     });
 
-  return { slots, rowWidth: rowRect.width, gap: GAP };
+  return { slots, rowWidth: rowRect.width, gap: GAP, rightGap };
 }
 
 function isModified(event: MouseEvent<HTMLElement>): boolean {
@@ -97,6 +113,8 @@ type SlideProps = {
   slot: number;
   total: number;
   ghost: boolean;
+  /** The static strip of the next card at the right edge (blur=peek). */
+  peek?: boolean;
   fillSlot: number;
   register: (key: string, element: HTMLElement | null) => void;
   onActivate: (event: MouseEvent<HTMLElement>, index: number) => void;
@@ -112,13 +130,14 @@ function Slide({
   slot,
   total,
   ghost,
+  peek = false,
   fillSlot,
   register,
   onActivate,
 }: SlideProps) {
   const first = slot === 0 && !ghost;
   const offscreen = slot >= VISIBLE_SLOTS;
-  const key = `${ghost ? "g" : "m"}${index}`;
+  const key = peek ? "peek" : `${ghost ? "g" : "m"}${index}`;
   const fill = WORK_SLIVERS[(fillSlot - 1) % WORK_SLIVERS.length].fill;
   const hostClass = "car-host ring-host rounded-lg";
 
@@ -204,7 +223,7 @@ function Slide({
       data-slot={slot}
       data-ghost={ghost ? "" : undefined}
       data-offscreen={offscreen ? "" : undefined}
-      className="car-slide"
+      className={peek ? "car-slide car-peek" : "car-slide"}
     >
       {host}
     </div>
@@ -225,6 +244,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const reduce = useReducedMotion() ?? false;
   const search = useLocationSearch();
   const mode = parseSliverMode(search);
+  const blurMode = parseBlurMode(search);
   const tune = new URLSearchParams(search).get("tune") === "1";
 
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -238,6 +258,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     items.map((_, index) => (index === 0 ? 1 : Math.min(index, 3))),
   );
   const [announcement, setAnnouncement] = useState("");
+  const [settled, setSettled] = useState(0);
 
   const rowRef = useRef<HTMLDivElement>(null);
   const guideRef = useRef<HTMLDivElement>(null);
@@ -246,10 +267,11 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const offsetRef = useRef(0);
   const tween = useRef<Tween | null>(null);
   const focusFirst = useRef(false);
-  const latest = useRef({ settings, mode, reduce });
+  const stripFade = useRef<Animation | null>(null);
+  const latest = useRef({ settings, mode, blurMode, reduce });
 
   useEffect(() => {
-    latest.current = { settings, mode, reduce };
+    latest.current = { settings, mode, blurMode, reduce };
   });
 
   function register(key: string, element: HTMLElement | null) {
@@ -273,6 +295,12 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         latest.current.mode,
       );
     });
+
+    const strip = elements.current.get("peek");
+    if (strip) {
+      restStyle(strip, offRight(g), 0, true, latest.current.mode);
+      strip.style.filter = blur(latest.current.settings.peekBlur);
+    }
   }
 
   function cancelTween() {
@@ -289,6 +317,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     applyRest(offsetRef.current);
     setGhosts([]);
     setDomOffset(offsetRef.current);
+    setSettled((count) => count + 1);
   }
 
   function firstCard(at: number): HTMLElement | null {
@@ -305,7 +334,12 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const next = advance(prev, k, n);
     if (next === prev) return;
 
-    const { settings: s, mode: m, reduce: reduced } = latest.current;
+    const {
+      settings: s,
+      mode: m,
+      blurMode: bm,
+      reduce: reduced,
+    } = latest.current;
     const g = geometry.current;
     const nextFills = (previous: number[]) =>
       previous.map((fill, index) => {
@@ -338,13 +372,22 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       return;
     }
 
-    const ease = easeFn(s.ease);
-    const timing: TitleTiming = {
-      delay: s.titleDelay,
-      duration: s.titleDuration,
-      outDuration: Math.min(120, s.titleDuration),
-    };
     const running = tween.current;
+    // An interrupt starts on a card that is already moving, so it takes an
+    // ease-out that carries speed instead of the gentle-start default.
+    const spec = running
+      ? bezierSpec(RETARGET_BEZIER)
+      : easeSpec(s.ease, s.custom);
+    const ease = spec.fn;
+    const easing =
+      spec.css.startsWith("linear(") && !supportsLinearEasing()
+        ? FALLBACK_EASING
+        : spec.css;
+    const timing: TitleTiming = {
+      start: s.titleStart,
+      span: s.titleSpan,
+      outEnd: TITLE_OUT_END,
+    };
     const now = performance.now();
 
     // An interrupt plans from the cards as they are drawn this instant, so
@@ -377,10 +420,15 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       return;
     }
 
-    const easing = supportsLinearEasing()
-      ? linearEasing(ease)
-      : FALLBACK_EASING;
     const animations: Animation[] = [];
+    const elapsed = running ? now - running.t0 : 0;
+    const progress = running
+      ? running.ease(Math.min(Math.max(elapsed / running.duration, 0), 1))
+      : 0;
+    const motionFrom =
+      running && running.blurMode === "motion"
+        ? motionBlurAt(running.motionPeak, progress)
+        : 0;
 
     for (const entity of planned) {
       const element = elements.current.get(entityKey(entity));
@@ -392,21 +440,56 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
           easing,
           mode: m,
           timing,
+          blur: {
+            mode: bm,
+            motionPeak: s.motionPeak,
+            motionFrom,
+            peekBlur: s.peekBlur,
+            rowWidth: g.rowWidth,
+          },
         }),
       );
     }
 
-    // One clock ends the step; the title may outlast the cards.
-    const clock = row.animate(
-      { opacity: [1, 1] },
-      { duration: Math.max(s.duration, s.titleDelay + s.titleDuration) },
-    );
+    if (bm === "edge") {
+      // Same duration and start as the cards, linear in time: in fast, hold,
+      // out before the end.
+      row.querySelectorAll<HTMLElement>(".car-edge").forEach((edge) => {
+        const shown = Number.parseFloat(getComputedStyle(edge).opacity) || 0;
+        animations.push(
+          edge.animate(
+            EDGE_KEYFRAMES.map((k, index) => ({
+              offset: k.offset,
+              opacity: index === 0 ? shown : k.opacity,
+            })),
+            { duration: s.duration, easing: "linear", fill: "both" },
+          ),
+        );
+      });
+    }
+
+    if (bm === "peek") {
+      const strip = elements.current.get("peek");
+      if (strip) {
+        const shown = Number.parseFloat(getComputedStyle(strip).opacity) || 0;
+        stripFade.current?.cancel();
+        stripFade.current = strip.animate(
+          { opacity: [shown, 0] },
+          { duration: STRIP_FADE_MS, easing: "ease-out", fill: "forwards" },
+        );
+      }
+    }
+
+    // One clock ends the step.
+    const clock = row.animate({ opacity: [1, 1] }, { duration: s.duration });
     const started: Tween = {
       entities: planned,
       t0: now,
       duration: s.duration,
       ease,
       timing,
+      blurMode: bm,
+      motionPeak: s.motionPeak,
       animations: [...animations, clock],
     };
 
@@ -423,7 +506,11 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const guide = guideRef.current;
     if (!row || !guide) return;
 
-    const measured = measureGeometry(row, guide);
+    const measured = measureGeometry(
+      row,
+      guide,
+      latest.current.blurMode === "peek" ? PEEK_GAP : undefined,
+    );
     if (!measured) return;
 
     cancelTween();
@@ -450,7 +537,21 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
   useEffect(() => {
     sync();
-  }, [mode]);
+  }, [mode, blurMode, settings.peekBlur]);
+
+  // After a step the strip shows the new next card and fades back in.
+  useLayoutEffect(() => {
+    if (settled === 0) return;
+
+    const strip = elements.current.get("peek");
+    if (!strip || typeof strip.animate !== "function") return;
+
+    stripFade.current?.cancel();
+    stripFade.current = strip.animate(
+      { opacity: [0, 1] },
+      { duration: STRIP_RETURN_MS, easing: "ease-out" },
+    );
+  }, [settled]);
 
   // The DOM only reorders between steps, which can drop focus; put it back on
   // the first card if the step came from the keyboard.
@@ -490,6 +591,11 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   }
 
   const domOrder = slotOrder(n, domOffset);
+  const peekItem = domOrder[VISIBLE_SLOTS % n];
+  const rowStyle = {
+    "--car-edge-w": `${settings.edgeWidth}px`,
+    "--car-edge-blur": `${settings.edgeBlur}px`,
+  } as CSSProperties;
 
   return (
     <>
@@ -499,7 +605,12 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         onKeyDown={onKeyDown}
         className="hidden md:block"
       >
-        <div ref={rowRef} className="car-row">
+        <div
+          ref={rowRef}
+          className="car-row"
+          data-blur={blurMode}
+          style={rowStyle}
+        >
           <div ref={guideRef} aria-hidden="true" className="car-guide">
             <div />
             <div />
@@ -520,6 +631,27 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
               onActivate={onActivate}
             />
           ))}
+
+          {blurMode === "peek" && n >= 2 ? (
+            <Slide
+              item={items[peekItem]}
+              index={peekItem}
+              slot={VISIBLE_SLOTS}
+              total={n}
+              ghost
+              peek
+              fillSlot={fills[peekItem]}
+              register={register}
+              onActivate={onActivate}
+            />
+          ) : null}
+
+          {blurMode === "edge" ? (
+            <>
+              <span aria-hidden="true" className="car-edge" data-side="left" />
+              <span aria-hidden="true" className="car-edge" data-side="right" />
+            </>
+          ) : null}
 
           {ghosts.map((index) => (
             <Slide
@@ -544,6 +676,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       {tune ? (
         <CarouselTuner
           settings={settings}
+          blurMode={blurMode}
           onChange={(patch) =>
             setSettings((previous) => ({ ...previous, ...patch }))
           }

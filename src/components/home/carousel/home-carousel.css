@@ -137,3 +137,56 @@
 .car-row:not([data-ready]) .car-slide:not([data-slot="0"]) [data-car-title] {
   opacity: 0;
 }
+
+/*
+ * Blur comparison (?blur=), removed once Dat picks.
+ */
+
+/* edge: a soft blur and fade at both ends, shown only while a step runs. */
+.car-edge {
+  position: absolute;
+  top: -12px;
+  bottom: -12px;
+  z-index: 5;
+  width: var(--car-edge-w, 28px);
+  pointer-events: none;
+  opacity: 0;
+  backdrop-filter: blur(var(--car-edge-blur, 5px));
+  -webkit-backdrop-filter: blur(var(--car-edge-blur, 5px));
+}
+
+.car-edge[data-side="left"] {
+  left: -6px;
+  background: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--surface) 70%, transparent),
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(to right, #000, transparent);
+  mask-image: linear-gradient(to right, #000, transparent);
+}
+
+.car-edge[data-side="right"] {
+  right: -6px;
+  background: linear-gradient(
+    to left,
+    color-mix(in oklab, var(--surface) 70%, transparent),
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(to left, #000, transparent);
+  mask-image: linear-gradient(to left, #000, transparent);
+}
+
+/* peek: the row clip opens 16px on the right; the strip sits 8px out, so 8px
+   of it shows. */
+.car-row[data-blur="peek"] {
+  clip-path: inset(-12px -16px -12px -6px);
+}
+
+.car-peek {
+  pointer-events: none;
+}
+
+.car-peek [data-car-title] {
+  opacity: 0;
+}

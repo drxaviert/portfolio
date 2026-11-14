@@ -10,9 +10,17 @@ const ITEMS: CarouselItem[] = [
   { kind: "placeholder", title: "More work soon" },
 ];
 
+/** Property-indexed keyframes, or the array form (the title's). */
+type Frames = Record<string, unknown[]> & { length?: number };
+
+function hasProp(r: { keyframes: Frames }, key: string): boolean {
+  return !Array.isArray(r.keyframes) && key in r.keyframes;
+}
+
 type Recorded = {
   target: Element;
-  keyframes: PropertyIndexedKeyframes;
+  keyframes: Frames;
+  options: { duration?: number; easing?: string; delay?: number };
   cancel: ReturnType<typeof vi.fn>;
   onfinish: (() => void) | null;
 };
@@ -36,15 +44,18 @@ function stubMatchMedia(reduce: boolean) {
 }
 
 beforeEach(() => {
+  window.history.pushState({}, "", "/");
   recorded = [];
   stubMatchMedia(false);
   Element.prototype.animate = function animate(
     this: Element,
-    keyframes: PropertyIndexedKeyframes,
+    keyframes: Frames,
+    options: Recorded["options"],
   ) {
     const record: Recorded = {
       target: this,
       keyframes,
+      options,
       cancel: vi.fn(),
       onfinish: null,
     };
@@ -250,7 +261,7 @@ describe("the wrap seam", () => {
 
     fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
 
-    const moves = recorded.filter((r) => "transform" in r.keyframes);
+    const moves = recorded.filter((r) => hasProp(r, "transform"));
     expect(moves.length).toBeGreaterThan(0);
     for (const move of moves) {
       expect(Object.keys(move.keyframes).sort()).toEqual([
@@ -258,6 +269,152 @@ describe("the wrap seam", () => {
         "transform",
       ]);
     }
+  });
+});
+
+describe("easing and one timeline", () => {
+  it("defaults to a 900ms smooth curve", () => {
+    render(<HomeCarousel items={ITEMS} />);
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+
+    const card = recorded.find((r) => hasProp(r, "transform"))!;
+    expect(card.options.duration).toBe(900);
+    expect(card.options.easing).toBe("cubic-bezier(0.5, 0, 0.1, 1)");
+  });
+
+  it("runs card, clip, covers, title and the wrap copy on the same duration and curve", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+
+    const timeline = recorded.filter(
+      (r) =>
+        !r.target.classList.contains("car-row") &&
+        !r.target.classList.contains("car-edge"),
+    );
+    const titles = timeline.filter((r) =>
+      r.target.hasAttribute("data-car-title"),
+    );
+    const ghost = container.querySelector("[data-ghost]")!;
+
+    expect(titles.length).toBeGreaterThan(0);
+    expect(
+      timeline.some((r) => ghost.contains(r.target) || r.target === ghost),
+    ).toBe(true);
+    for (const r of timeline) {
+      expect(r.options.duration).toBe(900);
+      expect(r.options.easing).toBe("cubic-bezier(0.5, 0, 0.1, 1)");
+      expect(r.options.delay ?? 0).toBe(0);
+    }
+  });
+
+  it("holds a title back until the card is mostly wide", () => {
+    render(<HomeCarousel items={ITEMS} />);
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+
+    const arriving = recorded.find(
+      (r) =>
+        r.target.hasAttribute("data-car-title") &&
+        Array.isArray(r.keyframes) &&
+        r.keyframes.some((k) => k.offset === 0.75),
+    );
+    expect(arriving).toBeDefined();
+  });
+
+  it("retargets a running step on an ease-out", () => {
+    render(<HomeCarousel items={ITEMS} />);
+    const first = host("Systems");
+
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    const before = recorded.length;
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+
+    const retargeted = recorded
+      .slice(before)
+      .find((r) => hasProp(r, "transform"))!;
+    expect(retargeted.options.easing).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
+  });
+});
+
+describe("blur modes", () => {
+  it("defaults to edge: overlays fade with the step, not at rest", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    const edges = container.querySelectorAll(".car-edge");
+    expect(edges).toHaveLength(2);
+    expect(recorded).toHaveLength(0);
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+
+    const fades = recorded.filter((r) =>
+      r.target.classList.contains("car-edge"),
+    );
+    expect(fades).toHaveLength(2);
+    expect(fades[0].options.duration).toBe(900);
+    expect(
+      (fades[0].keyframes as unknown as { opacity: number }[]).at(-1),
+    ).toMatchObject({ opacity: 0 });
+    expect(recorded.some((r) => hasProp(r, "filter"))).toBe(false);
+  });
+
+  it("none adds nothing", () => {
+    window.history.pushState({}, "", "/?blur=none");
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+
+    expect(container.querySelector(".car-edge")).toBeNull();
+    expect(container.querySelector(".car-peek")).toBeNull();
+    expect(recorded.some((r) => hasProp(r, "filter"))).toBe(false);
+  });
+
+  it("motion blurs moving cards in the same animation and ends at 0", () => {
+    window.history.pushState({}, "", "/?blur=motion");
+    render(<HomeCarousel items={ITEMS} />);
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+
+    const moving = recorded.filter(
+      (r) => hasProp(r, "transform") && hasProp(r, "filter"),
+    );
+    expect(moving.length).toBeGreaterThan(0);
+    for (const r of moving) {
+      expect(r.keyframes.filter).toHaveLength(3);
+      expect(r.keyframes.filter?.at(0)).toBe("none");
+      expect(r.keyframes.filter?.at(-1)).toBe("none");
+      expect(String(r.keyframes.filter?.[1])).toContain("blur(2.50px)");
+      expect(r.keyframes.offset).toEqual([0, 0.5, 1]);
+    }
+  });
+
+  it("peek shows an inert, blurred strip of the next card and hides it as a step starts", () => {
+    window.history.pushState({}, "", "/?blur=peek");
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+
+    const strip = container.querySelector<HTMLElement>(".car-peek")!;
+    expect(strip).toHaveAttribute("aria-hidden", "true");
+    expect(strip).toHaveAttribute("inert");
+    expect(strip.querySelector("a, button, [data-work-card]")).toBeNull();
+    expect(container.querySelector(".car-row")).toHaveAttribute(
+      "data-blur",
+      "peek",
+    );
+    // Four items: the strip is the copy of the first one.
+    expect(strip.querySelector("[data-car-title]")).toHaveTextContent(
+      "Systems",
+    );
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+
+    const fade = recorded.find((r) => r.target === strip);
+    expect(fade?.keyframes).toMatchObject({ opacity: [1, 0] });
+
+    // The card entering the last slot starts blurred and sharpens.
+    const entering = recorded.find(
+      (r) => hasProp(r, "filter") && r.target !== strip,
+    );
+    expect(entering?.keyframes.filter).toEqual(["blur(4.00px)", "none"]);
   });
 });
 

@@ -1,24 +1,32 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { EASE_OPTIONS } from "./carousel-math";
-import type { EaseKey } from "./carousel-math";
+import type { CSSProperties } from "react";
+import { DEFAULT_BLUR } from "./blur-mode";
+import type { BlurMode, BlurSettings } from "./blur-mode";
+import { EASE_OPTIONS, easeSpec, parseBezier } from "./carousel-math";
+import type { Bezier, EaseKey } from "./carousel-math";
 
-export type CarouselSettings = {
+export type CarouselSettings = BlurSettings & {
   duration: number;
   ease: EaseKey;
-  titleDuration: number;
-  titleDelay: number;
+  /** Free cubic-bezier, used when `ease` is "custom". */
+  custom: Bezier;
+  /** Eased progress at which the title starts fading in, and how long it takes. */
+  titleStart: number;
+  titleSpan: number;
 };
 
 export const DEFAULT_SETTINGS: CarouselSettings = {
-  duration: 1000,
-  ease: "expo",
-  titleDuration: 260,
-  titleDelay: 420,
+  duration: 900,
+  ease: "smooth",
+  custom: [0.5, 0, 0.1, 1],
+  titleStart: 0.75,
+  titleSpan: 0.2,
+  ...DEFAULT_BLUR,
 };
 
-const PANEL: React.CSSProperties = {
+const PANEL: CSSProperties = {
   position: "fixed",
   right: 16,
   bottom: 16,
@@ -26,7 +34,9 @@ const PANEL: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: 8,
-  width: 232,
+  width: 244,
+  maxHeight: "calc(100dvh - 32px)",
+  overflowY: "auto",
   padding: 12,
   borderRadius: 14,
   background: "rgba(10, 10, 10, 0.86)",
@@ -36,11 +46,20 @@ const PANEL: React.CSSProperties = {
     "0 0 0 1px rgba(255,255,255,0.08) inset, 0 8px 24px rgba(0,0,0,0.3)",
 };
 
-const FIELD: React.CSSProperties = {
+const FIELD: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: 2,
 };
+
+type NumberKey =
+  | "duration"
+  | "titleStart"
+  | "titleSpan"
+  | "edgeWidth"
+  | "edgeBlur"
+  | "peekBlur"
+  | "motionPeak";
 
 /**
  * Dev tuner, mounted only at `/?tune=1`. Values apply to the next step; Copy
@@ -48,13 +67,17 @@ const FIELD: React.CSSProperties = {
  */
 export function CarouselTuner({
   settings,
+  blurMode,
   onChange,
 }: {
   settings: CarouselSettings;
+  blurMode: BlurMode;
   onChange: (patch: Partial<CarouselSettings>) => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [bezierText, setBezierText] = useState(settings.custom.join(", "));
   const timer = useRef<number | null>(null);
+  const bezierValid = parseBezier(bezierText) !== null;
 
   useEffect(
     () => () => {
@@ -64,26 +87,33 @@ export function CarouselTuner({
   );
 
   function copy() {
-    void navigator.clipboard?.writeText(JSON.stringify(settings, null, 2));
+    const resolved = easeSpec(settings.ease, settings.custom).css;
+    const values = { ...settings, easing: resolved, blur: blurMode };
+
+    void navigator.clipboard?.writeText(JSON.stringify(values, null, 2));
     setCopied(true);
     if (timer.current !== null) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => setCopied(false), 1200);
   }
 
-  const number = (
-    key: "duration" | "titleDuration" | "titleDelay",
+  const slider = (
+    key: NumberKey,
     label: string,
+    unit: string,
+    min: number,
     max: number,
+    step: number,
   ) => (
     <label style={FIELD}>
       <span>
-        {label}: {settings[key]}ms
+        {label}: {settings[key]}
+        {unit}
       </span>
       <input
         type="range"
-        min={0}
+        min={min}
         max={max}
-        step={10}
+        step={step}
         value={settings[key]}
         onChange={(event) => onChange({ [key]: Number(event.target.value) })}
       />
@@ -93,7 +123,7 @@ export function CarouselTuner({
   return (
     <div role="group" aria-label="Carousel tuner" style={PANEL}>
       <strong style={{ color: "#fff", fontSize: 13 }}>Carousel tuner</strong>
-      {number("duration", "Duration", 2500)}
+      {slider("duration", "Duration", "ms", 200, 2500, 50)}
       <label style={FIELD}>
         <span>Easing</span>
         <select
@@ -109,8 +139,27 @@ export function CarouselTuner({
           ))}
         </select>
       </label>
-      {number("titleDuration", "Title fade", 1000)}
-      {number("titleDelay", "Title delay", 1500)}
+      <label style={FIELD}>
+        <span>Custom cubic-bezier (x1, y1, x2, y2)</span>
+        <input
+          type="text"
+          value={bezierText}
+          aria-invalid={!bezierValid}
+          onChange={(event) => {
+            setBezierText(event.target.value);
+            const parsed = parseBezier(event.target.value);
+            if (parsed) onChange({ custom: parsed, ease: "custom" });
+          }}
+          style={bezierValid ? undefined : { outline: "1px solid #f66" }}
+        />
+      </label>
+      {slider("titleStart", "Title in at", " of step", 0, 1, 0.05)}
+      {slider("titleSpan", "Title fade span", "", 0.05, 0.6, 0.05)}
+      <strong style={{ color: "#fff" }}>Blur: ?blur={blurMode}</strong>
+      {slider("edgeWidth", "Edge width", "px", 8, 64, 2)}
+      {slider("edgeBlur", "Edge blur", "px", 0, 12, 0.5)}
+      {slider("peekBlur", "Peek blur", "px", 0, 12, 0.5)}
+      {slider("motionPeak", "Motion blur peak", "px", 0, 8, 0.5)}
       <button type="button" onClick={copy}>
         {copied ? "Copied" : "Copy values"}
       </button>

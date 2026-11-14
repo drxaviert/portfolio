@@ -1,5 +1,8 @@
+import { blur, motionBlurAt } from "./blur-mode";
+import type { BlurMode } from "./blur-mode";
 import { lookFor } from "./sliver-mode";
 import type { Look, SliverMode } from "./sliver-mode";
+import { lerp, titleKeys } from "./carousel-math";
 import type { Entity, Pose, TitleTiming } from "./carousel-math";
 
 /**
@@ -65,85 +68,110 @@ function inset(visibleOf: number, boxWidth: number): string {
   return `inset(0px ${Math.max(boxWidth - visibleOf, 0)}px 0px 0px round ${RADIUS}px)`;
 }
 
+export type PlayBlur = {
+  mode: BlurMode;
+  motionPeak: number;
+  /** Blur a moving card already has (an interrupt), px. */
+  motionFrom: number;
+  peekBlur: number;
+  rowWidth: number;
+};
+
 type PlayOptions = {
   duration: number;
   easing: string;
   mode: SliverMode;
   timing: TitleTiming;
+  blur: PlayBlur;
 };
 
 /**
- * Starts one entity's tween: transform and clip-path together on the card, the
- * look on its picture layers, the title on its own short clock. Returns every
- * animation so the caller can cancel them as one.
+ * Starts one entity's run. Everything on it (the card's transform and clip-path
+ * and blur, the picture layers, the title) uses the same duration and curve and
+ * starts together, so nothing drifts out of sync. Returns every animation so
+ * the caller can cancel them as one.
  */
 export function playEntity(
   el: HTMLElement,
   e: Entity,
-  { duration, easing, mode, timing }: PlayOptions,
+  { duration, easing, mode, timing, blur: b }: PlayOptions,
 ): Animation[] {
   const box = Math.max(e.from.w, e.to.w);
+  const timeline = { duration, easing, fill: "both" as const };
 
   el.style.visibility = "visible";
   el.style.width = `${box}px`;
   el.style.transform = `translateX(${e.from.x}px)`;
   el.style.clipPath = inset(e.from.w, box);
 
-  const animations: Animation[] = [
-    el.animate(
-      {
-        transform: [`translateX(${e.from.x}px)`, `translateX(${e.to.x}px)`],
-        clipPath: [inset(e.from.w, box), inset(e.to.w, box)],
-      },
-      { duration, easing, fill: "both" },
-    ),
-  ];
+  const moves = e.from.x !== e.to.x || e.from.w !== e.to.w;
+  const enters = e.from.x >= b.rowWidth;
+  const keyframes: PropertyIndexedKeyframes = {
+    transform: [`translateX(${e.from.x}px)`, `translateX(${e.to.x}px)`],
+    clipPath: [inset(e.from.w, box), inset(e.to.w, box)],
+  };
+
+  if (b.mode === "motion" && moves) {
+    // Peaks mid-step, 0 at rest; mid keyframe sits on the straight line so the
+    // path is unchanged.
+    keyframes.transform = [
+      `translateX(${e.from.x}px)`,
+      `translateX(${lerp(e.from.x, e.to.x, 0.5)}px)`,
+      `translateX(${e.to.x}px)`,
+    ];
+    keyframes.clipPath = [
+      inset(e.from.w, box),
+      inset(lerp(e.from.w, e.to.w, 0.5), box),
+      inset(e.to.w, box),
+    ];
+    keyframes.filter = [
+      blur(b.motionFrom),
+      blur(Math.max(b.motionFrom, motionBlurAt(b.motionPeak, 0.5))),
+      "none",
+    ];
+    keyframes.offset = [0, 0.5, 1];
+  } else if (b.mode === "peek" && enters) {
+    keyframes.filter = [blur(b.peekBlur), "none"];
+  }
+
+  const animations: Animation[] = [el.animate(keyframes, timeline)];
 
   const { cover, grey, title } = parts(el);
   const a = lookFor(mode, e.fromWide);
-  const b = lookFor(mode, e.toWide);
+  const z = lookFor(mode, e.toWide);
 
-  if (cover && (a.cover !== b.cover || a.grayscale !== b.grayscale)) {
+  if (cover && (a.cover !== z.cover || a.grayscale !== z.grayscale)) {
     animations.push(
       cover.animate(
         {
-          opacity: [a.cover, b.cover],
+          opacity: [a.cover, z.cover],
           filter: [
             coverFilter(a.grayscale) || "none",
-            coverFilter(b.grayscale) || "none",
+            coverFilter(z.grayscale) || "none",
           ],
         },
-        { duration, easing, fill: "both" },
+        timeline,
       ),
     );
   } else if (cover) {
-    applyLook(el, b);
+    applyLook(el, z);
   }
 
-  if (grey && a.grey !== b.grey) {
-    animations.push(
-      grey.animate(
-        { opacity: [a.grey, b.grey] },
-        { duration, easing, fill: "both" },
-      ),
-    );
+  if (grey && a.grey !== z.grey) {
+    animations.push(grey.animate({ opacity: [a.grey, z.grey] }, timeline));
   }
 
   if (title) {
     if (e.fromTitle === e.toTitle) {
       title.style.opacity = String(e.toTitle);
     } else {
-      const entering = e.toTitle > e.fromTitle;
-
       animations.push(
         title.animate(
-          { opacity: [e.fromTitle, e.toTitle] },
-          {
-            duration: entering ? timing.duration : timing.outDuration,
-            delay: entering ? timing.delay : 0,
-            easing: "ease-out",
-            fill: "both",
-          },
+          titleKeys(e, timing).map((k) => ({
+            offset: k.offset,
+            opacity: k.opacity,
+          })),
+          timeline,
         ),
       );
     }

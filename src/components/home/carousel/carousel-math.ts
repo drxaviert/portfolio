@@ -62,15 +62,52 @@ export function stepMode(reduceMotion: boolean): StepMode {
 
 // ---------------------------------------------------------------- easing
 
-export type EaseKey = "expo" | "quint" | "quart" | "stripe";
+export type EaseKey =
+  "smooth" | "glide" | "quint-out" | "sheet" | "expo-out" | "custom";
 export type Ease = (t: number) => number;
+export type Bezier = [number, number, number, number];
 
+/**
+ * Default is "smooth": a gentle start and a long glide. easeOutExpo covers
+ * about half the distance in its first ~70ms, so a step starting on it snaps;
+ * it stays here as "expo-out" for comparison.
+ */
 export const EASE_OPTIONS: { value: EaseKey; label: string }[] = [
-  { value: "expo", label: "easeOutExpo, exact (1 - 2^-10t)" },
-  { value: "quint", label: "easeOutQuint (1 - (1-t)^5)" },
-  { value: "quart", label: "easeOutQuart (1 - (1-t)^4)" },
-  { value: "stripe", label: "Stripe bezier (0.16, 1, 0.3, 1)" },
+  { value: "smooth", label: "smooth (0.5, 0, 0.1, 1)" },
+  { value: "glide", label: "glide (0.65, 0, 0.35, 1)" },
+  { value: "quint-out", label: "quint-out (0.22, 1, 0.36, 1)" },
+  { value: "sheet", label: "sheet (0.32, 0.72, 0, 1)" },
+  { value: "expo-out", label: "expo-out, exact (1 - 2^-10t)" },
+  { value: "custom", label: "custom cubic-bezier" },
 ];
+
+const BEZIERS: Record<"smooth" | "glide" | "quint-out" | "sheet", Bezier> = {
+  smooth: [0.5, 0, 0.1, 1],
+  glide: [0.65, 0, 0.35, 1],
+  "quint-out": [0.22, 1, 0.36, 1],
+  sheet: [0.32, 0.72, 0, 1],
+};
+
+/**
+ * An interrupted run starts on a card that is already moving. A curve that
+ * starts slow would stop it dead and restart, so retargeted runs use an
+ * ease-out that carries speed from the first frame.
+ */
+export const RETARGET_BEZIER: Bezier = BEZIERS["quint-out"];
+
+/** "0.5, 0, 0.1, 1" -> the four numbers, or null if not a valid curve. */
+export function parseBezier(text: string): Bezier | null {
+  const parts = text
+    .replace(/cubic-bezier\(|\)/g, "")
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .map(Number);
+
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
+  if (parts[0] < 0 || parts[0] > 1 || parts[2] < 0 || parts[2] > 1) return null;
+
+  return parts as Bezier;
+}
 
 export function cubicBezier(
   x1: number,
@@ -117,19 +154,20 @@ export function cubicBezier(
 
 const clamp01 = (t: number) => Math.min(Math.max(t, 0), 1);
 
-const EASES: Record<EaseKey, Ease> = {
-  expo: (t) => (t <= 0 ? 0 : t >= 1 ? 1 : 1 - 2 ** (-10 * t)),
-  quint: (t) => 1 - (1 - clamp01(t)) ** 5,
-  quart: (t) => 1 - (1 - clamp01(t)) ** 4,
-  stripe: cubicBezier(0.16, 1, 0.3, 1),
-};
+const expoOut: Ease = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : 1 - 2 ** (-10 * t));
 
-export function easeFn(key: EaseKey): Ease {
-  return EASES[key];
+/** One curve, both as a function (for sampling) and as CSS (for WAAPI). */
+export type EaseSpec = { fn: Ease; css: string };
+
+export function bezierSpec(b: Bezier): EaseSpec {
+  return { fn: cubicBezier(...b), css: `cubic-bezier(${b.join(", ")})` };
 }
 
-/** CSS ease-out, for the title fades. */
-export const easeOutCss: Ease = cubicBezier(0, 0, 0.58, 1);
+export function easeSpec(key: EaseKey, custom: Bezier): EaseSpec {
+  if (key === "expo-out") return { fn: expoOut, css: linearEasing(expoOut) };
+  if (key === "custom") return bezierSpec(custom);
+  return bezierSpec(BEZIERS[key]);
+}
 
 function round(value: number, places: number): number {
   const scale = 10 ** places;
@@ -160,6 +198,8 @@ export type Geometry = {
   slots: Pose[];
   rowWidth: number;
   gap: number;
+  /** Gap before the card waiting at the right edge; the peek uses 8px. */
+  rightGap?: number;
 };
 
 export const EMPTY_GEOMETRY: Geometry = {
@@ -170,7 +210,10 @@ export const EMPTY_GEOMETRY: Geometry = {
 
 /** Waiting place for items beyond the visible slots, and the seam's origin. */
 export function offRight(g: Geometry): Pose {
-  return { x: g.rowWidth + g.gap, w: g.slots[VISIBLE_SLOTS - 1].w };
+  return {
+    x: g.rowWidth + (g.rightGap ?? g.gap),
+    w: g.slots[VISIBLE_SLOTS - 1].w,
+  };
 }
 
 /** Where a card leaving slot 0 ends up: one narrow slot to the left of it. */
@@ -304,30 +347,67 @@ export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+/**
+ * Title fades share the step's one timeline and curve, so they are expressed
+ * in eased progress (0..1), not time: in once the card is mostly in the wide
+ * slot, out almost at once.
+ */
 export type TitleTiming = {
-  /** Fade-in start, from the step's start, so it lands once the card is wide. */
-  delay: number;
-  duration: number;
-  /** Fade-out is short and immediate so it never shows on a narrowing card. */
-  outDuration: number;
+  /** Progress at which the fade-in starts. */
+  start: number;
+  /** How much progress the fade-in takes. */
+  span: number;
+  /** Progress by which a leaving title is gone. */
+  outEnd: number;
 };
+
+/** Eased progress the title's keyframes sit at: [offset, opacity] pairs. */
+export function titleKeys(
+  e: Pick<Entity, "fromTitle" | "toTitle">,
+  t: TitleTiming,
+): { offset: number; opacity: number }[] {
+  if (e.toTitle > e.fromTitle) {
+    const start = clamp01(t.start);
+    const end = Math.min(start + Math.max(t.span, 0.01), 1);
+
+    return [
+      { offset: 0, opacity: e.fromTitle },
+      { offset: start, opacity: e.fromTitle },
+      { offset: end, opacity: e.toTitle },
+      { offset: 1, opacity: e.toTitle },
+    ];
+  }
+
+  return [
+    { offset: 0, opacity: e.fromTitle },
+    { offset: Math.max(t.outEnd, 0.01), opacity: e.toTitle },
+    { offset: 1, opacity: e.toTitle },
+  ];
+}
 
 export function titleAt(
   e: Pick<Entity, "fromTitle" | "toTitle">,
-  elapsed: number,
+  progress: number,
   timing: TitleTiming,
 ): number {
   if (e.fromTitle === e.toTitle) return e.toTitle;
 
-  const entering = e.toTitle > e.fromTitle;
-  const delay = entering ? timing.delay : 0;
-  const duration = entering ? timing.duration : timing.outDuration;
-  const u = clamp01((elapsed - delay) / duration);
+  const keys = titleKeys(e, timing);
+  for (let i = 1; i < keys.length; i++) {
+    if (progress <= keys[i].offset) {
+      const a = keys[i - 1];
+      const b = keys[i];
+      const span = b.offset - a.offset;
+      return span <= 0
+        ? b.opacity
+        : lerp(a.opacity, b.opacity, (progress - a.offset) / span);
+    }
+  }
 
-  return lerp(e.fromTitle, e.toTitle, easeOutCss(u));
+  return e.toTitle;
 }
 
-/** Every entity as it looks `elapsed` ms into a tween of `duration`. */
+/** Every entity as it looks `elapsed` ms into a run of `duration`. */
 export function sampleEntities(
   entities: Entity[],
   elapsed: number,
@@ -341,6 +421,6 @@ export function sampleEntities(
     ...e,
     from: { x: lerp(e.from.x, e.to.x, p), w: lerp(e.from.w, e.to.w, p) },
     fromWide: lerp(e.fromWide, e.toWide, p),
-    fromTitle: titleAt(e, elapsed, timing),
+    fromTitle: titleAt(e, p, timing),
   }));
 }
