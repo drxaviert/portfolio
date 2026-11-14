@@ -237,53 +237,44 @@ export function applyPhase(
   kind: PhaseSwitchKind = "click",
 ): void {
   const root = document.documentElement;
-  const changed = root.dataset.phase !== phase;
 
-  // Mark before writing data-phase: markPhaseSwitch reads the duration token
-  // with getComputedStyle, which flushes styles. Doing that after the phase
-  // write would commit the new colours with no switch rule, then the rule
-  // arrives too late to animate them.
-  if (changed) markPhaseSwitch(kind);
-
-  root.dataset.phase = phase;
-  root.classList.toggle("dark", phase === "night");
+  commitPhaseSwitch(kind, root.dataset.phase !== phase, () => {
+    root.dataset.phase = phase;
+    root.classList.toggle("dark", phase === "night");
+  });
 }
 
 /** Event every theme mutation dispatches; ThemeProvider subscribes to it. */
 export const THEME_CHANGE_EVENT = "portfolio:theme-change";
+
+/**
+ * True while a theme crossfade is in flight. A view transition paints snapshots
+ * of the page, and the live document stops receiving hit tests for its length,
+ * so a pointer-leave reported during one is not a real leave: hover feedback
+ * should keep its state and let the next real pointer event correct it.
+ */
+export function isPhaseSwitching(): boolean {
+  return document.documentElement.dataset.phaseSwitching !== undefined;
+}
 
 /** Click switches use the glow tokens; clock-driven switches the auto tokens. */
 export type PhaseSwitchKind = "click" | "auto";
 
 const DEFAULT_PHASE_SWITCH_MS = 400;
 
-/** Colour-like transitions the switch rule starts; used to tell when the fade ended. */
-const PHASE_FADE_PROPERTIES = new Set([
-  "color",
-  "background-color",
-  "border-color",
-  "outline-color",
-  "text-decoration-color",
-  "fill",
-  "stroke",
-  "box-shadow",
-]);
+/** The part of the View Transitions API this file relies on. */
+type PhaseViewTransition = {
+  finished: Promise<void>;
+};
 
-let phaseSwitchFrame: number | null = null;
-let phaseSwitchFallback: number | null = null;
-
-/** Cancels a pending end-of-switch watch. */
-function stopPhaseSwitchWatch(): void {
-  if (phaseSwitchFrame !== null) {
-    window.cancelAnimationFrame(phaseSwitchFrame);
-    phaseSwitchFrame = null;
-  }
-
-  if (phaseSwitchFallback !== null) {
-    window.clearTimeout(phaseSwitchFallback);
-    phaseSwitchFallback = null;
-  }
-}
+type DocumentWithViewTransitions = Document & {
+  /**
+   * The callback runs after the old state has been captured and before the
+   * browser snapshots the new one; a returned promise holds the snapshot back
+   * until it settles.
+   */
+  startViewTransition?: (callback: () => Promise<void>) => PhaseViewTransition;
+};
 
 /** Reads a `400ms` / `0.4s` duration token; falls back to the default. */
 function readPhaseSwitchMs(kind: PhaseSwitchKind): number {
@@ -304,68 +295,134 @@ function readPhaseSwitchMs(kind: PhaseSwitchKind): number {
   return match[2] === "s" ? value * 1000 : value;
 }
 
+/** Writes queued for the next flush; a click can queue more than one. */
+let pendingWrites: Array<() => void> = [];
+let pendingKind: PhaseSwitchKind = "click";
+let flushQueued = false;
+let switchGeneration = 0;
+
 /**
- * Marks a phase change on <html> so every theme colour fades as one piece.
- * globals.css only applies the colour transition while data-phase-switching is
- * present, so ordinary hover/press transitions are untouched afterwards.
+ * Lets the render the theme event scheduled commit before the browser snapshots
+ * the new state. The toggle's selection is React state, so without this the new
+ * snapshot would still show the old selection and the pill would jump when the
+ * crossfade ended.
  *
- * The attribute is removed when the colour transitions have actually finished,
- * not after a wall-clock delay: a throttled, occluded or background page can
- * render its first frame later than the fade duration, and dropping the rule on
- * a timer would cancel the transition before it starts and snap every colour.
- * Engines without the Web Animations API fall back to the timer.
+ * Deliberately not a frame: `requestAnimationFrame` does not run while a view
+ * transition's update callback is pending — the browser is waiting on this
+ * promise to start the rendering update — so awaiting a frame here deadlocks
+ * until the renderer's starvation timeout. `useSyncExternalStore` flushes its
+ * sync-lane render in a microtask, so two hops are enough.
  */
-export function markPhaseSwitch(kind: PhaseSwitchKind = "click"): void {
+function settleUpdate(): Promise<void> {
+  return Promise.resolve().then(() => undefined);
+}
+
+/**
+ * Applies every queued theme write as one crossfade.
+ *
+ * The browser snapshots the page before and after the change and blends the
+ * two images on the compositor, so not one colour property is animated per
+ * element: the paint cost of a theme change is two captures, not a full
+ * repaint per frame. Every layer — the horizon, the cards, the text, the nav,
+ * the toggle — is inside the same snapshot, so they start and finish together
+ * by construction.
+ *
+ * Reduced motion keeps the crossfade (a colour change is not motion) but runs
+ * it on the shortened token. Engines without the API, and a zero-length token,
+ * switch instantly instead.
+ */
+function flushPhaseSwitch(): void {
+  flushQueued = false;
+
+  const writes = pendingWrites;
+  const kind = pendingKind;
+
+  pendingWrites = [];
+
   const root = document.documentElement;
+  const doc = document as DocumentWithViewTransitions;
   const duration = readPhaseSwitchMs(kind);
+  const generation = ++switchGeneration;
 
-  stopPhaseSwitchWatch();
+  const apply = () => {
+    for (const write of writes) write();
+  };
 
-  if (duration <= 0) {
-    delete root.dataset.phaseSwitching;
+  const announce = () => {
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+  };
+
+  if (duration <= 0 || typeof doc.startViewTransition !== "function") {
+    apply();
+    announce();
     return;
   }
 
-  root.dataset.phaseSwitching = kind;
+  let transition: PhaseViewTransition;
 
-  const remove = () => {
+  try {
+    // Marked before the transition starts so the handlers that run on the same
+    // click — and anything the crossfade's pointer loss touches — can see it.
+    root.dataset.phaseSwitching = kind;
+
+    transition = doc.startViewTransition(() => {
+      apply();
+      announce();
+
+      return settleUpdate();
+    });
+  } catch {
     delete root.dataset.phaseSwitching;
-    stopPhaseSwitchWatch();
+    apply();
+    announce();
+    return;
+  }
+
+  const settle = () => {
+    // A newer switch owns the attribute and clears it itself.
+    if (generation !== switchGeneration) return;
+
+    delete root.dataset.phaseSwitching;
   };
+
+  transition.finished.then(settle, settle);
+}
+
+/**
+ * Queues one theme write. Writes made in the same task — the Night -> Day
+ * phase pick applies the pin and the mode together — share one crossfade
+ * instead of starting a second transition that would snap the first.
+ *
+ * The flush is a microtask so the old snapshot is still captured before the
+ * page paints the new colours. Engines without the API get the old synchronous
+ * behaviour: write, then announce, in the calling task.
+ */
+function commitPhaseSwitch(
+  kind: PhaseSwitchKind,
+  changed: boolean,
+  write: () => void,
+): void {
+  if (!changed) {
+    write();
+    return;
+  }
 
   if (
-    typeof document.getAnimations !== "function" ||
-    typeof window.requestAnimationFrame !== "function"
+    typeof (document as DocumentWithViewTransitions).startViewTransition !==
+    "function"
   ) {
-    phaseSwitchFallback = window.setTimeout(remove, duration + 50);
+    write();
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
     return;
   }
 
-  // Hard cap: an unrelated colour transition (repeated hovers) or a
-  // never-ending one must not keep the switch rule alive indefinitely.
-  phaseSwitchFallback = window.setTimeout(remove, Math.max(duration * 4, 2000));
+  pendingKind = kind;
+  pendingWrites.push(write);
 
-  const check = () => {
-    phaseSwitchFrame = null;
+  if (flushQueued) return;
 
-    const running = document.getAnimations().some(
-      (animation) =>
-        "transitionProperty" in animation &&
-        PHASE_FADE_PROPERTIES.has(
-          String((animation as CSSTransition).transitionProperty),
-        ) &&
-        animation.playState === "running",
-    );
-
-    if (running) {
-      phaseSwitchFrame = window.requestAnimationFrame(check);
-      return;
-    }
-
-    remove();
-  };
-
-  phaseSwitchFrame = window.requestAnimationFrame(check);
+  flushQueued = true;
+  queueMicrotask(flushPhaseSwitch);
 }
 
 /**
@@ -401,18 +458,22 @@ export function applyMode(
 ): Phase {
   const phase = phaseFor(date, mode, dayPhase);
   const root = document.documentElement;
-  const changed = root.dataset.phase !== phase;
+  const changed =
+    root.dataset.phase !== phase ||
+    root.dataset.mode !== mode ||
+    root.dataset.dayPhase !== dayPhase;
 
-  // See applyPhase: mark before the colour attributes change so the style
-  // flush from reading the duration token cannot commit the new colours first.
-  if (changed) markPhaseSwitch(kind);
-
+  // Kept in memory straight away: a queued write must not leave the next
+  // caller reading the mode this call is replacing.
   activeMode = mode;
   activeDayPhase = dayPhase;
-  root.dataset.mode = mode;
-  root.dataset.dayPhase = dayPhase;
-  root.dataset.phase = phase;
-  root.classList.toggle("dark", phase === "night");
+
+  commitPhaseSwitch(kind, changed, () => {
+    root.dataset.mode = mode;
+    root.dataset.dayPhase = dayPhase;
+    root.dataset.phase = phase;
+    root.classList.toggle("dark", phase === "night");
+  });
 
   return phase;
 }
@@ -446,28 +507,23 @@ export function applyDayPhase(
 
 /**
  * Pins one phase on <html> for a dev preview, ignoring the clock. The mode is
- * derived from the phase so `data-mode` and `.dark` stay consistent, and the
- * theme-change event tells ThemeProvider to re-read the attributes.
+ * derived from the phase so `data-mode` and `.dark` stay consistent.
  */
 export function pinPhase(
   phase: Phase,
   kind: PhaseSwitchKind = "click",
 ): void {
   const root = document.documentElement;
-  const changed = root.dataset.phase !== phase;
-
-  // See applyPhase: mark before the phase attribute changes.
-  if (changed) markPhaseSwitch(kind);
 
   // Remember the mode the pin is about to overwrite so unpin can restore it.
   activeMode ??= readStoredMode();
 
-  root.dataset.phasePreview = "true";
-  root.dataset.phase = phase;
-  root.dataset.mode = phase === "night" ? "night" : "day";
-  root.classList.toggle("dark", phase === "night");
-
-  window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+  commitPhaseSwitch(kind, root.dataset.phase !== phase, () => {
+    root.dataset.phasePreview = "true";
+    root.dataset.phase = phase;
+    root.dataset.mode = phase === "night" ? "night" : "day";
+    root.classList.toggle("dark", phase === "night");
+  });
 }
 
 /**
@@ -477,7 +533,6 @@ export function pinPhase(
 export function unpinPhase(): void {
   delete document.documentElement.dataset.phasePreview;
 
+  // applyMode announces the change, including when only the preview flag moved.
   applyMode(getActiveMode());
-
-  window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
 }

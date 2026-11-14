@@ -16,6 +16,7 @@ import type {
   Ref,
 } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
+import { isPhaseSwitching } from "@/lib/theme";
 import type { DayPhase, Mode } from "@/lib/theme";
 import "./theme-toggle.css";
 
@@ -1320,11 +1321,18 @@ export function ThemeToggle() {
   }
 
   function leaveHoverRegion() {
+    // A crossfade hides the live page from hit tests for its length; the
+    // pointer has not really left, so keep the row and let the next real
+    // pointer event decide.
+    if (isPhaseSwitching()) return;
+
     hoverRegion.current = false;
     scheduleClose();
   }
 
   function onDesktopPointerLeave() {
+    if (isPhaseSwitching()) return;
+
     hoverRegion.current = false;
 
     if (canHover()) {

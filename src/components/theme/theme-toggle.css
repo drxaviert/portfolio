@@ -30,6 +30,13 @@
 
 .phase-row {
   --phase-row-exit-ms: 240;
+  /*
+   * How long the entrance waits before it starts. Normally zero; a theme
+   * switch raises it to the crossfade duration (see the next rule), because
+   * the browser paints a snapshot of the new state for the whole fade and
+   * anything animating underneath it would not be visible.
+   */
+  --phase-enter-delay: 0ms;
 
   opacity: 0;
   visibility: hidden;
@@ -38,15 +45,19 @@
   pointer-events: none;
 }
 
+:root[data-phase-switching] .phase-row {
+  --phase-enter-delay: var(--horizon-transition-duration);
+}
+
 .phase-row[data-visible="true"] {
   opacity: 1;
   visibility: visible;
   transform: none;
   pointer-events: auto;
   transition:
-    opacity 400ms cubic-bezier(0.23, 1, 0.32, 1),
-    transform 400ms cubic-bezier(0.23, 1, 0.32, 1),
-    visibility 0s;
+    opacity 400ms cubic-bezier(0.23, 1, 0.32, 1) var(--phase-enter-delay),
+    transform 400ms cubic-bezier(0.23, 1, 0.32, 1) var(--phase-enter-delay),
+    visibility 0s var(--phase-enter-delay);
 }
 
 .phase-row[data-visible="false"] {
@@ -69,8 +80,6 @@
  * Selected fill, enter-only: leaving the checked state drops this rule, so the
  * old fill is released on the same frame while the new one fades in. A fast
  * flip can then never paint two selected segments (or two labels) at once.
- * The extra [data-phase-row] keeps the phase-switch fade (globals.css), which
- * transitions every colour on the page, from retiming either state.
  */
 .phase-row[data-phase-row] [role="radio"][aria-checked="true"] {
   transition:
@@ -104,11 +113,13 @@
 }
 .phase-row[data-visible="true"] [role="radio"] {
   transition-delay:
-    var(--segment-delay), var(--segment-delay), 0ms, 0ms, 0ms;
+    calc(var(--segment-delay) + var(--phase-enter-delay)),
+    calc(var(--segment-delay) + var(--phase-enter-delay)), 0ms, 0ms, 0ms;
 }
 .phase-row[data-visible="true"] [role="radio"][aria-checked="true"] {
   transition-delay:
-    0ms, var(--segment-delay), var(--segment-delay), 0ms, 0ms, 0ms;
+    0ms, calc(var(--segment-delay) + var(--phase-enter-delay)),
+    calc(var(--segment-delay) + var(--phase-enter-delay)), 0ms, 0ms, 0ms;
 }
 .phase-row[data-visible="false"] [role="radio"] {
   opacity: 0;
@@ -278,9 +289,7 @@
  * Mode segments: colour, press scale, and an enter-only selected fill. The
  * fill's transition is declared on the checked state, so losing the selection
  * drops the rule and releases the old fill immediately; a fast flip shows one
- * selection at a time instead of crossfading two. Both rules are specific
- * enough to keep the phase-switch fade in globals.css (which transitions every
- * colour on the page for one theme change) from retiming either state.
+ * selection at a time instead of crossfading two.
  */
 [data-mode-track] .segment:not([aria-checked="true"]) {
   transition:

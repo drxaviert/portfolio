@@ -10,6 +10,7 @@ import {
   stepEdge,
   type GlideEdge,
 } from "./glide-spring";
+import { isPhaseSwitching } from "@/lib/theme";
 import { NavGlyphIcon } from "./nav-glyph-icon";
 import "./nav-items.css";
 
@@ -390,7 +391,13 @@ export function NavItems() {
   return (
     <div
       className="relative flex items-center"
-      onPointerLeave={() => setHoverIndex(null)}
+      onPointerLeave={() => {
+        // A theme crossfade snapshots the page and the live document stops
+        // receiving hit tests for its length, so this is not a real leave.
+        if (isPhaseSwitching()) return;
+
+        setHoverIndex(null);
+      }}
     >
       <GlideCapsule
         items={itemRefs}
