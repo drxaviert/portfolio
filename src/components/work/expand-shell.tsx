@@ -21,7 +21,7 @@ export function ExpandShell({
 }) {
   const panelRef = useRef<HTMLElement | null>(null);
   const titleRef = useRef<HTMLDivElement>(null);
-  const { phase, close } = useMorph(slug, panelRef, titleRef);
+  const { phase, reveal, close } = useMorph(slug, panelRef, titleRef);
 
   const setLayer = useCallback((layer: HTMLDivElement | null) => {
     panelRef.current =
@@ -45,7 +45,12 @@ export function ExpandShell({
   }, [phase, panelRef]);
 
   return (
-    <div ref={setLayer} className="wd-expand-layer" data-phase={phase}>
+    <div
+      ref={setLayer}
+      className="wd-expand-layer"
+      data-phase={phase}
+      data-reveal={reveal}
+    >
       <div
         className="wd-expand-backdrop"
         aria-hidden="true"
@@ -118,8 +123,7 @@ function useOverlayBehaviour(
           'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
         ),
       ].filter(
-        (node) =>
-          !node.closest("[inert]") && node.getClientRects().length > 0,
+        (node) => !node.closest("[inert]") && node.getClientRects().length > 0,
       );
       if (nodes.length === 0) return;
 

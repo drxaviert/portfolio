@@ -2,7 +2,13 @@
 
 import { animate, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { RefObject } from "react";
 import { flipFrom, toBox } from "./morph";
 import type { Box } from "./morph";
@@ -11,19 +17,26 @@ import { READER_TITLE_ID } from "./parts";
 
 export type MorphPhase = "opening" | "open" | "closing";
 
+/** Content entrance: held while the panel morphs, released before it lands. */
+export type RevealState = "pending" | "on";
+
 type Morph = ReturnType<typeof animate>;
 
 const EASE_ENTER: [number, number, number, number] = [0.32, 0.72, 0, 1];
 const MORPH_S = 0.48;
 const CLOSE_S = 0.3;
 const FADE_S = 0.12;
+/** The entrance starts this long before the morph lands, so reading does not wait for it. */
+const REVEAL_LEAD_S = 0.12;
 
 export function cardSelector(slug: string): string {
   return `[data-work-card="${slug}"]`;
 }
 
 /** The source card, measured now. Close calls this again for the live rect. */
-export function findCard(slug: string): { card: Box; title: Box | null } | null {
+export function findCard(
+  slug: string,
+): { card: Box; title: Box | null } | null {
   const card = document.querySelector<HTMLElement>(cardSelector(slug));
   if (!card) return null;
 
@@ -51,7 +64,10 @@ function layoutBox(panel: HTMLElement): Box {
   };
 }
 
-function setPose(panel: HTMLElement, pose: { x: number; y: number; scaleX: number; scaleY: number }) {
+function setPose(
+  panel: HTMLElement,
+  pose: { x: number; y: number; scaleX: number; scaleY: number },
+) {
   panel.style.transformOrigin = "top left";
   panel.style.transform = `translate(${pose.x}px, ${pose.y}px) scale(${pose.scaleX}, ${pose.scaleY})`;
 }
@@ -72,18 +88,30 @@ export function useMorph(
   slug: string,
   panelRef: RefObject<HTMLElement | null>,
   titleRef: RefObject<HTMLElement | null>,
-): { phase: MorphPhase; close: () => Promise<void> } {
+): { phase: MorphPhase; reveal: RevealState; close: () => Promise<void> } {
   const router = useRouter();
   const reduce = useReducedMotion() ?? false;
   const [phase, setPhase] = useState<MorphPhase>("opening");
+  const [reveal, setReveal] = useState<RevealState>("pending");
   const openingRef = useRef<Morph | null>(null);
   const flightRef = useRef<Morph | null>(null);
   const startedRef = useRef(false);
   const closedRef = useRef(false);
   const closingRef = useRef<Promise<void> | null>(null);
+  const revealTimerRef = useRef(0);
+
+  const clearRevealTimer = useCallback(() => {
+    if (revealTimerRef.current) {
+      window.clearTimeout(revealTimerRef.current);
+      revealTimerRef.current = 0;
+    }
+  }, []);
 
   const settle = useCallback(() => {
     if (closedRef.current) return;
+
+    clearRevealTimer();
+    setReveal("on");
 
     const panel = panelRef.current;
     panel?.style.removeProperty("transform");
@@ -94,12 +122,20 @@ export function useMorph(
     const title = titleRef.current;
     if (flightRef.current) {
       flightRef.current = null;
-      animate(title, { opacity: 0 }, { duration: 0.18, ease: "easeOut", delay: 0.05 });
+      animate(
+        title,
+        { opacity: 0 },
+        { duration: 0.18, ease: "easeOut", delay: 0.05 },
+      );
     }
-  }, [panelRef, titleRef, setPhase]);
+  }, [panelRef, titleRef, setPhase, clearRevealTimer]);
 
   const startTitleFlight = useCallback(
-    (card: { card: Box; title: Box | null }, target: Box, targetEl: HTMLElement) => {
+    (
+      card: { card: Box; title: Box | null },
+      target: Box,
+      targetEl: HTMLElement,
+    ) => {
       const title = titleRef.current;
       const source = document.querySelector<HTMLElement>(
         `${cardSelector(slug)} [data-work-card-title]`,
@@ -145,7 +181,11 @@ export function useMorph(
 
     if (reduce) {
       panel.style.opacity = "0";
-      const fade = animate(panel, { opacity: 1 }, { duration: FADE_S, ease: "easeOut" });
+      const fade = animate(
+        panel,
+        { opacity: 1 },
+        { duration: FADE_S, ease: "easeOut" },
+      );
       openingRef.current = fade;
       void fade.finished.then(settle);
       return;
@@ -173,6 +213,13 @@ export function useMorph(
     openingRef.current = morph;
     void morph.finished.then(settle);
 
+    // The content starts arriving under the landing panel rather than after
+    // it, so the reader is readable at the moment the morph ends.
+    revealTimerRef.current = window.setTimeout(
+      () => setReveal("on"),
+      (MORPH_S - REVEAL_LEAD_S) * 1000,
+    );
+
     if (target && targetBox) startTitleFlight(card, targetBox, target);
   }, [slug, reduce, panelRef, settle, startTitleFlight]);
 
@@ -187,6 +234,9 @@ export function useMorph(
     return () => window.removeEventListener("resize", onResize);
   }, [phase]);
 
+  // The entrance timer must not fire into a closed reader.
+  useEffect(() => clearRevealTimer, [clearRevealTimer]);
+
   /** Runs the reverse morph, then leaves the route. One flight at a time. */
   const close = useCallback(() => {
     if (closingRef.current) return closingRef.current;
@@ -194,6 +244,7 @@ export function useMorph(
     closingRef.current = (async () => {
       if (closedRef.current) return;
 
+      clearRevealTimer();
       setPhase("closing");
       openingRef.current?.stop();
 
@@ -203,8 +254,11 @@ export function useMorph(
       const card = findCard(slug);
 
       if (!card || reduce) {
-        await animate(panel, { opacity: 0 }, { duration: FADE_S, ease: "easeOut" })
-          .finished;
+        await animate(
+          panel,
+          { opacity: 0 },
+          { duration: FADE_S, ease: "easeOut" },
+        ).finished;
       } else {
         const pose = flipFrom(card.card, layoutBox(panel));
         await animate(panel, pose, { duration: CLOSE_S, ease: "easeIn" })
@@ -223,7 +277,7 @@ export function useMorph(
     })();
 
     return closingRef.current;
-  }, [slug, reduce, panelRef, router, setPhase]);
+  }, [slug, reduce, panelRef, router, setPhase, clearRevealTimer]);
 
-  return { phase, close };
+  return { phase, reveal, close };
 }
