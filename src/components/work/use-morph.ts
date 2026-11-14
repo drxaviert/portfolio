@@ -29,6 +29,8 @@ const CLOSE_S = 0.3;
 const FADE_S = 0.12;
 /** The entrance starts this long before the morph lands, so reading does not wait for it. */
 const REVEAL_LEAD_S = 0.12;
+/** The title clone's fade-out; it ends on the reveal (see startTitleFlight). */
+const TITLE_FADE_S = 0.18;
 
 export function cardSelector(slug: string): string {
   return `[data-work-card="${slug}"]`;
@@ -95,7 +97,6 @@ export function useMorph(
   const [phase, setPhase] = useState<MorphPhase>("opening");
   const [reveal, setReveal] = useState<RevealState>("pending");
   const openingRef = useRef<Morph | null>(null);
-  const flightRef = useRef<Morph | null>(null);
   const startedRef = useRef(false);
   const closedRef = useRef(false);
   const closingRef = useRef<Promise<void> | null>(null);
@@ -119,17 +120,7 @@ export function useMorph(
     panel?.style.removeProperty("opacity");
 
     setPhase("open");
-
-    const title = titleRef.current;
-    if (flightRef.current) {
-      flightRef.current = null;
-      animate(
-        title,
-        { opacity: 0 },
-        { duration: 0.18, ease: "easeOut", delay: 0.05 },
-      );
-    }
-  }, [panelRef, titleRef, setPhase, clearRevealTimer]);
+  }, [panelRef, setPhase, clearRevealTimer]);
 
   const startTitleFlight = useCallback(
     (
@@ -155,10 +146,24 @@ export function useMorph(
       title.style.transformOrigin = "top left";
       title.style.transform = `translate(${pose.x}px, ${pose.y}px) scale(${scale})`;
 
-      flightRef.current = animate(
+      animate(
         title,
         { x: 0, y: 0, scale: 1 },
         { duration: MORPH_S, ease: EASE_ENTER },
+      );
+
+      // The clone is the title's only carrier until the content cascade starts,
+      // then it must be gone: its fade lands exactly on the reveal, so the
+      // title is hidden when the cascade's first step begins rather than
+      // hanging over it for another 230ms.
+      animate(
+        title,
+        { opacity: 0 },
+        {
+          duration: TITLE_FADE_S,
+          ease: "easeOut",
+          delay: MORPH_S - REVEAL_LEAD_S - TITLE_FADE_S,
+        },
       );
     },
     [slug, titleRef],

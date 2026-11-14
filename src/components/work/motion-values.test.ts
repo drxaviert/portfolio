@@ -66,6 +66,22 @@ describe("drawer motion values", () => {
     expect(reduced).not.toContain("transition-duration");
   });
 
+  it("starts the content cascade with the title and keeps the total at 415ms", () => {
+    const entrance = read("entrance.css");
+
+    expect(entrance).toMatch(/--wd-enter-item: 220ms var\(--wd-enter-ease\);/);
+    expect(entrance).toMatch(/\.wd-intro-title \{\s*--wd-enter-delay: 0ms;/);
+    expect(entrance).toMatch(
+      /\.wd-intro-subtitle,\s*html\[[^\]]*\] \.wd-intro-meta \{\s*--wd-enter-delay: 40ms;/,
+    );
+    expect(entrance).toMatch(
+      /\.wd-prose > \*:nth-child\(1\) \{\s*--wd-enter-delay: 85ms;/,
+    );
+    expect(entrance).toMatch(
+      /\.wd-prose > \*:nth-child\(n \+ 5\) \{\s*--wd-enter-delay: 195ms;/,
+    );
+  });
+
   it("opens the reader's nav tooltips inward instead of into the viewport edge", () => {
     const dock = read("../nav/nav-dock.css");
 

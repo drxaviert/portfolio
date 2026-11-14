@@ -270,6 +270,36 @@ describe("ExpandShell", () => {
     expect(layerElement()).toHaveAttribute("data-reveal", "pending");
   });
 
+  it("fades the title clone out on the reveal, not after it", async () => {
+    placeCard(CARD_A);
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    const clone = document.querySelector<HTMLElement>(".wd-title-fly")!;
+    const fades = mocks.animate.mock.calls.filter(
+      ([element, keyframes]) =>
+        element === clone &&
+        (keyframes as { opacity?: number } | undefined)?.opacity === 0,
+    );
+
+    expect(fades).toHaveLength(1);
+    // 480ms morph - 120ms reveal lead - 180ms fade = the fade starts at 180ms
+    // and lands exactly when the cascade starts.
+    expect(fades[0][2]).toMatchObject({
+      duration: 0.18,
+      ease: "easeOut",
+      delay: 0.18,
+    });
+  });
+
   it("measures the card again for the close morph", async () => {
     const card = placeCard(CARD_A);
 

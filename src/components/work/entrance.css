@@ -74,40 +74,51 @@ html:not([data-entrance])
 
 /* ---------------------------------------------------------- a: cascade --- */
 
-html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro,
+/*
+ * The header is split: the title is the cascade's first step on its own, then
+ * the subtitle and meta as one block, then each body block. The prose ladder
+ * keeps its old steps, shifted one place down (85/125/160/190/195), so the
+ * whole cascade still ends at 195 + 220 = 415ms.
+ */
+html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro-title,
+html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro-subtitle,
+html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro-meta,
 html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-prose > *,
-html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro,
+html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro-title,
+html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro-subtitle,
+html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro-meta,
 html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-prose > * {
   animation: wd-enter-rise var(--wd-enter-item) both;
   animation-delay: var(--wd-enter-delay, 0ms);
 }
 
-html[data-entrance="a"] .wd-intro {
+html[data-entrance="a"] .wd-intro-title {
   --wd-enter-delay: 0ms;
 }
 
-html[data-entrance="a"] .wd-prose > *:nth-child(1) {
+html[data-entrance="a"] .wd-intro-subtitle,
+html[data-entrance="a"] .wd-intro-meta {
   --wd-enter-delay: 40ms;
 }
 
-html[data-entrance="a"] .wd-prose > *:nth-child(2) {
+html[data-entrance="a"] .wd-prose > *:nth-child(1) {
   --wd-enter-delay: 85ms;
 }
 
-html[data-entrance="a"] .wd-prose > *:nth-child(3) {
+html[data-entrance="a"] .wd-prose > *:nth-child(2) {
   --wd-enter-delay: 125ms;
 }
 
-html[data-entrance="a"] .wd-prose > *:nth-child(4) {
+html[data-entrance="a"] .wd-prose > *:nth-child(3) {
   --wd-enter-delay: 160ms;
 }
 
-html[data-entrance="a"] .wd-prose > *:nth-child(5) {
+html[data-entrance="a"] .wd-prose > *:nth-child(4) {
   --wd-enter-delay: 190ms;
 }
 
-/* Cap the stagger: everything from the sixth block arrives with the fifth. */
-html[data-entrance="a"] .wd-prose > *:nth-child(n + 6) {
+/* Cap the stagger: everything from the fifth block arrives with the fourth. */
+html[data-entrance="a"] .wd-prose > *:nth-child(n + 5) {
   --wd-enter-delay: 195ms;
 }
 
@@ -134,9 +145,13 @@ html[data-entrance="c"] .wd-expand-layer[data-reveal="on"] .wd-reader-column {
    pass on the scroll column, no stagger, no transforms, no filter. The
    selectors repeat the ones above so they outrank them. */
 @media (prefers-reduced-motion: reduce) {
-  html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro,
+  html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro-title,
+  html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro-subtitle,
+  html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro-meta,
   html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-prose > *,
-  html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro,
+  html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro-title,
+  html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro-subtitle,
+  html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro-meta,
   html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-prose > *,
   html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-intro-subtitle,
   html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-intro-meta,
