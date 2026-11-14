@@ -12,6 +12,13 @@ import type { WorkMeta } from "@/lib/work";
 
 export const READER_TITLE_ID = "wd-study-title";
 
+/**
+ * The reader's one scroll container, in the overlay and on a direct load. It
+ * lives beside the title id so the client-side ways back (`reader-rail.tsx`)
+ * can find the box without importing the server-rendered reader.
+ */
+export const READER_SCROLL_ID = "wd-reader-scroll";
+
 function jumpTo(id: string) {
   const target = document.getElementById(id);
   if (!target) return;

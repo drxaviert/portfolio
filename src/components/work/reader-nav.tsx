@@ -25,6 +25,14 @@ export function ReaderCloseProvider({
   );
 }
 
+/**
+ * The overlay's close gesture, for anything inside the reader that sits in a
+ * server-rendered slot (the nav, the "← Work" rail).
+ */
+export function useReaderClose(): (() => void) | undefined {
+  return useContext(ReaderCloseContext) ?? undefined;
+}
+
 /** The nav slot inside the reader panel; a direct load has no shell to close. */
 export function ReaderNavSlot() {
   const close = useContext(ReaderCloseContext);

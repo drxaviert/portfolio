@@ -122,18 +122,179 @@
   position: relative;
 }
 
-/* The left margin rail: empty here, filled by the "← Work" and "↑ Top" items. */
+/* ------------------------------------------------------------ ways back ---- */
+
+/*
+ * The left margin rail from 1024px: "← Work" held under the nav, "↑ Top" near
+ * the foot of the panel. Both use the margin notes' type and neither has a
+ * surface, so the rail reads as a note beside the article rather than as
+ * chrome. Each item is sticky inside the rail, whose height is the article's
+ * own, so they hold their place against the reader's one scroll container.
+ */
 .wd-rail {
   display: none;
 }
 
 @media (min-width: 1024px) {
   .wd-rail {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
     position: absolute;
     inset-block: 0;
     right: calc(100% + 20px);
     width: 170px;
+  }
+}
+
+.wd-rail-work,
+.wd-rail-top {
+  align-self: flex-start;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.42;
+  text-decoration: none;
+}
+
+.wd-rail-work {
+  position: sticky;
+  /* The nav's bottom edge, which is the blur zone's edge, plus the reading
+     column's own 12px clearance. */
+  top: calc(var(--wd-nav-inset) + var(--wd-nav-height) + 12px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-block: 2px;
+}
+
+.wd-rail-top {
+  position: sticky;
+  bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.42;
+  cursor: pointer;
+}
+
+.wd-rail-work:hover,
+.wd-rail-top:hover {
+  color: var(--on-surface);
+}
+
+.wd-rail-work:focus-visible,
+.wd-rail-top:focus-visible,
+.wd-reader-action:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* The 150ms fade the design system uses for pointer chrome. `visibility` steps
+   at the end of the fade out and immediately on the way in, so the hidden item
+   leaves the tab order and the accessibility tree with it. */
+.wd-rail-top,
+.wd-reader-action {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 150ms ease-out,
+    visibility 0s linear 0s;
+}
+
+.wd-rail-top[data-visible="false"],
+.wd-reader-action[data-visible="false"] {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 150ms ease-out,
+    visibility 0s linear 150ms;
+}
+
+/* Below 1024px: two 44px thumb targets on the panel's foot. They are absolute
+   inside the fixed panel rather than fixed to the viewport, so at 768-1023
+   they keep the panel's own 16px inset, and they sit outside the scroll
+   container, whose containment would trap a fixed child. */
+.wd-reader-actions {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .wd-reader-actions {
+    display: flex;
+    position: absolute;
+    z-index: 1;
+    inset-inline: 16px;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .wd-reader-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-container-low);
+    color: var(--on-surface);
+    font-size: 16px;
+    line-height: 1;
+    text-decoration: none;
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  /* The foot of the article clears both buttons. */
+  .wd-reader-column {
+    padding-bottom: 88px;
+  }
+}
+
+/* In the overlay the thumb buttons are part of the content, so they fade with
+   the scroll column instead of floating over the open and close morphs. */
+.wd-expand-layer[data-phase="opening"] .wd-reader-actions {
+  opacity: 0;
+}
+
+.wd-expand-layer[data-phase="open"] .wd-reader-actions {
+  opacity: 1;
+  transition: opacity 240ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.wd-expand-layer[data-phase="closing"] .wd-reader-actions {
+  opacity: 0;
+  transition: opacity 140ms ease-out;
+}
+
+/* Reduced motion keeps the fade and drops it to the 120ms the design system
+   uses for state changes. */
+@media (prefers-reduced-motion: reduce) {
+  .wd-rail-top,
+  .wd-reader-action {
+    transition:
+      opacity 120ms ease-out,
+      visibility 0s linear 0s;
+  }
+
+  .wd-rail-top[data-visible="false"],
+  .wd-reader-action[data-visible="false"] {
+    transition:
+      opacity 120ms ease-out,
+      visibility 0s linear 120ms;
+  }
+
+  .wd-expand-layer[data-phase="open"] .wd-reader-actions,
+  .wd-expand-layer[data-phase="closing"] .wd-reader-actions {
+    transition-duration: 120ms;
   }
 }
 
