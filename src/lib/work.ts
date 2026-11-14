@@ -3,16 +3,6 @@ import path from "node:path";
 
 export type Cover = "tiles" | "window" | "phone";
 
-export type WorkMeta = {
-  slug: string;
-  title: string;
-  subtitle: string;
-  year: string;
-  role: string;
-  summary: string;
-  cover: Cover;
-};
-
 /** The one study with a card on the homepage. */
 export const FEATURED_SLUG = "systems-in-motion";
 
@@ -23,7 +13,17 @@ const WORK_ORDER = [
   "type-in-motion",
 ] as const;
 
-type WorkSlug = (typeof WORK_ORDER)[number];
+export type WorkSlug = (typeof WORK_ORDER)[number];
+
+export type WorkMeta = {
+  slug: WorkSlug;
+  title: string;
+  subtitle: string;
+  year: string;
+  role: string;
+  summary: string;
+  cover: Cover;
+};
 
 const WORK_SLUGS: readonly string[] = WORK_ORDER;
 const COVERS: readonly string[] = ["tiles", "window", "phone"];

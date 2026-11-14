@@ -40,6 +40,7 @@ export function Intro({
     <header className="wd-intro">
       <h1
         id={titleId}
+        tabIndex={-1}
         className="wd-intro-title text-balance text-title-sm font-semibold md:text-title"
       >
         {meta.title}

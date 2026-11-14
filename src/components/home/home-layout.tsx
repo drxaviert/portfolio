@@ -43,9 +43,15 @@ type HomeLayoutProps = {
    * non-interactive behaviour.
    */
   work?: HomeWorkSource;
+  /**
+   * The homepage's featured study. The card becomes the link into the
+   * intercepted reader; the title is read on the server so the client graph
+   * never touches the content loader.
+   */
+  featured?: { slug: string; title: string };
 };
 
-export function HomeLayout({ work }: HomeLayoutProps = {}) {
+export function HomeLayout({ work, featured }: HomeLayoutProps = {}) {
   return (
     <main className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface">
       <HorizonLive />
@@ -92,7 +98,11 @@ export function HomeLayout({ work }: HomeLayoutProps = {}) {
           </div>
 
           <div className="grid gap-3 md:h-[560px] md:grid-cols-[444fr_120fr_52fr_52fr] lg:h-[360px] lg:grid-cols-[656fr_140fr_64fr_64fr] xl:h-[416px] xl:grid-cols-[753fr_180fr_83fr_84fr]">
-            <ProjectCard title={work?.title} onOpen={work?.onOpen} />
+            {work ? (
+              <ProjectCard title={work.title} onOpen={work.onOpen} />
+            ) : (
+              <ProjectCard title={featured?.title} slug={featured?.slug} />
+            )}
             <WorkSlivers items={work?.slivers} />
           </div>
 

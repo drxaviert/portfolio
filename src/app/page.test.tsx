@@ -32,8 +32,11 @@ describe("home page", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Project name" }),
+      screen.getByRole("heading", { name: "Systems in motion" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Systems in motion" }),
+    ).toHaveAttribute("href", "/work/systems-in-motion");
     expect(
       screen.getByRole("navigation", { name: "Primary" }),
     ).toBeInTheDocument();

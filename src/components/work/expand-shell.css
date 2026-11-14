@@ -1,0 +1,103 @@
+/*
+ * The intercepted reader, over the live homepage. The layer is fixed so the
+ * morphing panel and the flying title share one viewport coordinate space; the
+ * layer itself never transforms, so the panel's fixed geometry stays CSS.
+ */
+
+.wd-expand-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.wd-expand-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(8 8 8 / 0.4);
+  animation: wd-backdrop-in 320ms ease-out both;
+  pointer-events: auto;
+}
+
+[data-phase="night"] .wd-expand-backdrop {
+  background: rgb(0 0 0 / 0.62);
+}
+
+.wd-expand-layer[data-phase="closing"] .wd-expand-backdrop {
+  animation: wd-backdrop-out 240ms ease-out both;
+}
+
+/* Height and width are the reader's own CSS; this wrapper is only the inert
+   and pointer-event boundary, never a containing block for the panel. */
+.wd-expand-content {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.wd-expand-content .wd-reader-panel {
+  pointer-events: auto;
+}
+
+/* The reader is gone the moment the reverse morph lands: the exit wrapper can
+   linger for its 300ms without catching clicks or showing a surface. */
+.wd-expand-layer[data-phase="closing"] .wd-expand-backdrop,
+.wd-expand-layer[data-phase="closing"] .wd-reader-panel {
+  pointer-events: none;
+}
+
+/* Content fades in after the morph, and out over the first 140ms of the close. */
+.wd-expand-layer[data-phase="opening"] .wd-reader-scroll {
+  opacity: 0;
+}
+
+.wd-expand-layer[data-phase="open"] .wd-reader-scroll {
+  opacity: 1;
+  transition: opacity 240ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.wd-expand-layer[data-phase="closing"] .wd-reader-scroll {
+  opacity: 0;
+  transition: opacity 140ms ease-out;
+}
+
+/* A fixed copy of the card title, flown with transforms into the reader title. */
+.wd-title-fly {
+  position: fixed;
+  z-index: 3;
+  margin: 0;
+  color: var(--on-surface);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+@keyframes wd-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wd-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-expand-backdrop,
+  .wd-expand-layer[data-phase="closing"] .wd-expand-backdrop {
+    animation-duration: 120ms;
+  }
+
+  .wd-expand-layer[data-phase="open"] .wd-reader-scroll,
+  .wd-expand-layer[data-phase="closing"] .wd-reader-scroll {
+    transition-duration: 120ms;
+  }
+}

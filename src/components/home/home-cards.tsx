@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { RingLayers } from "./ring-hover";
 
@@ -43,23 +44,50 @@ function cardInteraction(onOpen: (element: HTMLElement) => void) {
 
 type ProjectCardProps = {
   title?: string;
+  /** With a slug the card links to the study and becomes the morph's source. */
+  slug?: string;
   onOpen?: (element: HTMLElement) => void;
 };
+
+const CARD_CLASS =
+  "ring-host flex h-[420px] flex-col justify-end rounded-lg p-5 md:h-auto md:p-8";
 
 /** Highlight card: the only card with a title. */
 export function ProjectCard({
   title = "Project name",
+  slug,
   onOpen,
 }: ProjectCardProps = {}) {
-  return (
-    <article
-      className="ring-host flex h-[420px] flex-col justify-end rounded-lg p-5 md:h-auto md:p-8"
-      {...(onOpen ? cardInteraction(onOpen) : {})}
-    >
+  const content = (
+    <>
       <RingLayers fill="bg-surface-container-low" />
-      <h1 className="ring-title text-balance text-title-sm font-semibold md:text-title">
+      <h1
+        data-work-card-title={slug ? "" : undefined}
+        className="ring-title text-balance text-title-sm font-semibold md:text-title"
+      >
         {title}
       </h1>
+    </>
+  );
+
+  if (slug) {
+    return (
+      <Link
+        href={`/work/${slug}`}
+        data-work-card={slug}
+        className={CARD_CLASS}
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <article
+      className={CARD_CLASS}
+      {...(onOpen ? cardInteraction(onOpen) : {})}
+    >
+      {content}
     </article>
   );
 }

@@ -1,0 +1,202 @@
+import { fireEvent, render, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Box } from "./morph";
+import { flipFrom } from "./morph";
+import { ExpandShell } from "./expand-shell";
+import { findCard } from "./use-morph";
+
+const mocks = vi.hoisted(() => ({
+  animate: vi.fn(),
+  back: vi.fn(),
+  push: vi.fn(),
+}));
+
+vi.mock("motion/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("motion/react")>();
+
+  return {
+    ...actual,
+    animate: mocks.animate as unknown as typeof actual.animate,
+  };
+});
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ back: mocks.back, push: mocks.push }),
+}));
+
+const SLUG = "systems-in-motion";
+
+const CARD_A: Box = { left: 100, top: 200, width: 753, height: 416 };
+const CARD_B: Box = { left: 50, top: 60, width: 720, height: 450 };
+const CARD_TITLE: Box = { left: 120, top: 500, width: 300, height: 40 };
+// jsdom has no layout, so the untransformed panel box comes from offsetLeft
+// (0 here) plus the mocked rect width and height.
+const PANEL: Box = { left: 0, top: 0, width: 1408, height: 868 };
+
+function toDomRect(box: Box): DOMRect {
+  return {
+    ...box,
+    right: box.left + box.width,
+    bottom: box.top + box.height,
+    x: box.left,
+    y: box.top,
+    toJSON: () => box,
+  } as DOMRect;
+}
+
+/** A page card. Re-reading the rect on every call is what close depends on. */
+function placeCard(rect: Box) {
+  document.body.innerHTML = "";
+
+  const card = document.createElement("a");
+  card.dataset.workCard = SLUG;
+
+  const title = document.createElement("h1");
+  title.dataset.workCardTitle = "";
+  title.textContent = "Systems in motion";
+  title.getBoundingClientRect = () => toDomRect(CARD_TITLE);
+  card.append(title);
+
+  card.getBoundingClientRect = () => toDomRect(rect);
+  document.body.append(card);
+
+  return {
+    setRect(next: Box) {
+      card.getBoundingClientRect = () => toDomRect(next);
+    },
+  };
+}
+
+function ReaderStub() {
+  return (
+    <div className="wd-reader-panel">
+      <div className="wd-reader-scroll">
+        <h1 id="wd-study-title">Systems in motion</h1>
+      </div>
+    </div>
+  );
+}
+
+function panelElement() {
+  return document.querySelector<HTMLElement>(".wd-reader-panel")!;
+}
+
+function layerElement() {
+  return document.querySelector<HTMLElement>(".wd-expand-layer")!;
+}
+
+const nativeRect = HTMLElement.prototype.getBoundingClientRect;
+
+beforeEach(() => {
+  mocks.animate.mockReset();
+  mocks.animate.mockReturnValue({
+    finished: Promise.resolve(),
+    complete: vi.fn(),
+    stop: vi.fn(),
+  });
+  mocks.back.mockReset();
+  mocks.push.mockReset();
+
+  window.history.replaceState({}, "", "/work/systems-in-motion");
+
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+
+  HTMLElement.prototype.getBoundingClientRect = function () {
+    if (this.classList?.contains("wd-reader-panel")) {
+      return toDomRect(PANEL);
+    }
+
+    return nativeRect.call(this);
+  };
+});
+
+afterEach(() => {
+  HTMLElement.prototype.getBoundingClientRect = nativeRect;
+  document.body.innerHTML = "";
+  vi.unstubAllGlobals();
+});
+
+describe("findCard", () => {
+  it("returns null when no card exists for the slug", () => {
+    document.body.innerHTML = "";
+
+    expect(findCard(SLUG)).toBeNull();
+  });
+
+  it("reads the card's live rect on every call", () => {
+    const card = placeCard(CARD_A);
+
+    expect(findCard(SLUG)).toEqual({
+      card: CARD_A,
+      title: CARD_TITLE,
+    });
+
+    card.setRect(CARD_B);
+
+    expect(findCard(SLUG)?.card).toEqual(CARD_B);
+  });
+});
+
+describe("ExpandShell", () => {
+  it("fades instead of morphing when the source card is gone", async () => {
+    document.body.innerHTML = "";
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    const panel = panelElement();
+    const open = mocks.animate.mock.calls.filter(([element]) => element === panel);
+
+    expect(open).toHaveLength(1);
+    expect(open[0][1]).toEqual({ opacity: 1 });
+    expect(open[0][2]).toMatchObject({ duration: 0.12, ease: "easeOut" });
+  });
+
+  it("measures the card again for the close morph", async () => {
+    const card = placeCard(CARD_A);
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    const panel = panelElement();
+    const closePose = flipFrom(CARD_B, PANEL);
+
+    card.setRect(CARD_B);
+    fireEvent.click(document.querySelector<HTMLElement>(".wd-expand-backdrop")!);
+
+    await waitFor(() => expect(mocks.back).toHaveBeenCalled());
+
+    const calls = mocks.animate.mock.calls.filter(([element]) => element === panel);
+    const close = calls[calls.length - 1][1];
+
+    expect(close).toMatchObject(closePose);
+    expect(close.scaleX).toBeCloseTo(720 / 1408);
+    expect(close.scaleY).toBeCloseTo(450 / 868);
+  });
+});
