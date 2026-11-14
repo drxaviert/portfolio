@@ -5,7 +5,7 @@ The shipped motion of the theme toggle, the Day phase row and the home nav's Gli
 ## Principles
 
 - One curve family per job: `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) for entrances, `ease-in` (`--ease-accelerate`) for exits, `cubic-bezier(0.34, 1.3, 0.64, 1)` (`--ease-spring`) for the icon settle.
-- Calm and ambient entrances use `cubic-bezier(0.4, 0, 0.2, 1)`: it leaves at zero velocity and settles on a long tail, so light and content arrive without anything launching.
+- Calm and ambient entrances use `cubic-bezier(0.4, 0, 0.2, 1)` (`--ease-calm`): it leaves at zero velocity and settles on a long tail, so light and content arrive without anything launching.
 - A theme change is one crossfade of the whole page, not a colour transition per element: everything changes on the same frame because it is the same image pair.
 - Entrances stagger left to right; exits leave together. Nothing waits on the pointer.
 - Hover never restarts the entrance: it replays the icon settle once from its resting pose and ends at rest.
@@ -27,6 +27,7 @@ Every curve and duration below is a shipped token in `src/app/globals.css` (`:ro
 | `--ease-spring` | `cubic-bezier(0.34, 1.3, 0.64, 1)` | icon settle |
 | `--ease-spring-grow` | `cubic-bezier(0.165, 0.84, 0.44, 1)` | ring grow |
 | `--ease-spring-follow` | `cubic-bezier(0.16, 1, 0.3, 1)` | ring glow follow |
+| `--ease-calm` | `cubic-bezier(0.4, 0, 0.2, 1)` | home entrance veil, cards, glow |
 | `--ease-step` | `steps(1)` | z-index raise |
 
 | Duration token | Value | Duration token | Value |
@@ -45,6 +46,24 @@ Every curve and duration below is a shipped token in `src/app/globals.css` (`:ro
 | | | `--duration-extra-long-4` | 8200ms |
 | | | `--duration-ambient-1` | 16s |
 | | | `--duration-ambient-2` | 110s |
+
+The home entrance added the steps below. They are named by value so the M3 steps above stay stable instead of renumbering; the entrance's veil, cards and stagger read them.
+
+| Token | Value | Token | Value |
+| --- | --- | --- | --- |
+| `--duration-25` | 25ms | `--duration-320` | 320ms |
+| `--duration-30` | 30ms | `--duration-380` | 380ms |
+| `--duration-32` | 32ms | `--duration-420` | 420ms |
+| `--duration-36` | 36ms | `--duration-460` | 460ms |
+| `--duration-40` | 40ms | `--duration-480` | 480ms |
+| `--duration-50` | 50ms | `--duration-540` | 540ms |
+| `--duration-60` | 60ms | `--duration-650` | 650ms |
+| `--duration-70` | 70ms | `--duration-680` | 680ms |
+| `--duration-80` | 80ms | `--duration-900` | 900ms |
+| `--duration-102-5` | 102.5ms | `--duration-1100` | 1100ms |
+| `--duration-175` | 175ms | `--duration-1200` | 1200ms |
+| `--duration-200` | 200ms | `--duration-1300` | 1300ms |
+| | | `--duration-1400` | 1400ms |
 
 ## Theme toggle hover
 
@@ -351,38 +370,38 @@ Dawn and Dusk carry permanent `clipPath`s so the sun is masked by the horizon in
 
 ## Home page entrance — Soft focus
 
-Everything on `/` arrives together: a theme-tinted veil clears while each card rises 7px, unblurs from 8px and fades in, 60ms apart from the bottom up, and the horizon glow softens on the same clock. The layout itself never blurs — there is no full-viewport `backdrop-filter` — because that averaged cards, gutters and shadows into blotches at 8px (measured on the prototype: the blur dropped the glow's dither energy 15x while the 1–24px residual only fell from 4.19 to 1.08 at 8px versus 2.05 at 4px, and the amplified residual was card edges, not noise).
+Everything on `/` arrives together: a theme-tinted veil clears while each card rises 7px, unblurs from 8px and fades in, 60ms (`--duration-60`) apart from the bottom up, and the horizon glow softens on the same clock. The layout itself never blurs — there is no full-viewport `backdrop-filter` — because that averaged cards, gutters and shadows into blotches at 8px (measured on the prototype: the blur dropped the glow's dither energy 15x while the 1–24px residual only fell from 4.19 to 1.08 at 8px versus 2.05 at 4px, and the amplified residual was card edges, not noise).
 
 | Element | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
-| Veil (`.entrance-soft`) | `opacity` | 1400ms | 0 | `cubic-bezier(0.4, 0, 0.2, 1)` | 1 → 0, then `visibility: hidden` |
-| Card (nav, item 7) | `opacity`, `translate`, `filter` | 1100ms | 250ms | `cubic-bezier(0.4, 0, 0.2, 1)` | 0 / `0 7px` / `blur(8px)` → 1 / `0 0` / `blur(0)` |
-| Card (project, item 3) | same | 1100ms | 310ms | same | same |
-| Card (sliver 1, item 4) | same | 1100ms | 370ms | same | same |
-| Card (sliver 2, item 5) | same | 1100ms | 430ms | same | same |
-| Card (sliver 3, item 6) | same | 1100ms | 490ms | same | same |
-| Card (tracker, item 1) | same | 1100ms | 550ms | same | same |
-| Card (play, item 2) | same | 1100ms | 610ms | same | same |
-| Glow, CSS fallback | `filter` on `.horizon-motion-layer` | 1400ms | 0 | same | `blur(8px)` → `blur(0)`; its grain sibling stays sharp |
-| Glow, WebGL | `uSoftUv` uniform (four-tap coverage box, dither applied after) | 1400ms | 0 | same | 8px radius → 0, then pinned at 0 |
+| Veil (`.entrance-soft`) | `opacity` | 1400ms (`--duration-1400`) | 0 | `cubic-bezier(0.4, 0, 0.2, 1)` (`--ease-calm`) | 1 → 0, then `visibility: hidden` |
+| Card (nav, item 7) | `opacity`, `translate`, `filter` | 1100ms (`--duration-1100`) | 250ms (`--duration-medium-2`) | `cubic-bezier(0.4, 0, 0.2, 1)` (`--ease-calm`) | 0 / `0 7px` / `blur(8px)` → 1 / `0 0` / `blur(0)` |
+| Card (project, item 3) | same | 1100ms (`--duration-1100`) | 310ms | same | same |
+| Card (sliver 1, item 4) | same | 1100ms (`--duration-1100`) | 370ms | same | same |
+| Card (sliver 2, item 5) | same | 1100ms (`--duration-1100`) | 430ms | same | same |
+| Card (sliver 3, item 6) | same | 1100ms (`--duration-1100`) | 490ms | same | same |
+| Card (tracker, item 1) | same | 1100ms (`--duration-1100`) | 550ms | same | same |
+| Card (play, item 2) | same | 1100ms (`--duration-1100`) | 610ms | same | same |
+| Glow, CSS fallback | `filter` on `.horizon-motion-layer` | 1400ms (`--duration-1400`) | 0 | same | `blur(8px)` → `blur(0)`; its grain sibling stays sharp |
+| Glow, WebGL | `uSoftUv` uniform (four-tap coverage box, dither applied after) | 1400ms (`--duration-1400`) | 0 | same | 8px radius → 0, then pinned at 0 |
 | A return to `/` | the same rules | — | — | — | cancelled once `html[data-entrance-played]` is set: a client-side return does not replay, a hard load does |
 
-Per-card delays are `250 + index × 60ms` in horizon order (nav 0 at the bottom, then the project card, the three slivers, and the top band left to right), so the lowest card arrives first and the last lands at 1710ms. The start pose is in the server markup and the CSS with `backwards` fill: no JS gate, no sharp-to-blurred pop, and the content rests visible if the animation never runs.
+Per-card delays are `250ms + index × 60ms` (`--duration-medium-2` + index × `--duration-60`) in horizon order (nav 0 at the bottom, then the project card, the three slivers, and the top band left to right), so the lowest card arrives first and the last lands at 1710ms. The 310–610ms delays in the table are that sum computed in CSS, so they have no single token; the two base steps do. The start pose is in the server markup and the CSS with `backwards` fill: no JS gate, no sharp-to-blurred pop, and the content rests visible if the animation never runs.
 
 | Reduced motion | Behaviour |
 | --- | --- |
-| Cards | one 120ms `ease-out` opacity fade, no rise, no blur |
+| Cards | one 120ms (`--duration-short-2`) `ease-out` (`--ease-decelerate`) opacity fade, no rise, no blur |
 | Veil | `display: none` |
 | Glow | no softness animation, no filter; the light is simply there |
 
-The cost stays on the compositor: `opacity`, `translate` and `filter` per card, plus two 1400ms tracks for the veil and the glow, and nothing left behind — `filter: none` and `--soft-softness: 0px` once it ends (verified in computed styles). The shader reads `--soft-softness` once when the animation starts and then runs the value on its own clock, so no computed style is read per frame after the entrance.
+The cost stays on the compositor: `opacity`, `translate` and `filter` per card, plus two 1400ms (`--duration-1400`) tracks for the veil and the glow, and nothing left behind — `filter: none` and `--soft-softness: 0px` once it ends (verified in computed styles). The shader reads `--soft-softness` once when the animation starts and then runs the value on its own clock, so no computed style is read per frame after the entrance.
 
 - `src/components/home/home-entrance.css:37` — veil layer, rest state hidden
 - `src/components/home/home-entrance.css:138` — `--soft-blur: 8px`
-- `src/components/home/home-entrance.css:141` — `--soft-card-delay: 250ms`
-- `src/components/home/home-entrance.css:144` — `--soft-stagger: 60ms`
+- `src/components/home/home-entrance.css:141` — `--soft-card-delay: 250ms` (`--duration-medium-2`)
+- `src/components/home/home-entrance.css:144` — `--soft-stagger: 60ms` (`--duration-60`)
 - `src/components/home/home-entrance.css:151` — the Calm curve, scoped to the shipped entrance
-- `src/components/home/home-entrance.css:214` — card animation and the `250 + --entrance-h * 60` delay
+- `src/components/home/home-entrance.css:214` — card animation and the `250 + --entrance-h * 60` delay (`--duration-medium-2` + n × `--duration-60`)
 - `src/components/home/home-entrance.css:235` — `entrance-soft-card-split` keyframes (7px rise, 8px → 0 blur)
 - `src/components/home/home-entrance.css:263` — CSS fallback glow blur
 - `src/components/home/home-entrance.css:273` — registered `--soft-softness` and its animation

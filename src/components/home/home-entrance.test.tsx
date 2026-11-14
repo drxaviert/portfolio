@@ -58,9 +58,10 @@ describe("shipped home entrance", () => {
     expect(css).toContain("backwards");
     // The veil must not depend on backdrop-filter.
     expect(css).not.toMatch(/\.entrance-soft\s*{[^}]*backdrop-filter/);
-    // Reduced motion: one 120ms fade, no filter, no softness animation.
+    // Reduced motion: one 120ms fade (--duration-short-2), no filter, no
+    // softness animation. The CSS reads the token; globals.css defines it.
     expect(css).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*entrance-fade-in 120ms/,
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*entrance-fade-in var\(--duration-short-2\)/,
     );
     expect(css).toMatch(
       /@media \(prefers-reduced-motion: reduce\)[\s\S]*filter: none !important/,
