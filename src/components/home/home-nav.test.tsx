@@ -50,10 +50,17 @@ describe("HomeNav", () => {
     );
   });
 
-  it("keeps Play and About as plain text", () => {
+  it("keeps Play and About as placeholder links", () => {
     renderNav();
 
-    expect(screen.queryByRole("link", { name: "Play" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "About" })).toBeNull();
+    // Main's Glide run needs focusable anchors; only Work routes today.
+    expect(screen.getByRole("link", { name: "Play" })).toHaveAttribute(
+      "href",
+      "#",
+    );
+    expect(screen.getByRole("link", { name: "About" })).toHaveAttribute(
+      "href",
+      "#",
+    );
   });
 });
