@@ -9,14 +9,15 @@ import type { ReaderLayout } from "./nav-layout";
 import type { NavMode, Rect } from "./types";
 
 /**
- * The real HomeNav, carried into the expanded reader:
+ * The real HomeNav, carried into the expanded reader. The wrapper only moves
+ * it: left, width and height are always the homepage nav's measured box, so
+ * the component inside is pixel-identical to / in every placement.
  *
- * - stay:   static copy at the page nav's box, below the reader
- * - float:  the bar shrinks/slides into a bottom-centre pill
- * - header: the bar flies to the top of the reader, with the close beside it
+ * - stay:   at the page nav's slot below the reader (docked when off-screen)
+ * - float:  the same bar docked over the bottom of the reader
+ * - header: the same bar at the top; the close lives in its own row above it
  *
- * It is the shipped component, not a look-alike, so the live ThemeToggle and
- * its phase row keep working. The layer sits above the reader and backdrop.
+ * The live ThemeToggle and its phase row keep working in all three.
  */
 
 function fixedBox(rect: Rect): CSSProperties {
@@ -28,9 +29,6 @@ function fixedBox(rect: Rect): CSSProperties {
     height: rect.height,
   };
 }
-
-const REST_RADIUS = 12;
-const PILL_RADIUS = 999;
 
 export function ReaderNav({
   mode,
@@ -45,57 +43,44 @@ export function ReaderNav({
 }) {
   if (mode === "stay") {
     return (
-      <div className="wd-nav wd-nav-stay" style={fixedBox(layout.nav)}>
+      <div className="wd-nav" style={fixedBox(layout.nav)}>
         <HomeNav />
       </div>
     );
   }
 
-  const radius = mode === "float" ? PILL_RADIUS : REST_RADIUS;
-  const closed = {
-    left: layout.navFrom.left,
-    top: layout.navFrom.top,
-    width: layout.navFrom.width,
-    height: layout.navFrom.height,
-    borderRadius: REST_RADIUS,
-  };
-  const open = {
-    left: layout.nav.left,
-    top: layout.nav.top,
-    width: layout.nav.width,
-    height: layout.nav.height,
-    borderRadius: radius,
-  };
+  if (reduce) {
+    return (
+      <motion.div
+        className="wd-nav"
+        style={fixedBox(layout.nav)}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: closing ? 0 : 1 }}
+        transition={{ duration: 0.12, ease: "easeOut" }}
+      >
+        <HomeNav />
+      </motion.div>
+    );
+  }
 
+  // Only the vertical position changes; the bar's box stays the homepage's.
   return (
     <motion.div
-      className={`wd-nav ${mode === "float" ? "wd-nav-float" : "wd-nav-header"}`}
-      style={
-        reduce ? { ...fixedBox(layout.nav), borderRadius: radius } : undefined
-      }
-      initial={reduce ? { opacity: 0 } : { ...closed, opacity: 1 }}
-      animate={
-        reduce
-          ? { opacity: closing ? 0 : 1 }
-          : closing
-            ? { ...closed, opacity: 1 }
-            : { ...open, opacity: 1 }
-      }
-      transition={
-        reduce
-          ? { duration: 0.12, ease: "easeOut" }
-          : {
-              duration: closing ? CLOSE_S : MORPH_S,
-              ease: closing ? "easeIn" : EASE_ENTER,
-            }
-      }
+      className="wd-nav"
+      style={fixedBox({ ...layout.nav, top: layout.navFrom.top })}
+      initial={{ top: layout.navFrom.top }}
+      animate={{ top: closing ? layout.navFrom.top : layout.nav.top }}
+      transition={{
+        duration: closing ? CLOSE_S : MORPH_S,
+        ease: closing ? "easeIn" : EASE_ENTER,
+      }}
     >
       <HomeNav />
     </motion.div>
   );
 }
 
-/** Fixed surface behind the header-mode nav; also holds the close button. */
+/** Fixed surface behind the header nav; also holds the close button. */
 export function NavHeaderBar({
   layout,
   visible,

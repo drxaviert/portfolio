@@ -322,46 +322,12 @@
 
 /* ----------------------------------------------------------- reader nav --- */
 
+/* Position only. The nav itself (fill, ring, shadow, radius, padding) is the
+   shipped HomeNav; nothing in this wrapper may restyle it. */
 .wd-nav {
   position: fixed;
   z-index: 4;
   pointer-events: auto;
-}
-
-.wd-nav-float {
-  background: var(--surface-container-low);
-  box-shadow:
-    0 1px 2px -1px rgb(0 0 0 / 0.08),
-    0 10px 24px -14px rgb(0 0 0 / 0.3);
-}
-
-[data-phase="night"] .wd-nav-float {
-  box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.8);
-}
-
-/* The wrapper paints the pill; the nav's own ring layers would add a second
-   outline (and their clip would fight the pill radius). */
-.wd-nav-float .ring-host {
-  border-radius: inherit;
-  background: transparent;
-  box-shadow: none;
-}
-
-.wd-nav-float .ring-frame,
-.wd-nav-float .ring-surface,
-.wd-nav-float .ring-glow {
-  display: none;
-}
-
-.wd-nav-header .ring-host {
-  border-radius: 12px;
-}
-
-@media (max-width: 767px) {
-  .wd-nav-header .ring-host {
-    padding-right: 8px;
-    padding-left: 8px;
-  }
 }
 
 .wd-nav-header-bar {
@@ -783,7 +749,7 @@
 
 .wd-panel {
   position: fixed;
-  top: 104px;
+  top: 152px;
   right: 12px;
   z-index: 60;
   display: flex;

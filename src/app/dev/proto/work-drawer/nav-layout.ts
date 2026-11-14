@@ -3,10 +3,15 @@ import type { NavMode, Rect } from "./types";
 /**
  * Geometry for the expand reader and the nav treatment around it.
  *
- * A "stay" reader stops above the real nav (same column, 12px gap); "float"
- * and "header" let the reader take the viewport and carry a live copy of the
- * nav to the bottom pill / top bar. The nav's start box is the real HomeNav's
- * box, measured before the reader opens.
+ * The nav copy always keeps the homepage nav's measured left, width and height;
+ * only its top changes per mode. Nothing wraps or restyles it, so the live
+ * HomeNav is pixel-identical to the one on /.
+ *
+ * - stay:   above the reader, at the page nav's slot (docked to the bottom
+ *           edge only when that slot is partly off-screen)
+ * - float:  the same bar docked over the bottom of the full-height reader
+ * - header: the same bar at the top of the reader, with the close in its own
+ *           row above so the nav's box and contents are untouched
  */
 
 export type ReaderLayout = {
@@ -15,7 +20,7 @@ export type ReaderLayout = {
   navFrom: Rect;
   headerBar: Rect | null;
   headerClose: Rect | null;
-  /** Extra scroll-column padding so content clears the pill / header. */
+  /** Extra scroll-column padding so content clears the dock / header. */
   padTop: number;
   padBottom: number;
 };
@@ -51,6 +56,8 @@ export function computeReaderLayout(
   const mobile = vw < 768;
   const inset = mobile ? 0 : 16;
   const navFrom = homeNav ?? fallbackFrom(vw, vh);
+  const navWidth = navFrom.width;
+  const navHeight = navFrom.height || NAV_HEIGHT;
   const full: Rect = {
     left: inset,
     top: inset,
@@ -59,26 +66,26 @@ export function computeReaderLayout(
   };
 
   if (mode === "stay") {
-    // If the page's nav is off-screen (375), dock it to the bottom edge so it
-    // is still visible; the reader then sits in the frame above it.
-    const slot = fitsViewport(navFrom, vw, vh)
-      ? navFrom
-      : {
-          left: 16,
-          top: vh - 12 - NAV_HEIGHT,
-          width: Math.max(0, vw - 32),
-          height: NAV_HEIGHT,
-        };
+    // Keep the exact homepage box. Only when the page nav is partly below the
+    // viewport (375, and 768 with a scrollbar) does it move to the bottom edge.
+    const navTop = fitsViewport(navFrom, vw, vh)
+      ? navFrom.top
+      : vh - 12 - navHeight;
     const top = mobile ? 8 : 16;
 
     return {
       panel: {
-        left: slot.left,
+        left: navFrom.left,
         top,
-        width: slot.width,
-        height: Math.max(280, slot.top - GAP - top),
+        width: navWidth,
+        height: Math.max(280, navTop - GAP - top),
       },
-      nav: slot,
+      nav: {
+        left: navFrom.left,
+        top: navTop,
+        width: navWidth,
+        height: navHeight,
+      },
       navFrom,
       headerBar: null,
       headerClose: null,
@@ -88,51 +95,51 @@ export function computeReaderLayout(
   }
 
   if (mode === "float") {
-    const width = Math.min(640, vw - 32);
     const margin = mobile ? 12 : 24;
 
     return {
       panel: full,
       nav: {
-        left: (vw - width) / 2,
-        top: vh - margin - NAV_HEIGHT,
-        width,
-        height: NAV_HEIGHT,
+        left: navFrom.left,
+        top: vh - margin - navHeight,
+        width: navWidth,
+        height: navHeight,
       },
       navFrom,
       headerBar: null,
       headerClose: null,
       padTop: 0,
-      padBottom: 64,
+      padBottom: navHeight + margin + 32,
     };
   }
 
-  const pad = mobile ? 4 : 8;
-  const close = mobile ? 32 : 36;
-  const gap = mobile ? 6 : 8;
+  // header: close row above, then the untouched nav bar.
+  const closeSize = mobile ? 32 : 36;
+  const edge = mobile ? 8 : 12;
+  const closeTop = full.top + edge;
+  const navTop = closeTop + closeSize + 8;
   const bar: Rect = {
     left: full.left,
     top: full.top,
     width: full.width,
-    height: pad * 2 + NAV_HEIGHT,
-  };
-  const nav: Rect = {
-    left: bar.left + pad,
-    top: bar.top + pad,
-    width: Math.max(0, bar.width - pad * 2 - close - gap),
-    height: NAV_HEIGHT,
+    height: navTop + navHeight - full.top,
   };
 
   return {
     panel: full,
-    nav,
+    nav: {
+      left: navFrom.left,
+      top: navTop,
+      width: navWidth,
+      height: navHeight,
+    },
     navFrom,
     headerBar: bar,
     headerClose: {
-      left: nav.left + nav.width + gap,
-      top: bar.top + pad + (NAV_HEIGHT - close) / 2,
-      width: close,
-      height: close,
+      left: full.left + full.width - edge - closeSize,
+      top: closeTop,
+      width: closeSize,
+      height: closeSize,
     },
     padTop: bar.height + 12,
     padBottom: 0,
