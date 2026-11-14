@@ -189,6 +189,7 @@
 | Interrupted open | Esc or back during `opening` reverses from the current values. Motion's animate handles this, so don't restart from the card. |
 | No card found, or reduced motion | Opacity-only open and close at 120ms ease-out. No title flight. |
 | Browser back | The `@modal` slot unmounts. Wrap the slot's content in `AnimatePresence` keyed on the pathname, so the reverse morph runs as the exit. |
+| Overlay a11y (§7) | Body scroll lock while open. Focus the title when the open morph ends. Port the proto's focus trap. Return focus to `[data-work-card]` after close. |
 | `close()` | Runs the reverse morph, then `router.back()` if `window.history.state` shows an in-app entry, else `router.push('/')`. |
 
 **Steps:**
