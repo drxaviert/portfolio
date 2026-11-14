@@ -60,88 +60,91 @@
   --scale-from: 0.96;
   --scale-blur: 6px;
   --scale-duration: var(--duration-medium-7);
-  --scale-stagger: var(--duration-50);
+  --scale-stagger: 50ms;
 
   --rise-distance: 8px;
-  --rise-duration: var(--duration-380);
-  --rise-stagger: var(--duration-60);
+  --rise-duration: 380ms;
+  --rise-stagger: 60ms;
 
   /* 380ms edge with a 175ms hold splits into 102.5ms in + 102.5ms out. */
-  --ring-edge-in: var(--duration-102-5);
-  --ring-edge-out: var(--duration-102-5);
-  --ring-edge-hold: var(--duration-175);
-  --ring-fill-delay: var(--duration-80);
+  --ring-edge-in: 102.5ms;
+  --ring-edge-out: 102.5ms;
+  --ring-edge-hold: 175ms;
+  --ring-fill-delay: 80ms;
   --ring-fill-duration: var(--duration-medium-1);
-  --ring-stagger: var(--duration-40);
+  --ring-stagger: 40ms;
 
   --sky-glow-duration: var(--duration-medium-5);
   --sky-delay: var(--duration-short-2);
-  --sky-stagger: var(--duration-36);
+  --sky-stagger: 36ms;
   --sky-duration: var(--duration-medium-7);
   --sky-from: 0.98;
   --sky-blur: 4px;
 
   --clear-blur: 20px;
-  --clear-duration: var(--duration-680);
+  --clear-duration: 680ms;
   --clear-feather: 25vh;
   --clear-delay: 0ms;
 
   --step-count: 3;
   --step-distance: 5px;
   --step-duration: var(--duration-short-6);
-  --step-stagger: var(--duration-40);
+  --step-stagger: 40ms;
   --step-marker-size: 6px;
   --step-marker-hold: var(--duration-short-1);
-  --step-marker-fade: var(--duration-200);
+  --step-marker-fade: 200ms;
   /* Design-tool marker: the glow's own blob hue, blue by Day, mint by Night. */
   --step-marker-color: var(--horizon-2);
 
   --grain-strength: 0.08;
   --grain-jitter: 3px;
   --grain-rate: var(--duration-short-1);
-  --grain-duration: var(--duration-460);
+  --grain-duration: 460ms;
   --grain-delay: var(--duration-short-4);
-  --grain-stagger: var(--duration-32);
-  --grain-item-duration: var(--duration-320);
+  --grain-stagger: 32ms;
+  --grain-item-duration: 320ms;
 
   --grow-from: 0.6;
   --grow-rise: 12px;
-  --grow-duration: var(--duration-420);
-  --grow-stagger: var(--duration-70);
+  --grow-duration: 420ms;
+  --grow-stagger: 70ms;
 
-  --breath-inhale: var(--duration-1200);
+  --breath-inhale: 1200ms;
   --breath-swell: 0.9;
-  --breath-delay: var(--duration-480);
-  --breath-duration: var(--duration-540);
+  --breath-delay: 480ms;
+  --breath-duration: 540ms;
   --breath-blur: 2.5px;
-  --breath-stagger: var(--duration-30);
+  --breath-stagger: 30ms;
 
   --mist-density: 0.9;
   --mist-lift: 4%;
-  --mist-duration: var(--duration-1100);
-  --mist-card-duration: var(--duration-900);
-  --mist-stagger: var(--duration-30);
+  --mist-duration: 1100ms;
+  --mist-card-duration: 900ms;
+  --mist-stagger: 30ms;
 
   /* Day's dim is its own grey scrim; Night's surface-dim is black. */
   --dawn-scrim: color-mix(in oklab, var(--on-surface) 8%, var(--surface-dim));
   --dawn-dim: 0.6;
-  --dawn-bloom-duration: var(--duration-1300);
+  --dawn-bloom-duration: 1300ms;
   --dawn-bloom-scale: 0.96;
-  --dawn-content-delay: var(--duration-650);
+  --dawn-content-delay: 650ms;
   --dawn-rise: 4px;
   --dawn-content-duration: var(--duration-long-2);
-  --dawn-stagger: var(--duration-25);
+  --dawn-stagger: 25ms;
   /* The phase halves the bloom's scale delta at Night; the panel never writes
      this one, so the rule keeps applying. */
   --dawn-phase-mix: 1;
 
   --soft-blur: 8px;
   --soft-veil: 0.24;
-  --soft-duration: var(--duration-1400);
+  --soft-duration: 1400ms;
   --soft-card-delay: var(--duration-medium-2);
-  --soft-card-duration: var(--duration-1100);
+  --soft-card-duration: 1100ms;
   --soft-rise: 7px;
-  --soft-stagger: var(--duration-60);
+  --soft-stagger: 60ms;
+
+  /* Reduced motion: one fade, no rise or blur. */
+  --entrance-reduced-duration: var(--duration-short-2);
 }
 
 /*
@@ -302,8 +305,8 @@
 /* Reduced motion: one 120ms opacity fade, no blur, no rise, no softness. */
 @media (prefers-reduced-motion: reduce) {
   [data-entrance="soft"] .entrance-body {
-    animation: entrance-fade-in var(--duration-short-2) var(--ease-decelerate)
-      backwards !important;
+    animation: entrance-fade-in var(--entrance-reduced-duration)
+      var(--ease-decelerate) backwards !important;
     animation-delay: 0ms !important;
     filter: none !important;
   }
