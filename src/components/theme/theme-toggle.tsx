@@ -308,11 +308,11 @@ const LEADING_DURATION = LEADING_DURATION_MS / 1000;
 const TRAILING_DURATION = TRAILING_DURATION_MS / 1000;
 const TRAILING_DELAY = TRAILING_DELAY_MS / 1000;
 
-function leadingEase(t: number): number {
+export function leadingEase(t: number): number {
   return 1 - (1 - t) ** 3;
 }
 
-function trailingEase(t: number): number {
+export function trailingEase(t: number): number {
   return 1 - (1 - t) ** 5;
 }
 

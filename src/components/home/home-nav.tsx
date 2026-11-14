@@ -1,15 +1,22 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { NavItems } from "./nav-items";
 import { RingLayers } from "./ring-hover";
 
 /**
  * Home nav from the Figma 1440 frame (121:2253).
  *
- * The logo and "Work" are links home; Play and About are still placeholders,
- * so they stay as spans. The link resets keep the bar pixel-identical to the
- * shipped, non-interactive version. The head is the orb mark: a 36px ball
- * painted with the phase blob gradient (bottom-left → top-right) and two matte
- * eyes, so it recolours with the theme like the rest.
+ * The head is the orb mark: a 36px ball painted with the phase blob gradient
+ * (bottom-left → top-right) and two matte eyes, so it recolours with the theme
+ * like the rest.
+ *
+ * The three labels and the design-system glyph are one run with a single
+ * capsule: hovering slides it to the pointer with the theme toggle's stretch &
+ * snap, so the nav and the toggle share one motion (see nav-items.tsx).
+ *
+ * The logo is a link home, and "Work" is the link home inside that run (see
+ * nav-items.tsx). The reader's nav captures those two and plays the reverse
+ * morph instead of navigating; Play and About stay focusable placeholders.
  *
  * The bar is one hover host: its own fill moves to the ring surface, and
  * keyboard focus inside it (the theme toggle, the links) opens the ring.
@@ -26,12 +33,6 @@ function OrbHead() {
     </div>
   );
 }
-
-const LINKS = [
-  { label: "Work", href: "/", active: true },
-  { label: "Play", active: false },
-  { label: "About", active: false },
-];
 
 const FOCUS_RING =
   "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
@@ -52,59 +53,9 @@ export function HomeNav() {
         <OrbHead />
       </Link>
 
-      <div className="flex items-center gap-6 md:gap-0">
-        <div className="flex items-center">
-          {LINKS.map((link) => {
-            const classes = link.active
-              ? "flex h-8 items-center rounded-md bg-surface-container px-2 text-base leading-5 font-medium text-on-surface"
-              : "flex h-8 items-center rounded-md px-2 text-base leading-5 font-medium text-on-surface-variant";
-
-            return link.href ? (
-              <Link
-                key={link.label}
-                href={link.href}
-                className={`no-underline ${classes} ${FOCUS_RING}`}
-              >
-                {link.label}
-              </Link>
-            ) : (
-              <span key={link.label} className={classes}>
-                {link.label}
-              </span>
-            );
-          })}
-        </div>
-
-        <span
-          aria-hidden="true"
-          className="mx-6 hidden h-5 w-px bg-outline-variant md:block"
-        />
-
-        <div className="flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="hidden size-8 items-center justify-center rounded-md text-on-surface md:flex"
-          >
-            <svg
-              viewBox="0 0 20 20"
-              width="20"
-              height="20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              focusable="false"
-            >
-              <rect x="2.75" y="2.75" width="6" height="6" rx="1.5" />
-              <circle cx="14.25" cy="5.75" r="3" />
-              <rect x="2.75" y="11.25" width="6" height="6" rx="1.5" />
-              <path d="M14.25 11.1 17.4 14.25 14.25 17.4 11.1 14.25Z" />
-            </svg>
-          </span>
-
-          <ThemeToggle />
-        </div>
+      <div className="flex items-center gap-3">
+        <NavItems />
+        <ThemeToggle />
       </div>
     </nav>
   );
