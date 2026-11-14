@@ -53,12 +53,25 @@ export type ClearSettings = {
   delay: number;
 };
 
+export type StepSettings = {
+  /** Hard cuts per card; the total travel is count x distance. */
+  count: number;
+  distance: number;
+  duration: number;
+  stagger: number;
+  markerSize: number;
+  /** How long the corner markers stay at full opacity after the first cut. */
+  markerHold: number;
+  markerFade: number;
+};
+
 export type Settings = {
   scale: ScaleSettings;
   rise: RiseSettings;
   ring: RingSettings;
   sky: SkySettings;
   clear: ClearSettings;
+  step: StepSettings;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -83,6 +96,17 @@ export const DEFAULT_SETTINGS: Settings = {
   // 680ms keeps the whole reveal inside the 700ms budget; the feather is 25vh
   // — a quarter of the screen tall at the reference 1440x900.
   clear: { blur: 20, duration: 680, feather: 25, delay: 0 },
+  // Base44 hero cuts: three 5px jumps per card, 40ms apart from the nav up.
+  // 600ms is the marker fade on the last card, not the card itself.
+  step: {
+    count: 3,
+    distance: 5,
+    duration: 180,
+    stagger: 40,
+    markerSize: 6,
+    markerHold: 100,
+    markerFade: 200,
+  },
 };
 
 /** Curves already in docs/design-system/motion.md; no new ones. */
@@ -298,6 +322,57 @@ export const CONTROLS: Record<EntranceVariant, Control[]> = {
       unit: "ms",
     },
   ],
+  step: [
+    { key: "count", label: "Step count", min: 2, max: 6, step: 1, unit: "×" },
+    {
+      key: "distance",
+      label: "Step distance",
+      min: 1,
+      max: 10,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "duration",
+      label: "Card duration",
+      min: 80,
+      max: 400,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "stagger",
+      label: "Card stagger",
+      min: 0,
+      max: 120,
+      step: 5,
+      unit: "ms",
+    },
+    {
+      key: "markerSize",
+      label: "Marker size",
+      min: 2,
+      max: 12,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "markerHold",
+      label: "Marker hold",
+      min: 0,
+      max: 300,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "markerFade",
+      label: "Marker fade",
+      min: 60,
+      max: 400,
+      step: 10,
+      unit: "ms",
+    },
+  ],
 };
 
 /** 7 reading-order items: the last one starts at 6 x stagger. */
@@ -314,6 +389,19 @@ export function edgeFades(ring: RingSettings): { inMs: number; outMs: number } {
     inMs,
     outMs: Math.max(20, ring.edgeDuration - ring.edgeHold - inMs),
   };
+}
+
+/** One hard cut of a step-cut card: the whole duration over the cut count. */
+export function stepFirstMs(step: StepSettings): number {
+  return step.duration / step.count;
+}
+
+/** The card timing the panel and Copy values show for a non-eased variant. */
+export function stepsTiming(
+  variant: EntranceVariant,
+  settings: Settings,
+): string | null {
+  return variant === "step" ? `steps(${settings.step.count}, end)` : null;
 }
 
 export function totalMs(variant: EntranceVariant, settings: Settings): number {
@@ -339,6 +427,15 @@ export function totalMs(variant: EntranceVariant, settings: Settings): number {
     case "clear":
       // One layer, one reveal: the mask radius is the whole animation.
       return settings.clear.delay + settings.clear.duration;
+    case "step": {
+      const s = settings.step;
+      const card = s.duration;
+      // The markers outlive the card: they arrive on its first cut and fade
+      // after the hold, so the sequence ends when the last card's markers go.
+      const markers = stepFirstMs(s) + s.markerHold + s.markerFade;
+
+      return LAST_ITEM * s.stagger + Math.max(card, markers);
+    }
   }
 }
 
@@ -410,6 +507,20 @@ export function cssVars(
         "--clear-delay": `${s.delay}ms`,
       };
     }
+    case "step": {
+      const s = settings.step;
+
+      return {
+        ...shared,
+        "--step-count": String(s.count),
+        "--step-distance": `${s.distance}px`,
+        "--step-duration": `${s.duration}ms`,
+        "--step-stagger": `${s.stagger}ms`,
+        "--step-marker-size": `${s.markerSize}px`,
+        "--step-marker-hold": `${s.markerHold}ms`,
+        "--step-marker-fade": `${s.markerFade}ms`,
+      };
+    }
   }
 }
 
@@ -464,11 +575,20 @@ export function copyBlock(
   const vars = Object.entries(cssVars(variant, settings, easing)).filter(
     ([name]) => name !== "--entrance-ease",
   );
+  const steps = stepsTiming(variant, settings);
+  const curve = steps
+    ? `cards ${steps} · markers on ${easingName}`
+    : `easing ${easingName}`;
 
   return [
-    `/* home entrance · ${variant} · easing ${easingName} */`,
+    `/* home entrance · ${variant} · ${curve} */`,
+    steps
+      ? `/* --entrance-ease is the marker fade only; cards do not tween */`
+      : null,
     `--entrance-ease: ${easing};`,
     ...vars.map(([name, value]) => `${name}: ${value};`),
     `/* settles by ${total}ms */`,
-  ].join("\n");
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 }

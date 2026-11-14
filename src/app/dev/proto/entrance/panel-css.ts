@@ -147,6 +147,21 @@ export const PANEL_CSS = `
   cursor: pointer;
 }
 
+/* Non-eased variants (step cut): the card timing, kept in the panel. */
+.ent-panel-steps {
+  margin: -4px 0 0;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+  font-size: 10px;
+}
+
+.ent-panel-steps strong {
+  color: var(--on-surface);
+  font-variant-numeric: tabular-nums;
+}
+
 .ent-panel-controls {
   display: flex;
   flex-direction: column;

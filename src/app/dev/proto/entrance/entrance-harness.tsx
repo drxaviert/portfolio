@@ -14,6 +14,7 @@ import {
   formatValue,
   patch,
   resetVariant,
+  stepsTiming,
   totalMs,
   valueOf,
 } from "./settings";
@@ -27,6 +28,7 @@ const VARIANTS: { id: EntranceVariant; label: string }[] = [
   { id: "ring", label: "Ring reveal" },
   { id: "sky", label: "Sky first" },
   { id: "clear", label: "Horizon clear" },
+  { id: "step", label: "Step cut" },
 ];
 
 /** Input settles for this long before the entrance replays. */
@@ -61,6 +63,7 @@ export function EntranceHarness() {
   const scopeRef = useRef<HTMLDivElement | null>(null);
   const valueRefs = useRef<Record<string, HTMLSpanElement | null>>({});
   const totalRef = useRef<HTMLElement | null>(null);
+  const stepsRef = useRef<HTMLElement | null>(null);
   const replayTimer = useRef<number | null>(null);
   const copyTimer = useRef<number | null>(null);
 
@@ -137,6 +140,13 @@ export function EntranceHarness() {
 
     if (total > BUDGET_MS) element.dataset.over = "true";
     else delete element.dataset.over;
+
+    // The step variant's card timing is `steps(n)`, not the picker's curve; it
+    // follows the step-count slider, so it repaints in the same pass.
+    const steps = stepsRef.current;
+
+    if (steps)
+      steps.textContent = stepsTiming(variant, settingsRef.current) ?? "";
   }
 
   function handleInput(control: Control, raw: string) {
@@ -278,6 +288,23 @@ export function EntranceHarness() {
                 ))}
               </select>
             </label>
+
+            {variant === "step" ? (
+              <p className="ent-panel-steps">
+                Cards:{" "}
+                <strong
+                  ref={(element) => {
+                    stepsRef.current = element;
+
+                    if (element)
+                      element.textContent =
+                        stepsTiming(variant, settingsRef.current) ?? "";
+                  }}
+                />{" "}
+                — hard cuts, no ease-out. Deliberately breaks the curve rule;
+                the picker is the marker fade.
+              </p>
+            ) : null}
 
             <div className="ent-panel-controls">
               {controls.map((control) => {

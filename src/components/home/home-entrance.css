@@ -21,6 +21,8 @@
  *   ring   edge at item*40ms, fill at +80ms                    → ends 620ms
  *   sky    glow 0-300ms, cards 120 + item*36ms, 360ms each     → ends 696ms
  *   clear  one mask radius, 0-680ms                            → ends 680ms
+ *   step   cards 240ms apart from the nav up, 180ms each        → ends 600ms
+ *          (markers fade out 360ms after their card's first cut)
  *
  * Fill mode is `backwards`, not `both`. Backwards still paints the from-state
  * during the delay (the server-rendered HTML starts hidden, no flash, no JS),
@@ -84,6 +86,16 @@
   --clear-duration: 680ms;
   --clear-feather: 25vh;
   --clear-delay: 0ms;
+
+  --step-count: 3;
+  --step-distance: 5px;
+  --step-duration: 180ms;
+  --step-stagger: 40ms;
+  --step-marker-size: 6px;
+  --step-marker-hold: 100ms;
+  --step-marker-fade: 200ms;
+  /* Design-tool marker: the glow's own blob hue, blue by Day, mint by Night. */
+  --step-marker-color: var(--horizon-2);
 }
 
 /*
@@ -137,6 +149,41 @@
 
 [data-entrance] [data-entrance-item="7"] {
   --entrance-i: 6;
+}
+
+/*
+ * Distance from the horizon, for the variants that build upward from the glow
+ * instead of reading top-down: 0 is the nav on the bottom edge, then the
+ * project card, then the three slivers (all shorter, so their bottom edges sit
+ * higher), then the top band left to right. The horizon itself is below the
+ * fold, so "closest to the horizon" means "lowest edge on screen".
+ */
+[data-entrance] [data-entrance-item="7"] {
+  --entrance-h: 0;
+}
+
+[data-entrance] [data-entrance-item="3"] {
+  --entrance-h: 1;
+}
+
+[data-entrance] [data-entrance-item="4"] {
+  --entrance-h: 2;
+}
+
+[data-entrance] [data-entrance-item="5"] {
+  --entrance-h: 3;
+}
+
+[data-entrance] [data-entrance-item="6"] {
+  --entrance-h: 4;
+}
+
+[data-entrance] [data-entrance-item="1"] {
+  --entrance-h: 5;
+}
+
+[data-entrance] [data-entrance-item="2"] {
+  --entrance-h: 6;
 }
 
 [data-entrance] [data-entrance-row="1"] {
@@ -286,6 +333,79 @@
   }
 }
 
+/*
+ * 6 — Step cut: every card arrives in a handful of hard jumps, no tween. The
+ * translate holds for a whole step and then snaps, `steps(n, end)`, so the card
+ * lands as n discrete 5px cuts; opacity is a one-step track that only finishes
+ * at the first cut, so the card is invisible and then simply there. That
+ * deliberately breaks motion.md's ease-out rule — Base44's hero cuts are the
+ * reference Dat asked to compare, and the panel line says so.
+ *
+ * Order is `--entrance-h`, bottom-up from the horizon.
+ *
+ * The four corner markers are one pseudo-element carrying four 6px squares
+ * (a design-tool selection), straddling the card's corners by half a square.
+ * They arrive on the card's first cut and leave on the house curve: the fade
+ * is listed first with `both` and the arrival second with `backwards`, so the
+ * arrival overrules the fade's backwards fill until it finishes and the fade's
+ * own 1 then holds through the marker hold. Marker colour is the glow's own
+ * blob hue (--horizon-2), which is blue by Day and mint by Night.
+ */
+[data-entrance="step"] {
+  --step-first: calc(var(--step-duration) / var(--step-count));
+}
+
+[data-entrance="step"] .entrance-body {
+  animation:
+    entrance-step-cut var(--step-duration) steps(var(--step-count), end)
+      backwards,
+    entrance-fade-in var(--step-first) steps(1, end) backwards;
+  animation-delay: calc(var(--entrance-h) * var(--step-stagger));
+}
+
+[data-entrance="step"] .entrance-cell::after {
+  content: "";
+  position: absolute;
+  /* Half a marker outside the card, so the squares straddle its corners. */
+  inset: calc(var(--step-marker-size) / -2);
+  pointer-events: none;
+  opacity: 0;
+  background-image:
+    linear-gradient(var(--step-marker-color), var(--step-marker-color)),
+    linear-gradient(var(--step-marker-color), var(--step-marker-color)),
+    linear-gradient(var(--step-marker-color), var(--step-marker-color)),
+    linear-gradient(var(--step-marker-color), var(--step-marker-color));
+  background-position:
+    left top,
+    right top,
+    left bottom,
+    right bottom;
+  background-size: var(--step-marker-size) var(--step-marker-size);
+  background-repeat: no-repeat;
+  animation:
+    entrance-edge-out var(--step-marker-fade) var(--entrance-ease)
+      calc(
+        var(--entrance-h) * var(--step-stagger) + var(--step-first) +
+          var(--step-marker-hold)
+      )
+      both,
+    entrance-fade-in var(--step-first) steps(1, end)
+      calc(var(--entrance-h) * var(--step-stagger)) backwards;
+}
+
+/*
+ * The jump: `steps(n)` breaks the from -> to travel into n equal holds, so
+ * n x distance of pay-load is exactly n cuts of `distance`.
+ */
+@keyframes entrance-step-cut {
+  from {
+    translate: 0 calc(var(--step-count) * var(--step-distance));
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
 @keyframes entrance-scale-in {
   from {
     opacity: 0;
@@ -350,6 +470,11 @@
   }
 
   [data-entrance] .entrance-cell::before {
+    animation: none;
+  }
+
+  /* No marker squares: the body fade above is the whole entrance. */
+  [data-entrance="step"] .entrance-cell::after {
     animation: none;
   }
 

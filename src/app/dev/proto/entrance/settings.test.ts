@@ -8,6 +8,8 @@ import {
   edgeFades,
   patch,
   resetVariant,
+  stepFirstMs,
+  stepsTiming,
   totalMs,
 } from "./settings";
 
@@ -18,10 +20,50 @@ describe("entrance settings", () => {
     expect(totalMs("ring", DEFAULT_SETTINGS)).toBe(620);
     expect(totalMs("sky", DEFAULT_SETTINGS)).toBe(696);
     expect(totalMs("clear", DEFAULT_SETTINGS)).toBe(680);
+    expect(totalMs("step", DEFAULT_SETTINGS)).toBe(600);
 
-    for (const variant of ["scale", "rise", "ring", "sky", "clear"] as const) {
+    for (const variant of [
+      "scale",
+      "rise",
+      "ring",
+      "sky",
+      "clear",
+      "step",
+    ] as const) {
       expect(totalMs(variant, DEFAULT_SETTINGS)).toBeLessThanOrEqual(BUDGET_MS);
     }
+  });
+
+  it("ends the step cut when the last card's markers have faded", () => {
+    const step = DEFAULT_SETTINGS.step;
+    const first = stepFirstMs(step);
+
+    // 180ms over 3 cuts is 60ms each; the markers outlive the card.
+    expect(first).toBe(60);
+    expect(totalMs("step", DEFAULT_SETTINGS)).toBe(
+      6 * step.stagger + first + step.markerHold + step.markerFade,
+    );
+
+    // Short markers on a long card: the card itself sets the total.
+    const slow = patch(
+      patch(
+        patch(DEFAULT_SETTINGS, "step", "duration", 400),
+        "step",
+        "markerFade",
+        0,
+      ),
+      "step",
+      "markerHold",
+      0,
+    );
+    expect(totalMs("step", slow)).toBe(6 * step.stagger + 400);
+
+    // Fewer cuts makes each one longer, so the marker arrival moves later.
+    const twoCuts = patch(DEFAULT_SETTINGS, "step", "count", 2);
+    expect(stepFirstMs(twoCuts.step)).toBe(90);
+    expect(totalMs("step", twoCuts)).toBe(
+      6 * step.stagger + 90 + step.markerHold + step.markerFade,
+    );
   });
 
   it("adds the clear reveal's delay to its single mask animation", () => {
@@ -79,6 +121,33 @@ describe("entrance settings", () => {
     expect(clear["--clear-duration"]).toBe("680ms");
     expect(clear["--clear-feather"]).toBe("25vh");
     expect(clear["--clear-delay"]).toBe("0ms");
+
+    const step = cssVars("step", DEFAULT_SETTINGS, EASINGS[0].value);
+
+    expect(step["--step-count"]).toBe("3");
+    expect(step["--step-distance"]).toBe("5px");
+    expect(step["--step-duration"]).toBe("180ms");
+    expect(step["--step-marker-size"]).toBe("6px");
+    // The picker still drives the marker fade.
+    expect(step["--entrance-ease"]).toBe(EASINGS[0].value);
+  });
+
+  it("shows steps(n) instead of a curve for the step cut", () => {
+    expect(stepsTiming("step", DEFAULT_SETTINGS)).toBe("steps(3, end)");
+    expect(stepsTiming("scale", DEFAULT_SETTINGS)).toBeNull();
+
+    const block = copyBlock(
+      "step",
+      DEFAULT_SETTINGS,
+      EASINGS[0].value,
+      totalMs("step", DEFAULT_SETTINGS),
+    );
+
+    expect(block).toContain(
+      "/* home entrance · step · cards steps(3, end) · markers on entrance */",
+    );
+    expect(block).toContain("--step-count: 3;");
+    expect(block).toContain("/* settles by 600ms */");
   });
 
   it("copies a paste-ready block with the total", () => {

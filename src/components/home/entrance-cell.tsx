@@ -14,7 +14,8 @@ import type { ReactNode } from "react";
  * With no `variant` the wrapper disappears entirely: the caller's markup is
  * unchanged on `/`.
  */
-export type EntranceVariant = "scale" | "rise" | "ring" | "sky" | "clear";
+export type EntranceVariant =
+  "scale" | "rise" | "ring" | "sky" | "clear" | "step";
 
 export function EntranceCell({
   variant,
