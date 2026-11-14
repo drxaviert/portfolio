@@ -13,13 +13,12 @@
 @custom-variant dark (&:where([data-phase="night"], [data-phase="night"] *));
 
 /*
- * Horizon glow tokens are registered so a phase switch interpolates them: the
- * page gradient and the blob tints recompute from the animated values instead
- * of snapping. / and /dev/prototype both render the horizon background.
- *
- * A phase switch is a colour change, not motion, so prefers-reduced-motion
- * keeps a crossfade but shortens it to 150ms (see the media query below)
- * rather than skipping it. That keeps the phase readable without a long fade.
+ * Horizon glow tokens are registered so the dev glow panel and the shader read
+ * typed values, and so a future property that does interpolate still can.
+ * They are NOT transitioned: the theme change is a compositor crossfade of the
+ * whole page (see the view-transition rules below), and transitioning twelve
+ * inherited custom properties re-resolved every node in the tree on every
+ * frame of the old per-element fade.
  */
 @property --horizon-base {
   syntax: "<color>";
@@ -87,105 +86,41 @@
   initial-value: 100%;
 }
 
-:root {
-  transition:
-    --horizon-base var(--horizon-transition-duration)
-      var(--horizon-transition-ease),
-    --horizon-mid var(--horizon-transition-duration)
-      var(--horizon-transition-ease),
-    --horizon-mid-at var(--horizon-transition-duration)
-      var(--horizon-transition-ease),
-    --horizon-1 var(--horizon-transition-duration)
-      var(--horizon-transition-ease),
-    --horizon-1-alpha var(--horizon-transition-duration)
-      var(--horizon-transition-ease),
-    --horizon-2 var(--horizon-transition-duration)
-      var(--horizon-transition-ease),
-    --horizon-2-alpha var(--horizon-transition-duration)
-      var(--horizon-transition-ease),
-    --horizon-3 var(--horizon-transition-duration)
-      var(--horizon-transition-ease),
-    --orb-1 var(--horizon-transition-duration) var(--horizon-transition-ease),
-    --orb-2 var(--horizon-transition-duration) var(--horizon-transition-ease),
-    --orb-3 var(--horizon-transition-duration) var(--horizon-transition-ease),
-    --orb-2-at var(--horizon-transition-duration) var(--horizon-transition-ease);
-}
-
 /*
- * One-piece phase switch: theme.ts marks <html> with data-phase-switching for
- * one fade, then removes it. Only colour-like properties transition, so normal
- * hover/press motion is untouched the rest of the time. `transform` and
- * `clip-path` are deliberately absent: leaving them in retimed every hover
- * that started inside the 400ms window at 400ms ease-in-out.
+ * One crossfade for the whole theme change.
+ *
+ * theme.ts applies the switch inside document.startViewTransition(): the
+ * browser snapshots the page before and after the change and blends the two
+ * images itself, so the fade costs two captures instead of a full-page
+ * repaint behind a colour transition on every element. Every layer — the
+ * horizon, the cards, the text, the nav, the toggle — is inside the same
+ * snapshot, so they start and finish together by construction.
+ *
+ * `old` is pinned above the fully opaque `new` image and fades out, which
+ * makes the blend a straight cross-dissolve: no live page shows through the
+ * middle, and no second crossfade runs underneath.
  */
-:root[data-phase-switching] *,
-:root[data-phase-switching] *::before,
-:root[data-phase-switching] *::after {
-  transition-property:
-    background-color, border-color, outline-color, text-decoration-color, fill,
-    stroke, box-shadow, opacity;
-  transition-duration: var(--horizon-transition-duration);
-  transition-timing-function: var(--horizon-transition-ease);
+::view-transition-old(root) {
+  z-index: 1;
+  animation: phase-crossfade var(--horizon-transition-duration)
+    var(--horizon-transition-ease) both;
 }
 
-/*
- * `color` is inherited. Transitioning it on containers makes descendant colour
- * transitions restart every frame, and transitioning it on every node forces a
- * style recalc and text repaint for the whole tree (measured ~4x slower on the
- * prototype's 531 nodes). Give text elements their own colour transition and
- * leave containers (body, main, cards) out so nothing nests.
- */
-:root[data-phase-switching]
-  :where(
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    h6,
-    p,
-    a,
-    button,
-    label,
-    output,
-    summary,
-    li,
-    dt,
-    dd,
-    blockquote,
-    figcaption,
-    select,
-    option,
-    span:not(.tracker-cell)
-  ) {
-  transition-property:
-    color, background-color, border-color, outline-color, text-decoration-color,
-    fill, stroke, box-shadow, opacity;
+::view-transition-new(root) {
+  animation: none;
+  opacity: 1;
 }
 
-/* Clock-driven switches (Auto mode, dev preview) use the auto tokens. */
-:root[data-phase-switching="auto"] *,
-:root[data-phase-switching="auto"] *::before,
-:root[data-phase-switching="auto"] *::after {
-  transition-duration: var(--phase-auto-transition-duration);
-  transition-timing-function: var(--phase-auto-transition-ease);
+/* Clock-driven switches (Auto mode, dev preview) fade over seconds. */
+:root[data-phase-switching="auto"]::view-transition-old(root) {
+  animation-duration: var(--phase-auto-transition-duration);
+  animation-timing-function: var(--phase-auto-transition-ease);
 }
 
-:root[data-phase-switching="auto"] {
-  transition-duration: var(--phase-auto-transition-duration);
-  transition-timing-function: var(--phase-auto-transition-ease);
-}
-
-/*
- * The blob tint is derived from the animated --horizon-* tokens, so it already
- * crossfades with them. The switch rule above also transitions the blob's own
- * background-color, which makes it chase the tokens and then run a second full
- * fade once they land (measured 8s at a 4s token). Opt the blobs out so their
- * colour follows the tokens frame by frame.
- */
-:root[data-phase-switching] [data-horizon-blob] {
-  transition-property: none;
-  transition-duration: 0s;
+@keyframes phase-crossfade {
+  to {
+    opacity: 0;
+  }
 }
 
 :root {

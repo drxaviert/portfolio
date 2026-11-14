@@ -1,11 +1,12 @@
 # Design system motion — 2026-11-13
 
-The shipped motion of the theme toggle and the Day phase row, recorded from the merged code (PR #12, `5bbfba9`). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
+The shipped motion of the theme toggle, the Day phase row and the home nav's Glide capsule, recorded from the merged code (PR #12, `5bbfba9`; nav at `d574d89`). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
 
 ## Principles
 
 - One curve family per job: `cubic-bezier(0.23, 1, 0.32, 1)` for entrances, `ease-in` for exits, `cubic-bezier(0.34, 1.3, 0.64, 1)` for the icon settle.
 - Calm and ambient entrances use `cubic-bezier(0.4, 0, 0.2, 1)`: it leaves at zero velocity and settles on a long tail, so light and content arrive without anything launching.
+- A theme change is one crossfade of the whole page, not a colour transition per element: everything changes on the same frame because it is the same image pair.
 - Entrances stagger left to right; exits leave together. Nothing waits on the pointer.
 - Hover never restarts the entrance: it replays the icon settle once from its resting pose and ends at rest.
 - Reduced motion keeps the state change and drops the movement: one opacity fade, no icon motion.
@@ -19,7 +20,7 @@ The shipped motion of the theme toggle and the Day phase row, recorded from the 
 | Pointer over a segment | hover layer `opacity` | 150ms | 0 | `ease-out` | 0 → 0.55 |
 | Pointer leaves the track | hover layer `opacity` | 150ms | 0 | `ease-out` | 0.55 → 0 |
 | First segment entered | hover path | 0 | 0 | none | placed at the hovered segment, then faded in from 0 |
-| Segment pressed | `scale` | 150ms | 0 | `ease-out` | 1 → 0.94 |
+| Segment pressed | `scale` | 150ms | 0 | `ease-out` | 1 → 0.96 |
 | Segment hover | `color` | 150ms | 0 | `ease-out` | `on-surface-variant` → `on-surface` |
 | Segment or icon focused | tooltip `opacity` | 150ms | 0 | `ease-out` | 0 → 1 |
 
@@ -33,9 +34,37 @@ Hover only applies on `(hover: hover) and (pointer: fine)`; the hover capsule is
 - `src/components/theme/theme-toggle.tsx:576` — `active:scale-[0.96]` and the 150ms `ease-out` segment transition
 - `src/components/theme/theme-toggle.css:310` — tooltip fade
 
+## Theme change
+
+Switching mode (or crossing a clock boundary in Auto/Day) replaces the colour tokens on `<html>`. That one change is animated as a **single crossfade of the whole page**: `src/lib/theme.ts` applies the write inside `document.startViewTransition()`, and the browser snapshots the page before and after it and blends the two images itself. Nothing animates a colour per element, so the horizon, the cards, the text, the nav, the toggle and the phase row are inside one image pair and start and finish together by construction — and the fade costs two captures instead of a full-page repaint on every frame.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Mode click, phase change | whole-page snapshot `opacity` | 400ms | 0 | `ease-in-out` | old snapshot 1 → 0 over the new one |
+| Clock-driven change (Auto / Day) | whole-page snapshot `opacity` | 4000ms | 0 | `ease-in-out` | same |
+| Reduced motion | whole-page snapshot `opacity` | 150ms | 0 | `ease-in-out` | same |
+| No View Transitions API | — | 0 | — | — | instant switch, one frame |
+| Phase row opened by the same click | see "Day phase row entrance" | + crossfade duration | — | — | entrance waits for the crossfade |
+
+Details that keep it one piece:
+
+- **The page is a snapshot for the fade.** The live document is not painted (and stops receiving hit tests) for the crossfade, so anything that starts animating on the same click would play invisibly. The row's entrance therefore waits for the crossfade (`--phase-enter-delay`), and the two hover surfaces ignore the phantom pointer-leave it causes (`isPhaseSwitching()`), so the nav capsule and the row keep their state and recover on the next real pointer event.
+- **No per-element colour transitions.** The old blanket rule (`:root[data-phase-switching] *`) and the twelve inherited `--horizon-*` / `--orb-*` token transitions were removed. Measured on the 1440x900 home page they cost 9-10ms of style recalc *per frame* and 8-11 dropped frames per switch; the crossfade measures 0.
+- **The glow switches in the same frame as the snapshot.** The shader reads the tokens on the `data-phase` mutation, so it draws once with the new palette inside the rendering update that the browser snapshots — no late glow, no texture rebuild, no per-frame token read.
+- **The selection capsule crossfades with the page** when the theme changes, instead of flying: a snapshot cannot contain live motion. It still runs the full stretch & snap on every selection change that is not a theme change (the Day phase row, and Day/Night/Auto when the theme is already that mode).
+- `data-phase-switching` stays on `<html>` for the length of the crossfade and carries the kind (`click` / `auto`), which is what selects the duration in CSS.
+
+- `src/lib/theme.ts:334` — the crossfade runner (snapshot, write, announce, settle)
+- `src/lib/theme.ts:256` — `isPhaseSwitching()`, the "the page is a snapshot" predicate
+- `src/app/globals.css:103` — `::view-transition-old(root)` fade and the 400ms / auto tokens
+- `src/app/globals.css:16` — why the tokens are no longer transitioned
+- `src/components/theme/theme-toggle.css:49` — `--phase-enter-delay` holds the row entrance
+- `src/components/horizon/horizon-shader.tsx:621` — one draw per token mutation
+- `src/components/home/nav-items.tsx:397` — hover kept through the crossfade
+
 ## Selection feedback
 
-Selection is painted by the stretch highlight (next section); the segment itself no longer carries a fill in the default path, so a fast flip can never paint two selected segments. The incoming label still fades over 150ms and is released on the same frame. The phase-switch fade in `globals.css` sets a transition on every element for one theme change; the segment and tooltip rules are specific enough to keep their own timings through it.
+Selection is painted by the stretch highlight (next section); the segment itself no longer carries a fill in the default path, so a fast flip can never paint two selected segments. The incoming label still fades over 150ms and is released on the same frame. A theme change is a page-wide crossfade (see "Theme change"), so it does not retime any of these rules.
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
@@ -80,6 +109,58 @@ The timings are the shipped constants `LEADING_DURATION_MS = 180`, `TRAILING_DUR
 - `src/components/theme/theme-toggle.css:433` — hover layer opacity and 0.55
 - `src/components/theme/theme-toggle.css:458` — reduced-motion layer hide + fill crossfade
 
+## Nav hover (Glide)
+
+The home nav's three labels and the design-system glyph share one capsule instead of each carrying its own hover fill. The glyph is the fourth target of the same run — the capsule crosses the divider to it and back — and the run sits to the right of the orb head, which the capsule never reaches. The nav keeps the selection highlight's stretch & snap shape but not its implementation: it is a state-driven pair of springs (below), not the toggle's fixed-duration flight, because a pointer can retarget it faster than a flight can finish. The toggle's own 180 / 120 + 220 motion is unchanged.
+
+The capsule is two edges, each its own damped spring (`src/components/home/glide-spring.ts`). A move only changes where the springs are heading, so both edges keep their current position **and** velocity: the pill can be redirected mid-flight the way a CSS transition retargets, instead of replaying a flight from a stored start. Nothing snaps while the pointer is inside the run, and `data-visible` (the "pointer is in the run" state) is never removed by a move.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Hover moves, leading edge | capsule `clip-path` | ~185ms to rest | 0 | spring `k=1100`, `ζ=0.9` | current edge → target edge |
+| Hover moves, trailing edge | capsule `clip-path` | ~205ms to rest | 100ms from rest | spring `k=900`, `ζ=0.9` | current edge → target edge |
+| Hover moves mid-flight | both edges | remaining spring travel | not re-armed | same springs, new target | current edge and velocity → new target edge |
+| Reversing mid-flight | both edges | as above | 0 | same springs, roles swap | current edge and velocity → target edge |
+| First item entered | capsule layer `opacity` | 150ms | 0 | `ease-out` | 0 → 0.55, placed on the item with no travel |
+| Pointer leaves the run | capsule layer `opacity` | 150ms | 0 | `ease-out` | 0.55 → 0 |
+| Move across `data-glide-break` | capsule layer `opacity` | 150ms out, 150ms in | 0 | `ease-out` | fades out where it is, re-places while blank, fades back in |
+| Item hovered | item `color` | 150ms | 0 | `ease-out` | `on-surface-variant` → `on-surface` |
+| Item pressed | `scale` | 150ms | 0 | `ease-out` | 1 → 0.96 |
+| Glyph hovered | tooltip `opacity` | 150ms | 300ms | `ease-out` | 0 → 1 |
+| Glyph focused | tooltip `opacity` | 150ms | 0 | `ease-out` | 0 → 1 |
+| Hover enters, reduced motion | item fill `background-color` | 120ms | 0 | `ease-out` | transparent → 55% `surface-container` |
+
+Spring constants, from `glide-spring.ts`: `GLIDE_LEAD_SPRING = { stiffness: 1100, dampingRatio: 0.9 }`, `GLIDE_TRAIL_SPRING = { stiffness: 900, dampingRatio: 0.9 }`. The runner steps them by the frame's `dt`, clamped to `GLIDE_MAX_STEP_S = 1/30`, and treats an edge as at rest under `GLIDE_REST_PX = 0.4` and `GLIDE_REST_VELOCITY = 12` px/s, then stops the rAF loop. The step is the closed-form solution of the oscillator, so the path does not depend on how the interval is split.
+
+The leading edge is whichever edge points the way the pill is travelling and gets the stiff spring; the trailing edge gets the soft one. A move from rest also holds the trailing edge for `TRAIL_HOLD_MS = 100` so the capsule stretches out of the old item before it closes. The hold is never re-armed by a retarget and is dropped when the direction reverses, so a fast sweep can never freeze the trail. Measured against the toggle's curve, a single move still peaks at the same width within a couple of pixels and settles by ~300ms.
+
+`data-glide-break` cuts the run: the capsule never stretches across the divider, so a move across it sets `data-fading` (fade out in place), re-places while blank and fades back in. `data-visible` is not touched by that, so the trace still reads "in the run" throughout. A retarget during the fade only updates the pending destination — the timer is never restarted — so a sweep cannot leave the capsule hidden; a pointer that leaves during the fade cancels the re-place.
+
+A frame writes one property: the capsule keeps the run's width and carries the pill as a `clip-path` inset, so the edges move independently while no width or other layout property changes. At rest the pill is the hovered item's box at the `--radius-md` token. Hover is gated to `(hover: hover) and (pointer: fine)`, focus is a 2px `primary` ring on the item, and Work keeps `aria-current="page"`. Reduced motion hides the capsule: the hovered item carries the 55% `surface-container` fill and crossfades it in 120ms with no travel, so the state change survives without the movement.
+
+- `src/components/home/glide-spring.ts:32` — lead spring `k=1100`, `ζ=0.9`
+- `src/components/home/glide-spring.ts:43` — trail spring `k=900`, `ζ=0.9`
+- `src/components/home/glide-spring.ts:52` — frame clamp `1/30`
+- `src/components/home/glide-spring.ts:55` — rest thresholds
+- `src/components/home/glide-spring.ts:82` — closed-form edge step (retarget keeps `v0`)
+- `src/components/home/nav-items.tsx:40` — break fade, matched to the CSS 150ms
+- `src/components/home/nav-items.tsx:45` — `TRAIL_HOLD_MS = 100`
+- `src/components/home/nav-items.tsx:90` — the one capsule runner shared by every item
+- `src/components/home/nav-items.tsx:125` — `data-glide-break` detection
+- `src/components/home/nav-items.tsx:162` — the only snap paths: entry and break re-place
+- `src/components/home/nav-items.tsx:176` — per-frame spring step and `clip-path` write
+- `src/components/home/nav-items.tsx:240` — break: fade out, re-place, fade in; timer never restarted
+- `src/components/home/nav-items.tsx:266` — pointer left the run: fade out, keep the edges
+- `src/components/home/nav-items.tsx:299` — real entry: place, no travel
+- `src/components/home/nav-items.tsx:336` — direction, hold arming, reversal
+- `src/components/home/nav-items.tsx:380` — the item run: labels, divider, glyph as the fourth target
+- `src/components/home/nav-items.css:19` — press `scale: 0.96`, 150ms `ease-out`
+- `src/components/home/nav-items.css:61` — hover weight 0.55
+- `src/components/home/nav-items.css:64` — `data-fading` blanks the capsule for a break
+- `src/components/home/nav-items.css:83` — glyph tooltip, 300ms delay
+- `src/components/home/nav-items.css:111` — reduced-motion capsule hide
+- `src/components/home/nav-items.css:119` — reduced-motion 55% fill crossfade
+
 ## Day phase row entrance — "Stagger + icons"
 
 The row is a 4-segment track (Clock · Dawn · Midday · Dusk) above the toggle. It scales out of the toggle, then the segments fade and rise left to right, then each icon settles 60ms after its own segment.
@@ -102,11 +183,12 @@ The enter/exit durations are read from `--phase-row-exit-ms` so the component an
 
 - `src/components/theme/theme-toggle.css:25` — registered `--phase-row-exit-ms` (240)
 - `src/components/theme/theme-toggle.css:36` — closed rest pose `scale(0.96)`, origin bottom right
-- `src/components/theme/theme-toggle.css:46` — 400ms enter transition, 0s visibility
-- `src/components/theme/theme-toggle.css:52` — 240ms `ease-in` exit, visibility delayed by the exit
-- `src/components/theme/theme-toggle.css:61` — 360ms segment fade/rise
-- `src/components/theme/theme-toggle.css:73` — stagger 120 / 170 / 220 / 270ms
-- `src/components/theme/theme-toggle.css:87` — segment closed pose `0 3px`
+- `src/components/theme/theme-toggle.css:41` — `--phase-enter-delay`, raised to the crossfade duration during a theme change
+- `src/components/theme/theme-toggle.css:55` — 400ms enter transition, delayed by `--phase-enter-delay`
+- `src/components/theme/theme-toggle.css:62` — 240ms `ease-in` exit, visibility delayed by the exit
+- `src/components/theme/theme-toggle.css:72` — 360ms segment fade/rise
+- `src/components/theme/theme-toggle.css:85` — stagger 120 / 170 / 220 / 270ms
+- `src/components/theme/theme-toggle.css:99` — segment closed pose `0 3px`
 - `src/components/theme/theme-toggle.css:9` — nav raise while open or exiting
 - `src/components/theme/theme-toggle.tsx:23` — `PHASE_ROW_EXIT_MS = 240` fallback
 - `src/components/theme/theme-toggle.tsx:550` — exit fallback timer, exit + 50ms
@@ -172,16 +254,18 @@ The row belongs to Day. It closes 100ms after the pointer leaves the region form
 
 ## Reduced motion
 
-One opacity fade for the whole row. No scale, no segment rise, no icon settle, no press scale.
+The theme change keeps its crossfade — a colour change is not motion — but at 150ms instead of 400ms. Everything else drops movement: one opacity fade for the whole row, no scale, no segment rise, no icon settle, no press scale.
 
 | Element | Behaviour |
 | --- | --- |
+| Theme change | same whole-page crossfade, 150ms `ease-in-out` (`--horizon-transition-duration`) |
 | Row | opacity only, 120ms `ease-out`; `transform: none`; visibility delayed by the same 120ms |
 | Selection highlight | layer hidden; the segment fill crossfades over 120ms and the label colour over 150ms |
 | Segments | no opacity or translate animation; colour always transitions over 150ms |
 | Icons | stay at rest; entrance poses and settles are inside `prefers-reduced-motion: no-preference` |
 | Hover capsule | hidden; the segment fill is the only hover feedback, following the pointer without travel |
-| Press | `scale: 1` (no 0.94 dip) |
+| Nav hover capsule | hidden; the hovered nav item carries the 55% `surface-container` fill over 120ms, no travel |
+| Press | `scale: 1` (no 0.96 dip) |
 | Frame-line spotlight | mask replaced by a whole-line opacity fade capped at 0.4 strength, 150ms |
 
 - `src/components/theme/theme-toggle.css:458` — reduced-motion highlight hide + 120ms fill

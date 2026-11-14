@@ -16,6 +16,7 @@ import type {
   Ref,
 } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
+import { isPhaseSwitching } from "@/lib/theme";
 import type { DayPhase, Mode } from "@/lib/theme";
 import "./theme-toggle.css";
 
@@ -308,11 +309,11 @@ const LEADING_DURATION = LEADING_DURATION_MS / 1000;
 const TRAILING_DURATION = TRAILING_DURATION_MS / 1000;
 const TRAILING_DELAY = TRAILING_DELAY_MS / 1000;
 
-function leadingEase(t: number): number {
+export function leadingEase(t: number): number {
   return 1 - (1 - t) ** 3;
 }
 
-function trailingEase(t: number): number {
+export function trailingEase(t: number): number {
   return 1 - (1 - t) ** 5;
 }
 
@@ -829,8 +830,12 @@ export function ThemeToggle() {
   const currentMode =
     OPTIONS.find((option) => option.mode === mode) ?? OPTIONS[2];
   const dayActive = mode === "day";
-  // The row belongs to Day: leaving Day hides it without a state effect.
-  const rowVisible = rowOpen && dayActive;
+  const nightActive = mode === "night";
+  // Night offers the row too, so Dat can pick a phase without switching first;
+  // the pick itself lands in Day. Auto has no row. A mode that loses the row
+  // hides it without a state effect.
+  const phaseRowActive = dayActive || nightActive;
+  const rowVisible = rowOpen && phaseRowActive;
   const modeIndex = Math.max(
     0,
     OPTIONS.findIndex((option) => option.mode === mode),
@@ -964,7 +969,7 @@ export function ThemeToggle() {
     };
   }, []);
 
-  // A pinned row only belongs to Day; leaving Day closes it immediately.
+  // A pinned row belongs to Day and Night; any other mode closes it at once.
   useEffect(() => {
     if (!rowVisible && closeTimer.current !== null) {
       window.clearTimeout(closeTimer.current);
@@ -1102,6 +1107,28 @@ export function ThemeToggle() {
     selected?.focus();
   }, [menuOpen]);
 
+  /** Moves keyboard focus onto the checked phase once the row can take it. */
+  function focusPhaseRow() {
+    rowRef.current
+      ?.querySelectorAll<HTMLElement>('[role="radio"]')
+      [phaseIndex]?.focus();
+  }
+
+  /**
+   * Opens the row if needed and puts focus on the checked phase. A row that is
+   * still inert cannot take focus until this commit lands, so that case waits
+   * a task.
+   */
+  function enterPhaseRow() {
+    if (rowVisible) {
+      focusPhaseRow();
+      return;
+    }
+
+    openRow();
+    window.setTimeout(focusPhaseRow, 0);
+  }
+
   function onSegmentKeyDown(
     event: KeyboardEvent<HTMLButtonElement>,
     index: number,
@@ -1112,16 +1139,39 @@ export function ThemeToggle() {
      * A forward Tab from Day has to reach the phase group even when the row
      * was closed while Day kept focus (Escape, or the pointer leaving after a
      * click). Opening during keydown runs before the browser picks the next
-     * focusable, so this same Tab lands inside the row.
+     * focusable, so in Day this same Tab lands inside the row. Night offers
+     * the row the same way, but its checked Night segment sits between Day and
+     * the row, so there the row is focused directly once it is no longer inert.
      */
     if (
       event.key === "Tab" &&
       !event.shiftKey &&
       option.mode === "day" &&
-      dayActive &&
-      !rowVisible
+      phaseRowActive
     ) {
-      openRow();
+      if (dayActive) {
+        if (!rowVisible) {
+          openRow();
+        }
+
+        return;
+      }
+
+      event.preventDefault();
+      enterPhaseRow();
+
+      return;
+    }
+
+    /*
+     * Up from Day reaches the phase group above it, matching where the row
+     * sits on screen. Night offers the same row, so it takes the same key
+     * instead of walking the mode selection back to Auto.
+     */
+    if (event.key === "ArrowUp" && option.mode === "day" && phaseRowActive) {
+      event.preventDefault();
+      enterPhaseRow();
+
       return;
     }
 
@@ -1164,6 +1214,20 @@ export function ThemeToggle() {
       [nextIndex]?.focus();
   }
 
+  /**
+   * Picking a phase lands in Day at that phase. In Night the pin is stored
+   * first while Night still ignores it, then Day applies it, so the document
+   * fades once from night straight to the chosen phase instead of detouring
+   * through the previously pinned one.
+   */
+  function chooseDayPhase(phase: DayPhase) {
+    setDayPhase(phase);
+
+    if (!dayActive) {
+      setMode("day");
+    }
+  }
+
   function onPhaseKeyDown(
     event: KeyboardEvent<HTMLButtonElement>,
     index: number,
@@ -1190,7 +1254,7 @@ export function ThemeToggle() {
     }
 
     event.preventDefault();
-    setDayPhase(PHASE_OPTIONS[nextIndex].phase);
+    chooseDayPhase(PHASE_OPTIONS[nextIndex].phase);
     event.currentTarget
       .closest('[role="radiogroup"]')
       ?.querySelectorAll<HTMLElement>('[role="radio"]')
@@ -1257,11 +1321,18 @@ export function ThemeToggle() {
   }
 
   function leaveHoverRegion() {
+    // A crossfade hides the live page from hit tests for its length; the
+    // pointer has not really left, so keep the row and let the next real
+    // pointer event decide.
+    if (isPhaseSwitching()) return;
+
     hoverRegion.current = false;
     scheduleClose();
   }
 
   function onDesktopPointerLeave() {
+    if (isPhaseSwitching()) return;
+
     hoverRegion.current = false;
 
     if (canHover()) {
@@ -1318,7 +1389,7 @@ export function ThemeToggle() {
                 label={option.label}
                 tooltip={option.tooltip}
                 glyph={option.mode}
-                tooltipBelow={dayActive}
+                tooltipBelow={dayActive || rowVisible}
                 hitArea="finger"
                 buttonRef={option.mode === "day" ? dayRef : undefined}
                 onClick={() => {
@@ -1337,7 +1408,7 @@ export function ThemeToggle() {
 
                   enterHoverRegion();
 
-                  if (dayActive) {
+                  if (phaseRowActive) {
                     openRow();
                   }
                 }}
@@ -1351,7 +1422,7 @@ export function ThemeToggle() {
 
                   if (
                     option.mode === "day" &&
-                    dayActive &&
+                    phaseRowActive &&
                     inputModality.current === "keyboard"
                   ) {
                     openRow();
@@ -1375,8 +1446,8 @@ export function ThemeToggle() {
         ) : null}
 
         {/*
-         * Day-only phase row. It opens above the toggle in the gap below the
-         * cards; absolute positioning keeps the page from moving.
+         * Phase row, shared by Day and Night. It opens above the toggle in the
+         * gap below the cards; absolute positioning keeps the page from moving.
          */}
         <SegmentTrack
           label="Day phase"
@@ -1414,7 +1485,7 @@ export function ThemeToggle() {
                 tooltip={option.tooltip}
                 glyph={dayPhaseGlyph(option.phase)}
                 hitArea="track"
-                onClick={() => setDayPhase(option.phase)}
+                onClick={() => chooseDayPhase(option.phase)}
                 onKeyDown={(event) => onPhaseKeyDown(event, index)}
               />
             );
@@ -1472,7 +1543,7 @@ export function ThemeToggle() {
                     {selected ? <CheckIcon /> : null}
                   </button>
 
-                  {option.mode === "day" && dayActive ? (
+                  {option.mode === "day" && phaseRowActive ? (
                     <div role="group" aria-label="Day phase">
                       {PHASE_OPTIONS.map((phaseOption) => {
                         const phaseSelected =
@@ -1485,7 +1556,7 @@ export function ThemeToggle() {
                             role="menuitemradio"
                             aria-checked={phaseSelected}
                             onClick={() => {
-                              setDayPhase(phaseOption.phase);
+                              chooseDayPhase(phaseOption.phase);
                               setMenuOpen(false);
                               triggerRef.current?.focus();
                             }}

@@ -43,12 +43,11 @@
 }
 
 /*
- * How far the current phase has faded towards Night, 0..1. Registered so it
- * interpolates, and transitioned on the element that carries the class: the
- * horizon surface in the CSS renderer, the canvas in the WebGL one. The shader
- * reads this same number instead of re-deriving a curve, and the CSS fallback
- * uses it to damp the intensity pulse. Duration rides the existing phase fade
- * tokens, so no new timing is introduced.
+ * How far the current phase has faded towards Night, 0..1. The shader reads
+ * this same number instead of re-deriving a curve, and the CSS fallback uses
+ * it to damp the intensity pulse. It is a plain value, not a transition: the
+ * theme change is one compositor crossfade of the whole page, so there is no
+ * per-frame interpolation for it to ride.
  */
 @property --horizon-night-blend {
   syntax: "<number>";
@@ -67,27 +66,10 @@
       (var(--horizon-night-base-intensity, 1) - var(--horizon-base-intensity, 1)) *
       var(--horizon-night-blend)
   );
-  transition: --horizon-night-blend var(--horizon-transition-duration, 400ms)
-    var(--horizon-transition-ease, ease-in-out);
 }
 
 :root[data-phase="night"] .horizon-night-scope {
   --horizon-night-blend: 1;
-}
-
-/*
- * The phase-switch rule in globals.css replaces transition-property on every
- * element for the length of the fade, which would drop the blend and snap it.
- * Put it back for the scope, at the same higher specificity, so the damping
- * follows the colours instead of jumping ahead of them.
- */
-:root[data-phase-switching] .horizon-night-scope {
-  transition-property: --horizon-night-blend;
-}
-
-/* Clock-driven switches fade over seconds, not the click duration. */
-:root[data-phase-switching="auto"] .horizon-night-scope {
-  transition-duration: var(--phase-auto-transition-duration, 4000ms);
 }
 
 /*

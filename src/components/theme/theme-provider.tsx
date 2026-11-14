@@ -76,17 +76,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   ];
 
   const setMode = useCallback((next: Mode) => {
-    applyMode(next);
     writeStoredMode(next);
-    // The theme-change listener below reschedules the boundary timer; it is the
-    // single path for mode changes, dev previews and other theme mutations, so
-    // a mode change never schedules twice.
-    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+    // applyMode applies the change as one crossfade and announces it; the
+    // theme-change listener below reschedules the boundary timer, so a mode
+    // change never schedules twice.
+    applyMode(next);
   }, []);
 
   const setDayPhase = useCallback((next: DayPhase) => {
     applyDayPhase(next);
-    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   }, []);
 
   // Auto and Day follow the clock (see phaseFor). One timer targets the next
@@ -123,13 +121,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const before = readSnapshot();
-
+      // applyMode announces a change itself (and re-runs the boundary timer
+      // through the listener below), so this only has to keep the clock in
+      // sync and schedule the next check.
       applyMode(currentMode(), new Date(), "auto");
-
-      if (readSnapshot() !== before) {
-        window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
-      }
 
       schedule();
     }
