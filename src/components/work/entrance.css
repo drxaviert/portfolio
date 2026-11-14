@@ -1,33 +1,28 @@
 /*
- * T9 comparison only: three content entrances for the reader, chosen at
- * runtime with `?entrance=a|b|c` (entrance-script.ts puts the value on <html>
- * before paint). Without the parameter the reader keeps the 240ms column fade
- * it shipped with.
+ * The reader's content entrance: a cascade (Dat's pick from the T9 comparison).
  *
- *   a  cascade    the header block, then the body blocks 40-45ms apart, the
- *                 last five sharing the sixth item's delay
- *   b  title-led  the title is already there; the rest of the column rises as
- *                 one group 90ms later
- *   c  soft       the whole column resolves out of a 4px blur, no stagger
+ * The title is the first step on its own; the subtitle and meta follow as one
+ * block, then each body block 40-45ms apart, capped so nothing waits behind
+ * the sixth step. The drawer releases the cascade 120ms before the panel's
+ * morph lands (use-morph's reveal) and the title clone is gone by then, so the
+ * title's first appearance is step 0. A direct load runs the same animation
+ * from mount, so the column never flashes untransformed.
  *
- * All three start 120ms before the morph ends (use-morph's reveal) and total
- * 415ms / 330ms / 320ms. They animate opacity, transform and (for c) a small
- * filter, and end on `none` so no containing block survives the entrance.
- * A direct load runs the same animation from mount, so the column never flashes
- * untransformed. Reduced motion drops every variant for one 120ms opacity pass.
+ * Items animate opacity and a translateY(8px) on the entrance curve, ending on
+ * `none` so no transform survives the entrance. Reduced motion replaces the
+ * cascade with one 120ms ease-out opacity pass on the scroll column, title
+ * included, no stagger.
  */
 
 .wd-reader-panel {
   --wd-enter-ease: cubic-bezier(0.23, 1, 0.32, 1);
   --wd-enter-item: 220ms var(--wd-enter-ease);
-  --wd-enter-group: 240ms var(--wd-enter-ease);
-  --wd-enter-column: 320ms var(--wd-enter-ease);
   --wd-fade-reduced: 120ms ease-out;
 }
 
 /* The scroll column is invisible for the whole morph, then joins the content
-   entrance: instantly for the variants (their own items animate), over 240ms
-   for the default. `closing` always wins over a reveal that already happened. */
+   entrance: instantly, because the items below animate on their own. `closing`
+   always wins over a reveal that already happened. */
 .wd-expand-layer[data-reveal="pending"] .wd-reader-scroll {
   opacity: 0;
   transition: none;
@@ -36,12 +31,6 @@
 .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
   .wd-reader-scroll {
   opacity: 1;
-}
-
-html:not([data-entrance])
-  .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
-  .wd-reader-scroll {
-  transition: opacity var(--wd-content-in);
 }
 
 @keyframes wd-enter-rise {
@@ -55,135 +44,76 @@ html:not([data-entrance])
   }
 }
 
-@keyframes wd-soft-reveal {
-  0% {
-    opacity: 0;
-    filter: blur(4px);
-  }
-  /* Hold most of the blur past the point the shared entrance curve has already
-     finished the opacity, or the softness reads as a plain fade. */
-  45% {
-    opacity: 0.92;
-    filter: blur(2px);
-  }
-  100% {
-    opacity: 1;
-    filter: none;
-  }
-}
-
-/* ---------------------------------------------------------- a: cascade --- */
+/* --------------------------------------------------------------- cascade -- */
 
 /*
- * The header is split: the title is the cascade's first step on its own, then
- * the subtitle and meta as one block, then each body block. The prose ladder
- * keeps its old steps, shifted one place down (85/125/160/190/195), so the
- * whole cascade still ends at 195 + 220 = 415ms.
+ * 0  title       .wd-intro-title
+ * 1  header      .wd-intro-subtitle, .wd-intro-meta
+ * 2-6 body       .wd-prose > *, 85 / 125 / 160 / 190ms, capped at 195ms
+ *
+ * 195 + 220 = 415ms total, one stagger step shorter than the T9 A variant
+ * (which started the whole header block at 0 and ran 415ms with a 6th-item
+ * cap). The cap keeps the total from growing as blocks are added.
  */
-html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro-title,
-html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro-subtitle,
-html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro-meta,
-html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-prose > *,
-html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro-title,
-html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro-subtitle,
-html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro-meta,
-html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-prose > * {
+.wd-reader-panel[data-mode="page"]
+  :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
+.wd-expand-layer[data-reveal="on"]
+  :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *) {
   animation: wd-enter-rise var(--wd-enter-item) both;
   animation-delay: var(--wd-enter-delay, 0ms);
 }
 
-html[data-entrance="a"] .wd-intro-title {
+.wd-intro-title {
   --wd-enter-delay: 0ms;
 }
 
-html[data-entrance="a"] .wd-intro-subtitle,
-html[data-entrance="a"] .wd-intro-meta {
+.wd-intro-subtitle,
+.wd-intro-meta {
   --wd-enter-delay: 40ms;
 }
 
-html[data-entrance="a"] .wd-prose > *:nth-child(1) {
+.wd-prose > *:nth-child(1) {
   --wd-enter-delay: 85ms;
 }
 
-html[data-entrance="a"] .wd-prose > *:nth-child(2) {
+.wd-prose > *:nth-child(2) {
   --wd-enter-delay: 125ms;
 }
 
-html[data-entrance="a"] .wd-prose > *:nth-child(3) {
+.wd-prose > *:nth-child(3) {
   --wd-enter-delay: 160ms;
 }
 
-html[data-entrance="a"] .wd-prose > *:nth-child(4) {
+.wd-prose > *:nth-child(4) {
   --wd-enter-delay: 190ms;
 }
 
 /* Cap the stagger: everything from the fifth block arrives with the fourth. */
-html[data-entrance="a"] .wd-prose > *:nth-child(n + 5) {
+.wd-prose > *:nth-child(n + 5) {
   --wd-enter-delay: 195ms;
 }
 
-/* --------------------------------------------------------- b: title-led --- */
-
-html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-intro-subtitle,
-html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-intro-meta,
-html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-prose,
-html[data-entrance="b"] .wd-expand-layer[data-reveal="on"] .wd-intro-subtitle,
-html[data-entrance="b"] .wd-expand-layer[data-reveal="on"] .wd-intro-meta,
-html[data-entrance="b"] .wd-expand-layer[data-reveal="on"] .wd-prose {
-  animation: wd-enter-rise var(--wd-enter-group) both;
-  animation-delay: 90ms;
-}
-
-/* -------------------------------------------------------- c: soft reveal -- */
-
-html[data-entrance="c"] .wd-reader-panel[data-mode="page"] .wd-reader-column,
-html[data-entrance="c"] .wd-expand-layer[data-reveal="on"] .wd-reader-column {
-  animation: wd-soft-reveal var(--wd-enter-column) both;
-}
-
-/* Reduced motion keeps the fade and drops the choreography: one 120ms opacity
-   pass on the scroll column, no stagger, no transforms, no filter. The
-   selectors repeat the ones above so they outrank them. */
+/* Reduced motion keeps the state change and drops the choreography: one 120ms
+   opacity pass on the scroll column, no per-item animation, no transforms. */
 @media (prefers-reduced-motion: reduce) {
-  html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro-title,
-  html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro-subtitle,
-  html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro-meta,
-  html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-prose > *,
-  html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro-title,
-  html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro-subtitle,
-  html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro-meta,
-  html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-prose > *,
-  html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-intro-subtitle,
-  html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-intro-meta,
-  html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-prose,
-  html[data-entrance="b"] .wd-expand-layer[data-reveal="on"] .wd-intro-subtitle,
-  html[data-entrance="b"] .wd-expand-layer[data-reveal="on"] .wd-intro-meta,
-  html[data-entrance="b"] .wd-expand-layer[data-reveal="on"] .wd-prose,
-  html[data-entrance="c"] .wd-reader-panel[data-mode="page"] .wd-reader-column,
-  html[data-entrance="c"] .wd-expand-layer[data-reveal="on"] .wd-reader-column {
+  .wd-reader-panel[data-mode="page"]
+    :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
+  .wd-expand-layer[data-reveal="on"]
+    :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *) {
     animation: none;
   }
 
-  html[data-entrance] .wd-reader-panel[data-mode="page"] .wd-reader-scroll {
+  .wd-reader-panel[data-mode="page"] .wd-reader-scroll {
     transition: opacity var(--wd-fade-reduced);
   }
 
-  html[data-entrance]
-    .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
-    .wd-reader-scroll {
-    transition: opacity var(--wd-fade-reduced);
-  }
-
-  /* The default entrance is the same 240ms column fade; reduced motion keeps
-     it opacity-only at 120ms. */
-  html:not([data-entrance])
-    .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
+  .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
     .wd-reader-scroll {
     transition: opacity var(--wd-fade-reduced);
   }
 
   @starting-style {
-    html[data-entrance] .wd-reader-panel[data-mode="page"] .wd-reader-scroll {
+    .wd-reader-panel[data-mode="page"] .wd-reader-scroll {
       opacity: 0;
     }
   }

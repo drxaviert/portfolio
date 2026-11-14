@@ -28,9 +28,6 @@ describe("drawer motion values", () => {
   it("pins the backdrop and content fades by name", () => {
     expect(shell).toMatch(/--wd-backdrop-in: 320ms ease-out;/);
     expect(shell).toMatch(/--wd-backdrop-out: 240ms ease-in;/);
-    expect(shell).toMatch(
-      /--wd-content-in: 240ms cubic-bezier\(0\.23, 1, 0\.32, 1\);/,
-    );
     expect(shell).toMatch(/--wd-content-out: 140ms ease-in;/);
 
     expect(shell).toContain(
@@ -72,7 +69,7 @@ describe("drawer motion values", () => {
     expect(entrance).toMatch(/--wd-enter-item: 220ms var\(--wd-enter-ease\);/);
     expect(entrance).toMatch(/\.wd-intro-title \{\s*--wd-enter-delay: 0ms;/);
     expect(entrance).toMatch(
-      /\.wd-intro-subtitle,\s*html\[[^\]]*\] \.wd-intro-meta \{\s*--wd-enter-delay: 40ms;/,
+      /\.wd-intro-subtitle,\s*\.wd-intro-meta \{\s*--wd-enter-delay: 40ms;/,
     );
     expect(entrance).toMatch(
       /\.wd-prose > \*:nth-child\(1\) \{\s*--wd-enter-delay: 85ms;/,

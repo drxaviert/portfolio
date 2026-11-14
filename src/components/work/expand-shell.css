@@ -11,13 +11,12 @@
    *
    *   backdrop in   320ms ease-out   (entrance curve as ease-out)
    *   backdrop out  240ms ease-in
-   *   content in    240ms cubic-bezier(0.23, 1, 0.32, 1)
-   *   content out   140ms ease-in
+   *   content out   140ms ease-in    (the entrance itself is the cascade in
+   *                                   entrance.css)
    *   reduced       120ms ease-out   (opacity only, no transforms)
    */
   --wd-backdrop-in: 320ms ease-out;
   --wd-backdrop-out: 240ms ease-in;
-  --wd-content-in: 240ms cubic-bezier(0.23, 1, 0.32, 1);
   --wd-content-out: 140ms ease-in;
   --wd-fade-reduced: 120ms ease-out;
 
