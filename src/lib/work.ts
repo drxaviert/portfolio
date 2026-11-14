@@ -84,3 +84,9 @@ export function listWork(): WorkMeta[] {
 export function getWork(slug: string): WorkMeta | null {
   return isWorkSlug(slug) ? readWork(slug) : null;
 }
+
+/** The study after `slug` in reading order; the last one wraps to the first. */
+export function nextWork(slug: string): WorkMeta {
+  const index = isWorkSlug(slug) ? WORK_ORDER.indexOf(slug) : -1;
+  return readWork(WORK_ORDER[(index + 1) % WORK_ORDER.length]);
+}

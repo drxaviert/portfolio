@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FEATURED_SLUG, getWork, listWork } from "./work";
+import { FEATURED_SLUG, getWork, listWork, nextWork } from "./work";
 
 const COVERS = ["tiles", "window", "phone"];
 
@@ -30,6 +30,16 @@ describe("getWork", () => {
 
   it("returns null for an unknown slug", () => {
     expect(getWork("nope")).toBeNull();
+  });
+});
+
+describe("nextWork", () => {
+  it("returns the following study in reading order", () => {
+    expect(nextWork("systems-in-motion").slug).toBe("title-sequence");
+  });
+
+  it("wraps from the last study back to the first", () => {
+    expect(nextWork("type-in-motion").slug).toBe("systems-in-motion");
   });
 });
 

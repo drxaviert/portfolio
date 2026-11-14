@@ -1,0 +1,523 @@
+/*
+ * The Margin reader: one fixed panel, one scroll container, a 550px measure
+ * with notes and captions in the right margin from 1024px up, and 880px
+ * figure breakouts from 768px up.
+ *
+ * Geometry is CSS only. Container query units on the scroll container size the
+ * breakouts, so they account for the panel inset and the scrollbar gutter
+ * without any JavaScript measurement.
+ */
+
+.wd-reader-panel {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+}
+
+@media (min-width: 768px) {
+  .wd-reader-panel {
+    inset: 16px;
+    border-radius: 12px;
+    box-shadow:
+      var(--shadow-card),
+      0 30px 70px -30px rgb(0 0 0 / 0.45);
+  }
+}
+
+.wd-reader-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  container-type: inline-size;
+}
+
+.wd-reader-column {
+  width: 100%;
+  max-width: 582px; /* 550px measure + 2 × 16px gutters */
+  margin-inline: auto;
+  padding: 16px 16px 64px;
+}
+
+@media (min-width: 768px) {
+  .wd-reader-column {
+    padding-top: 24px;
+  }
+}
+
+/* Anchors the margin notes and the wide breakouts without pixel geometry. */
+.wd-reader-main {
+  position: relative;
+}
+
+/* The left margin rail: empty here, filled by the "← Work" and "↑ Top" items. */
+.wd-rail {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .wd-rail {
+    display: block;
+    position: absolute;
+    inset-block: 0;
+    right: calc(100% + 20px);
+    width: 170px;
+  }
+}
+
+/* ----------------------------------------------------------------- hero ---- */
+
+.wd-hero {
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  background: var(--surface-container);
+}
+
+/* ---------------------------------------------------------------- intro ---- */
+
+.wd-intro {
+  margin-top: 28px;
+}
+
+.wd-kicker {
+  margin: 0;
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.wd-intro-title {
+  margin: 0;
+}
+
+.wd-intro-subtitle {
+  margin: 14px 0 0;
+  color: var(--on-surface);
+  font-size: 16px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.wd-intro-meta {
+  margin: 14px 0 0;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ----------------------------------------------------------------- text ---- */
+
+.wd-prose {
+  display: flow-root;
+}
+
+.wd-p {
+  margin: 14px 0 0;
+  color: var(--on-surface-variant);
+  font-size: 14px;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.wd-h2 {
+  margin: 44px 0 0;
+  color: var(--on-surface);
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+.wd-h2 + .wd-p {
+  margin-top: 10px;
+}
+
+.wd-link {
+  color: var(--on-surface);
+  text-decoration: underline;
+  text-decoration-color: var(--outline);
+  text-decoration-thickness: from-font;
+  text-underline-offset: 2px;
+}
+
+.wd-link:hover {
+  text-decoration-color: var(--on-surface);
+}
+
+/* ---------------------------------------------------------------- media ---- */
+
+.wd-media {
+  background: var(--surface-container-highest);
+  border-radius: 12px;
+}
+
+.wd-fig {
+  position: relative;
+  margin: 24px 0 0;
+}
+
+.wd-fig > .wd-media {
+  width: 100%;
+}
+
+.wd-caption {
+  margin: 8px 0 0;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* Captions become sidenotes at 1024px and up. */
+@media (min-width: 1024px) {
+  .wd-caption-margin {
+    position: absolute;
+    top: 4px;
+    left: calc(100% + 20px);
+    width: 170px;
+    margin: 0;
+  }
+}
+
+/* Two figures break the column out to 880px on a wide enough panel. */
+@media (min-width: 768px) {
+  .wd-fig-wide {
+    left: 50%;
+    width: min(880px, 100cqi - 96px);
+    translate: -50% 0;
+  }
+}
+
+/* --------------------------------------------------------- margin notes ---- */
+
+/* `<Note>` in the body: an anchor that takes no height once the note sits in
+   the margin, so the note lands beside the paragraph it belongs to. */
+.wd-note {
+  margin-top: 12px;
+}
+
+.wd-note-block {
+  position: relative;
+  margin-top: 14px;
+}
+
+.wd-note-block .wd-p {
+  margin: 0;
+}
+
+.wd-margin-note {
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.42;
+  text-wrap: pretty;
+}
+
+.wd-note-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.wd-margin-note:focus-visible,
+.wd-notes li:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (min-width: 1024px) {
+  .wd-note {
+    position: relative;
+    height: 0;
+    margin: 0;
+  }
+
+  .wd-margin-note {
+    position: absolute;
+    top: 2px;
+    left: calc(100% + 20px);
+    width: 170px;
+    margin: 0;
+  }
+}
+
+/* ------------------------------------------------------------ footnotes ---- */
+
+.wd-fnref {
+  margin-left: 1px;
+  font-size: 9px;
+  line-height: 0;
+  vertical-align: super;
+}
+
+.wd-fnref a {
+  color: var(--on-surface);
+  text-decoration: underline;
+  text-decoration-color: var(--outline);
+  text-underline-offset: 2px;
+  scroll-margin-top: 24px;
+}
+
+.wd-fnref a:hover {
+  text-decoration-color: var(--on-surface);
+}
+
+.wd-fnref a:focus-visible,
+.wd-backlink:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.wd-backlink {
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  text-decoration: underline;
+  text-decoration-color: var(--outline);
+  text-underline-offset: 2px;
+}
+
+.wd-backlink:hover {
+  color: var(--on-surface);
+  text-decoration-color: var(--on-surface);
+}
+
+.wd-notes {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--outline-variant);
+}
+
+.wd-notes ol {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wd-notes li {
+  margin: 8px 0 0;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.42;
+  scroll-margin-top: 24px;
+}
+
+/* ---------------------------------------------------------------- brief ---- */
+
+.wd-brief {
+  margin: 28px 0 0;
+}
+
+.wd-brief figcaption {
+  margin: 0 0 8px;
+}
+
+.wd-brief pre {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  border-radius: 12px;
+  background: var(--surface-container);
+  color: var(--on-surface);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* ---------------------------------------------------------------- table ---- */
+
+.wd-table-fig {
+  margin: 28px 0 0;
+}
+
+.wd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.46;
+}
+
+.wd-table caption {
+  margin: 0 0 8px;
+  text-align: left;
+}
+
+.wd-table th,
+.wd-table td {
+  padding: 10px 0;
+  text-align: left;
+  vertical-align: top;
+  border-top: 1px solid var(--outline-variant);
+}
+
+.wd-table thead th {
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wd-table tbody th {
+  width: 42%;
+  padding-right: 16px;
+  color: var(--on-surface);
+  font-weight: 500;
+}
+
+.wd-table td {
+  color: var(--on-surface-variant);
+}
+
+.wd-table tbody tr:last-child th,
+.wd-table tbody tr:last-child td {
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+/* ---------------------------------------------------------- step figure ---- */
+
+.wd-step {
+  margin: 32px 0 0;
+}
+
+.wd-step-panel {
+  position: relative;
+}
+
+.wd-step-media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.wd-step-bar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.wd-step-tabs {
+  display: flex;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.wd-step-tab {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+}
+
+.wd-step-tab[aria-selected="true"] {
+  background: var(--on-surface);
+  color: var(--surface-container-low);
+}
+
+.wd-step-tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.wd-step-replay {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-size: 11px;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.wd-step-replay:hover {
+  color: var(--on-surface);
+}
+
+.wd-step-replay:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.wd-step-panel .wd-caption {
+  margin-top: 8px;
+}
+
+/* -------------------------------------------------------- contact sheet ---- */
+
+.wd-contact {
+  margin: 32px 0 0;
+}
+
+.wd-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.wd-contact-grid .wd-media {
+  aspect-ratio: 4 / 3;
+}
+
+@media (max-width: 559px) {
+  .wd-contact-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ----------------------------------------------------------- next link ---- */
+
+.wd-nextlink {
+  margin-top: 56px;
+  padding-top: 20px;
+  border-top: 1px solid var(--outline-variant);
+}
+
+.wd-nextlink-link {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+  color: var(--on-surface);
+  font-size: 16px;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.wd-nextlink-link span:last-child {
+  flex-shrink: 0;
+  color: var(--on-surface-variant);
+}
+
+.wd-nextlink-link:hover span:first-child {
+  text-decoration: underline;
+  text-decoration-thickness: from-font;
+  text-underline-offset: 3px;
+}
+
+.wd-nextlink-link:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
