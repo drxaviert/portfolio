@@ -122,6 +122,7 @@
 }
 
 .wd-reader-column {
+  position: relative;
   width: 100%;
   max-width: 582px; /* 550px measure + 2 × 16px gutters */
   margin-inline: auto;
@@ -137,11 +138,14 @@
 /* ------------------------------------------------------------ ways back ---- */
 
 /*
- * The left margin rail from 1024px: "← Work" held under the nav, "↑ Top" near
- * the foot of the panel. Both use the margin notes' type and neither has a
- * surface, so the rail reads as a note beside the article rather than as
- * chrome. Each item is sticky inside the rail, whose height is the article's
- * own, so they hold their place against the reader's one scroll container.
+ * The left margin rail from 1024px: "← Work" pinned under the nav for the whole
+ * scroll, "↑ Top" near the foot of the panel. Both use the margin notes' type
+ * and neither has a surface, so the rail reads as a note beside the article
+ * rather than as chrome.
+ *
+ * The rail is the column's own box, so its sticky child starts at the top of
+ * the scroll area (not at the article below the cover, where "← Work" used to
+ * scroll away with the title) and holds there until the article ends.
  */
 .wd-rail {
   display: none;
@@ -157,7 +161,8 @@
        would otherwise paint over the rail's label and its click target. */
     z-index: 1;
     inset-block: 0;
-    right: calc(100% + 20px);
+    /* 20px left of the 550px measure; the column's box adds its 16px gutter. */
+    right: calc(100% + 4px);
     width: 170px;
   }
 }

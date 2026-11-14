@@ -72,6 +72,17 @@ describe("reader overlay", () => {
     expect(dialog).toHaveAttribute("aria-labelledby", READER_TITLE_ID);
   });
 
+  it("anchors the ways-back rail to the whole column", () => {
+    renderReader(<p>Case-study body</p>);
+
+    const rail = document.querySelector<HTMLElement>(".wd-rail");
+    const column = document.querySelector<HTMLElement>(".wd-reader-column");
+
+    // The rail must start at the top of the scroll area, not below the cover,
+    // or "← Work" cannot pin there on the first paint.
+    expect(rail?.parentElement).toBe(column);
+  });
+
   it("keeps the homepage nav inside the dialog", () => {
     renderReader(<p>Case-study body</p>);
 

@@ -48,13 +48,17 @@ export function Reader({ meta, children, mode }: ReaderProps) {
 
       <div id={READER_SCROLL_ID} className="wd-reader-scroll">
         <div className="wd-reader-column">
+          {/* The rail is anchored to the whole column, not to the article
+              below the cover: "← Work" pins to the scroll area's top from the
+              first paint, and the rail still spans the full article for the
+              foot's "↑ Top". */}
+          <div className="wd-rail">
+            <ReaderRail />
+          </div>
+
           <Hero scene={meta.cover} />
 
           <div className="wd-reader-main">
-            <div className="wd-rail">
-              <ReaderRail />
-            </div>
-
             <Intro meta={meta} />
 
             <div className="wd-prose">{children}</div>
