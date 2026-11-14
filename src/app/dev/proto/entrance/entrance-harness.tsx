@@ -1,36 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EntranceVariant } from "@/components/home/entrance-cell";
 import { HomeLayout } from "@/components/home/home-layout";
+import {
+  BUDGET_MS,
+  CONTROLS,
+  DEFAULT_EASING,
+  DEFAULT_SETTINGS,
+  EASINGS,
+  copyBlock,
+  cssVars,
+  formatValue,
+  patch,
+  resetVariant,
+  totalMs,
+  valueOf,
+} from "./settings";
+import type { Control, Settings } from "./settings";
 import { PANEL_CSS } from "./panel-css";
 
-const VARIANTS: {
-  id: EntranceVariant;
-  label: string;
-  timing: string;
-}[] = [
-  {
-    id: "scale",
-    label: "Scale + blur",
-    timing: "0–660ms · 50ms stagger · 360ms each · scale 0.96 · blur 6px",
-  },
-  {
-    id: "rise",
-    label: "Rise",
-    timing: "0–500ms · rows at 0 / 60 / 120ms · 380ms each · 8px lift",
-  },
-  {
-    id: "ring",
-    label: "Ring reveal",
-    timing: "0–620ms · 40ms stagger · edge 380ms · fill at +80ms",
-  },
-  {
-    id: "sky",
-    label: "Sky first",
-    timing: "glow 0–300ms · cards 120–696ms · 36ms stagger · blur 4px",
-  },
+const VARIANTS: { id: EntranceVariant; label: string }[] = [
+  { id: "scale", label: "Scale + blur" },
+  { id: "rise", label: "Rise" },
+  { id: "ring", label: "Ring reveal" },
+  { id: "sky", label: "Sky first" },
 ];
+
+/** Input settles for this long before the entrance replays. */
+const REPLAY_DEBOUNCE_MS = 250;
 
 /**
  * Module scope survives client-side navigation in the same tab, so coming
@@ -46,40 +44,191 @@ export function EntranceHarness() {
     playedThisLoad ? null : "scale",
   );
   const [take, setTake] = useState(0);
+  const [resetToken, setResetToken] = useState(0);
+  const [easing, setEasing] = useState<string>(DEFAULT_EASING);
   const [open, setOpen] = useState(true);
+  const [reduced, setReduced] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
+
+  // Mutable, not state: a drag must not re-render the React tree. `saved` is
+  // the commit-time mirror the inputs mount from (variant switch, reset).
+  const settingsRef = useRef<Settings>(DEFAULT_SETTINGS);
+  const [saved, setSaved] = useState<Settings>(DEFAULT_SETTINGS);
+  const scopeRef = useRef<HTMLDivElement | null>(null);
+  const valueRefs = useRef<Record<string, HTMLSpanElement | null>>({});
+  const totalRef = useRef<HTMLElement | null>(null);
+  const replayTimer = useRef<number | null>(null);
+  const copyTimer = useRef<number | null>(null);
 
   useEffect(() => {
     playedThisLoad = true;
+
+    return () => {
+      if (replayTimer.current !== null)
+        window.clearTimeout(replayTimer.current);
+      if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
+    };
   }, []);
 
-  function play(next: EntranceVariant) {
-    setVariant(next);
+  // The panel says so when the OS asks for reduced motion; the stylesheet
+  // already forces the 120ms fade on its own.
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduced(query.matches);
+
+    sync();
+    query.addEventListener("change", sync);
+
+    return () => query.removeEventListener("change", sync);
+  }, []);
+
+  /** Writes the whole variant's tuning to the stable wrapper, in place. */
+  const writeVars = useCallback(
+    (nextVariant: EntranceVariant, settings: Settings, nextEasing: string) => {
+      const root = scopeRef.current;
+
+      if (!root) return;
+
+      for (const [name, value] of Object.entries(
+        cssVars(nextVariant, settings, nextEasing),
+      )) {
+        root.style.setProperty(name, value);
+      }
+    },
+    [],
+  );
+
+  function replay(next: EntranceVariant = variant) {
     setPlaying(next);
     // A new key remounts HomeLayout, which restarts the CSS animations.
     setTake((value) => value + 1);
   }
 
-  const active = VARIANTS.find((entry) => entry.id === variant) ?? VARIANTS[0];
+  function scheduleReplay() {
+    if (replayTimer.current !== null) window.clearTimeout(replayTimer.current);
+
+    replayTimer.current = window.setTimeout(() => {
+      replayTimer.current = null;
+      replay();
+    }, REPLAY_DEBOUNCE_MS);
+  }
+
+  function updateTotal() {
+    const readout = totalRef.current;
+
+    if (!readout) return;
+
+    paintTotal(readout);
+  }
+
+  /**
+   * The total is written straight into a node React renders empty, so a drag
+   * never goes through a re-render. A ref callback repaints it on every commit
+   * (variant switch, reset), which keeps React from owning the text node.
+   */
+  function paintTotal(element: HTMLElement) {
+    const total = totalMs(variant, settingsRef.current);
+
+    element.textContent = `${total} ms`;
+
+    if (total > BUDGET_MS) element.dataset.over = "true";
+    else delete element.dataset.over;
+  }
+
+  function handleInput(control: Control, raw: string) {
+    const value = Number(raw);
+
+    settingsRef.current = patch(
+      settingsRef.current,
+      variant,
+      control.key,
+      value,
+    );
+    writeVars(variant, settingsRef.current, easing);
+
+    const readout = valueRefs.current[control.key];
+
+    if (readout) readout.textContent = formatValue(control, value);
+
+    updateTotal();
+    scheduleReplay();
+  }
+
+  function choose(next: EntranceVariant) {
+    if (replayTimer.current !== null) {
+      window.clearTimeout(replayTimer.current);
+      replayTimer.current = null;
+    }
+
+    // Some variants share a wrapper with the previous one; write this
+    // variant's saved tuning before the remount reads it.
+    writeVars(next, settingsRef.current, easing);
+    setSaved(settingsRef.current);
+    setVariant(next);
+    replay(next);
+  }
+
+  function reset() {
+    settingsRef.current = resetVariant(settingsRef.current, variant);
+    writeVars(variant, settingsRef.current, easing);
+    setSaved(settingsRef.current);
+    setResetToken((value) => value + 1);
+    replay();
+  }
+
+  function changeEasing(value: string) {
+    setEasing(value);
+    writeVars(variant, settingsRef.current, value);
+    scheduleReplay();
+  }
+
+  async function copyValues() {
+    const text = copyBlock(
+      variant,
+      settingsRef.current,
+      easing,
+      totalMs(variant, settingsRef.current),
+    );
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+
+    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
+
+    copyTimer.current = window.setTimeout(() => setCopyState("idle"), 1600);
+  }
+
+  const controls = CONTROLS[variant];
 
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: PANEL_CSS }} />
 
-      <HomeLayout key={take} entrance={playing ?? undefined} />
+      {/* Stable wrapper: the panel writes the CSS vars here, so a remount of
+          HomeLayout never loses the tuning. */}
+      <div className="entrance-scope" ref={scopeRef}>
+        <HomeLayout key={take} entrance={playing ?? undefined} />
+      </div>
 
       <aside
-        className="en-panel"
+        className="ent-panel"
         data-open={open ? "true" : "false"}
         aria-label="Entrance controls"
       >
-        <header className="en-panel-head">
+        <header className="ent-panel-head">
           <div>
-            <p className="en-panel-title">Home entrance</p>
-            <p className="en-panel-axis">page load · throwaway</p>
+            <p className="ent-panel-title">Home entrance</p>
+            <p className="ent-panel-axis">page load · throwaway</p>
           </div>
           <button
             type="button"
-            className="en-panel-toggle"
+            className="ent-panel-toggle"
             aria-expanded={open}
             aria-label={open ? "Hide controls" : "Show controls"}
             onClick={() => setOpen((value) => !value)}
@@ -89,9 +238,9 @@ export function EntranceHarness() {
         </header>
 
         {open ? (
-          <div className="en-panel-body">
+          <div className="ent-panel-body">
             <div
-              className="en-panel-variants"
+              className="ent-panel-variants"
               role="group"
               aria-label="Entrance variant"
             >
@@ -99,28 +248,130 @@ export function EntranceHarness() {
                 <button
                   key={entry.id}
                   type="button"
-                  className="en-panel-variant"
+                  className="ent-panel-variant"
                   data-active={variant === entry.id ? "" : undefined}
                   aria-pressed={variant === entry.id}
-                  onClick={() => play(entry.id)}
+                  onClick={() => choose(entry.id)}
                 >
                   {entry.label}
                 </button>
               ))}
             </div>
 
-            <button
-              type="button"
-              className="en-panel-replay"
-              onClick={() => play(variant)}
-            >
-              Replay
-            </button>
+            <label className="ent-panel-easing" htmlFor="ent-easing">
+              <span>Easing</span>
+              <select
+                id="ent-easing"
+                value={easing}
+                onChange={(event) => changeEasing(event.target.value)}
+              >
+                {EASINGS.map((option) => (
+                  <option key={option.id} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-            <p className="en-panel-timing">{active.timing}</p>
-            <p className="en-panel-hint">
-              Runs once per load; leaving and returning to this route does not
-              replay it.
+            <div className="ent-panel-controls">
+              {controls.map((control) => {
+                const value = valueOf(saved, variant, control.key);
+                const id = `ent-${variant}-${control.key}`;
+
+                return (
+                  <div
+                    className="ent-control"
+                    key={`${variant}-${resetToken}-${control.key}`}
+                  >
+                    <label className="ent-control-label" htmlFor={id}>
+                      {control.label}
+                    </label>
+                    <output className="ent-control-value" htmlFor={id}>
+                      <span
+                        ref={(element) => {
+                          valueRefs.current[control.key] = element;
+
+                          if (element) {
+                            element.textContent = formatValue(
+                              control,
+                              valueOf(
+                                settingsRef.current,
+                                variant,
+                                control.key,
+                              ),
+                            );
+                          }
+                        }}
+                      />
+                    </output>
+                    <input
+                      id={id}
+                      type="range"
+                      min={control.min}
+                      max={control.max}
+                      step={control.step}
+                      defaultValue={value}
+                      onInput={(event) =>
+                        handleInput(control, event.currentTarget.value)
+                      }
+                      onPointerUp={scheduleReplay}
+                      onKeyUp={scheduleReplay}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="ent-panel-total">
+              <span>Settles by</span>
+              <strong
+                ref={(element) => {
+                  totalRef.current = element;
+
+                  if (element) paintTotal(element);
+                }}
+              />
+              <span className="ent-panel-budget">{BUDGET_MS} ms budget</span>
+            </p>
+
+            {reduced ? (
+              <p className="ent-panel-note">
+                Reduced motion is on: the entrance runs as one 120 ms opacity
+                fade, so these values are not applied.
+              </p>
+            ) : null}
+
+            <div className="ent-panel-actions">
+              <button
+                type="button"
+                className="ent-panel-replay"
+                onClick={() => replay()}
+              >
+                Replay
+              </button>
+              <button
+                type="button"
+                className="ent-panel-button"
+                onClick={reset}
+              >
+                Reset to defaults
+              </button>
+              <button
+                type="button"
+                className="ent-panel-button"
+                onClick={copyValues}
+              >
+                {copyState === "copied"
+                  ? "Copied"
+                  : copyState === "failed"
+                    ? "Copy failed"
+                    : "Copy values"}
+              </button>
+            </div>
+
+            <p className="ent-panel-hint">
+              Drag to tune; the entrance replays 250 ms after you stop. Runs
+              once per load.
             </p>
           </div>
         ) : null}

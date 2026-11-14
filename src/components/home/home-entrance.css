@@ -5,6 +5,11 @@
  * [data-entrance], an attribute HomeLayout only renders when the prototype
  * passes a variant, so nothing here can reach the production page.
  *
+ * Every number is a CSS custom property set on the stable `.entrance-scope`
+ * wrapper by the tuning panel (see settings.ts). Dragging a slider writes one
+ * property and repaints; React never re-renders the layout. The block below is
+ * the shipped 76f8961 tuning, used until the panel writes over it.
+ *
  * Shared numbers
  *   curve      cubic-bezier(0.23, 1, 0.32, 1)  (docs/design-system/motion.md)
  *   per item   ~360ms
@@ -13,7 +18,7 @@
  * Variant timings (item = reading order: tracker, play, project, 3 slivers, nav)
  *   scale  items 0/50/100/150/200/250/300ms, 360ms each        → ends 660ms
  *   rise   rows at 0/60/120ms, 380ms each                      → ends 500ms
- *   ring   edge at item*40ms (380ms), fill at +80ms (240ms)    → ends 620ms
+ *   ring   edge at item*40ms, fill at +80ms                    → ends 620ms
  *   sky    glow 0-300ms, cards 120 + item*36ms, 360ms each     → ends 696ms
  *
  * Fill mode is `backwards`, not `both`. Backwards still paints the from-state
@@ -28,8 +33,32 @@
  * Reduced motion replaces all of it with one 120ms opacity fade.
  */
 
-[data-entrance] {
+.entrance-scope {
   --entrance-ease: cubic-bezier(0.23, 1, 0.32, 1);
+
+  --scale-from: 0.96;
+  --scale-blur: 6px;
+  --scale-duration: 360ms;
+  --scale-stagger: 50ms;
+
+  --rise-distance: 8px;
+  --rise-duration: 380ms;
+  --rise-stagger: 60ms;
+
+  /* 380ms edge with a 175ms hold splits into 102.5ms in + 102.5ms out. */
+  --ring-edge-in: 102.5ms;
+  --ring-edge-out: 102.5ms;
+  --ring-edge-hold: 175ms;
+  --ring-fill-delay: 80ms;
+  --ring-fill-duration: 240ms;
+  --ring-stagger: 40ms;
+
+  --sky-glow-duration: 300ms;
+  --sky-delay: 120ms;
+  --sky-stagger: 36ms;
+  --sky-duration: 360ms;
+  --sky-from: 0.98;
+  --sky-blur: 4px;
 }
 
 /*
@@ -99,14 +128,16 @@
 
 /* 1 — Scale + blur: cards stagger in reading order from 0.96 / 6px blur. */
 [data-entrance="scale"] .entrance-body {
-  animation: entrance-scale-in 360ms var(--entrance-ease) backwards;
-  animation-delay: calc(var(--entrance-i) * 50ms);
+  animation: entrance-scale-in var(--scale-duration) var(--entrance-ease)
+    backwards;
+  animation-delay: calc(var(--entrance-i) * var(--scale-stagger));
 }
 
 /* 2 — Rise: the row is the unit. One 8px lift per row, no blur. */
 [data-entrance="rise"] .entrance-body {
-  animation: entrance-rise-in 380ms var(--entrance-ease) backwards;
-  animation-delay: calc(var(--entrance-r) * 60ms);
+  animation: entrance-rise-in var(--rise-duration) var(--entrance-ease)
+    backwards;
+  animation-delay: calc(var(--entrance-r) * var(--rise-stagger));
 }
 
 /*
@@ -114,6 +145,12 @@
  * the fill and content fade in inside it, then hands back to the rest state
  * (no stroke). The edge is a pseudo-element on the cell, so the ring hover's
  * own frame is untouched and still opens on pointer.
+ *
+ * The edge is two animations, not one keyframe track: a percentage inside
+ * @keyframes cannot be a custom property, so the hold is expressed as the gap
+ * between the fade-in and the fade-out. The out animation is listed first and
+ * the in animation second, so the in fades overrule the out's backwards fill
+ * (opacity 1) until they finish; after that the edge holds, then fades.
  */
 [data-entrance="ring"] .entrance-cell::before {
   content: "";
@@ -124,15 +161,25 @@
   /* Rest radius of .ring-surface at the card box (ring-hover.css). */
   border-radius: 12px;
   pointer-events: none;
-  /* Rest state; `backwards` hands the edge back to this when it ends. */
+  /* Rest state; the out animation ends here and the row keeps it. */
   opacity: 0;
-  animation: entrance-edge-draw 380ms var(--entrance-ease) backwards;
-  animation-delay: calc(var(--entrance-i) * 40ms);
+  animation:
+    entrance-edge-out var(--ring-edge-out) var(--entrance-ease)
+      calc(
+        var(--entrance-i) * var(--ring-stagger) + var(--ring-edge-in) +
+          var(--ring-edge-hold)
+      )
+      both,
+    entrance-fade-in var(--ring-edge-in) var(--entrance-ease)
+      calc(var(--entrance-i) * var(--ring-stagger)) backwards;
 }
 
 [data-entrance="ring"] .entrance-body {
-  animation: entrance-fade-in 240ms var(--entrance-ease) backwards;
-  animation-delay: calc(var(--entrance-i) * 40ms + 80ms);
+  animation: entrance-fade-in var(--ring-fill-duration) var(--entrance-ease)
+    backwards;
+  animation-delay: calc(
+    var(--entrance-i) * var(--ring-stagger) + var(--ring-fill-delay)
+  );
 }
 
 /*
@@ -144,19 +191,23 @@
  * the darker page background, since it also paints the base colour.
  */
 [data-entrance="sky"] .horizon-motion-layer {
-  animation: entrance-fade-in 300ms var(--entrance-ease) backwards;
+  animation: entrance-fade-in var(--sky-glow-duration) var(--entrance-ease)
+    backwards;
 }
 
 [data-entrance="sky"] .entrance-body {
-  animation: entrance-scale-light-in 360ms var(--entrance-ease) backwards;
-  animation-delay: calc(120ms + var(--entrance-i) * 36ms);
+  animation: entrance-scale-light-in var(--sky-duration) var(--entrance-ease)
+    backwards;
+  animation-delay: calc(
+    var(--sky-delay) + var(--entrance-i) * var(--sky-stagger)
+  );
 }
 
 @keyframes entrance-scale-in {
   from {
     opacity: 0;
-    transform: scale(0.96);
-    filter: blur(6px);
+    transform: scale(var(--scale-from, 0.96));
+    filter: blur(var(--scale-blur, 6px));
   }
   to {
     opacity: 1;
@@ -168,8 +219,8 @@
 @keyframes entrance-scale-light-in {
   from {
     opacity: 0;
-    transform: scale(0.98);
-    filter: blur(4px);
+    transform: scale(var(--sky-from, 0.98));
+    filter: blur(var(--sky-blur, 4px));
   }
   to {
     opacity: 1;
@@ -181,7 +232,7 @@
 @keyframes entrance-rise-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(var(--rise-distance, 8px));
   }
   to {
     opacity: 1;
@@ -198,18 +249,11 @@
   }
 }
 
-/* Edge in over 45ms, hold to 220ms, gone by 380ms. */
-@keyframes entrance-edge-draw {
-  0% {
-    opacity: 0;
-  }
-  12% {
+@keyframes entrance-edge-out {
+  from {
     opacity: 1;
   }
-  58% {
-    opacity: 1;
-  }
-  100% {
+  to {
     opacity: 0;
   }
 }
