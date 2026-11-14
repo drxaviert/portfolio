@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { nextWork } from "@/lib/work";
 import type { WorkMeta } from "@/lib/work";
 import { Hero, Intro, NextLink, READER_TITLE_ID } from "./parts";
+import { ReaderNavSlot } from "./reader-nav";
 import "./reader.css";
 
 export { READER_TITLE_ID } from "./parts";
@@ -34,6 +35,8 @@ export function Reader({ meta, children, mode }: ReaderProps) {
       aria-modal={overlay ? true : undefined}
       aria-labelledby={READER_TITLE_ID}
     >
+      <ReaderNavSlot />
+
       <div id={READER_SCROLL_ID} className="wd-reader-scroll">
         <div className="wd-reader-column">
           <Hero />

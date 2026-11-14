@@ -9,8 +9,13 @@
  */
 
 .wd-reader-panel {
+  /* The panel's own inset and the header nav's top inset, in one place: the
+     nav wrapper, the nav bar and the scroll column all derive from these. */
+  --wd-panel-inset: 0px;
+  --wd-nav-inset: 8px;
+
   position: fixed;
-  inset: 0;
+  inset: var(--wd-panel-inset);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -20,11 +25,67 @@
 
 @media (min-width: 768px) {
   .wd-reader-panel {
-    inset: 16px;
+    --wd-panel-inset: 16px;
+    --wd-nav-inset: 12px;
+
     border-radius: 12px;
     box-shadow:
       var(--shadow-card),
       0 30px 70px -30px rgb(0 0 0 / 0.45);
+  }
+}
+
+/*
+ * The real HomeNav, carried in at the homepage nav's box. The wrapper reaches
+ * back out over the panel's inset, then repeats home-layout's container: a
+ * 1200px frame with px-4 md:px-8, then the 1136px content column. That is the
+ * same CSS the homepage nav is laid out in, so left, width and height match
+ * without measuring anything and survive a resize.
+ */
+.wd-reader-nav {
+  position: absolute;
+  inset-inline: calc(var(--wd-panel-inset) * -1);
+  top: var(--wd-nav-inset);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.wd-reader-nav-inner {
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: 16px;
+}
+
+.wd-reader-nav-bar {
+  width: 100%;
+  max-width: 1136px;
+  margin-inline: auto;
+  pointer-events: auto;
+}
+
+/*
+ * The nav is the reader's top edge, so a tooltip or the Day row opening above
+ * it would be clipped by the panel and, at 375, by the viewport. HomeNav's own
+ * popovers are unchanged on the homepage; here they open downward instead.
+ */
+.wd-reader-nav .segment-tooltip {
+  top: calc(100% + 8px);
+  bottom: auto;
+  margin-top: 0;
+}
+
+.wd-reader-nav .phase-row,
+.wd-reader-nav [role="menu"] {
+  top: calc(100% + 24px);
+  bottom: auto;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media (min-width: 768px) {
+  .wd-reader-nav-inner {
+    padding-inline: 32px;
   }
 }
 
@@ -41,13 +102,8 @@
   width: 100%;
   max-width: 582px; /* 550px measure + 2 × 16px gutters */
   margin-inline: auto;
-  padding: 16px 16px 64px;
-}
-
-@media (min-width: 768px) {
-  .wd-reader-column {
-    padding-top: 24px;
-  }
+  /* Clears the header nav: its top inset, its 64px bar and a 12px gap. */
+  padding: calc(var(--wd-nav-inset) + 76px) 16px 64px;
 }
 
 /* Anchors the margin notes and the wide breakouts without pixel geometry. */

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type { ReactNode, RefObject } from "react";
 import { cardSelector, useMorph } from "./use-morph";
 import { READER_TITLE_ID } from "./parts";
+import { ReaderCloseProvider } from "./reader-nav";
 import "./expand-shell.css";
 
 /**
@@ -29,26 +30,9 @@ export function ExpandShell({
 
   useOverlayBehaviour(panelRef, slug);
 
-  // Escape is a window gesture: it must work from anywhere in the reader. The
-  // listener is bound once and kept current through a ref, so it never churns
-  // while the morph state changes. Browser Back is the one exit this shell
-  // cannot animate: Next hides the slot with React Activity in the same commit
-  // that changes the URL, so these effects are already gone.
-  const closeRef = useRef(close);
-  useEffect(() => {
-    closeRef.current = close;
-  }, [close]);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      void closeRef.current();
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  // The reader's nav and Esc gestures live inside the panel: the nav is a
+  // server-rendered slot, so the close callback reaches it through context.
+  // Esc is one listener, owned by the nav (see reader-nav.tsx).
 
   // The inert boundary comes off with the same commit that sets the phase, so
   // the title can only take focus after React has rendered the open state.
@@ -69,7 +53,7 @@ export function ExpandShell({
       />
 
       <div className="wd-expand-content" inert={phase !== "open"}>
-        {children}
+        <ReaderCloseProvider close={close}>{children}</ReaderCloseProvider>
       </div>
 
       <div

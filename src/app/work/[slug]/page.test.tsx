@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import { READER_TITLE_ID } from "@/components/work/reader";
 import WorkPage from "./page";
 
@@ -19,8 +20,32 @@ vi.mock("../../../../content/work/systems-in-motion.mdx", () => ({
 }));
 
 async function renderStudy(slug = "systems-in-motion") {
-  render(await WorkPage({ params: Promise.resolve({ slug }) }));
+  render(
+    <ThemeProvider>
+      {await WorkPage({ params: Promise.resolve({ slug }) })}
+    </ThemeProvider>,
+  );
 }
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("work page", () => {
   it("renders the study title as the reader heading", async () => {

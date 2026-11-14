@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import { getWork } from "@/lib/work";
 import { READER_TITLE_ID, Reader } from "./reader";
 
@@ -29,25 +30,59 @@ function featured() {
   return meta;
 }
 
+beforeEach(() => {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+function renderReader(
+  children: ReactNode,
+  mode: "overlay" | "page" = "overlay",
+) {
+  return render(
+    <ThemeProvider>
+      <Reader meta={featured()} mode={mode}>
+        {children}
+      </Reader>
+    </ThemeProvider>,
+  );
+}
+
 describe("reader overlay", () => {
   it("renders a labelled modal dialog", () => {
-    render(
-      <Reader meta={featured()} mode="overlay">
-        <p>Case-study body</p>
-      </Reader>,
-    );
+    renderReader(<p>Case-study body</p>);
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("aria-modal", "true");
     expect(dialog).toHaveAttribute("aria-labelledby", READER_TITLE_ID);
   });
 
+  it("keeps the homepage nav inside the dialog", () => {
+    renderReader(<p>Case-study body</p>);
+
+    const dialog = screen.getByRole("dialog");
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+
+    expect(dialog).toContainElement(nav);
+  });
+
   it("replaces history when the next study opens from the overlay", () => {
-    render(
-      <Reader meta={featured()} mode="overlay">
-        <p>Case-study body</p>
-      </Reader>,
-    );
+    renderReader(<p>Case-study body</p>);
 
     const next = screen.getByRole("link", {
       name: "Next project: The title sequence",
@@ -58,11 +93,7 @@ describe("reader overlay", () => {
   });
 
   it("pushes the next study on a direct load", () => {
-    render(
-      <Reader meta={featured()} mode="page">
-        <p>Case-study body</p>
-      </Reader>,
-    );
+    renderReader(<p>Case-study body</p>, "page");
 
     expect(
       screen.getByRole("link", { name: "Next project: The title sequence" }),

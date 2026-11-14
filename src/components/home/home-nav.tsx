@@ -1,16 +1,18 @@
+import Link from "next/link";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { RingLayers } from "./ring-hover";
 
 /**
  * Home nav from the Figma 1440 frame (121:2253).
  *
- * The links and the design-system glyph are non-interactive on purpose: the
- * only interaction here is the theme toggle. The head is the orb mark:
- * a 36px ball painted with the phase blob gradient (bottom-left → top-right)
- * and two matte eyes, so it recolours with the theme like the rest.
+ * The logo and "Work" are links home; Play and About are still placeholders,
+ * so they stay as spans. The link resets keep the bar pixel-identical to the
+ * shipped, non-interactive version. The head is the orb mark: a 36px ball
+ * painted with the phase blob gradient (bottom-left → top-right) and two matte
+ * eyes, so it recolours with the theme like the rest.
  *
  * The bar is one hover host: its own fill moves to the ring surface, and
- * keyboard focus inside it (the theme toggle) opens the ring.
+ * keyboard focus inside it (the theme toggle, the links) opens the ring.
  */
 function OrbHead() {
   return (
@@ -26,10 +28,13 @@ function OrbHead() {
 }
 
 const LINKS = [
-  { label: "Work", active: true },
+  { label: "Work", href: "/", active: true },
   { label: "Play", active: false },
   { label: "About", active: false },
 ];
+
+const FOCUS_RING =
+  "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 export function HomeNav() {
   return (
@@ -38,23 +43,36 @@ export function HomeNav() {
       className="ring-host flex h-16 items-center justify-between rounded-lg px-4"
     >
       <RingLayers fill="bg-surface-container-low" />
-      <OrbHead />
+
+      <Link
+        href="/"
+        aria-label="Home"
+        className={`shrink-0 rounded-full no-underline ${FOCUS_RING}`}
+      >
+        <OrbHead />
+      </Link>
 
       <div className="flex items-center gap-6 md:gap-0">
         <div className="flex items-center">
-          {/* aria-current moves onto the real link once these routes exist. */}
-          {LINKS.map((link) => (
-            <span
-              key={link.label}
-              className={
-                link.active
-                  ? "flex h-8 items-center rounded-md bg-surface-container px-2 text-base leading-5 font-medium text-on-surface"
-                  : "flex h-8 items-center rounded-md px-2 text-base leading-5 font-medium text-on-surface-variant"
-              }
-            >
-              {link.label}
-            </span>
-          ))}
+          {LINKS.map((link) => {
+            const classes = link.active
+              ? "flex h-8 items-center rounded-md bg-surface-container px-2 text-base leading-5 font-medium text-on-surface"
+              : "flex h-8 items-center rounded-md px-2 text-base leading-5 font-medium text-on-surface-variant";
+
+            return link.href ? (
+              <Link
+                key={link.label}
+                href={link.href}
+                className={`no-underline ${classes} ${FOCUS_RING}`}
+              >
+                {link.label}
+              </Link>
+            ) : (
+              <span key={link.label} className={classes}>
+                {link.label}
+              </span>
+            );
+          })}
         </div>
 
         <span
