@@ -34,6 +34,9 @@ const CAPTION: Record<Scene, string> = {
   tiles: "Bento: chart, notification toggle and team fragments.",
 };
 
+/** The Figma card size the scenes are drawn at. */
+const STAGE_WIDTH = 753;
+
 function Segmented<T extends string>({
   label,
   value,
@@ -129,6 +132,8 @@ export function FauxUiProto({
   const [scene, setScene] = useState<Scene>(initialScene);
   const [mode, setMode] = useState<Mode>(initialMode);
   const [phase, setPhase] = useState<Phase>(initialPhase);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const shotRef = useRef<HTMLDivElement | null>(null);
 
   // Read on the client only: the CSS media query already holds the static
   // frames before hydration, and this keeps the panel honest afterwards.
@@ -145,6 +150,63 @@ export function FauxUiProto({
 
   const playing: Mode = reduceMotion ? "still" : mode;
 
+  // The scenes are drawn on a fixed 753 x 416 canvas so their type never
+  // reflows. Scale that canvas to the width the card actually gets; the stage
+  // reserves the same 753:416 box, so the scaled card fits it exactly.
+  useEffect(() => {
+    const stage = stageRef.current;
+
+    if (!stage) return;
+
+    const fit = () => {
+      const width = stage.getBoundingClientRect().width;
+
+      if (width > 0) {
+        stage.style.setProperty("--fu-scale", String(width / STAGE_WIDTH));
+      }
+    };
+
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(stage);
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Loops are decoration. Hold every animated frame while the card is
+  // offscreen or the tab is hidden, then resume from the same frame.
+  useEffect(() => {
+    const root = shotRef.current;
+
+    if (!root) return;
+
+    let onScreen = true;
+    let visible = !document.hidden;
+
+    const sync = () => {
+      root.toggleAttribute("data-paused", !onScreen || !visible);
+    };
+
+    const observer = new IntersectionObserver(([entry]) => {
+      onScreen = entry.isIntersecting;
+      sync();
+    });
+
+    observer.observe(root);
+
+    const onVisibilityChange = () => {
+      visible = !document.hidden;
+      sync();
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
+
   // Keep the URL pointing at the frame on screen, the same contract as the
   // phase picker in /dev/prototype.
   useEffect(() => {
@@ -157,9 +219,44 @@ export function FauxUiProto({
   }, [scene, mode, phase]);
 
   return (
-    <div data-phase={phase} className="min-h-dvh bg-surface text-on-surface">
+    <div
+      data-phase={phase}
+      className="min-h-dvh overflow-x-clip bg-surface text-on-surface"
+    >
       <main className="flex min-h-dvh flex-col items-center justify-center gap-3 px-4 py-16">
         <div className="w-full max-w-[753px]">
+          <aside className="fu-panel" aria-label="Faux UI controls">
+            <div className="fu-panel__head">
+              <p className="fu-panel__title">Faux UI</p>
+              <p className="fu-panel__hint">project card</p>
+            </div>
+
+            <Segmented
+              label="Scene"
+              value={scene}
+              options={SCENES}
+              onChange={setScene}
+            />
+            <Segmented
+              label="Mode"
+              value={mode}
+              options={MODES}
+              onChange={setMode}
+            />
+            <Segmented
+              label="Theme"
+              value={phase}
+              options={PHASES}
+              onChange={setPhase}
+            />
+
+            {reduceMotion ? (
+              <p className="fu-panel__hint">
+                Reduced motion is on, so the scene stays a still.
+              </p>
+            ) : null}
+          </aside>
+
           <div className="mb-3 flex items-baseline justify-between gap-4">
             <p className="text-xs font-medium tracking-[0.06em] text-on-surface-variant uppercase">
               Faux UI · featured work card
@@ -169,52 +266,22 @@ export function FauxUiProto({
             </p>
           </div>
 
-          <article className="ring-host flex h-[416px] w-full flex-col rounded-lg p-8">
-            <RingLayers fill="bg-surface-container-low" />
-            <div className="fu-shot" aria-hidden="true">
-              {scene === "window" ? <WindowScene mode={playing} /> : null}
-              {scene === "phone" ? <PhoneScene mode={playing} /> : null}
-              {scene === "tiles" ? <TilesScene mode={playing} /> : null}
-            </div>
-          </article>
+          <div ref={stageRef} className="fu-stage">
+            <article className="ring-host fu-card">
+              <RingLayers fill="bg-surface-container-low" />
+              <div ref={shotRef} className="fu-shot" aria-hidden="true">
+                {scene === "window" ? <WindowScene mode={playing} /> : null}
+                {scene === "phone" ? <PhoneScene mode={playing} /> : null}
+                {scene === "tiles" ? <TilesScene mode={playing} /> : null}
+              </div>
+            </article>
+          </div>
 
           <p className="mt-3 text-xs text-on-surface-variant">
             {CAPTION[scene]} Generic content, design-system tokens only.
           </p>
         </div>
       </main>
-
-      <aside className="fu-panel" aria-label="Faux UI controls">
-        <div className="fu-panel__head">
-          <p className="fu-panel__title">Faux UI</p>
-          <p className="fu-panel__hint">project card</p>
-        </div>
-
-        <Segmented
-          label="Scene"
-          value={scene}
-          options={SCENES}
-          onChange={setScene}
-        />
-        <Segmented
-          label="Mode"
-          value={mode}
-          options={MODES}
-          onChange={setMode}
-        />
-        <Segmented
-          label="Theme"
-          value={phase}
-          options={PHASES}
-          onChange={setPhase}
-        />
-
-        {reduceMotion ? (
-          <p className="fu-panel__hint">
-            Reduced motion is on, so the scene stays a still.
-          </p>
-        ) : null}
-      </aside>
     </div>
   );
 }

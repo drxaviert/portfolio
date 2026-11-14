@@ -171,7 +171,6 @@ export function WindowScene({ mode }: { mode: Mode }) {
           <span className="fu-new">
             <Plus />
             New
-            <span className="fu-ripple" aria-hidden="true" />
             <Cursor />
           </span>
         </header>
@@ -298,7 +297,7 @@ export function TilesScene({ mode }: { mode: Mode }) {
             <span
               key={index}
               data-on={index === 5 || undefined}
-              style={{ height: `${height}%`, "--i": index } as CSSProperties}
+              style={{ height: `${height}%` }}
             />
           ))}
         </div>

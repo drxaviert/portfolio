@@ -6,9 +6,9 @@ import type { Mode, Scene, Phase } from "./faux-ui";
 /**
  * Throwaway prototype: the featured work ProjectCard's product visual.
  *
- * Three generic faux scenes — desktop window, phone, bento tiles — each at the
- * card's Figma size (753 × 416 at xl), built only from the phase tokens, with a
- * still or a 4.6–4.8s CSS loop and a Day/Night switch for review.
+ * Three generic faux scenes — desktop window, phone, bento tiles — each drawn
+ * on the card's Figma canvas (753 × 416) and scaled to fit, with a still or an
+ * 8s CSS loop and a Day/Night switch for review.
  *
  * Dev-only; deep links 404 in a production build. The card frame reuses the
  * ring-hover surface from src/components/home, so its size, radius and shadow

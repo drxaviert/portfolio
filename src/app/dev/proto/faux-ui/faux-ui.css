@@ -3,17 +3,40 @@
  *
  * Every colour is a phase token from globals.css (Day / Night), so the scenes
  * recolour with the theme and no new colour is introduced. Geometry is designed
- * at the ProjectCard's xl size (753 x 416, 32px inset = a 689 x 352 shot) and
- * is fluid from there: the window and the phone bleed off the shot's bottom, so
- * a narrower card crops harder instead of squeezing the type.
+ * on a fixed 753 x 416 canvas (32px inset = a 689 x 352 shot) and is never
+ * reflowed: .fu-stage reserves the same 753:416 box and scales the canvas down
+ * uniformly to whatever width the card gets, so a phone shows the whole
+ * composition at 45% instead of cropping the window.
  *
  * Motion is CSS keyframes only and touches transform/opacity, never layout.
- * Curves come from docs/design-system/motion.md: entrances use
- * cubic-bezier(0.23, 1, 0.32, 1), presses release with ease-out, and the
- * click dip is the 0.94 press of the shipped controls.
+ * Each loop is one motion over 8s, still for at least 60% of the cycle, and its
+ * first and last frames match exactly. Curves come from
+ * docs/design-system/motion.md: entrances use cubic-bezier(0.23, 1, 0.32, 1),
+ * exits use ease-in, and the press releases through the small settle curve.
  */
 
 /* ------------------------------------------------------------------ stage */
+
+.fu-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 753 / 416;
+}
+
+/* The Figma card: 753 x 416 with a 32px inset, scaled as one image. */
+.fu-stage > .fu-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  width: 753px;
+  height: 416px;
+  padding: 32px;
+  border-radius: 8px;
+  transform: scale(var(--fu-scale, 1));
+  transform-origin: 0 0;
+}
 
 .fu-shot {
   position: relative;
@@ -239,19 +262,6 @@
   width: 9px;
   height: 9px;
   flex: none;
-}
-
-.fu-ripple {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 22px;
-  height: 22px;
-  margin: -11px 0 0 -11px;
-  border-radius: 50%;
-  background: var(--surface);
-  opacity: 0;
-  pointer-events: none;
 }
 
 .fu-cursor {
@@ -674,111 +684,83 @@
 
 /* --------------------------------------------------------------- motion */
 
-/* Window loop: the cursor arrives from the chart, presses New, holds, leaves.
-   Every beat is transform/opacity; the seam is at opacity 0, so the cursor is
-   never caught teleporting. */
+/* Every loop is one motion, then rest. 8s is long enough for the first two
+   thirds to read as a still frame; 0% and 100% are identical, so the seam
+   never shows. Only transform and opacity animate. */
+
+/* Window: the cursor fades in, travels straight to New, presses once, fades
+   out. It rests at the button for 37% of the cycle. */
 [data-mode="loop"] .fu-cursor {
-  animation: fu-cursor 4600ms linear infinite;
+  animation: fu-cursor 8000ms linear infinite;
 }
 
 @keyframes fu-cursor {
   0% {
-    transform: translate3d(-248px, 196px, 0);
+    transform: translate3d(-190px, 150px, 0);
     opacity: 0;
+    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
   }
-  9% {
-    transform: translate3d(-248px, 196px, 0);
-    opacity: 1;
-  }
-  37% {
-    transform: translate3d(-248px, 196px, 0);
+  3% {
+    transform: translate3d(-190px, 150px, 0);
     opacity: 1;
     animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
   }
-  49% {
+  25% {
     transform: translate3d(-1px, 1px, 0);
     opacity: 1;
-    animation-timing-function: cubic-bezier(0.34, 1.3, 0.64, 1);
   }
-  53% {
-    transform: translate3d(-1px, 1px, 0) scale(0.9);
+  62% {
+    transform: translate3d(-1px, 1px, 0);
     opacity: 1;
-    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+    animation-timing-function: ease-in;
   }
-  57% {
-    transform: translate3d(-1px, 1px, 0) scale(1);
-    opacity: 1;
-  }
-  74% {
-    transform: translate3d(-1px, 1px, 0) scale(1);
-    opacity: 1;
-  }
-  86% {
-    transform: translate3d(-64px, 120px, 0) scale(1);
+  68% {
+    transform: translate3d(-1px, 1px, 0);
     opacity: 0;
   }
   100% {
-    transform: translate3d(-248px, 196px, 0);
+    transform: translate3d(-190px, 150px, 0);
     opacity: 0;
   }
 }
 
+/* The press: 0.97 down, one small settle back. No ripple. */
 [data-mode="loop"] .fu-new {
-  animation: fu-press 4600ms linear infinite;
+  animation: fu-press 8000ms linear infinite;
 }
 
 @keyframes fu-press {
   0%,
-  52% {
+  26% {
     transform: scale(1);
   }
-  54% {
-    transform: scale(0.96);
-    animation-timing-function: ease-out;
+  28% {
+    transform: scale(0.97);
+    animation-timing-function: cubic-bezier(0.34, 1.3, 0.64, 1);
   }
-  58%,
+  31%,
   100% {
     transform: scale(1);
   }
 }
 
-[data-mode="loop"] .fu-ripple {
-  animation: fu-ripple 4600ms linear infinite;
-}
-
-@keyframes fu-ripple {
-  0%,
-  51% {
-    transform: scale(0.5);
-    opacity: 0;
-  }
-  53% {
-    transform: scale(0.75);
-    opacity: 0.32;
-  }
-  66%,
-  100% {
-    transform: scale(2.1);
-    opacity: 0;
-  }
-}
-
-/* Phone loop: the selection walks down the list and releases at the seam.
-   Opacity is 0 at 0% and 100%, so the reset is invisible. */
+/* Phone: the selection walks down two rows, then fades out in place and
+   resets invisibly. It is still for 68% of the cycle. */
 [data-mode="loop"] .fu-phone__hl {
-  animation: fu-row-walk 4800ms linear infinite;
+  animation: fu-row-walk 7800ms linear infinite;
 }
 
 @keyframes fu-row-walk {
   0% {
     transform: translateY(0);
     opacity: 0;
+    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
   }
-  8% {
+  4% {
     transform: translateY(0);
     opacity: 1;
   }
-  26% {
+  24% {
     transform: translateY(0);
     opacity: 1;
     animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
@@ -787,7 +769,7 @@
     transform: translateY(74px);
     opacity: 1;
   }
-  54% {
+  52% {
     transform: translateY(74px);
     opacity: 1;
     animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
@@ -796,7 +778,7 @@
     transform: translateY(148px);
     opacity: 1;
   }
-  84% {
+  86% {
     transform: translateY(148px);
     opacity: 1;
     animation-timing-function: ease-in;
@@ -811,28 +793,35 @@
   }
 }
 
-/* Tiles loop: the chart takes a new sample, bars rising left to right. */
+/* Tiles: the chart takes one new sample — all bars settle together, then hold
+   for 70% of the cycle. */
 [data-mode="loop"] .fu-tile--chart .fu-bars > span {
-  animation: fu-bar-rise 4800ms cubic-bezier(0.23, 1, 0.32, 1) infinite;
-  animation-delay: calc(var(--i, 0) * 90ms);
+  animation: fu-bar-sample 8200ms linear infinite;
 }
 
-@keyframes fu-bar-rise {
+@keyframes fu-bar-sample {
   0%,
-  6% {
-    transform: scaleY(0.42);
-    opacity: 0.55;
+  4% {
+    transform: scaleY(0.82);
+    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
   }
-  30%,
-  84% {
+  22%,
+  92% {
     transform: scaleY(1);
-    opacity: 1;
+    animation-timing-function: ease-in;
   }
-  96%,
   100% {
-    transform: scaleY(0.42);
-    opacity: 0.55;
+    transform: scaleY(0.82);
   }
+}
+
+/* Offscreen or in a hidden tab the harness flags the stage and every animated
+   descendant holds its current frame instead of burning frames. */
+.fu-shot[data-paused] [data-mode="loop"],
+.fu-shot[data-paused] [data-mode="loop"] *,
+.fu-shot[data-paused] [data-mode="loop"] *::before,
+.fu-shot[data-paused] [data-mode="loop"] *::after {
+  animation-play-state: paused;
 }
 
 /* ---------------------------------------------------------------- panel */
@@ -846,19 +835,28 @@
   }
 }
 
+/* The control panel sits above the card in the column on small screens, so it
+   can never sit on top of the scene; on a wide screen it docks top right. */
 .fu-panel {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 50;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: 224px;
+  margin-bottom: 16px;
   padding: 12px;
   border-radius: 12px;
   background: var(--surface-container-low);
   box-shadow: var(--shadow-card);
+}
+
+@media (min-width: 900px) {
+  .fu-panel {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 50;
+    width: 224px;
+    margin-bottom: 0;
+  }
 }
 
 .fu-panel__head {
