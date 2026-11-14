@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { HorizonLive } from "@/components/horizon/horizon-live";
 import { EntranceCell } from "./entrance-cell";
 import type { EntranceVariant } from "./entrance-cell";
+import { EntranceGrain } from "./entrance-grain";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
 import { HomeNav } from "./home-nav";
@@ -44,6 +45,9 @@ export function HomeLayout({ entrance }: { entrance?: EntranceVariant }) {
       className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface"
     >
       <HorizonLive />
+      {/* Prototype hook: the grain sits above the glow and under the cards,
+          so it can only live between the two. Absent on `/`. */}
+      {entrance === "grain" ? <EntranceGrain /> : null}
       <RingHoverPointer />
 
       <div

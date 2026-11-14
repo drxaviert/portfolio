@@ -21,6 +21,7 @@ describe("entrance settings", () => {
     expect(totalMs("sky", DEFAULT_SETTINGS)).toBe(696);
     expect(totalMs("clear", DEFAULT_SETTINGS)).toBe(680);
     expect(totalMs("step", DEFAULT_SETTINGS)).toBe(600);
+    expect(totalMs("grain", DEFAULT_SETTINGS)).toBe(672);
 
     for (const variant of [
       "scale",
@@ -29,9 +30,23 @@ describe("entrance settings", () => {
       "sky",
       "clear",
       "step",
+      "grain",
     ] as const) {
       expect(totalMs(variant, DEFAULT_SETTINGS)).toBeLessThanOrEqual(BUDGET_MS);
     }
+  });
+
+  it("settles the grain sky on whichever ends later: grain or cards", () => {
+    const grain = DEFAULT_SETTINGS.grain;
+    const cards = grain.delay + 6 * grain.stagger + grain.itemDuration;
+
+    // The default cards (672ms) outlast the grain (460ms).
+    expect(totalMs("grain", DEFAULT_SETTINGS)).toBe(cards);
+    expect(cards).toBeGreaterThan(grain.duration);
+
+    // A long grain holds the sequence open past the cards.
+    const long = patch(DEFAULT_SETTINGS, "grain", "duration", 900);
+    expect(totalMs("grain", long)).toBe(900);
   });
 
   it("ends the step cut when the last card's markers have faded", () => {
@@ -130,6 +145,14 @@ describe("entrance settings", () => {
     expect(step["--step-marker-size"]).toBe("6px");
     // The picker still drives the marker fade.
     expect(step["--entrance-ease"]).toBe(EASINGS[0].value);
+
+    const grain = cssVars("grain", DEFAULT_SETTINGS, EASINGS[0].value);
+
+    expect(grain["--grain-strength"]).toBe("0.08");
+    expect(grain["--grain-jitter"]).toBe("3px");
+    expect(grain["--grain-rate"]).toBe("100ms");
+    expect(grain["--grain-duration"]).toBe("460ms");
+    expect(grain["--grain-item-duration"]).toBe("320ms");
   });
 
   it("shows steps(n) instead of a curve for the step cut", () => {

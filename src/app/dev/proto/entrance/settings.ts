@@ -65,6 +65,18 @@ export type StepSettings = {
   markerFade: number;
 };
 
+export type GrainSettings = {
+  /** Peak grain opacity, in percent. */
+  strength: number;
+  jitter: number;
+  /** One jitter step, in ms; a cycle is four of them. */
+  rate: number;
+  duration: number;
+  delay: number;
+  stagger: number;
+  itemDuration: number;
+};
+
 export type Settings = {
   scale: ScaleSettings;
   rise: RiseSettings;
@@ -72,6 +84,7 @@ export type Settings = {
   sky: SkySettings;
   clear: ClearSettings;
   step: StepSettings;
+  grain: GrainSettings;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -107,6 +120,17 @@ export const DEFAULT_SETTINGS: Settings = {
     markerHold: 100,
     markerFade: 200,
   },
+  // Base44's boiling texture: a 120px noise tile stepped 3px four times a
+  // cycle (400ms) while it decays over 460ms; the cards land last at 672ms.
+  grain: {
+    strength: 8,
+    jitter: 3,
+    rate: 100,
+    duration: 460,
+    delay: 160,
+    stagger: 32,
+    itemDuration: 320,
+  },
 };
 
 /** Curves already in docs/design-system/motion.md; no new ones. */
@@ -141,7 +165,7 @@ export type Control = {
   min: number;
   max: number;
   step: number;
-  unit: "ms" | "px" | "vh" | "×";
+  unit: "ms" | "px" | "vh" | "%" | "×";
   digits?: number;
 };
 
@@ -373,6 +397,64 @@ export const CONTROLS: Record<EntranceVariant, Control[]> = {
       unit: "ms",
     },
   ],
+  grain: [
+    {
+      key: "strength",
+      label: "Grain strength",
+      min: 0,
+      max: 25,
+      step: 1,
+      unit: "%",
+    },
+    {
+      key: "jitter",
+      label: "Jitter distance",
+      min: 1,
+      max: 6,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "rate",
+      label: "Jitter step rate",
+      min: 40,
+      max: 200,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "duration",
+      label: "Grain duration",
+      min: 120,
+      max: 900,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "delay",
+      label: "Card start delay",
+      min: 0,
+      max: 500,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "stagger",
+      label: "Per-item stagger",
+      min: 0,
+      max: 100,
+      step: 4,
+      unit: "ms",
+    },
+    {
+      key: "itemDuration",
+      label: "Item duration",
+      min: 120,
+      max: 800,
+      step: 10,
+      unit: "ms",
+    },
+  ],
 };
 
 /** 7 reading-order items: the last one starts at 6 x stagger. */
@@ -436,6 +518,15 @@ export function totalMs(variant: EntranceVariant, settings: Settings): number {
 
       return LAST_ITEM * s.stagger + Math.max(card, markers);
     }
+    case "grain":
+      // The grain and the last card both finish the sequence; whichever is
+      // later is the settle.
+      return Math.max(
+        settings.grain.duration,
+        settings.grain.delay +
+          LAST_ITEM * settings.grain.stagger +
+          settings.grain.itemDuration,
+      );
   }
 }
 
@@ -519,6 +610,20 @@ export function cssVars(
         "--step-marker-size": `${s.markerSize}px`,
         "--step-marker-hold": `${s.markerHold}ms`,
         "--step-marker-fade": `${s.markerFade}ms`,
+      };
+    }
+    case "grain": {
+      const s = settings.grain;
+
+      return {
+        ...shared,
+        "--grain-strength": String(s.strength / 100),
+        "--grain-jitter": `${s.jitter}px`,
+        "--grain-rate": `${s.rate}ms`,
+        "--grain-duration": `${s.duration}ms`,
+        "--grain-delay": `${s.delay}ms`,
+        "--grain-stagger": `${s.stagger}ms`,
+        "--grain-item-duration": `${s.itemDuration}ms`,
       };
     }
   }

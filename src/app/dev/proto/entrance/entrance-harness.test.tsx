@@ -80,4 +80,31 @@ describe("entrance harness", () => {
 
     expect(document.querySelector(".entrance-clear")).toBeNull();
   });
+
+  it("puts the grain between the horizon and the cards, only for grain sky", () => {
+    mount();
+
+    expect(document.querySelector(".entrance-grain")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Grain sky" }));
+
+    const main = document.querySelector("main");
+    const grain = main?.querySelector(".entrance-grain");
+    const content = main?.querySelector(".entrance-cell");
+
+    expect(main?.dataset.entrance).toBe("grain");
+    expect(grain).not.toBeNull();
+    // Earlier in the tree than the cards, so it paints over the glow and under
+    // the content.
+    expect(
+      grain && content
+        ? grain.compareDocumentPosition(content) &
+            Node.DOCUMENT_POSITION_FOLLOWING
+        : 0,
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Rise" }));
+
+    expect(document.querySelector(".entrance-grain")).toBeNull();
+  });
 });

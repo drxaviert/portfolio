@@ -15,7 +15,7 @@ import type { ReactNode } from "react";
  * unchanged on `/`.
  */
 export type EntranceVariant =
-  "scale" | "rise" | "ring" | "sky" | "clear" | "step";
+  "scale" | "rise" | "ring" | "sky" | "clear" | "step" | "grain";
 
 export function EntranceCell({
   variant,

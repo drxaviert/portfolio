@@ -23,6 +23,7 @@
  *   clear  one mask radius, 0-680ms                            → ends 680ms
  *   step   cards 240ms apart from the nav up, 180ms each        → ends 600ms
  *          (markers fade out 360ms after their card's first cut)
+ *   grain  grain 0-460ms, cards 160 + item*32ms, 320ms each     → ends 672ms
  *
  * Fill mode is `backwards`, not `both`. Backwards still paints the from-state
  * during the delay (the server-rendered HTML starts hidden, no flash, no JS),
@@ -96,6 +97,14 @@
   --step-marker-fade: 200ms;
   /* Design-tool marker: the glow's own blob hue, blue by Day, mint by Night. */
   --step-marker-color: var(--horizon-2);
+
+  --grain-strength: 0.08;
+  --grain-jitter: 3px;
+  --grain-rate: 100ms;
+  --grain-duration: 460ms;
+  --grain-delay: 160ms;
+  --grain-stagger: 32ms;
+  --grain-item-duration: 320ms;
 }
 
 /*
@@ -406,6 +415,99 @@
   }
 }
 
+/*
+ * 7 — Grain sky: the glow resolves out of stepped, jittering grain and goes
+ * still as the cards land. The layer is the only node between the horizon and
+ * the content column (HomeLayout, prototype only); it jitters a 120px noise
+ * tile on a four-step loop while one linear decay walks its opacity to 0 and
+ * ends on `visibility: hidden`, so it stops painting at animationend with no
+ * JS to tear down.
+ *
+ * The jitter moves background-position on a small tile, not a transform on a
+ * full-viewport layer, and there is no blend mode: the grain is plain
+ * grayscale at 8%, which is all an 8-bit glow needs to break its bands without
+ * animating a compositor-expensive blend over the whole screen.
+ *
+ * The glow fades in underneath on the house curve — the sky variant's move,
+ * landing on the motion layer only so the base gradient never flashes — and
+ * the cards enter like "sky first", in reading order. This variant mirrors sky,
+ * so it keeps sky's order rather than the bottom-up --entrance-h.
+ */
+.entrance-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--grain-strength);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+  background-repeat: repeat;
+  animation:
+    entrance-grain-jitter calc(var(--grain-rate) * 4) steps(1, end) infinite,
+    entrance-grain-settle var(--grain-duration) linear forwards;
+}
+
+[data-entrance="grain"] .horizon-motion-layer {
+  animation: entrance-fade-in var(--grain-duration) var(--entrance-ease)
+    backwards;
+}
+
+[data-entrance="grain"] .entrance-body {
+  animation: entrance-grain-card-in var(--grain-item-duration)
+    var(--entrance-ease) backwards;
+  animation-delay: calc(
+    var(--grain-delay) + var(--entrance-i) * var(--grain-stagger)
+  );
+}
+
+/*
+ * Four held positions per cycle: the animation-level steps(1, end) turns each
+ * quarter into a hard jump, so the tile boils instead of sliding.
+ */
+@keyframes entrance-grain-jitter {
+  0% {
+    background-position: 0 0;
+  }
+  25% {
+    background-position: var(--grain-jitter) calc(var(--grain-jitter) * -1);
+  }
+  50% {
+    background-position: calc(var(--grain-jitter) * -1) var(--grain-jitter);
+  }
+  75% {
+    background-position: calc(var(--grain-jitter) * 0.5) var(--grain-jitter);
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+/*
+ * Linear decay so the grain keeps its strength while it boils and is gone by
+ * the end; visibility flips once at 100% and `forwards` keeps it, which is
+ * what stops the layer painting.
+ */
+@keyframes entrance-grain-settle {
+  from {
+    opacity: var(--grain-strength);
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* Sky's card entrance without the blur: fade plus a 2% scale. */
+@keyframes entrance-grain-card-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes entrance-scale-in {
   from {
     opacity: 0;
@@ -475,6 +577,15 @@
 
   /* No marker squares: the body fade above is the whole entrance. */
   [data-entrance="step"] .entrance-cell::after {
+    animation: none;
+  }
+
+  /* Grain is texture, not content: drop the layer and leave the glow still. */
+  .entrance-grain {
+    display: none;
+  }
+
+  [data-entrance="grain"] .horizon-motion-layer {
     animation: none;
   }
 
