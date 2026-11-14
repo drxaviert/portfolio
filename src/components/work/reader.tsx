@@ -3,6 +3,7 @@ import { nextWork } from "@/lib/work";
 import type { WorkMeta } from "@/lib/work";
 import { Hero, Intro, NextLink, READER_TITLE_ID } from "./parts";
 import { ReaderNavSlot } from "./reader-nav";
+import { BlurStack } from "./blur-stack";
 import "@/components/home/ring-hover.css";
 import "./reader.css";
 
@@ -37,6 +38,8 @@ export function Reader({ meta, children, mode }: ReaderProps) {
       aria-labelledby={READER_TITLE_ID}
     >
       <ReaderNavSlot />
+
+      <BlurStack height="calc(var(--wd-nav-inset) + 64px)" />
 
       <div id={READER_SCROLL_ID} className="wd-reader-scroll">
         <div className="wd-reader-column">

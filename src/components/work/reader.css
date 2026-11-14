@@ -83,6 +83,31 @@
   margin-bottom: 0;
 }
 
+/*
+ * The blur replaces the bar's opaque fill in the reader (spec 2), so content
+ * scrolls behind the nav and stays visible, blurred, in the gaps above and
+ * beside it. The fill returns while the bar is the hover or focus target, the
+ * state it is always in on the homepage, so the capsule reads as the same
+ * surface there and the glow stays behind it instead of washing the bar.
+ */
+.wd-reader-nav .ring-surface {
+  background-color: transparent;
+}
+
+.wd-reader-nav .ring-host:hover .ring-surface,
+.wd-reader-nav .ring-host:has(:focus-visible) .ring-surface {
+  background-color: var(--surface-container-low);
+}
+
+/* The fill fades in; the clip-path timing stays ring-hover.css's own. */
+@media (prefers-reduced-motion: no-preference) {
+  .wd-reader-nav .ring-surface {
+    transition:
+      clip-path var(--ring-grow) var(--ring-ease),
+      background-color 150ms ease-out;
+  }
+}
+
 @media (min-width: 768px) {
   .wd-reader-nav-inner {
     padding-inline: 32px;
