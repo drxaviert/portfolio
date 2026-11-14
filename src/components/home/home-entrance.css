@@ -26,6 +26,7 @@
  *   grain  grain 0-460ms, cards 160 + item*32ms, 320ms each     → ends 672ms
  *   grow   rows at 0/70/140ms, 420ms each                       → ends 560ms
  *   breath glow 0-1200ms, cards 480 + item*30ms, 540ms each     → ends 1200ms
+ *   mist   haze 0-1100ms, cards item*30ms + 900ms each          → ends 1100ms
  *
  * The calm family (breath and the variants that follow) deliberately runs past
  * the 700ms budget and past motion.md's curves: it is one slow atmospheric
@@ -124,6 +125,12 @@
   --breath-duration: 540ms;
   --breath-blur: 2.5px;
   --breath-stagger: 30ms;
+
+  --mist-density: 0.9;
+  --mist-lift: 4%;
+  --mist-duration: 1100ms;
+  --mist-card-duration: 900ms;
+  --mist-stagger: 30ms;
 }
 
 /*
@@ -647,6 +654,63 @@
   }
 }
 
+/*
+ * 10 — Mist lift: one hush over the whole page. A theme-tinted gradient is
+ * densest at the top, so the horizon is already the clearest band on screen;
+ * the layer then thins upward and away (translateY 0 to -4%, opacity 1 to 0)
+ * with no blur filter at all — opacity and translate are the two cheapest
+ * properties there are. The cards fade in underneath, opacity only, bottom row
+ * first, each taking 900ms on a 30ms beat, so the mist is clearing while they
+ * are still arriving.
+ *
+ * The layer is harness chrome (mist-overlay.tsx), above the composition and
+ * below the tuner panel, and it leaves the tree at animationend.
+ */
+.entrance-mist {
+  /* The glow's own blob hue mixed into the phase surface: a tint, not a sheet. */
+  --mist-tint: color-mix(in oklab, var(--horizon-2) 10%, var(--surface));
+
+  position: fixed;
+  inset: 0;
+  /* Above the layout's z-index 3 popover, below the tuner panel. */
+  z-index: 10;
+  pointer-events: none;
+  background-image: linear-gradient(
+    180deg,
+    color-mix(
+      in oklab,
+      var(--mist-tint) calc(var(--mist-density) * 100%),
+      transparent
+    ),
+    color-mix(
+        in oklab,
+        var(--mist-tint) calc(var(--mist-density) * 55%),
+        transparent
+      )
+      62%,
+    transparent
+  );
+  animation: entrance-mist-lift var(--mist-duration) var(--entrance-ease)
+    forwards;
+}
+
+[data-entrance="mist"] .entrance-body {
+  animation: entrance-fade-in var(--mist-card-duration) var(--entrance-ease)
+    backwards;
+  animation-delay: calc(var(--entrance-h) * var(--mist-stagger));
+}
+
+@keyframes entrance-mist-lift {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--mist-lift, 4%) * -1));
+  }
+}
+
 @keyframes entrance-scale-in {
   from {
     opacity: 0;
@@ -739,6 +803,11 @@
     .horizon-motion-layer {
     animation: none;
     transform: none;
+  }
+
+  /* Mist is atmosphere, not content: drop the layer. */
+  .entrance-mist {
+    display: none;
   }
 
   /* No blur at all; the content takes the fade above and this layer is gone. */

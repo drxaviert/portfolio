@@ -107,4 +107,19 @@ describe("entrance harness", () => {
 
     expect(document.querySelector(".entrance-grain")).toBeNull();
   });
+
+  it("mounts the mist layer only for mist lift", () => {
+    mount();
+
+    expect(document.querySelector(".entrance-mist")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mist lift" }));
+
+    expect(document.querySelector("main")?.dataset.entrance).toBe("mist");
+    expect(document.querySelectorAll(".entrance-mist")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Rise" }));
+
+    expect(document.querySelector(".entrance-mist")).toBeNull();
+  });
 });

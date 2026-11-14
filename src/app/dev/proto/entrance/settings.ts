@@ -97,6 +97,16 @@ export type BreathSettings = {
   stagger: number;
 };
 
+export type MistSettings = {
+  /** Haze opacity at the top edge, in percent. */
+  density: number;
+  /** Upward travel, in percent of the viewport. */
+  lift: number;
+  duration: number;
+  cardDuration: number;
+  stagger: number;
+};
+
 export type Settings = {
   scale: ScaleSettings;
   rise: RiseSettings;
@@ -107,6 +117,7 @@ export type Settings = {
   grain: GrainSettings;
   grow: GrowSettings;
   breath: BreathSettings;
+  mist: MistSettings;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -164,6 +175,15 @@ export const DEFAULT_SETTINGS: Settings = {
     delay: 480,
     duration: 540,
     blur: 2.5,
+    stagger: 30,
+  },
+  // A 90% haze at the top thinning to nothing at the horizon, gone in 1100ms
+  // while 900ms card fades overlap on a 30ms beat.
+  mist: {
+    density: 90,
+    lift: 4,
+    duration: 1100,
+    cardDuration: 900,
     stagger: 30,
   },
 };
@@ -608,6 +628,48 @@ export const CONTROLS: Record<EntranceVariant, Control[]> = {
       unit: "ms",
     },
   ],
+  mist: [
+    {
+      key: "density",
+      label: "Haze density",
+      min: 0,
+      max: 100,
+      step: 5,
+      unit: "%",
+    },
+    {
+      key: "lift",
+      label: "Lift distance",
+      min: 0,
+      max: 12,
+      step: 1,
+      unit: "%",
+    },
+    {
+      key: "duration",
+      label: "Haze duration",
+      min: 500,
+      max: 2000,
+      step: 50,
+      unit: "ms",
+    },
+    {
+      key: "cardDuration",
+      label: "Card duration",
+      min: 300,
+      max: 1600,
+      step: 50,
+      unit: "ms",
+    },
+    {
+      key: "stagger",
+      label: "Card stagger",
+      min: 0,
+      max: 80,
+      step: 2,
+      unit: "ms",
+    },
+  ],
 };
 
 /** 7 reading-order items: the last one starts at 6 x stagger. */
@@ -691,6 +753,12 @@ export function totalMs(variant: EntranceVariant, settings: Settings): number {
         settings.breath.delay +
           LAST_ITEM * settings.breath.stagger +
           settings.breath.duration,
+      );
+    case "mist":
+      // Cards start with the haze, so the later of the two ends it.
+      return Math.max(
+        settings.mist.duration,
+        LAST_ITEM * settings.mist.stagger + settings.mist.cardDuration,
       );
   }
 }
@@ -813,6 +881,18 @@ export function cssVars(
         "--breath-duration": `${s.duration}ms`,
         "--breath-blur": `${s.blur}px`,
         "--breath-stagger": `${s.stagger}ms`,
+      };
+    }
+    case "mist": {
+      const s = settings.mist;
+
+      return {
+        ...shared,
+        "--mist-density": String(s.density / 100),
+        "--mist-lift": `${s.lift}%`,
+        "--mist-duration": `${s.duration}ms`,
+        "--mist-card-duration": `${s.cardDuration}ms`,
+        "--mist-stagger": `${s.stagger}ms`,
       };
     }
   }

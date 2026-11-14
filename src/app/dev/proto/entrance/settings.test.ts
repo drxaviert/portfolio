@@ -82,6 +82,22 @@ describe("entrance settings", () => {
     ).toContain("not in motion.md");
   });
 
+  it("settles the mist on whichever of haze or cards ends last", () => {
+    const mist = DEFAULT_SETTINGS.mist;
+
+    expect(totalMs("mist", DEFAULT_SETTINGS)).toBe(1100);
+
+    // A short haze leaves the last card to close the entrance.
+    expect(
+      totalMs("mist", patch(DEFAULT_SETTINGS, "mist", "duration", 500)),
+    ).toBe(6 * mist.stagger + mist.cardDuration);
+
+    // A long haze holds it open past the cards.
+    expect(
+      totalMs("mist", patch(DEFAULT_SETTINGS, "mist", "duration", 2000)),
+    ).toBe(2000);
+  });
+
   it("staggers the grow by row, bottom row first", () => {
     const grow = DEFAULT_SETTINGS.grow;
 
@@ -227,6 +243,14 @@ describe("entrance settings", () => {
     expect(breath["--breath-duration"]).toBe("540ms");
     expect(breath["--breath-blur"]).toBe("2.5px");
     expect(breath["--entrance-ease"]).toBe(CALM_EASING);
+
+    const mist = cssVars("mist", DEFAULT_SETTINGS, CALM_EASING);
+
+    expect(mist["--mist-density"]).toBe("0.9");
+    expect(mist["--mist-lift"]).toBe("4%");
+    expect(mist["--mist-duration"]).toBe("1100ms");
+    expect(mist["--mist-card-duration"]).toBe("900ms");
+    expect(mist["--mist-stagger"]).toBe("30ms");
   });
 
   it("shows steps(n) instead of a curve for the step cut", () => {
