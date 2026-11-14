@@ -128,31 +128,32 @@ describe("entrance settings", () => {
     ).toBe(dawn.contentDelay + 2 * dawn.stagger + 300);
   });
 
-  it("settles soft focus on the dissolve or the card fade", () => {
+  it("settles soft focus on the dissolve or the last staggered card", () => {
     const soft = DEFAULT_SETTINGS.soft;
+    const cardsEnd = soft.cardDelay + 6 * soft.stagger + soft.cardDuration;
 
-    expect(totalMs("soft", DEFAULT_SETTINGS)).toBe(1000);
+    // Dat's tuned defaults: the stagger tail closes the entrance, not the blur.
+    expect(cardsEnd).toBe(2035);
+    expect(totalMs("soft", DEFAULT_SETTINGS)).toBe(2035);
+    expect(cardsEnd).toBeGreaterThan(soft.duration);
 
-    // The cards land inside the dissolve.
-    expect(soft.cardDelay + soft.cardDuration).toBeLessThan(soft.duration);
+    // Without a stagger the cards finish six beats earlier.
+    expect(totalMs("soft", patch(DEFAULT_SETTINGS, "soft", "stagger", 0))).toBe(
+      soft.cardDelay + soft.cardDuration,
+    );
 
-    // A late, slow card fade outlasts a short dissolve.
+    // A long dissolve outlasts the cards once they are quicker.
     expect(
       totalMs(
         "soft",
         patch(
-          patch(
-            patch(DEFAULT_SETTINGS, "soft", "duration", 400),
-            "soft",
-            "cardDelay",
-            600,
-          ),
+          patch(DEFAULT_SETTINGS, "soft", "duration", 2000),
           "soft",
           "cardDuration",
           800,
         ),
       ),
-    ).toBe(1400);
+    ).toBe(2000);
   });
 
   it("staggers the grow by row, bottom row first", () => {
@@ -321,11 +322,13 @@ describe("entrance settings", () => {
 
     const soft = cssVars("soft", DEFAULT_SETTINGS, CALM_EASING);
 
-    expect(soft["--soft-blur"]).toBe("6px");
-    expect(soft["--soft-veil"]).toBe("0.12");
-    expect(soft["--soft-duration"]).toBe("1000ms");
-    expect(soft["--soft-card-delay"]).toBe("200ms");
-    expect(soft["--soft-card-duration"]).toBe("600ms");
+    expect(soft["--soft-blur"]).toBe("9px");
+    expect(soft["--soft-veil"]).toBe("0.24");
+    expect(soft["--soft-duration"]).toBe("1400ms");
+    expect(soft["--soft-card-delay"]).toBe("600ms");
+    expect(soft["--soft-card-duration"]).toBe("1075ms");
+    expect(soft["--soft-rise"]).toBe("6px");
+    expect(soft["--soft-stagger"]).toBe("60ms");
   });
 
   it("shows steps(n) instead of a curve for the step cut", () => {

@@ -8,7 +8,7 @@ import { EntranceHarness } from "./entrance-harness";
  * rise, ring reveal, sky first, horizon clear, step cut, grain sky, horizon
  * grow, then the calm family: breath, mist lift, dawn bloom, soft focus.
  * Variants 1-8 land inside a 700ms sequence; the calm family is a deliberate
- * test of 1000-1300ms and of the proposed calm curve.
+ * test of 1-2s and of the proposed calm curve.
  *
  * Dev-only; deep links 404 in a production build. The layout it renders is
  * src/components/home/home-layout, so anything decided here moves over cleanly.

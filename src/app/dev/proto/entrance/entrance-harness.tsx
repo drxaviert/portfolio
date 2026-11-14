@@ -61,6 +61,7 @@ export function EntranceHarness() {
   const [resetToken, setResetToken] = useState(0);
   const [easing, setEasing] = useState<string>(DEFAULT_EASING);
   const [open, setOpen] = useState(true);
+  const [softOrder, setSoftOrder] = useState<"horizon" | "reading">("horizon");
   const [reduced, setReduced] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
     "idle",
@@ -218,6 +219,14 @@ export function EntranceHarness() {
     scheduleReplay();
   }
 
+  /** Soft focus only: swap the per-card delay index, then play it again. */
+  function changeSoftOrder(order: "horizon" | "reading") {
+    if (order === softOrder) return;
+
+    setSoftOrder(order);
+    replay();
+  }
+
   async function copyValues() {
     const text = copyBlock(
       variant,
@@ -246,7 +255,11 @@ export function EntranceHarness() {
 
       {/* Stable wrapper: the panel writes the CSS vars here, so a remount of
           HomeLayout never loses the tuning. */}
-      <div className="entrance-scope" ref={scopeRef}>
+      <div
+        className="entrance-scope"
+        ref={scopeRef}
+        data-soft-order={softOrder}
+      >
         <HomeLayout key={take} entrance={playing ?? undefined} />
         {/* Above the layout, below the panel. Keyed with the layout so the
             mask animation restarts on every replay — but with its own prefix,
@@ -379,6 +392,36 @@ export function EntranceHarness() {
                 );
               })}
             </div>
+
+            {variant === "soft" ? (
+              <div className="ent-panel-easing">
+                <span>Card order</span>
+                <div
+                  className="ent-panel-variants"
+                  role="group"
+                  aria-label="Card order"
+                >
+                  <button
+                    type="button"
+                    className="ent-panel-variant"
+                    data-active={softOrder === "horizon" ? "" : undefined}
+                    aria-pressed={softOrder === "horizon"}
+                    onClick={() => changeSoftOrder("horizon")}
+                  >
+                    Horizon-up
+                  </button>
+                  <button
+                    type="button"
+                    className="ent-panel-variant"
+                    data-active={softOrder === "reading" ? "" : undefined}
+                    aria-pressed={softOrder === "reading"}
+                    onClick={() => changeSoftOrder("reading")}
+                  >
+                    Reading
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             <p className="ent-panel-total">
               <span>Settles by</span>

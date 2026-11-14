@@ -28,7 +28,7 @@
  *   breath glow 0-1200ms, cards 480 + item*30ms, 540ms each     → ends 1200ms
  *   mist   haze 0-1100ms, cards item*30ms + 900ms each          → ends 1100ms
  *   dawn   veil 0-1300ms, bloom 0-1300ms, content 650 + row*25   → ends 1300ms
- *   soft   unblur 0-1000ms, cards 200 + 600ms                  → ends 1000ms
+ *   soft   unblur 0-1400ms, cards 600 + item*60ms, 1075ms each  → ends 2035ms
  *
  * The calm family (breath and the variants that follow) deliberately runs past
  * the 700ms budget and past motion.md's curves: it is one slow atmospheric
@@ -147,11 +147,13 @@
      this one, so the rule keeps applying. */
   --dawn-phase-mix: 1;
 
-  --soft-blur: 6px;
-  --soft-veil: 0.12;
-  --soft-duration: 1000ms;
-  --soft-card-delay: 200ms;
-  --soft-card-duration: 600ms;
+  --soft-blur: 9px;
+  --soft-veil: 0.24;
+  --soft-duration: 1400ms;
+  --soft-card-delay: 600ms;
+  --soft-card-duration: 1075ms;
+  --soft-rise: 6px;
+  --soft-stagger: 60ms;
 }
 
 :root[data-phase="night"] .entrance-scope {
@@ -822,14 +824,21 @@
 }
 
 /*
- * 12 — Soft focus: horizon clear's gentler cousin. A 6px backdrop blur plus a
- * faint brightness veil covers the whole composition with no mask and no
- * radial edge; one opacity animation dissolves both at once, so the page goes
- * from soft to sharp evenly rather than clearing outward from a point. The
- * cards fade in underneath with no movement at all.
+ * 12 — Soft focus: horizon clear's gentler cousin. A 9px backdrop blur plus a
+ * 24% brightness veil covers the whole composition with no mask and no radial
+ * edge; one opacity animation dissolves both at once, so the page goes from
+ * soft to sharp evenly rather than clearing outward from a point.
+ *
+ * The cards arrive under it with a small 6px rise and a fade, same duration
+ * (1075ms) and curve for both, no blur on the content and nothing that can
+ * overshoot — `translate` plus opacity keeps the move on the compositor and
+ * leaves `transform` free for the ring hover. They are 60ms apart from the
+ * bottom up; the harness can swap in reading order through
+ * `data-soft-order="reading"` on the scope, and both orders span the same six
+ * steps so the settle readout does not change.
  *
  * This is the only calm variant with a real filter, and it is deliberately
- * small (6px default, 16px ceiling) and short-lived: the layer is removed at
+ * small (9px default, 16px ceiling) and short-lived: the layer is removed at
  * animationend, so nothing stays composited. Safari rasterises backdrop filters
  * in software more often than Chrome, and a full-viewport blur over the WebGL
  * canvas is the most expensive thing in this prototype — see the report.
@@ -852,9 +861,20 @@
 }
 
 [data-entrance="soft"] .entrance-body {
-  animation: entrance-fade-in var(--soft-card-duration) var(--entrance-ease)
-    backwards;
-  animation-delay: var(--soft-card-delay);
+  animation: entrance-soft-card-in var(--soft-card-duration)
+    var(--entrance-ease) backwards;
+  animation-delay: calc(
+    var(--soft-card-delay) + var(--entrance-h) * var(--soft-stagger)
+  );
+}
+
+/* Reading order instead of horizon-up, when the panel asks for it. */
+.entrance-scope[data-soft-order="reading"]
+  [data-entrance="soft"]
+  .entrance-body {
+  animation-delay: calc(
+    var(--soft-card-delay) + var(--entrance-i) * var(--soft-stagger)
+  );
 }
 
 @keyframes entrance-soft-clear {
@@ -863,6 +883,18 @@
   }
   to {
     opacity: 0;
+  }
+}
+
+/* Fade plus the rise: no scale, no blur, nothing that can overshoot. */
+@keyframes entrance-soft-card-in {
+  from {
+    opacity: 0;
+    translate: 0 var(--soft-rise, 6px);
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
   }
 }
 

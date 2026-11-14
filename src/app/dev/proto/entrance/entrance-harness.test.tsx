@@ -152,4 +152,26 @@ describe("entrance harness", () => {
 
     expect(document.querySelector(".entrance-soft")).toBeNull();
   });
+
+  it("switches the soft-focus card order from the panel", () => {
+    mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "Soft focus" }));
+
+    const scope = document.querySelector(".entrance-scope");
+
+    expect(scope?.getAttribute("data-soft-order")).toBe("horizon");
+    expect(screen.getByRole("button", { name: "Horizon-up" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reading" }));
+
+    expect(scope?.getAttribute("data-soft-order")).toBe("reading");
+    expect(screen.getByRole("button", { name: "Reading" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
 });

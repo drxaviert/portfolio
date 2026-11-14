@@ -127,6 +127,10 @@ export type SoftSettings = {
   duration: number;
   cardDelay: number;
   cardDuration: number;
+  /** How far each card rises into place, in px. */
+  rise: number;
+  /** Between cards, in ms. */
+  stagger: number;
 };
 
 export type Settings = {
@@ -221,14 +225,17 @@ export const DEFAULT_SETTINGS: Settings = {
     contentDuration: 600,
     stagger: 25,
   },
-  // Horizon clear's gentler cousin: a 6px backdrop blur, a 12% brightness veil
-  // and a 1000ms dissolve; the cards only fade, over the second half.
+  // Horizon clear's gentler cousin, on Dat's tuned values: a 9px backdrop blur,
+  // a 24% veil and a 1400ms dissolve, with the cards rising 6px into place over
+  // 1075ms each, 60ms apart from the bottom up.
   soft: {
-    blur: 6,
-    veil: 12,
-    duration: 1000,
-    cardDelay: 200,
-    cardDuration: 600,
+    blur: 9,
+    veil: 24,
+    duration: 1400,
+    cardDelay: 600,
+    cardDuration: 1075,
+    rise: 6,
+    stagger: 60,
   },
 };
 
@@ -815,6 +822,22 @@ export const CONTROLS: Record<EntranceVariant, Control[]> = {
       step: 25,
       unit: "ms",
     },
+    {
+      key: "rise",
+      label: "Card rise",
+      min: 0,
+      max: 16,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "stagger",
+      label: "Card stagger",
+      min: 0,
+      max: 200,
+      step: 10,
+      unit: "ms",
+    },
   ],
 };
 
@@ -916,10 +939,13 @@ export function totalMs(variant: EntranceVariant, settings: Settings): number {
           settings.dawn.contentDuration,
       );
     case "soft":
-      // One dissolve; the cards finish inside it.
+      // One dissolve; the cards finish inside it. The staggering spreads the
+      // last card by (n-1) beats, so the settle includes that tail.
       return Math.max(
         settings.soft.duration,
-        settings.soft.cardDelay + settings.soft.cardDuration,
+        settings.soft.cardDelay +
+          LAST_ITEM * settings.soft.stagger +
+          settings.soft.cardDuration,
       );
   }
 }
@@ -1080,6 +1106,8 @@ export function cssVars(
         "--soft-duration": `${s.duration}ms`,
         "--soft-card-delay": `${s.cardDelay}ms`,
         "--soft-card-duration": `${s.cardDuration}ms`,
+        "--soft-rise": `${s.rise}px`,
+        "--soft-stagger": `${s.stagger}ms`,
       };
     }
   }
