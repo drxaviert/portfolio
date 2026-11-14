@@ -80,10 +80,22 @@
  * it would be clipped by the panel and, at 375, by the viewport. HomeNav's own
  * popovers are unchanged on the homepage; here they open downward instead.
  */
-.wd-reader-nav .segment-tooltip {
+.wd-reader-nav .segment-tooltip,
+.wd-reader-nav .nav-tooltip {
   top: calc(100% + 8px);
   bottom: auto;
   margin-top: 0;
+}
+
+/*
+ * The toggle sits at the panel's right edge, and its widest label ("Auto ·
+ * follows your clock") is centred on the last segment, so half of it would
+ * overrun the panel. Right-align that one label to its segment instead.
+ */
+.wd-reader-nav [data-mode-track] .segment:last-child .segment-tooltip {
+  left: auto;
+  right: 0;
+  translate: none;
 }
 
 .wd-reader-nav .phase-row,
@@ -275,7 +287,15 @@
 
 /* In the overlay the thumb buttons are part of the content, so they fade with
    the scroll column instead of floating over the open and close morphs. Until
-   the fade has played they are present but invisible, so they take no clicks. */
+   the fade has played they are present but invisible, so they take no clicks.
+   Pinned values (F5), the scroll column's own law: the entrance curve in at
+   240ms, ease-in out at 140ms, 120ms ease-out under reduced motion. */
+.wd-reader-actions {
+  --wd-actions-in: 240ms cubic-bezier(0.23, 1, 0.32, 1);
+  --wd-actions-out: 140ms ease-in;
+  --wd-actions-reduced: 120ms ease-out;
+}
+
 .wd-expand-layer[data-phase="opening"] .wd-reader-actions {
   opacity: 0;
   pointer-events: none;
@@ -283,13 +303,13 @@
 
 .wd-expand-layer[data-phase="open"] .wd-reader-actions {
   opacity: 1;
-  transition: opacity 240ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: opacity var(--wd-actions-in);
 }
 
 .wd-expand-layer[data-phase="closing"] .wd-reader-actions {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 140ms ease-in;
+  transition: opacity var(--wd-actions-out);
 }
 
 /* The container's `pointer-events: none` cannot beat the buttons' own `auto`. */
@@ -315,9 +335,14 @@
       visibility 0s linear 120ms;
   }
 
+  /*
+   * The thumb pair restates the whole transition, not just its duration: the
+   * base close keeps `ease-in` for normal motion, and a duration-only override
+   * would inherit it (T8 F1). Reduced close is 120ms ease-out.
+   */
   .wd-expand-layer[data-phase="open"] .wd-reader-actions,
   .wd-expand-layer[data-phase="closing"] .wd-reader-actions {
-    transition-duration: 120ms;
+    transition: opacity var(--wd-actions-reduced);
   }
 }
 
@@ -354,6 +379,17 @@
 
 .wd-intro-title {
   margin: 0;
+}
+
+/*
+ * The reader focuses its title on open so the panel is announced. WebKit
+ * treats that programmatic focus as `:focus-visible` and paints a UA ring
+ * around a heading nobody tabbed to, so `:not(:focus-visible)` cannot gate it
+ * here. The title is `tabindex="-1"`: Tab cannot reach it, so suppressing its
+ * ring costs no keyboard affordance. Every interactive control keeps its ring.
+ */
+.wd-expand-layer .wd-intro-title:focus {
+  outline: none;
 }
 
 .wd-intro-subtitle {
