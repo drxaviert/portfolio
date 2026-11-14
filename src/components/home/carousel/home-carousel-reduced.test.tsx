@@ -78,8 +78,8 @@ describe("HomeCarousel with reduced motion", () => {
     expect(
       screen.getByRole("group", { name: "1 of 4: Titles" }),
     ).toBeInTheDocument();
-    expect(recorded.some((r) => hasProp(r, "transform"))).toBe(false);
-    expect(recorded.some((r) => hasProp(r, "clipPath"))).toBe(false);
+    expect(recorded.some((r) => hasProp(r, "--car-x"))).toBe(false);
+    expect(recorded.some((r) => hasProp(r, "--car-r"))).toBe(false);
 
     const fade = recorded.find((r) => hasProp(r, "opacity"));
     expect(fade?.target).toBe(container.querySelector(".car-row"));

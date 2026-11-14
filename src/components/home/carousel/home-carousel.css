@@ -57,11 +57,35 @@
   pointer-events: none;
 }
 
+/*
+ * A card's position and crop. Registered so they animate as lengths, and
+ * non-inheriting so only the card itself is restyled each frame.
+ */
+@property --car-x {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --car-r {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 .car-slide {
   position: absolute;
   top: 0;
   left: 0;
   height: 100%;
+  transform: translateX(var(--car-x));
+}
+
+/* While a card moves its box is as wide as the wider end and this crops the
+   right side down to the width the step is at. Everything the card paints (fill,
+   shadow, ring, content) is inside it, so nothing shows in the gap. */
+.car-slide[data-clipped] {
+  clip-path: inset(0 var(--car-r) 0 0 round 12px);
 }
 
 /* A hovered or focused card's ring grows into the gutters, over its

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HomeCarousel } from "./home-carousel";
@@ -256,18 +258,73 @@ describe("the wrap seam", () => {
     expect(container.querySelectorAll(".car-slide")).toHaveLength(4);
   });
 
-  it("moves with transform and clip-path only", () => {
-    render(<HomeCarousel items={ITEMS} />);
+  it("moves and crops in one animation, as same-thread custom properties", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
 
     fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
 
-    const moves = recorded.filter((r) => hasProp(r, "transform"));
+    // Regression: animating transform (compositor) and clip-path (main thread)
+    // together let the crop lag the move, and a shrinking card's surface showed
+    // across the gap. Position and crop are one animation of two custom
+    // properties, never transform or clip-path themselves.
+    const moves = recorded.filter((r) => hasProp(r, "--car-x"));
     expect(moves.length).toBeGreaterThan(0);
     for (const move of moves) {
       expect(Object.keys(move.keyframes).sort()).toEqual([
-        "clipPath",
-        "transform",
+        "--car-r",
+        "--car-x",
       ]);
+      expect(move.target.hasAttribute("data-clipped")).toBe(true);
+    }
+    expect(recorded.some((r) => hasProp(r, "transform"))).toBe(false);
+    expect(recorded.some((r) => hasProp(r, "clipPath"))).toBe(false);
+
+    // Every card in the row is cropped while it moves.
+    const cropped = container.querySelectorAll(".car-slide[data-clipped]");
+    expect(cropped.length).toBeGreaterThan(0);
+  });
+
+  it("crops the card's whole box at its start, and uncrops it at rest", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+    expect(container.querySelectorAll(".car-slide[data-clipped]")).toHaveLength(
+      5,
+    );
+
+    finishStep();
+
+    expect(container.querySelectorAll("[data-clipped]")).toHaveLength(0);
+    for (const slide of container.querySelectorAll<HTMLElement>(".car-slide")) {
+      expect(slide.style.getPropertyValue("--car-r")).toBe("0px");
+    }
+  });
+});
+
+describe("carousel CSS", () => {
+  const css = readFileSync(
+    resolve(process.cwd(), "src/components/home/carousel/home-carousel.css"),
+    "utf8",
+  );
+
+  it("crops the card element itself, so no painted layer can sit outside it", () => {
+    // The crop is on the outermost card box; the fill, shadow, ring and content
+    // are all its descendants, so they follow the visible box.
+    expect(css).toMatch(
+      /\.car-slide\[data-clipped\]\s*\{\s*clip-path:\s*inset\(0 var\(--car-r\) 0 0 round 12px\)/,
+    );
+    expect(css).toMatch(
+      /\.car-slide\s*\{[^}]*transform:\s*translateX\(var\(--car-x\)\)/,
+    );
+  });
+
+  it("registers position and crop as non-inheriting lengths", () => {
+    for (const name of ["--car-x", "--car-r"]) {
+      expect(css).toMatch(
+        new RegExp(
+          `@property ${name}\\s*\\{[^}]*syntax:\\s*"<length>";[^}]*inherits:\\s*false`,
+        ),
+      );
     }
   });
 });
@@ -278,7 +335,7 @@ describe("easing and one timeline", () => {
 
     fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
 
-    const card = recorded.find((r) => hasProp(r, "transform"))!;
+    const card = recorded.find((r) => hasProp(r, "--car-x"))!;
     expect(card.options.duration).toBe(900);
     expect(card.options.easing).toBe("cubic-bezier(0.5, 0, 0.1, 1)");
   });
@@ -333,7 +390,7 @@ describe("easing and one timeline", () => {
 
     const retargeted = recorded
       .slice(before)
-      .find((r) => hasProp(r, "transform"))!;
+      .find((r) => hasProp(r, "--car-x"))!;
     expect(retargeted.options.easing).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
   });
 });
@@ -376,7 +433,7 @@ describe("blur modes", () => {
     fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
 
     const moving = recorded.filter(
-      (r) => hasProp(r, "transform") && hasProp(r, "filter"),
+      (r) => hasProp(r, "--car-x") && hasProp(r, "filter"),
     );
     expect(moving.length).toBeGreaterThan(0);
     for (const r of moving) {

@@ -12,10 +12,17 @@ import type { Entity, Pose, TitleTiming } from "./carousel-math";
  * its content never reflows. At rest the card's own box is the slot box and
  * everything (shadow, ring, fill) is native. During a step the box is as wide
  * as the wider of the two ends and `clip-path` crops it to the width the step
- * is at; only `transform`, `clip-path` and `opacity` ever animate.
+ * is at.
+ *
+ * Position and crop are two registered custom properties, `--car-x` and
+ * `--car-r` (home-carousel.css), animated in ONE animation. Animating
+ * `transform` and `clip-path` directly desynced them: Chrome runs the
+ * transform on the compositor and the clip-path on the main thread, so at
+ * speed the crop lagged the move by a frame and a shrinking card's surface
+ * showed across the gap. As custom properties both are resolved on the main
+ * thread in the same frame, so the visible box is always exactly the box the
+ * card is moving to.
  */
-
-const RADIUS = 12;
 
 type Parts = {
   cover: HTMLElement | null;
@@ -54,8 +61,9 @@ export function restStyle(
   mode: SliverMode,
 ) {
   el.style.width = `${pose.w}px`;
-  el.style.transform = `translateX(${pose.x}px)`;
-  el.style.clipPath = "";
+  el.style.setProperty("--car-x", `${pose.x}px`);
+  el.style.setProperty("--car-r", "0px");
+  delete el.dataset.clipped;
   el.style.visibility = visible ? "" : "hidden";
 
   applyLook(el, lookFor(mode, wide));
@@ -64,8 +72,9 @@ export function restStyle(
   if (title) title.style.opacity = String(wide);
 }
 
-function inset(visibleOf: number, boxWidth: number): string {
-  return `inset(0px ${Math.max(boxWidth - visibleOf, 0)}px 0px 0px round ${RADIUS}px)`;
+/** How much of the box the crop removes on the right. */
+function crop(visibleOf: number, boxWidth: number): string {
+  return `${Math.max(boxWidth - visibleOf, 0)}px`;
 }
 
 export type PlayBlur = {
@@ -101,28 +110,29 @@ export function playEntity(
 
   el.style.visibility = "visible";
   el.style.width = `${box}px`;
-  el.style.transform = `translateX(${e.from.x}px)`;
-  el.style.clipPath = inset(e.from.w, box);
+  el.dataset.clipped = "";
+  el.style.setProperty("--car-x", `${e.from.x}px`);
+  el.style.setProperty("--car-r", crop(e.from.w, box));
 
   const moves = e.from.x !== e.to.x || e.from.w !== e.to.w;
   const enters = e.from.x >= b.rowWidth;
   const keyframes: PropertyIndexedKeyframes = {
-    transform: [`translateX(${e.from.x}px)`, `translateX(${e.to.x}px)`],
-    clipPath: [inset(e.from.w, box), inset(e.to.w, box)],
+    "--car-x": [`${e.from.x}px`, `${e.to.x}px`],
+    "--car-r": [crop(e.from.w, box), crop(e.to.w, box)],
   };
 
   if (b.mode === "motion" && moves) {
     // Peaks mid-step, 0 at rest; mid keyframe sits on the straight line so the
     // path is unchanged.
-    keyframes.transform = [
-      `translateX(${e.from.x}px)`,
-      `translateX(${lerp(e.from.x, e.to.x, 0.5)}px)`,
-      `translateX(${e.to.x}px)`,
+    keyframes["--car-x"] = [
+      `${e.from.x}px`,
+      `${lerp(e.from.x, e.to.x, 0.5)}px`,
+      `${e.to.x}px`,
     ];
-    keyframes.clipPath = [
-      inset(e.from.w, box),
-      inset(lerp(e.from.w, e.to.w, 0.5), box),
-      inset(e.to.w, box),
+    keyframes["--car-r"] = [
+      crop(e.from.w, box),
+      crop(lerp(e.from.w, e.to.w, 0.5), box),
+      crop(e.to.w, box),
     ];
     keyframes.filter = [
       blur(b.motionFrom),
