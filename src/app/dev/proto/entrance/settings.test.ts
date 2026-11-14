@@ -135,9 +135,9 @@ describe("entrance settings", () => {
     const soft = DEFAULT_SETTINGS.soft;
     const cardsEnd = soft.cardDelay + 6 * soft.stagger + soft.cardDuration;
 
-    // Dat's second sheet: 75ms + 6 x 60 + 1100 = 1535ms, past the 1400ms blur.
-    expect(cardsEnd).toBe(1535);
-    expect(totalMs("soft", DEFAULT_SETTINGS)).toBe(1535);
+    // Dat's final sheet: 250ms + 6 x 60 + 1100 = 1710ms, past the 1400ms blur.
+    expect(cardsEnd).toBe(1710);
+    expect(totalMs("soft", DEFAULT_SETTINGS)).toBe(1710);
     expect(cardsEnd).toBeGreaterThan(soft.duration);
 
     // Without a stagger the cards land inside the dissolve, so the blur ends it.
@@ -328,9 +328,9 @@ describe("entrance settings", () => {
     expect(soft["--soft-blur"]).toBe("8px");
     expect(soft["--soft-veil"]).toBe("0.24");
     expect(soft["--soft-duration"]).toBe("1400ms");
-    expect(soft["--soft-card-delay"]).toBe("75ms");
+    expect(soft["--soft-card-delay"]).toBe("250ms");
     expect(soft["--soft-card-duration"]).toBe("1100ms");
-    expect(soft["--soft-rise"]).toBe("16px");
+    expect(soft["--soft-rise"]).toBe("7px");
     expect(soft["--soft-stagger"]).toBe("60ms");
   });
 
@@ -354,9 +354,9 @@ describe("entrance settings", () => {
     );
 
     expect(block).toContain("/* blur method: split");
-    expect(block).toContain("--soft-rise: 16px;");
+    expect(block).toContain("--soft-rise: 7px;");
     expect(block).toContain("--soft-stagger: 60ms;");
-    expect(block).toContain("/* settles by 1535ms */");
+    expect(block).toContain("/* settles by 1710ms */");
   });
 
   it("shows steps(n) instead of a curve for the step cut", () => {

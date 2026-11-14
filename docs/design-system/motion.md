@@ -5,9 +5,11 @@ The shipped motion of the theme toggle and the Day phase row, recorded from the 
 ## Principles
 
 - One curve family per job: `cubic-bezier(0.23, 1, 0.32, 1)` for entrances, `ease-in` for exits, `cubic-bezier(0.34, 1.3, 0.64, 1)` for the icon settle.
+- Calm and ambient entrances use `cubic-bezier(0.4, 0, 0.2, 1)`: it leaves at zero velocity and settles on a long tail, so light and content arrive without anything launching.
 - Entrances stagger left to right; exits leave together. Nothing waits on the pointer.
 - Hover never restarts the entrance: it replays the icon settle once from its resting pose and ends at rest.
 - Reduced motion keeps the state change and drops the movement: one opacity fade, no icon motion.
+- Exception, 2026-11-14: the home page entrance settles by 1710ms, over the usual 700ms budget. Dat chose that deliberately after tuning twelve variants — the extra time is what makes Soft focus read as calm and ethereal rather than quick.
 
 ## Theme toggle hover
 
@@ -228,3 +230,49 @@ Dawn and Dusk carry permanent `clipPath`s so the sun is masked by the horizon in
 - `src/components/theme/theme-toggle.tsx:173` — dawn clipPath
 - `src/components/theme/theme-toggle.tsx:194` — dusk clipPath
 - `src/components/theme/theme-toggle.tsx:134` — per-instance clip id from `useId`
+
+## Home page entrance — Soft focus
+
+Everything on `/` arrives together: a theme-tinted veil clears while each card rises 7px, unblurs from 8px and fades in, 60ms apart from the bottom up, and the horizon glow softens on the same clock. The layout itself never blurs — there is no full-viewport `backdrop-filter` — because that averaged cards, gutters and shadows into blotches at 8px (measured on the prototype: the blur dropped the glow's dither energy 15x while the 1–24px residual only fell from 4.19 to 1.08 at 8px versus 2.05 at 4px, and the amplified residual was card edges, not noise).
+
+| Element | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Veil (`.entrance-soft`) | `opacity` | 1400ms | 0 | `cubic-bezier(0.4, 0, 0.2, 1)` | 1 → 0, then `visibility: hidden` |
+| Card (nav, item 7) | `opacity`, `translate`, `filter` | 1100ms | 250ms | `cubic-bezier(0.4, 0, 0.2, 1)` | 0 / `0 7px` / `blur(8px)` → 1 / `0 0` / `blur(0)` |
+| Card (project, item 3) | same | 1100ms | 310ms | same | same |
+| Card (sliver 1, item 4) | same | 1100ms | 370ms | same | same |
+| Card (sliver 2, item 5) | same | 1100ms | 430ms | same | same |
+| Card (sliver 3, item 6) | same | 1100ms | 490ms | same | same |
+| Card (tracker, item 1) | same | 1100ms | 550ms | same | same |
+| Card (play, item 2) | same | 1100ms | 610ms | same | same |
+| Glow, CSS fallback | `filter` on `.horizon-motion-layer` | 1400ms | 0 | same | `blur(8px)` → `blur(0)`; its grain sibling stays sharp |
+| Glow, WebGL | `uSoftUv` uniform (four-tap coverage box, dither applied after) | 1400ms | 0 | same | 8px radius → 0, then pinned at 0 |
+| A return to `/` | the same rules | — | — | — | cancelled once `html[data-entrance-played]` is set: a client-side return does not replay, a hard load does |
+
+Per-card delays are `250 + index × 60ms` in horizon order (nav 0 at the bottom, then the project card, the three slivers, and the top band left to right), so the lowest card arrives first and the last lands at 1710ms. The start pose is in the server markup and the CSS with `backwards` fill: no JS gate, no sharp-to-blurred pop, and the content rests visible if the animation never runs.
+
+| Reduced motion | Behaviour |
+| --- | --- |
+| Cards | one 120ms `ease-out` opacity fade, no rise, no blur |
+| Veil | `display: none` |
+| Glow | no softness animation, no filter; the light is simply there |
+
+The cost stays on the compositor: `opacity`, `translate` and `filter` per card, plus two 1400ms tracks for the veil and the glow, and nothing left behind — `filter: none` and `--soft-softness: 0px` once it ends (verified in computed styles). The shader reads `--soft-softness` once when the animation starts and then runs the value on its own clock, so no computed style is read per frame after the entrance.
+
+- `src/components/home/home-entrance.css:37` — veil layer, rest state hidden
+- `src/components/home/home-entrance.css:138` — `--soft-blur: 8px`
+- `src/components/home/home-entrance.css:141` — `--soft-card-delay: 250ms`
+- `src/components/home/home-entrance.css:144` — `--soft-stagger: 60ms`
+- `src/components/home/home-entrance.css:151` — the Calm curve, scoped to the shipped entrance
+- `src/components/home/home-entrance.css:214` — card animation and the `250 + --entrance-h * 60` delay
+- `src/components/home/home-entrance.css:235` — `entrance-soft-card-split` keyframes (7px rise, 8px → 0 blur)
+- `src/components/home/home-entrance.css:263` — CSS fallback glow blur
+- `src/components/home/home-entrance.css:273` — registered `--soft-softness` and its animation
+- `src/components/home/home-entrance.css:303` — reduced-motion branch
+- `src/components/home/home-entrance.css:327` — the one-play-per-document gate
+- `src/components/home/home-entrance.tsx:10` — `SHIPPED_ENTRANCE_TOTAL_MS = 1710`
+- `src/components/home/home-entrance.tsx:27` — marks `html[data-entrance-played]` after the settle
+- `src/components/home/home-layout.tsx:137` — the veil node (server-rendered)
+- `src/components/horizon/horizon-shader.tsx:353` — reads the radius once (`readSoftRadius`)
+- `src/components/horizon/horizon-shader.tsx:872` — starts the shader's own softness clock
+- `src/components/horizon/horizon-shader.tsx:139` — the four-tap coverage box, dither applied after

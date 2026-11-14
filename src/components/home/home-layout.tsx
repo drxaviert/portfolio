@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { HorizonLive } from "@/components/horizon/horizon-live";
 import { EntranceCell } from "./entrance-cell";
 import type { EntranceVariant } from "./entrance-cell";
+import { HomeEntrancePlayed } from "./home-entrance";
 import { EntranceGrain } from "./entrance-grain";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
@@ -33,15 +34,25 @@ const frameGapStyle = {
  * is one ring surface that grows into its own box and is lit by a glow in the
  * phase's horizon palette (see ring-hover.css).
  *
- * `entrance` is the throwaway prototype hook used by /dev/proto/entrance. It
- * wraps each card and the nav bar in an animation cell and puts data-entrance
- * on <main> for the variant CSS. Absent, the rendered tree is exactly the one
- * `/` shipped before: no wrappers, no attribute, no extra nodes.
+ * `entrance` wraps each card and the nav bar in an animation cell and puts
+ * data-entrance on <main> for the variant CSS. `/` passes `entrance="soft"
+ * shipped`, which adds the veil layer and the one-play-per-document gate; the
+ * dev route passes a variant only and keeps its own overlay in the harness.
+ *
+ * `shipped` marks <main> so the entrance CSS can tell the production entrance
+ * from the prototype's replays.
  */
-export function HomeLayout({ entrance }: { entrance?: EntranceVariant }) {
+export function HomeLayout({
+  entrance,
+  shipped = false,
+}: {
+  entrance?: EntranceVariant;
+  shipped?: boolean;
+}) {
   return (
     <main
       data-entrance={entrance}
+      data-entrance-shipped={shipped ? "" : undefined}
       className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface"
     >
       <HorizonLive />
@@ -118,6 +129,14 @@ export function HomeLayout({ entrance }: { entrance?: EntranceVariant }) {
 
         <FrameLineSpotlight />
       </div>
+
+      {/* The shipped entrance's veil: server-rendered so the first frame is
+          already washed, CSS-only so it clears without JS, and cancelled by
+          the played gate on a client-side return. */}
+      {shipped && entrance === "soft" ? (
+        <div aria-hidden="true" className="entrance-soft" />
+      ) : null}
+      {shipped ? <HomeEntrancePlayed /> : null}
     </main>
   );
 }

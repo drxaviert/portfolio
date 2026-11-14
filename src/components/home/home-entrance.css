@@ -1,72 +1,60 @@
 /*
- * Homepage entrance — throwaway prototype, dev route only.
+ * Home entrance — Soft focus, split blur. Shipped on `/` 2026-11-14.
  *
- * Loaded by /dev/proto/entrance, never by /. Everything is scoped under
- * [data-entrance], an attribute HomeLayout only renders when the prototype
- * passes a variant, so nothing here can reach the production page.
+ * Dat picked this after tuning twelve variants on /dev/proto/entrance. The glow
+ * and the content come into focus together: the cards rise 7px and blur out of
+ * 8px while a theme veil clears, and the whole sequence settles at 1710ms. That
+ * is deliberately over the usual 700ms budget — the calm/ethereal exception
+ * recorded in docs/design-system/motion.md.
  *
- * Every number is a CSS custom property set on the stable `.entrance-scope`
- * wrapper by the tuning panel (see settings.ts). Dragging a slider writes one
- * property and repaints; React never re-renders the layout. The block below is
- * the shipped 76f8961 tuning, used until the panel writes over it.
+ * This file is the production subset: the shared tokens, the cell layout, the
+ * horizon index, the soft-focus mechanics and their reduced-motion branch. The
+ * other eleven prototype variants, and the A/B blur methods, live in
+ * src/app/dev/proto/entrance/proto-variants.css, which only the dev route
+ * loads.
  *
- * Shared numbers
- *   curve      cubic-bezier(0.23, 1, 0.32, 1)  (docs/design-system/motion.md)
- *   per item   ~360ms
- *   total      every variant settles by 700ms
+ * CSS-only start: the server markup carries data-entrance="soft" and the
+ * animations begin at first paint with `backwards` fill, so there is no
+ * sharp-to-blurred pop and nothing waits on JS. `data-entrance-played` on
+ * <html>, set by home-entrance.tsx once the sequence settles, cancels the
+ * animations so a client-side return to / in the same tab does not replay,
+ * while a hard load (a new document) plays again.
  *
- * Variant timings (item = reading order: tracker, play, project, 3 slivers, nav)
- *   scale  items 0/50/100/150/200/250/300ms, 360ms each        → ends 660ms
- *   rise   rows at 0/60/120ms, 380ms each                      → ends 500ms
- *   ring   edge at item*40ms, fill at +80ms                    → ends 620ms
- *   sky    glow 0-300ms, cards 120 + item*36ms, 360ms each     → ends 696ms
- *   clear  one mask radius, 0-680ms                            → ends 680ms
- *   step   cards 240ms apart from the nav up, 180ms each        → ends 600ms
- *          (markers fade out 360ms after their card's first cut)
- *   grain  grain 0-460ms, cards 160 + item*32ms, 320ms each     → ends 672ms
- *   grow   rows at 0/70/140ms, 420ms each                       → ends 560ms
- *   breath glow 0-1200ms, cards 480 + item*30ms, 540ms each     → ends 1200ms
- *   mist   haze 0-1100ms, cards item*30ms + 900ms each          → ends 1100ms
- *   dawn   veil 0-1300ms, bloom 0-1300ms, content 650 + row*25   → ends 1300ms
- *   soft   unblur 0-1400ms, cards 600 + item*60ms, 1075ms each  → ends 2035ms
+ * Variant timings (item = horizon order: nav, project, 3 slivers, top band)
+ *   soft   veil 0-1400ms, cards 250 + item*60ms, 1100ms each      → ends 1710ms
  *
- * The calm family (breath and the variants that follow) deliberately runs past
- * the 700ms budget and past motion.md's curves: it is one slow atmospheric
- * move, timed so the parts overlap almost completely. The panel's over-budget
- * warning staying red is the point of the test, not a regression.
- *
- * Fill mode is `backwards`, not `both`. Backwards still paints the from-state
- * during the delay (the server-rendered HTML starts hidden, no flash, no JS),
- * but once the animation finishes the element reverts to its own base styles.
- * With `both` a finished animation would rest on an interpolated
- * `filter: blur(0px)` and an identity transform: a permanent raster filter plus
- * a stacking context on all seven cards, which is exactly what would fight the
- * ring hover. The end keyframes match the base styles, so the handover is
- * invisible.
- *
- * The clear variant is the exception: its one layer is `forwards` so the last
- * frame of the mask cannot snap back to a blurred screen for the frame between
- * `animationend` and React dropping the node (clear-overlay.tsx).
- *
- * Reduced motion replaces all of it with one 120ms opacity fade.
+ * The cards rest in their visible state, so a cancelled animation simply shows
+ * the page. Only the veil starts hidden in CSS (it is an overlay); its
+ * animation's first frame paints it over the page.
  */
 
 /*
- * The clear variant's mask radius. Registered so the browser can interpolate
- * it as a length-percentage; an unregistered custom property would step
- * between the keyframes instead. Percentages resolve against the radial
- * gradient's own ray (centre to farthest corner), so 100% is the farthest
- * corner on any viewport and 105% is safely past it. Support floor is the
- * @property syntax itself (Chrome 85, Safari 16.4, Firefox 128), which every
- * browser that paints a `backdrop-filter` here also has.
+ * Soft focus: a theme-tinted veil plus a per-card blur. The *layout* never
+ * blurs — no full-viewport backdrop filter — because that averages cards,
+ * gutters and shadows into patches the size of its radius, which is what made
+ * the first version look blotchy (measured and written up in motion.md).
  */
-@property --clear-r {
-  syntax: "<length-percentage>";
-  inherits: false;
-  initial-value: 0%;
+.entrance-soft {
+  position: fixed;
+  inset: 0;
+  /* Above the layout's z-index 3 popover, below any dev panel. */
+  z-index: 10;
+  pointer-events: none;
+  background-color: color-mix(
+    in oklab,
+    var(--surface-bright) calc(var(--soft-veil) * 100%),
+    transparent
+  );
+  /* Rest state is gone: with the animation cancelled (a return to / in the
+     same tab) the veil must never paint. */
+  opacity: 0;
+  visibility: hidden;
+  animation: entrance-soft-clear var(--soft-duration) var(--entrance-ease)
+    forwards;
 }
 
-.entrance-scope {
+.entrance-scope,
+[data-entrance="soft"] {
   --entrance-ease: cubic-bezier(0.23, 1, 0.32, 1);
 
   --scale-from: 0.96;
@@ -150,14 +138,18 @@
   --soft-blur: 8px;
   --soft-veil: 0.24;
   --soft-duration: 1400ms;
-  --soft-card-delay: 75ms;
+  --soft-card-delay: 250ms;
   --soft-card-duration: 1100ms;
-  --soft-rise: 16px;
+  --soft-rise: 7px;
   --soft-stagger: 60ms;
 }
 
-:root[data-phase="night"] .entrance-scope {
-  --dawn-phase-mix: 0.5;
+/*
+ * The shipped entrance runs on the Calm curve. Scoped to the shipped attribute
+ * so the prototype's curve picker keeps working on its own variants.
+ */
+[data-entrance-shipped] {
+  --entrance-ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /*
@@ -183,36 +175,6 @@
   flex: 1 1 auto;
   min-width: 0;
 }
-
-/* Reading order (item) and row index, as animatable delay multipliers. */
-[data-entrance] [data-entrance-item="1"] {
-  --entrance-i: 0;
-}
-
-[data-entrance] [data-entrance-item="2"] {
-  --entrance-i: 1;
-}
-
-[data-entrance] [data-entrance-item="3"] {
-  --entrance-i: 2;
-}
-
-[data-entrance] [data-entrance-item="4"] {
-  --entrance-i: 3;
-}
-
-[data-entrance] [data-entrance-item="5"] {
-  --entrance-i: 4;
-}
-
-[data-entrance] [data-entrance-item="6"] {
-  --entrance-i: 5;
-}
-
-[data-entrance] [data-entrance-item="7"] {
-  --entrance-i: 6;
-}
-
 /*
  * Distance from the horizon, for the variants that build upward from the glow
  * instead of reading top-down: 0 is the nav on the bottom edge, then the
@@ -247,718 +209,23 @@
 [data-entrance] [data-entrance-item="2"] {
   --entrance-h: 6;
 }
-
-[data-entrance] [data-entrance-row="1"] {
-  --entrance-r: 0;
-}
-
-[data-entrance] [data-entrance-row="2"] {
-  --entrance-r: 1;
-}
-
-[data-entrance] [data-entrance-row="3"] {
-  --entrance-r: 2;
-}
-
-/* 1 — Scale + blur: cards stagger in reading order from 0.96 / 6px blur. */
-[data-entrance="scale"] .entrance-body {
-  animation: entrance-scale-in var(--scale-duration) var(--entrance-ease)
-    backwards;
-  animation-delay: calc(var(--entrance-i) * var(--scale-stagger));
-}
-
-/* 2 — Rise: the row is the unit. One 8px lift per row, no blur. */
-[data-entrance="rise"] .entrance-body {
-  animation: entrance-rise-in var(--rise-duration) var(--entrance-ease)
-    backwards;
-  animation-delay: calc(var(--entrance-r) * var(--rise-stagger));
-}
-
-/*
- * 3 — Ring reveal: the card is drawn. The 1px edge arrives first, holds while
- * the fill and content fade in inside it, then hands back to the rest state
- * (no stroke). The edge is a pseudo-element on the cell, so the ring hover's
- * own frame is untouched and still opens on pointer.
- *
- * The edge is two animations, not one keyframe track: a percentage inside
- * @keyframes cannot be a custom property, so the hold is expressed as the gap
- * between the fade-in and the fade-out. The out animation is listed first and
- * the in animation second, so the in fades overrule the out's backwards fill
- * (opacity 1) until they finish; after that the edge holds, then fades.
- */
-[data-entrance="ring"] .entrance-cell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  border: 1px solid var(--frame-line);
-  /* Rest radius of .ring-surface at the card box (ring-hover.css). */
-  border-radius: 12px;
-  pointer-events: none;
-  /* Rest state; the out animation ends here and the row keeps it. */
-  opacity: 0;
-  animation:
-    entrance-edge-out var(--ring-edge-out) var(--entrance-ease)
-      calc(
-        var(--entrance-i) * var(--ring-stagger) + var(--ring-edge-in) +
-          var(--ring-edge-hold)
-      )
-      both,
-    entrance-fade-in var(--ring-edge-in) var(--entrance-ease)
-      calc(var(--entrance-i) * var(--ring-stagger)) backwards;
-}
-
-[data-entrance="ring"] .entrance-body {
-  animation: entrance-fade-in var(--ring-fill-duration) var(--entrance-ease)
-    backwards;
-  animation-delay: calc(
-    var(--entrance-i) * var(--ring-stagger) + var(--ring-fill-delay)
-  );
-}
-
-/*
- * 4 — Sky first: the horizon glow rises before the objects, then the cards
- * come in lighter than variant 1. The fade lands on the motion layer — the one
- * wrapper around both CSS blobs (and their pulse copies) that carries no
- * animation of its own, so it cannot override the drift, breathe or intensity
- * animations inside it. Fading the whole horizon surface instead would flash
- * the darker page background, since it also paints the base colour.
- */
-[data-entrance="sky"] .horizon-motion-layer {
-  animation: entrance-fade-in var(--sky-glow-duration) var(--entrance-ease)
-    backwards;
-}
-
-[data-entrance="sky"] .entrance-body {
-  animation: entrance-scale-light-in var(--sky-duration) var(--entrance-ease)
-    backwards;
-  animation-delay: calc(
-    var(--sky-delay) + var(--entrance-i) * var(--sky-stagger)
-  );
-}
-
-/*
- * 5 — Horizon clear: the whole scope starts under one heavy backdrop blur and a
- * radial mask punches a clear hole out of it that grows from the horizon glow
- * past the farthest corner. Nothing else animates — the background, cards and
- * nav are revealed in place through the hole, so there is no layout shift and
- * no per-item stagger.
- *
- * The layer is the only node the prototype adds outside the layout. It is
- * `pointer-events: none` for its whole life, and clear-overlay.tsx drops it on
- * animationend so no blur stays composited over an already-sharp page.
- *
- * Origin 50% 88%: the horizon is two blurred ellipses whose centres sit below
- * the fold (blob 1 at 17.5% x / 104.5% y, blob 2 at 83.5% / 102.5%), so the
- * visible glow is the band where they surface and the backdrop ramp lifts
- * (--horizon-mid-at: 82% Day/Dawn, 80% Dusk, 90% Night). 50% is the midpoint
- * of the two blob centres; 88% is the middle of that visible band, which keeps
- * the first clear pixels inside the glow instead of on the screen edge.
- *
- * Blur is held at one value instead of fading out with the radius: the feather
- * already softens the front, and a blur fade makes the last third of the
- * reveal invisible — the corners would be sharp before the radius reached
- * them, so the front would stop reading as it travelled.
- */
-.entrance-clear {
-  --clear-r: 0%;
-
-  position: fixed;
-  inset: 0;
-  /* Above the nav's z-3 popover, below the tuner panel. */
-  z-index: 10;
-  pointer-events: none;
-  -webkit-backdrop-filter: blur(var(--clear-blur));
-  backdrop-filter: blur(var(--clear-blur));
-  -webkit-mask-image: radial-gradient(
-    circle at 50% 88%,
-    transparent var(--clear-r),
-    black calc(var(--clear-r) + var(--clear-feather))
-  );
-  mask-image: radial-gradient(
-    circle at 50% 88%,
-    transparent var(--clear-r),
-    black calc(var(--clear-r) + var(--clear-feather))
-  );
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  animation: entrance-clear-mask var(--clear-duration) var(--entrance-ease)
-    var(--clear-delay) forwards;
-}
-
-@keyframes entrance-clear-mask {
-  from {
-    --clear-r: 0%;
-  }
-  to {
-    --clear-r: 105%;
-  }
-}
-
-/*
- * 6 — Step cut: every card arrives in a handful of hard jumps, no tween. The
- * translate holds for a whole step and then snaps, `steps(n, end)`, so the card
- * lands as n discrete 5px cuts; opacity is a one-step track that only finishes
- * at the first cut, so the card is invisible and then simply there. That
- * deliberately breaks motion.md's ease-out rule — Base44's hero cuts are the
- * reference Dat asked to compare, and the panel line says so.
- *
- * Order is `--entrance-h`, bottom-up from the horizon.
- *
- * The four corner markers are one pseudo-element carrying four 6px squares
- * (a design-tool selection), straddling the card's corners by half a square.
- * They arrive on the card's first cut and leave on the house curve: the fade
- * is listed first with `both` and the arrival second with `backwards`, so the
- * arrival overrules the fade's backwards fill until it finishes and the fade's
- * own 1 then holds through the marker hold. Marker colour is the glow's own
- * blob hue (--horizon-2), which is blue by Day and mint by Night.
- */
-[data-entrance="step"] {
-  --step-first: calc(var(--step-duration) / var(--step-count));
-}
-
-[data-entrance="step"] .entrance-body {
-  animation:
-    entrance-step-cut var(--step-duration) steps(var(--step-count), end)
-      backwards,
-    entrance-fade-in var(--step-first) steps(1, end) backwards;
-  animation-delay: calc(var(--entrance-h) * var(--step-stagger));
-}
-
-[data-entrance="step"] .entrance-cell::after {
-  content: "";
-  position: absolute;
-  /* Half a marker outside the card, so the squares straddle its corners. */
-  inset: calc(var(--step-marker-size) / -2);
-  pointer-events: none;
-  opacity: 0;
-  background-image:
-    linear-gradient(var(--step-marker-color), var(--step-marker-color)),
-    linear-gradient(var(--step-marker-color), var(--step-marker-color)),
-    linear-gradient(var(--step-marker-color), var(--step-marker-color)),
-    linear-gradient(var(--step-marker-color), var(--step-marker-color));
-  background-position:
-    left top,
-    right top,
-    left bottom,
-    right bottom;
-  background-size: var(--step-marker-size) var(--step-marker-size);
-  background-repeat: no-repeat;
-  animation:
-    entrance-edge-out var(--step-marker-fade) var(--entrance-ease)
-      calc(
-        var(--entrance-h) * var(--step-stagger) + var(--step-first) +
-          var(--step-marker-hold)
-      )
-      both,
-    entrance-fade-in var(--step-first) steps(1, end)
-      calc(var(--entrance-h) * var(--step-stagger)) backwards;
-}
-
-/*
- * The jump: `steps(n)` breaks the from -> to travel into n equal holds, so
- * n x distance of pay-load is exactly n cuts of `distance`.
- */
-@keyframes entrance-step-cut {
-  from {
-    translate: 0 calc(var(--step-count) * var(--step-distance));
-  }
-  to {
-    translate: 0 0;
-  }
-}
-
-/*
- * 7 — Grain sky: the glow resolves out of stepped, jittering grain and goes
- * still as the cards land. The layer is the only node between the horizon and
- * the content column (HomeLayout, prototype only); it jitters a 120px noise
- * tile on a four-step loop while one linear decay walks its opacity to 0 and
- * ends on `visibility: hidden`, so it stops painting at animationend with no
- * JS to tear down.
- *
- * The jitter moves background-position on a small tile, not a transform on a
- * full-viewport layer, and there is no blend mode: the grain is plain
- * grayscale at 8%, which is all an 8-bit glow needs to break its bands without
- * animating a compositor-expensive blend over the whole screen.
- *
- * The glow fades in underneath on the house curve — the sky variant's move,
- * landing on the motion layer only so the base gradient never flashes — and
- * the cards enter like "sky first", in reading order. This variant mirrors sky,
- * so it keeps sky's order rather than the bottom-up --entrance-h.
- */
-.entrance-grain {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  opacity: var(--grain-strength);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)'/%3E%3C/svg%3E");
-  background-size: 120px 120px;
-  background-repeat: repeat;
-  animation:
-    entrance-grain-jitter calc(var(--grain-rate) * 4) steps(1, end) infinite,
-    entrance-grain-settle var(--grain-duration) linear forwards;
-}
-
-[data-entrance="grain"] .horizon-motion-layer {
-  animation: entrance-fade-in var(--grain-duration) var(--entrance-ease)
-    backwards;
-}
-
-[data-entrance="grain"] .entrance-body {
-  animation: entrance-grain-card-in var(--grain-item-duration)
-    var(--entrance-ease) backwards;
-  animation-delay: calc(
-    var(--grain-delay) + var(--entrance-i) * var(--grain-stagger)
-  );
-}
-
-/*
- * Four held positions per cycle: the animation-level steps(1, end) turns each
- * quarter into a hard jump, so the tile boils instead of sliding.
- */
-@keyframes entrance-grain-jitter {
-  0% {
-    background-position: 0 0;
-  }
-  25% {
-    background-position: var(--grain-jitter) calc(var(--grain-jitter) * -1);
-  }
-  50% {
-    background-position: calc(var(--grain-jitter) * -1) var(--grain-jitter);
-  }
-  75% {
-    background-position: calc(var(--grain-jitter) * 0.5) var(--grain-jitter);
-  }
-  100% {
-    background-position: 0 0;
-  }
-}
-
-/*
- * Linear decay so the grain keeps its strength while it boils and is gone by
- * the end; visibility flips once at 100% and `forwards` keeps it, which is
- * what stops the layer painting.
- */
-@keyframes entrance-grain-settle {
-  from {
-    opacity: var(--grain-strength);
-  }
-  to {
-    opacity: 0;
-    visibility: hidden;
-  }
-}
-
-/* Sky's card entrance without the blur: fade plus a 2% scale. */
-@keyframes entrance-grain-card-in {
-  from {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/*
- * 8 — Horizon grow: the cards grow up out of the horizon, lowest row first, and
- * rise a few pixels while they fade in. Two tracks, not one: the card *surface*
- * does the scaleY (anchored on its bottom edge) and the body does the rise and
- * the fade. Scaling the whole card would squash its text — the project title,
- * the nav links, the tracker grid — for the length of the animation, so the
- * surface carries the grow and the content only translates, which keeps every
- * glyph crisp at every frame.
- *
- * The surface is .ring-surface, the hover ring's own fill layer: it is clipped
- * to the card box at rest, so scaling it grows the visible card and leaves the
- * 1px edge and the glow (separate layers, transparent at rest) alone. `backwards`
- * fill means the transform is gone once the animation ends, so the hover
- * clip-path handover is untouched.
- */
-[data-entrance="grow"] .entrance-body {
-  animation: entrance-grow-content var(--grow-duration) var(--entrance-ease)
-    backwards;
-  animation-delay: calc((2 - var(--entrance-r)) * var(--grow-stagger));
-}
-
-[data-entrance="grow"] .ring-surface {
-  transform-origin: bottom center;
-  animation: entrance-grow-surface var(--grow-duration) var(--entrance-ease)
-    backwards;
-  animation-delay: calc((2 - var(--entrance-r)) * var(--grow-stagger));
-}
-
-@keyframes entrance-grow-surface {
-  from {
-    transform: scaleY(var(--grow-from, 0.6));
-  }
-  to {
-    transform: none;
-  }
-}
-
-@keyframes entrance-grow-content {
-  from {
-    opacity: 0;
-    transform: translateY(var(--grow-rise, 12px));
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/*
- * 9 — Breath: the light arrives first. The glow takes one slow inhale — opacity
- * from 0 up to full at 55%, then back to 94%, with a 10% upward swell anchored
- * on the bottom edge — and only 40% into it do the cards start, each fading
- * from a 2.5px blur over 540ms at a 30ms beat. Seven cards over 180ms of
- * stagger with 540ms each means five are in flight at once: there is no
- * sequence to read, only one soft arrival.
- *
- * The glow animation lands on the WebGL canvas when it exists (that is the
- * picture the shader paints; the CSS background is only its fallback floor),
- * and on the CSS motion layer when it does not — `:has` picks. The canvas rests
- * at 0.94 afterwards because the keyframes end exactly there; a fill-forwards
- * end that matches the rest state is what makes the brightness peak (100%)
- * read as a peak rather than a jump back.
- *
- * Card order is --entrance-h: the bottom row lifts first, matching the light.
- */
-[data-entrance="breath"] .horizon-canvas-layer,
-[data-entrance="breath"]:not(:has(.horizon-canvas-layer))
-  .horizon-motion-layer {
-  transform-origin: bottom center;
-  animation: entrance-breath-glow var(--breath-inhale) var(--entrance-ease)
-    forwards;
-}
-
-/*
- * While the shader is painting, the CSS fallback's blobs are the same picture
- * again: a half-transparent canvas would sit over a full-strength glow, so the
- * inhale would never read as arriving from nothing. Hide the fallback blobs
- * only once the canvas has drawn its first frame; the base gradient stays, so
- * the glow rises out of a flat field. If the canvas drops out, this stops
- * matching and the CSS layer takes the animation instead.
- */
-[data-entrance="breath"]:has(> .horizon-canvas-layer[data-ready="true"])
-  .horizon-motion-layer {
-  opacity: 0;
-}
-
-[data-entrance="breath"] .entrance-body {
-  animation: entrance-breath-card var(--breath-duration) var(--entrance-ease)
-    backwards;
-  animation-delay: calc(
-    var(--breath-delay) + var(--entrance-h) * var(--breath-stagger)
-  );
-}
-
-@keyframes entrance-breath-glow {
-  from {
-    opacity: 0;
-    transform: scaleY(var(--breath-swell, 0.9));
-  }
-  55% {
-    opacity: 1;
-    transform: scaleY(1);
-  }
-  to {
-    opacity: 0.94;
-    transform: none;
-  }
-}
-
-@keyframes entrance-breath-card {
-  from {
-    opacity: 0;
-    filter: blur(var(--breath-blur, 2.5px));
-  }
-  to {
-    opacity: 1;
-    filter: blur(0);
-  }
-}
-
-/*
- * 10 — Mist lift: one hush over the whole page. A theme-tinted gradient is
- * densest at the top, so the horizon is already the clearest band on screen;
- * the layer then thins upward and away (translateY 0 to -4%, opacity 1 to 0)
- * with no blur filter at all — opacity and translate are the two cheapest
- * properties there are. The cards fade in underneath, opacity only, bottom row
- * first, each taking 900ms on a 30ms beat, so the mist is clearing while they
- * are still arriving.
- *
- * The layer is harness chrome (mist-overlay.tsx), above the composition and
- * below the tuner panel, and it leaves the tree at animationend.
- */
-.entrance-mist {
-  /* The glow's own blob hue mixed into the phase surface: a tint, not a sheet. */
-  --mist-tint: color-mix(in oklab, var(--horizon-2) 10%, var(--surface));
-
-  position: fixed;
-  inset: 0;
-  /* Above the layout's z-index 3 popover, below the tuner panel. */
-  z-index: 10;
-  pointer-events: none;
-  background-image: linear-gradient(
-    180deg,
-    color-mix(
-      in oklab,
-      var(--mist-tint) calc(var(--mist-density) * 100%),
-      transparent
-    ),
-    color-mix(
-        in oklab,
-        var(--mist-tint) calc(var(--mist-density) * 55%),
-        transparent
-      )
-      62%,
-    transparent
-  );
-  animation: entrance-mist-lift var(--mist-duration) var(--entrance-ease)
-    forwards;
-}
-
-[data-entrance="mist"] .entrance-body {
-  animation: entrance-fade-in var(--mist-card-duration) var(--entrance-ease)
-    backwards;
-  animation-delay: calc(var(--entrance-h) * var(--mist-stagger));
-}
-
-@keyframes entrance-mist-lift {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(calc(var(--mist-lift, 4%) * -1));
-  }
-}
-
-/*
- * 11 — Dawn bloom: the page starts at low exposure. A theme-tinted scrim at
- * 60% sits over everything and clears over the same 1300ms the glow blooms in:
- * a 4% scale up from the horizon-clear origin (50% 88%) plus a fade from
- * nothing, so the light rises out of the horizon rather than appearing.
- *
- * Night halves the bloom's scale delta through --dawn-phase-mix (a stylesheet
- * token the panel never writes), so the same slider reads subtler on the dark
- * phase; the scrim needs no special case because Night's --surface-dim is black
- * and Day's is grey.
- *
- * Content lifts 4px and fades in on rows from the bottom up, starting at the
- * bloom's halfway point (650ms of 1300ms). The scrim is harness chrome
- * (dawn-overlay.tsx) and leaves the tree at animationend.
- *
- * The glow animation follows breath's split: the canvas paints the glow and the
- * CSS layer is its fallback, so the fallback's blobs are hidden while the
- * canvas has drawn (otherwise a half-transparent canvas would sit over a
- * full-strength copy of the same picture and the bloom would never read).
- */
-.entrance-dawn {
-  position: fixed;
-  inset: 0;
-  /* Above the layout's z-index 3 popover, below the tuner panel. */
-  z-index: 10;
-  pointer-events: none;
-  background-color: var(--dawn-scrim);
-  opacity: var(--dawn-dim);
-  animation: entrance-dawn-dim var(--dawn-bloom-duration) var(--entrance-ease)
-    forwards;
-}
-
-[data-entrance="dawn"] .horizon-canvas-layer,
-[data-entrance="dawn"]:not(:has(.horizon-canvas-layer)) .horizon-motion-layer {
-  transform-origin: 50% 88%;
-  animation: entrance-dawn-bloom var(--dawn-bloom-duration) var(--entrance-ease)
-    backwards;
-}
-
-[data-entrance="dawn"]:has(> .horizon-canvas-layer[data-ready="true"])
-  .horizon-motion-layer {
-  opacity: 0;
-}
-
-[data-entrance="dawn"] .entrance-body {
-  animation: entrance-dawn-content var(--dawn-content-duration)
-    var(--entrance-ease) backwards;
-  animation-delay: calc(
-    var(--dawn-content-delay) + (2 - var(--entrance-r)) * var(--dawn-stagger)
-  );
-}
-
-@keyframes entrance-dawn-dim {
-  from {
-    opacity: var(--dawn-dim, 0.6);
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes entrance-dawn-bloom {
-  from {
-    opacity: 0;
-    transform: scale(
-      calc(1 - (1 - var(--dawn-bloom-scale, 0.96)) * var(--dawn-phase-mix, 1))
-    );
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes entrance-dawn-content {
-  from {
-    opacity: 0;
-    transform: translateY(var(--dawn-rise, 4px));
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/*
- * 12 — Soft focus: horizon clear's gentler cousin. A theme-tinted veil with a
- * small backdrop blur covers the whole composition (no mask, no radial edge)
- * and dissolves over `--soft-duration`; the cards arrive under it with a small
- * rise and a fade, 60ms apart from the bottom up.
- *
- * That dissolve is why the blur looked blotchy at 8px: the overlay samples the
- * whole composition, so a card layout of white cards, grey gutters and soft
- * shadows is averaged into patches the size of the blur radius, and the veil
- * then compresses what is left into a handful of 8-bit plateaus. Measured on
- * the glow band: the blur drops the dither's high-frequency energy 15x
- * (1.35 -> 0.087) while the 1-24px residual falls only from 4.19 to 1.08 at
- * 8px versus 2.05 at 4px — the leftovers are card edges, not noise.
- *
- * Hence the blur *method*:
- *   split    no backdrop filter; each card blurs its own content, the glow
- *            blurs itself (shader uniform, or `filter: blur()` on the CSS
- *            fallback with its grain left sharp), and the veil stays flat
- *   lighter  the overlay at 4px instead of 8px
- *   grain    the overlay plus a static grain layer on top, so the blurred area
- *            keeps texture
- *   overlay  the original full-viewport backdrop filter
- * `data-soft-method` on the scope picks it; the harness writes it.
- *
- * Safari rasterises backdrop filters in software more often than Chrome, and a
- * full-viewport blur over the WebGL canvas is the most expensive thing here —
- * which is the other reason `split` is the default.
- */
-.entrance-soft {
-  position: fixed;
-  inset: 0;
-  /* Above the layout's z-index 3 popover, below the tuner panel. */
-  z-index: 10;
-  pointer-events: none;
-  -webkit-backdrop-filter: blur(var(--soft-blur));
-  backdrop-filter: blur(var(--soft-blur));
-  background-color: color-mix(
-    in oklab,
-    var(--surface-bright) calc(var(--soft-veil) * 100%),
-    transparent
-  );
-  animation: entrance-soft-clear var(--soft-duration) var(--entrance-ease)
-    forwards;
-}
-
-/* Split: the veil stays, the full-viewport filter goes. */
-.entrance-scope[data-soft-method="split"] .entrance-soft {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
+/* Soft focus: the cards rise, fade and sharpen on their own clock. */
 [data-entrance="soft"] .entrance-body {
-  animation: entrance-soft-card-in var(--soft-card-duration)
+  animation: entrance-soft-card-split var(--soft-card-duration)
     var(--entrance-ease) backwards;
   animation-delay: calc(
     var(--soft-card-delay) + var(--entrance-h) * var(--soft-stagger)
   );
 }
 
-/* Reading order instead of horizon-up, when the panel asks for it. */
-.entrance-scope[data-soft-order="reading"]
-  [data-entrance="soft"]
-  .entrance-body {
-  animation-delay: calc(
-    var(--soft-card-delay) + var(--entrance-i) * var(--soft-stagger)
-  );
-}
-
-/*
- * Split: the card blurs its own content on the same clock as its fade, so no
- * card edge is ever sampled from a neighbouring card. `filter` is back to none
- * the moment the animation ends (backwards fill, no forwards).
- */
-.entrance-scope[data-soft-method="split"]
-  [data-entrance="soft"]
-  .entrance-body {
-  animation-name: entrance-soft-card-split;
-}
-
-/*
- * Split, CSS fallback glow: blur the blob layer only, and only when there is no
- * shader painting on top of it. The grain layer is its sibling, so the dither
- * stays sharp on top of the softened glow.
- */
-.entrance-scope[data-soft-method="split"]:not(:has(.horizon-canvas-layer))
-  .horizon-motion-layer {
-  animation: entrance-soft-glow var(--soft-duration) var(--entrance-ease)
-    backwards;
-}
-
-/*
- * The grain layer for the "grain" method: the grain-sky tile, static, above
- * the overlay so the blurred field keeps texture. It fades with the overlay
- * and stops painting at the end (`forwards` + visibility).
- */
-.entrance-soft-grain {
-  position: fixed;
-  inset: 0;
-  z-index: 11;
-  pointer-events: none;
-  opacity: 0.07;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)'/%3E%3C/svg%3E");
-  background-size: 120px 120px;
-  background-repeat: repeat;
-  animation: entrance-soft-grain var(--soft-duration) var(--entrance-ease)
-    forwards;
-}
-
 @keyframes entrance-soft-clear {
   from {
     opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes entrance-soft-grain {
-  from {
-    opacity: 0.07;
+    visibility: visible;
   }
   to {
     opacity: 0;
     visibility: hidden;
-  }
-}
-
-/* Fade plus the rise: no scale, no blur, nothing that can overshoot. */
-@keyframes entrance-soft-card-in {
-  from {
-    opacity: 0;
-    translate: 0 var(--soft-rise, 6px);
-  }
-  to {
-    opacity: 1;
-    translate: 0 0;
   }
 }
 
@@ -989,6 +256,14 @@
   }
 }
 
+/* Split, CSS fallback glow: blur the blob layer only, and only when no shader
+   is painting on top of it. The grain layer is its sibling, so the dither stays
+   sharp on top of the softened glow. */
+[data-entrance="soft"]:not(:has(.horizon-canvas-layer)) .horizon-motion-layer {
+  animation: entrance-soft-glow var(--soft-duration) var(--entrance-ease)
+    backwards;
+}
+
 /*
  * Split, WebGL glow: the shader reads this registered length once a frame and
  * turns it into a couple of coverage-texture taps (dither is applied after the
@@ -1001,7 +276,7 @@
   initial-value: 0px;
 }
 
-.entrance-scope[data-soft-method="split"] .horizon-canvas-layer {
+[data-entrance="soft"] .horizon-canvas-layer {
   animation: entrance-soft-softness var(--soft-duration) var(--entrance-ease)
     backwards;
 }
@@ -1015,53 +290,6 @@
   }
 }
 
-/* No backdrop filter: the veil still fades, so the entrance stays intact. */
-@supports not (
-  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
-) {
-  .entrance-soft {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-}
-
-@keyframes entrance-scale-in {
-  from {
-    opacity: 0;
-    transform: scale(var(--scale-from, 0.96));
-    filter: blur(var(--scale-blur, 6px));
-  }
-  to {
-    opacity: 1;
-    transform: none;
-    filter: none;
-  }
-}
-
-@keyframes entrance-scale-light-in {
-  from {
-    opacity: 0;
-    transform: scale(var(--sky-from, 0.98));
-    filter: blur(var(--sky-blur, 4px));
-  }
-  to {
-    opacity: 1;
-    transform: none;
-    filter: none;
-  }
-}
-
-@keyframes entrance-rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(var(--rise-distance, 8px));
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 @keyframes entrance-fade-in {
   from {
     opacity: 0;
@@ -1071,112 +299,36 @@
   }
 }
 
-@keyframes entrance-edge-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-/* Reduced motion: one 120ms opacity fade, no scale, rise, blur or edge. */
+/* Reduced motion: one 120ms opacity fade, no blur, no rise, no softness. */
 @media (prefers-reduced-motion: reduce) {
-  [data-entrance] .entrance-body,
-  [data-entrance="sky"] .horizon-motion-layer {
+  [data-entrance="soft"] .entrance-body {
     animation: entrance-fade-in 120ms ease-out backwards !important;
     animation-delay: 0ms !important;
+    filter: none !important;
   }
 
-  [data-entrance] .entrance-cell::before {
-    animation: none;
-  }
-
-  /* No marker squares: the body fade above is the whole entrance. */
-  [data-entrance="step"] .entrance-cell::after {
-    animation: none;
-  }
-
-  /* Grain is texture, not content: drop the layer and leave the glow still. */
-  .entrance-grain {
-    display: none;
-  }
-
-  [data-entrance="grain"] .horizon-motion-layer {
-    animation: none;
-  }
-
-  /* No surface squash: the body fade above is the whole entrance. */
-  [data-entrance="grow"] .ring-surface {
-    animation: none;
-  }
-
-  /* No glow inhale: the light is simply there. */
-  [data-entrance="breath"] .horizon-canvas-layer,
-  [data-entrance="breath"]:not(:has(.horizon-canvas-layer))
-    .horizon-motion-layer {
-    animation: none;
-    transform: none;
-  }
-
-  /* Mist is atmosphere, not content: drop the layer. */
-  .entrance-mist {
-    display: none;
-  }
-
-  /* No scrim, no bloom: the light is simply there. */
-  .entrance-dawn {
-    display: none;
-  }
-
-  [data-entrance="dawn"] .horizon-canvas-layer,
-  [data-entrance="dawn"]:not(:has(.horizon-canvas-layer))
-    .horizon-motion-layer {
-    animation: none;
-    transform: none;
-  }
-
-  /* Soft focus is a blur: reduced motion goes straight to sharp. */
   .entrance-soft {
     display: none;
   }
 
-  /* No texture layer, no card blur, no glow blur, no shader softness. */
-  .entrance-soft-grain {
-    display: none;
-  }
-
-  .entrance-scope[data-soft-method="split"]
-    [data-entrance="soft"]
-    .entrance-body {
-    animation-name: entrance-fade-in;
-    filter: none;
-  }
-
-  .entrance-scope[data-soft-method="split"] .horizon-motion-layer,
-  .entrance-scope[data-soft-method="split"] .horizon-canvas-layer {
+  [data-entrance="soft"] .horizon-motion-layer,
+  [data-entrance="soft"] .horizon-canvas-layer {
     animation: none;
     filter: none;
-  }
-
-  /* No blur at all; the content takes the fade above and this layer is gone. */
-  .entrance-clear {
-    display: none;
   }
 }
 
 /*
- * No backdrop-filter: no blur layer. The content takes the reduced-motion fade
- * so the entrance still reads as an entrance instead of a hard cut.
+ * One play per document. A hard load starts with no attribute and runs; the
+ * component sets it once the sequence settles, and a client-side return to /
+ * in the same tab then finds the animations cancelled (the rest states are the
+ * visible ones).
  */
-@supports not (
-  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
-) {
-  .entrance-clear {
-    display: none;
-  }
-
-  [data-entrance="clear"] .entrance-body {
-    animation: entrance-fade-in 120ms ease-out backwards;
-  }
+:root[data-entrance-played] [data-entrance-shipped] .entrance-body,
+:root[data-entrance-played] [data-entrance-shipped] .entrance-soft,
+:root[data-entrance-played] [data-entrance-shipped] .horizon-canvas-layer,
+:root[data-entrance-played]
+  [data-entrance-shipped]:not(:has(.horizon-canvas-layer))
+  .horizon-motion-layer {
+  animation: none !important;
 }

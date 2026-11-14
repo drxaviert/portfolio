@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import "@/components/home/home-entrance.css";
+import "./proto-variants.css";
 import { EntranceHarness } from "./entrance-harness";
 
 /**

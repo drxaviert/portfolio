@@ -252,16 +252,16 @@ export const DEFAULT_SETTINGS: Settings = {
     contentDuration: 600,
     stagger: 25,
   },
-  // Horizon clear's gentler cousin, on Dat's second sheet: an 8px backdrop
-  // blur, a 24% veil and a 1400ms dissolve, with the cards rising 16px into
-  // place over 1100ms each, 60ms apart from the bottom up.
+  // The shipped home entrance (split blur), on Dat's final sheet: an 8px
+  // per-card blur, a 24% veil and a 1400ms dissolve, with the cards rising 7px
+  // into place over 1100ms each, 60ms apart from the bottom up; 1710ms total.
   soft: {
     blur: 8,
     veil: 24,
     duration: 1400,
-    cardDelay: 75,
+    cardDelay: 250,
     cardDuration: 1100,
-    rise: 16,
+    rise: 7,
     stagger: 60,
   },
 };

@@ -343,17 +343,99 @@ function readNightBlend(element: HTMLElement): number {
 }
 
 /**
- * Soft-focus radius in CSS px, read from the registered `--soft-softness`
- * length that the prototype animates on this layer. No other route sets it, so
- * this resolves to 0 there and the shader's soft branch is never taken.
+ * Soft-focus radius in CSS px, read once when the entrance starts.
+ *
+ * The prototype animates a registered `--soft-softness` length on the canvas
+ * layer; this shader mirrors that value into a uniform with its own clock
+ * instead of reading a computed style every frame, so the per-frame cost after
+ * the entrance (and on every other route) is zero.
  */
-function readSoftness(element: HTMLElement): number {
-  const value = Number.parseFloat(
-    getComputedStyle(element).getPropertyValue("--soft-softness"),
+function readSoftRadius(
+  element: HTMLElement,
+): { radius: number; duration: number; curve: BezierCurve } | null {
+  const style = getComputedStyle(element);
+  const duration = Number.parseFloat(style.animationDuration) * 1000;
+  const radius = Number.parseFloat(style.getPropertyValue("--soft-blur"));
+
+  if (!Number.isFinite(radius) || radius <= 0) return null;
+  if (!Number.isFinite(duration) || duration <= 0) return null;
+
+  return {
+    radius,
+    duration,
+    curve: parseTimingFunction(style.animationTimingFunction),
+  };
+}
+
+/** A CSS cubic-bezier as its two control points, for the shader's own easing. */
+type BezierCurve = [number, number, number, number];
+
+const LINEAR: BezierCurve = [0, 0, 1, 1];
+
+const KEYWORD_CURVES: Record<string, BezierCurve> = {
+  linear: LINEAR,
+  ease: [0.25, 0.1, 0.25, 1],
+  "ease-in": [0.42, 0, 1, 1],
+  "ease-out": [0, 0, 0.58, 1],
+  "ease-in-out": [0.42, 0, 0.58, 1],
+};
+
+function parseTimingFunction(value: string): BezierCurve {
+  const keyword = KEYWORD_CURVES[value.trim()];
+
+  if (keyword) return keyword;
+
+  const match = value.match(
+    /cubic-bezier\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/,
   );
 
-  return Number.isFinite(value) && value > 0 ? value : 0;
+  if (!match) return LINEAR;
+
+  return [
+    Number(match[1]),
+    Number(match[2]),
+    Number(match[3]),
+    Number(match[4]),
+  ];
 }
+
+/** y for a given x on a cubic-bezier timing curve (bisection, ~10 steps). */
+function bezierProgress(x: number, curve: BezierCurve): number {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+
+  const [p1x, p1y, p2x, p2y] = curve;
+  const sample = (t: number, a: number, b: number) =>
+    3 * (1 - t) * (1 - t) * t * a + 3 * (1 - t) * t * t * b + t * t * t;
+  let low = 0;
+  let high = 1;
+
+  for (let i = 0; i < 12; i += 1) {
+    const mid = (low + high) / 2;
+
+    if (sample(mid, p1x, p2x) < x) low = mid;
+    else high = mid;
+  }
+
+  return sample((low + high) / 2, p1y, p2y);
+}
+
+type SoftFocus = {
+  active: boolean;
+  /** Wall clock (performance.now()) the entrance started. */
+  start: number;
+  duration: number;
+  radius: number;
+  curve: BezierCurve;
+};
+
+const IDLE_SOFT: SoftFocus = {
+  active: false,
+  start: 0,
+  duration: 0,
+  radius: 0,
+  curve: LINEAR,
+};
 
 /**
  * The CSS layer is already animating when the canvas mounts; starting the
@@ -599,6 +681,7 @@ export function HorizonShader({
     const reduceQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     let tokens = readTokens();
     let nightBlend = readNightBlend(canvas);
+    let soft: SoftFocus = IDLE_SOFT;
     let blurTexture: BlurTexture | null = null;
     let textureTimer: number | null = null;
     let dirty = true;
@@ -694,10 +777,24 @@ export function HorizonShader({
         uniforms.alpha2,
         tokens.alpha2 * animated.base * animated.intensity2,
       );
-      // Soft focus: a CSS length the proto animates on this layer, in CSS px.
-      // Unset on every other route, so both components stay 0 and the shader
-      // branch below is skipped (byte-identical output).
-      const softPx = readSoftness(layer);
+      // Soft focus: the entrance's radius on the shader's own clock, started
+      // once from the CSS animation's signal (see startSoftFocus below). This
+      // is a plain timer read, not a style read, so it costs nothing outside
+      // the entrance window and nothing at all after it.
+      let softPx = 0;
+
+      if (soft.active) {
+        const elapsed = performance.now() - soft.start;
+        const progress = Math.min(1, Math.max(0, elapsed / soft.duration));
+
+        softPx = soft.radius * (1 - bezierProgress(progress, soft.curve));
+
+        if (progress >= 1) {
+          soft.active = false;
+          softPx = 0;
+        }
+      }
+
       gl.uniform2f(
         uniforms.softUv,
         softPx / blurTexture.worldWidth,
@@ -764,6 +861,49 @@ export function HorizonShader({
     const requestFrame = () => {
       if (!frame && !document.hidden) frame = requestAnimationFrame(tick);
     };
+
+    /**
+     * Soft focus: the stylesheet animates `--soft-softness` on this layer for
+     * the length of the entrance. Read that animation once — duration, easing
+     * and radius — then run the uniform from the shader's own clock. No
+     * computed style is read per frame, and after the entrance the uniform is
+     * pinned to 0 with no reads at all.
+     */
+    const beginSoftFocus = (animation?: Animation) => {
+      const config = readSoftRadius(layer);
+
+      if (!config) return;
+
+      const elapsed =
+        typeof animation?.currentTime === "number" ? animation.currentTime : 0;
+
+      soft = {
+        active: true,
+        start: performance.now() - elapsed,
+        duration: config.duration,
+        radius: config.radius,
+        curve: config.curve,
+      };
+      requestFrame();
+    };
+
+    const onSoftStart = (event: AnimationEvent) => {
+      if (event.animationName !== "entrance-soft-softness") return;
+      beginSoftFocus();
+    };
+
+    layer.addEventListener("animationstart", onSoftStart);
+
+    // The animation starts at first paint, before this effect runs: pick up a
+    // run that is already in flight rather than waiting for a start event.
+    for (const animation of layer.getAnimations()) {
+      if (
+        animation instanceof CSSAnimation &&
+        animation.animationName === "entrance-soft-softness"
+      ) {
+        beginSoftFocus(animation);
+      }
+    }
 
     const onFirstFrame = () => {
       // Let the 0-opacity state paint once so the fade has a start value.
@@ -834,6 +974,7 @@ export function HorizonShader({
 
       observer.disconnect();
       canvas.removeEventListener("webglcontextlost", onContextLost);
+      layer.removeEventListener("animationstart", onSoftStart);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("resize", onResize);
       reduceQuery.removeEventListener("change", onReducedMotion);
