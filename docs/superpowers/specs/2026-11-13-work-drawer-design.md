@@ -201,7 +201,9 @@ New motion:
   - The reader has no next or previous links yet.
 - **Frontmatter:**
   - `title`, `subtitle`, `year`, `role`, `summary`, and an optional `cover`.
-  - `cover` is a key the featured-card component resolves to a scene. That scene belongs to the separate faux-UI job, so the reader shows the scene, or a neutral surface if there is none, and never builds scenes itself.
+  - `cover` is one of `window`, `phone` or `tiles`, the faux-UI scenes settled on branch `drxaviert/faux-ui` (see `docs/handoffs/2026-11-13-faux-ui-scenes.md` there). Each scene is a Loop that scales to the ProjectCard's 753×416 box and pauses offscreen. Still is used only for reduced motion. The reader renders the same scene as its hero, so the morph carries the picture across. The reader never builds scenes itself.
+  - Getting the scenes into this branch: once Dat OKs it, merge `drxaviert/faux-ui` into `main`, then merge `main` into `work-drawer`. Do not copy files across. If faux-UI hasn't merged when the build starts, the hero uses a neutral surface until it lands.
+  - The three placeholder studies use one scene each. **Which scene sits on the featured card: Dat to decide (open).**
 
 ### 7. Accessibility
 
@@ -216,7 +218,7 @@ New motion:
 - Exact sticky offsets for "← Work" and "↑ Top".
 - How the nav box is derived on resize: re-measuring versus shared CSS. Either is fine if nav parity still passes.
 - MDX tooling (`@next/mdx` or `next-mdx-remote`), whichever fits the App Router with the least config.
-- The order of work. Suggested: resize fix → blur → ways back → routes and MDX.
+- The order of work (lead call): routes and morph ownership first, so fixes land on the real structure and not the prototype. Then resize fix → blur → ways back → MDX placeholders.
 
 ## Acceptance
 
