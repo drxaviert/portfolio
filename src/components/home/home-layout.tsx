@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 import type { WorkMeta } from "@/lib/work";
 import { HorizonLive } from "@/components/horizon/horizon-live";
+import { HomeCarousel } from "./carousel/home-carousel";
+import type { CarouselItem } from "./carousel/home-carousel";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
 import { HomeNav } from "./home-nav";
@@ -50,9 +52,20 @@ type HomeLayoutProps = {
    * never touches the content loader.
    */
   featured?: { slug: string; title: string; cover: WorkMeta["cover"] };
+  /**
+   * The endless carousel items, front first. From md up they replace the
+   * middle row; below md it stays the stacked featured card and slivers.
+   */
+  items?: CarouselItem[];
 };
 
-export function HomeLayout({ work, featured }: HomeLayoutProps = {}) {
+export function HomeLayout({ work, featured, items }: HomeLayoutProps = {}) {
+  const lead = items?.[0];
+  const stacked =
+    lead?.kind === "work"
+      ? { slug: lead.slug, title: lead.title, cover: lead.cover }
+      : featured;
+
   return (
     <main className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface">
       <HorizonLive />
@@ -98,18 +111,34 @@ export function HomeLayout({ work, featured }: HomeLayoutProps = {}) {
             <PlayCard />
           </div>
 
-          <div className="grid gap-3 md:h-[560px] md:grid-cols-[444fr_120fr_52fr_52fr] lg:h-[360px] lg:grid-cols-[656fr_140fr_64fr_64fr] xl:h-[416px] xl:grid-cols-[753fr_180fr_83fr_84fr]">
-            {work ? (
-              <ProjectCard title={work.title} onOpen={work.onOpen} />
-            ) : (
-              <ProjectCard
-                title={featured?.title}
-                slug={featured?.slug}
-                scene={featured?.cover}
-              />
-            )}
-            <WorkSlivers items={work?.slivers} />
-          </div>
+          {items && !work ? (
+            <>
+              {/* Below md the row is the stacked featured card and slivers,
+                  exactly as before; the carousel is md and up. */}
+              <div className="grid gap-3 md:hidden">
+                <ProjectCard
+                  title={stacked?.title}
+                  slug={stacked?.slug}
+                  scene={stacked?.cover}
+                />
+                <WorkSlivers />
+              </div>
+              <HomeCarousel items={items} />
+            </>
+          ) : (
+            <div className="grid gap-3 md:h-[560px] md:grid-cols-[444fr_120fr_52fr_52fr] lg:h-[360px] lg:grid-cols-[656fr_140fr_64fr_64fr] xl:h-[416px] xl:grid-cols-[753fr_180fr_83fr_84fr]">
+              {work ? (
+                <ProjectCard title={work.title} onOpen={work.onOpen} />
+              ) : (
+                <ProjectCard
+                  title={featured?.title}
+                  slug={featured?.slug}
+                  scene={featured?.cover}
+                />
+              )}
+              <WorkSlivers items={work?.slivers} />
+            </div>
+          )}
 
           <HomeNav />
         </div>

@@ -31,12 +31,16 @@ describe("home page", () => {
       </ThemeProvider>,
     );
 
+    // Below md the stacked card and from md the carousel card both render
+    // (CSS picks one), so the featured study appears twice in the markup.
     expect(
-      screen.getByRole("heading", { name: "Systems in motion" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Systems in motion" }),
-    ).toHaveAttribute("href", "/work/systems-in-motion");
+      screen.getAllByRole("heading", { name: "Systems in motion" }).length,
+    ).toBeGreaterThan(0);
+    for (const link of screen.getAllByRole("link", {
+      name: "Systems in motion",
+    })) {
+      expect(link).toHaveAttribute("href", "/work/systems-in-motion");
+    }
     expect(
       screen.getByRole("navigation", { name: "Primary" }),
     ).toBeInTheDocument();
