@@ -1,6 +1,6 @@
 # Design system motion — 2026-11-13
 
-The shipped motion of the theme toggle and the Day phase row, recorded from the merged code (PR #12, `5bbfba9`). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
+The shipped motion of the theme toggle, the Day phase row and the home nav's Glide capsule, recorded from the merged code (PR #12, `5bbfba9`; nav at `d574d89`). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
 
 ## Principles
 
@@ -17,7 +17,7 @@ The shipped motion of the theme toggle and the Day phase row, recorded from the 
 | Pointer over a segment | hover layer `opacity` | 150ms | 0 | `ease-out` | 0 → 0.55 |
 | Pointer leaves the track | hover layer `opacity` | 150ms | 0 | `ease-out` | 0.55 → 0 |
 | First segment entered | hover path | 0 | 0 | none | placed at the hovered segment, then faded in from 0 |
-| Segment pressed | `scale` | 150ms | 0 | `ease-out` | 1 → 0.94 |
+| Segment pressed | `scale` | 150ms | 0 | `ease-out` | 1 → 0.96 |
 | Segment hover | `color` | 150ms | 0 | `ease-out` | `on-surface-variant` → `on-surface` |
 | Segment or icon focused | tooltip `opacity` | 150ms | 0 | `ease-out` | 0 → 1 |
 
@@ -77,6 +77,35 @@ The timings are the shipped constants `LEADING_DURATION_MS = 180`, `TRAILING_DUR
 - `src/components/theme/theme-toggle.css:414` — clipped track-sized highlight layer
 - `src/components/theme/theme-toggle.css:433` — hover layer opacity and 0.55
 - `src/components/theme/theme-toggle.css:458` — reduced-motion layer hide + fill crossfade
+
+## Nav hover (Glide)
+
+The home nav's three labels and the design-system glyph share one capsule instead of each carrying its own hover fill. The glyph is the fourth target of the same run — the capsule crosses the divider to it and back — and the run sits to the right of the orb head, which the capsule never reaches. The motion is the selection highlight's stretch & snap, imported rather than re-declared: the nav reads `LEADING_DURATION_MS`, `TRAILING_DELAY_MS`, `TRAILING_DURATION_MS`, `leadingEase` and `trailingEase` from `theme-toggle.tsx`, so the nav and the toggle cannot drift.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Hover moves between items | capsule `clip-path` | 180ms / 220ms | 0 / 120ms | ease-out cubic / quint | current edges → target edges |
+| Hover moves mid-flight | capsule `clip-path` | same as above | same | same | retargeted from the current edges, never from zero |
+| First item entered | capsule layer `opacity` | 150ms | 0 | `ease-out` | 0 → 0.55, placed on the item with no travel |
+| Pointer leaves the run | capsule layer `opacity` | 150ms | 0 | `ease-out` | 0.55 → 0 |
+| Item hovered | item `color` | 150ms | 0 | `ease-out` | `on-surface-variant` → `on-surface` |
+| Item pressed | `scale` | 150ms | 0 | `ease-out` | 1 → 0.96 |
+| Glyph hovered | tooltip `opacity` | 150ms | 300ms | `ease-out` | 0 → 1 |
+| Glyph focused | tooltip `opacity` | 150ms | 0 | `ease-out` | 0 → 1 |
+| Hover enters, reduced motion | item fill `background-color` | 120ms | 0 | `ease-out` | transparent → 55% `surface-container` |
+
+A frame writes one property: the capsule keeps the run's width and carries the pill as a `clip-path` inset, so the leading and trailing edges move independently while no width or other layout property changes. At rest the pill is the hovered item's box at the `--radius-md` token. Hover is gated to `(hover: hover) and (pointer: fine)`, focus is a 2px `primary` ring on the item, and Work keeps `aria-current="page"`. Reduced motion hides the capsule: the hovered item carries the 55% `surface-container` fill and crossfades it in 120ms with no travel, so the state change survives without the movement.
+
+- `src/components/home/nav-items.tsx:5` — durations and curves imported from the toggle
+- `src/components/home/nav-items.tsx:78` — the one capsule runner shared by every item
+- `src/components/home/nav-items.tsx:119` — per-frame `clip-path` inset (paint only)
+- `src/components/home/nav-items.tsx:159` — first entry and reduced motion snap with no travel
+- `src/components/home/nav-items.tsx:261` — the item run: labels, divider, glyph as the fourth target
+- `src/components/home/nav-items.css:19` — press `scale: 0.96`, 150ms `ease-out`
+- `src/components/home/nav-items.css:57` — hover weight 0.55
+- `src/components/home/nav-items.css:75` — glyph tooltip, 300ms delay
+- `src/components/home/nav-items.css:104` — reduced-motion capsule hide
+- `src/components/home/nav-items.css:111` — reduced-motion 55% fill crossfade
 
 ## Day phase row entrance — "Stagger + icons"
 
@@ -179,7 +208,8 @@ One opacity fade for the whole row. No scale, no segment rise, no icon settle, n
 | Segments | no opacity or translate animation; colour always transitions over 150ms |
 | Icons | stay at rest; entrance poses and settles are inside `prefers-reduced-motion: no-preference` |
 | Hover capsule | hidden; the segment fill is the only hover feedback, following the pointer without travel |
-| Press | `scale: 1` (no 0.94 dip) |
+| Nav hover capsule | hidden; the hovered nav item carries the 55% `surface-container` fill over 120ms, no travel |
+| Press | `scale: 1` (no 0.96 dip) |
 | Frame-line spotlight | mask replaced by a whole-line opacity fade capped at 0.4 strength, 150ms |
 
 - `src/components/theme/theme-toggle.css:458` — reduced-motion highlight hide + 120ms fill
