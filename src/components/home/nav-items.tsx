@@ -38,6 +38,10 @@ const LEADING_DURATION = LEADING_DURATION_MS / 1000;
 const TRAILING_DURATION = TRAILING_DURATION_MS / 1000;
 const TRAILING_DELAY = TRAILING_DELAY_MS / 1000;
 
+// Mirrors the layer's 150ms opacity fade in nav-items.css, used to let a
+// capsule fade out before it is re-placed across a group break.
+const FADE_DURATION_MS = 150;
+
 type GlideFlight = {
   start: number;
   leadFrom: number;
@@ -85,6 +89,9 @@ function GlideCapsule({
   visible: boolean;
 }) {
   const capsuleRef = useRef<HTMLSpanElement>(null);
+  const breakTimerRef = useRef(0);
+  const [breaking, setBreaking] = useState(false);
+  const shown = visible && !breaking;
   const stateRef = useRef<GlideState>({
     target: -1,
     placed: false,
@@ -102,6 +109,20 @@ function GlideCapsule({
 
     const st = stateRef.current;
     const nodes = items.current;
+
+    // An item flagged with `data-glide-break` starts a new group: the capsule
+    // never stretches across it, so a move over the break gets the first-entry
+    // treatment instead of a glide.
+    const cutByBreak = (from: number, to: number) => {
+      const lo = Math.min(from, to) + 1;
+      const hi = Math.max(from, to);
+
+      for (let i = lo; i <= hi; i += 1) {
+        if (nodes[i]?.dataset.glideBreak !== undefined) return true;
+      }
+
+      return false;
+    };
 
     const measure = (index: number) => {
       const node = nodes[index];
@@ -148,7 +169,7 @@ function GlideCapsule({
       return;
     }
 
-    if (!visible) {
+    if (!shown) {
       st.lastVisible = false;
 
       return;
@@ -171,6 +192,19 @@ function GlideCapsule({
 
     if (st.target === target) {
       draw();
+
+      return;
+    }
+
+    if (cutByBreak(st.target, target)) {
+      stop();
+      st.lastVisible = false;
+      setBreaking(true);
+      window.clearTimeout(breakTimerRef.current);
+      breakTimerRef.current = window.setTimeout(
+        () => setBreaking(false),
+        FADE_DURATION_MS,
+      );
 
       return;
     }
@@ -231,13 +265,14 @@ function GlideCapsule({
     st.raf = window.requestAnimationFrame(loop);
 
     return stop;
-  }, [items, target, visible]);
+  }, [items, target, shown]);
 
   useEffect(() => {
     const st = stateRef.current;
 
     return () => {
       if (st.raf) window.cancelAnimationFrame(st.raf);
+      window.clearTimeout(breakTimerRef.current);
     };
   }, []);
 
@@ -246,7 +281,7 @@ function GlideCapsule({
       ref={capsuleRef}
       aria-hidden="true"
       className="nav-glide"
-      data-visible={visible ? "" : undefined}
+      data-visible={shown ? "" : undefined}
     />
   );
 }
@@ -307,11 +342,14 @@ export function NavItems() {
 
       {/*
        * The glyph is a capsule target like any label; it is only hidden below
-       * md, where the runner never measures or selects it.
+       * md, where the runner never measures or selects it. Its
+       * `data-glide-break` cuts the run here so the capsule never stretches
+       * across the divider.
        */}
       <button
         type="button"
         aria-label="Design system"
+        data-glide-break=""
         ref={(node) => {
           itemRefs.current[LINKS.length] = node;
         }}

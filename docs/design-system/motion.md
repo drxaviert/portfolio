@@ -82,6 +82,8 @@ The timings are the shipped constants `LEADING_DURATION_MS = 180`, `TRAILING_DUR
 
 The home nav's three labels and the design-system glyph share one capsule instead of each carrying its own hover fill. The glyph is the fourth target of the same run — the capsule crosses the divider to it and back — and the run sits to the right of the orb head, which the capsule never reaches. The motion is the selection highlight's stretch & snap, imported rather than re-declared: the nav reads `LEADING_DURATION_MS`, `TRAILING_DELAY_MS`, `TRAILING_DURATION_MS`, `leadingEase` and `trailingEase` from `theme-toggle.tsx`, so the nav and the toggle cannot drift.
 
+The glyph carries `data-glide-break`, which cuts the run: a move across that boundary never glides — the capsule fades out where it is, then snaps onto the new item on the first-entry path, so it never stretches across the divider (every other pair still glides).
+
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
 | Hover moves between items | capsule `clip-path` | 180ms / 220ms | 0 / 120ms | ease-out cubic / quint | current edges → target edges |
@@ -97,10 +99,11 @@ The home nav's three labels and the design-system glyph share one capsule instea
 A frame writes one property: the capsule keeps the run's width and carries the pill as a `clip-path` inset, so the leading and trailing edges move independently while no width or other layout property changes. At rest the pill is the hovered item's box at the `--radius-md` token. Hover is gated to `(hover: hover) and (pointer: fine)`, focus is a 2px `primary` ring on the item, and Work keeps `aria-current="page"`. Reduced motion hides the capsule: the hovered item carries the 55% `surface-container` fill and crossfades it in 120ms with no travel, so the state change survives without the movement.
 
 - `src/components/home/nav-items.tsx:5` — durations and curves imported from the toggle
-- `src/components/home/nav-items.tsx:78` — the one capsule runner shared by every item
-- `src/components/home/nav-items.tsx:119` — per-frame `clip-path` inset (paint only)
-- `src/components/home/nav-items.tsx:159` — first entry and reduced motion snap with no travel
-- `src/components/home/nav-items.tsx:261` — the item run: labels, divider, glyph as the fourth target
+- `src/components/home/nav-items.tsx:82` — the one capsule runner shared by every item
+- `src/components/home/nav-items.tsx:140` — per-frame `clip-path` inset (paint only)
+- `src/components/home/nav-items.tsx:180` — first entry and reduced motion snap with no travel
+- `src/components/home/nav-items.tsx:199` — group break: fade out, then snap, never stretch
+- `src/components/home/nav-items.tsx:296` — the item run: labels, divider, glyph as the fourth target
 - `src/components/home/nav-items.css:19` — press `scale: 0.96`, 150ms `ease-out`
 - `src/components/home/nav-items.css:57` — hover weight 0.55
 - `src/components/home/nav-items.css:75` — glyph tooltip, 300ms delay
