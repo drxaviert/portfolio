@@ -153,6 +153,9 @@
     flex-direction: column;
     justify-content: space-between;
     position: absolute;
+    /* Above the 880px breakouts, which are positioned later in the DOM and
+       would otherwise paint over the rail's label and its click target. */
+    z-index: 1;
     inset-block: 0;
     right: calc(100% + 20px);
     width: 170px;

@@ -65,6 +65,16 @@ export function ExpandShell({
   );
 }
 
+/** The control focus came from: its card, or the nav when a study has none. */
+function returnTarget(slug: string): HTMLElement | null {
+  return (
+    document.querySelector<HTMLElement>(cardSelector(slug)) ??
+    // A study opened from "Next project" has no card of its own; the homepage
+    // nav's logo is the nearest thing a keyboard user met on the page.
+    document.querySelector<HTMLElement>('body > main a[aria-label="Home"]')
+  );
+}
+
 /** Scroll lock, the focus trap and focus returning to the source card. */
 function useOverlayBehaviour(
   panelRef: RefObject<HTMLElement | null>,
@@ -72,6 +82,7 @@ function useOverlayBehaviour(
 ) {
   useEffect(() => {
     const body = document.body;
+    const background = document.querySelector<HTMLElement>("body > main");
     const overflow = body.style.overflow;
     const paddingRight = body.style.paddingRight;
     const gutter = window.innerWidth - document.documentElement.clientWidth;
@@ -79,9 +90,16 @@ function useOverlayBehaviour(
     body.style.overflow = "hidden";
     if (gutter > 0) body.style.paddingRight = `${gutter}px`;
 
+    // The reader is the only thing on screen: the homepage behind it leaves the
+    // tab order and the accessibility tree, so no key or click can reach it.
+    // This cleanup runs before the focus return below, so the card can take
+    // focus back once the overlay is unmounted.
+    background?.setAttribute("inert", "");
+
     return () => {
       body.style.overflow = overflow;
       body.style.paddingRight = paddingRight;
+      background?.removeAttribute("inert");
     };
   }, []);
 
@@ -92,26 +110,39 @@ function useOverlayBehaviour(
       const root = panelRef.current;
       if (!root) return;
 
+      // Unrendered nodes are not tab stops: the mobile actions stay in the DOM
+      // at 1024px and up, so without this the forward wrap keys off a control
+      // that cannot be reached.
       const nodes = [
         ...root.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
         ),
-      ].filter((node) => !node.closest("[inert]"));
+      ].filter(
+        (node) =>
+          !node.closest("[inert]") && node.getClientRects().length > 0,
+      );
       if (nodes.length === 0) return;
 
       const first = nodes[0];
       const last = nodes[nodes.length - 1];
       const active = document.activeElement;
+      const inPanel = active instanceof HTMLElement && root.contains(active);
+
+      // Open focuses the tabindex="-1" title, which is deliberately not in the
+      // list. Sequential navigation from it restarts at the document in WebKit,
+      // so an in-panel focus that is not a stop counts as the panel's edge.
+      const stranded =
+        active instanceof HTMLElement && inPanel && !nodes.includes(active);
 
       if (event.shiftKey) {
-        if (active === first || !root.contains(active)) {
+        if (!inPanel || stranded || active === first) {
           event.preventDefault();
           last.focus();
         }
         return;
       }
 
-      if (active === last || !root.contains(active)) {
+      if (!inPanel || stranded || active === last) {
         event.preventDefault();
         first.focus();
       }
@@ -123,9 +154,7 @@ function useOverlayBehaviour(
 
   useEffect(
     () => () => {
-      document
-        .querySelector<HTMLElement>(cardSelector(slug))
-        ?.focus({ preventScroll: true });
+      returnTarget(slug)?.focus({ preventScroll: true });
     },
     [slug],
   );

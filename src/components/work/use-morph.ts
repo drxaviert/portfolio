@@ -143,11 +143,19 @@ export function useMorph(
 
     const card = findCard(slug);
 
-    if (!card || reduce) {
+    if (reduce) {
       panel.style.opacity = "0";
       const fade = animate(panel, { opacity: 1 }, { duration: FADE_S, ease: "easeOut" });
       openingRef.current = fade;
       void fade.finished.then(settle);
+      return;
+    }
+
+    // "Next project" opens a study with no card to morph from. The panel is
+    // already the destination, so it keeps its opaque surface and only the new
+    // content changes: a fade here would show the homepage through the reader.
+    if (!card) {
+      settle();
       return;
     }
 

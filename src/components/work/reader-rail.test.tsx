@@ -5,6 +5,8 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { READER_SCROLL_ID, READER_TITLE_ID } from "./parts";
@@ -77,6 +79,17 @@ async function scrollPastOneScreen() {
 }
 
 describe("ReaderRail", () => {
+  it("stacks above the 880px figure breakouts", () => {
+    const css = readFileSync(
+      join(process.cwd(), "src", "components", "work", "reader.css"),
+      "utf8",
+    );
+
+    expect(css).toMatch(
+      /@media \(min-width: 1024px\) \{\s*\.wd-rail \{[^}]*position: absolute;[^}]*z-index: 1;/,
+    );
+  });
+
   it("closes through the overlay's own path, with no prop drilled in", () => {
     const close = vi.fn();
 

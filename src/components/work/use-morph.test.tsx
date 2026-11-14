@@ -7,6 +7,7 @@ import { findCard } from "./use-morph";
 
 const mocks = vi.hoisted(() => ({
   animate: vi.fn(),
+  reduce: false,
   back: vi.fn(),
   push: vi.fn(),
 }));
@@ -17,6 +18,7 @@ vi.mock("motion/react", async (importOriginal) => {
   return {
     ...actual,
     animate: mocks.animate as unknown as typeof actual.animate,
+    useReducedMotion: () => mocks.reduce,
   };
 });
 
@@ -94,6 +96,7 @@ beforeEach(() => {
     complete: vi.fn(),
     stop: vi.fn(),
   });
+  mocks.reduce = false;
   mocks.back.mockReset();
   mocks.push.mockReset();
 
@@ -150,8 +153,29 @@ describe("findCard", () => {
 });
 
 describe("ExpandShell", () => {
-  it("fades instead of morphing when the source card is gone", async () => {
+  it("holds the panel opaque when the study has no source card", async () => {
     document.body.innerHTML = "";
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    const panel = panelElement();
+    const open = mocks.animate.mock.calls.filter(([element]) => element === panel);
+
+    expect(open).toHaveLength(0);
+    expect(panel.style.opacity).toBe("");
+  });
+
+  it("keeps the 120ms opacity fade for a card-less open under reduced motion", async () => {
+    document.body.innerHTML = "";
+    mocks.reduce = true;
 
     render(
       <ExpandShell slug={SLUG}>
