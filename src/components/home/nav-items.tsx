@@ -3,12 +3,13 @@
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import {
-  LEADING_DURATION_MS,
-  TRAILING_DELAY_MS,
-  TRAILING_DURATION_MS,
-  leadingEase,
-  trailingEase,
-} from "@/components/theme/theme-toggle";
+  GLIDE_LEAD_SPRING,
+  GLIDE_TRAIL_SPRING,
+  createEdge,
+  isEdgeAtRest,
+  stepEdge,
+  type GlideEdge,
+} from "./glide-spring";
 import { NavGlyphIcon } from "./nav-glyph-icon";
 import "./nav-items.css";
 
@@ -32,32 +33,34 @@ const GLYPH_CLASS = [
   "focus-visible:outline-offset-0 focus-visible:outline-primary",
 ].join(" ");
 
-/* ---------- Glide: stretch & snap, constants and curves from the toggle ---------- */
+/* ---------- Glide: two spring-driven edges ---------- */
 
-const LEADING_DURATION = LEADING_DURATION_MS / 1000;
-const TRAILING_DURATION = TRAILING_DURATION_MS / 1000;
-const TRAILING_DELAY = TRAILING_DELAY_MS / 1000;
-
-// Mirrors the layer's 150ms opacity fade in nav-items.css, used to let a
-// capsule fade out before it is re-placed across a group break.
+// Mirrors the layer's 150ms opacity fade in nav-items.css: a move across a
+// group break fades out, re-places while invisible, then fades back in.
 const FADE_DURATION_MS = 150;
 
-type GlideFlight = {
-  start: number;
-  leadFrom: number;
-  leadTo: number;
-  trailFrom: number;
-  trailTo: number;
-  leadingRight: boolean;
-};
+// How long the trailing edge holds its position when a move starts from rest,
+// so the leading edge stretches away first. A retarget mid-flight never re-arms
+// it, so a fast sweep cannot freeze the trail.
+const TRAIL_HOLD_MS = 100;
 
 type GlideState = {
+  /** Item the pill is heading for; -1 until it has been placed once. */
   target: number;
-  placed: boolean;
-  lastVisible: boolean;
-  left: number;
-  right: number;
-  flight: GlideFlight | null;
+  /** True while the pointer is inside the run (or the layer is still fading). */
+  inside: boolean;
+  /** True between a break's fade-out and its re-place. */
+  breaking: boolean;
+  /** True when both edges have arrived and the loop has stopped. */
+  settled: boolean;
+  left: GlideEdge;
+  right: GlideEdge;
+  /** True when the pill travels right, so the right edge is the leading one. */
+  leadRight: boolean;
+  /** Timestamp (ms) until which the trail holds; 0 when it is free. */
+  trailHoldUntil: number;
+  /** Timestamp of the previous frame, for the dt the springs step by. */
+  lastTime: number;
   raf: number;
 };
 
@@ -70,10 +73,15 @@ function prefersReducedMotion(): boolean {
 
 /**
  * One shared capsule across the whole item run — Work, Play, About, divider,
- * glyph. Same motion as the theme toggle's selection highlight: the leading
- * edge leaves in 180ms, the trailing edge holds 120ms then closes in 220ms.
- * The layer fades in/out in 150ms and is hidden under reduced motion (the
- * hovered item's fill takes over, see nav-items.css).
+ * glyph. Each edge is its own damped spring, so the motion is state-driven:
+ * a new target only moves the springs' destinations and both edges keep their
+ * current position and velocity, exactly like a CSS transition being
+ * retargeted mid-flight. Nothing restarts from a stored start point.
+ *
+ * The leading edge is the stiff spring, the trailing edge the soft one, and a
+ * move from rest holds the trail for 100ms first, so the capsule still
+ * stretches out of the old item and closes onto the new one with roughly the
+ * toggle's 180ms lead and 220ms + delay trail.
  *
  * The pill is the layer's clip, not its box: the layer keeps the run's width
  * and each edge is cut to its animated position, so a frame only paints and
@@ -90,15 +98,16 @@ function GlideCapsule({
 }) {
   const capsuleRef = useRef<HTMLSpanElement>(null);
   const breakTimerRef = useRef(0);
-  const [breaking, setBreaking] = useState(false);
-  const shown = visible && !breaking;
   const stateRef = useRef<GlideState>({
     target: -1,
-    placed: false,
-    lastVisible: false,
-    left: 0,
-    right: 0,
-    flight: null,
+    inside: false,
+    breaking: false,
+    settled: true,
+    left: createEdge(0),
+    right: createEdge(0),
+    leadRight: true,
+    trailHoldUntil: 0,
+    lastTime: 0,
     raf: 0,
   });
 
@@ -111,8 +120,8 @@ function GlideCapsule({
     const nodes = items.current;
 
     // An item flagged with `data-glide-break` starts a new group: the capsule
-    // never stretches across it, so a move over the break gets the first-entry
-    // treatment instead of a glide.
+    // never stretches across it, so a move over the break fades out, re-places
+    // and fades back in instead of gliding.
     const cutByBreak = (from: number, to: number) => {
       const lo = Math.min(from, to) + 1;
       const hi = Math.max(from, to);
@@ -134,8 +143,9 @@ function GlideCapsule({
     };
 
     const draw = () => {
-      const left = Math.min(st.left, st.right);
-      const right = left + Math.max(2, Math.abs(st.right - st.left));
+      const left = Math.min(st.left.position, st.right.position);
+      const right =
+        left + Math.max(2, Math.abs(st.right.position - st.left.position));
 
       el.style.clipPath = `inset(0 calc(100% - ${right}px) 0 ${left}px round var(--radius-md, 6px))`;
     };
@@ -147,125 +157,206 @@ function GlideCapsule({
       }
     };
 
-    const snap = (index: number) => {
+    // Places the pill exactly on an item: the only paths that skip the springs
+    // are a real entry into the run and a break's re-place.
+    const place = (index: number) => {
       const box = measure(index);
 
       if (!box) return false;
 
       st.target = index;
-      st.flight = null;
-      st.left = box.left;
-      st.right = box.right;
+      st.left = createEdge(box.left);
+      st.right = createEdge(box.right);
+      st.settled = true;
+      st.trailHoldUntil = 0;
 
       return true;
     };
 
-    if (!st.placed) {
-      if (snap(target)) {
-        st.placed = true;
-        draw();
+    const frame = (now: number) => {
+      st.raf = 0;
+
+      if (!st.inside || st.breaking || st.target < 0) return;
+
+      const box = measure(st.target);
+
+      if (!box) return;
+
+      // dt comes from rAF and is clamped inside stepEdge, so a janky or
+      // backgrounded frame continues the motion instead of snapping it.
+      const dt = Math.max(0, (now - st.lastTime) / 1000);
+
+      st.lastTime = now;
+
+      const holding = st.trailHoldUntil > now;
+
+      if (st.leadRight) {
+        st.right = stepEdge(st.right, box.right, dt, GLIDE_LEAD_SPRING);
+
+        if (!holding) {
+          st.left = stepEdge(st.left, box.left, dt, GLIDE_TRAIL_SPRING);
+        }
+      } else {
+        st.left = stepEdge(st.left, box.left, dt, GLIDE_LEAD_SPRING);
+
+        if (!holding) {
+          st.right = stepEdge(st.right, box.right, dt, GLIDE_TRAIL_SPRING);
+        }
       }
 
-      return;
-    }
+      draw();
 
-    if (!shown) {
-      st.lastVisible = false;
+      if (holding) {
+        st.raf = window.requestAnimationFrame(frame);
 
-      return;
-    }
+        return;
+      }
 
-    // First item entered or reduced motion: appear where the pointer is, with
-    // no travel (the layer still fades in via CSS, or is hidden entirely).
-    if (!st.lastVisible || prefersReducedMotion()) {
-      st.lastVisible = true;
+      if (
+        isEdgeAtRest(st.left, box.left) &&
+        isEdgeAtRest(st.right, box.right)
+      ) {
+        st.left = createEdge(box.left);
+        st.right = createEdge(box.right);
+        st.settled = true;
+        st.trailHoldUntil = 0;
+        draw();
+
+        return;
+      }
+
+      st.raf = window.requestAnimationFrame(frame);
+    };
+
+    // The loop is one long-lived run: a retarget only moves the springs'
+    // destinations, so it never cancels and restarts the frame clock.
+    const ensureLoop = () => {
+      if (st.raf) return;
+
+      st.lastTime = performance.now();
+      st.raf = window.requestAnimationFrame(frame);
+    };
+
+    const startBreak = (index: number) => {
       stop();
+      // The pointer is still in the run, so `data-visible` stays: only the
+      // crossfade blanks the capsule while it is re-placed across the divider.
+      el.setAttribute("data-fading", "");
+      st.breaking = true;
+      st.target = index;
 
-      if (snap(target)) draw();
+      window.clearTimeout(breakTimerRef.current);
+      breakTimerRef.current = window.setTimeout(() => {
+        breakTimerRef.current = 0;
+        st.breaking = false;
+
+        // The pointer may have left the run while the capsule was fading; the
+        // next real entry re-places it, so do not place it over nothing.
+        if (!st.inside) return;
+
+        if (place(st.target)) draw();
+
+        el.removeAttribute("data-fading");
+      }, FADE_DURATION_MS);
+    };
+
+    // Outside the run: the layer fades itself out on `data-visible`. The clip
+    // is left where the edges stopped, so the fade never jumps; the next real
+    // entry re-places the pill under the pointer.
+    if (!visible) {
+      st.inside = false;
+      st.breaking = false;
+      window.clearTimeout(breakTimerRef.current);
+      breakTimerRef.current = 0;
+      stop();
+      el.removeAttribute("data-visible");
+      el.removeAttribute("data-fading");
 
       return;
     }
 
     const box = measure(target);
 
+    // A hidden item (the glyph below md) is never a destination.
     if (!box) return;
 
-    if (st.target === target) {
+    // Reduced motion: the layer is display:none and the hovered item carries
+    // the fill, but the edges stay exact so leaving this mode never animates
+    // from a stale position.
+    if (prefersReducedMotion()) {
+      st.inside = true;
+      st.breaking = false;
+      stop();
+      el.removeAttribute("data-fading");
+
+      if (place(target)) draw();
+
+      return;
+    }
+
+    // A real entry into the run. Everything that happens between items keeps
+    // `inside` true, so moving fast within the nav can never snap.
+    if (!st.inside) {
+      if (!place(target)) return;
+
+      st.inside = true;
+      st.breaking = false;
+      stop();
       draw();
+      el.removeAttribute("data-fading");
+      el.setAttribute("data-visible", "");
+
+      return;
+    }
+
+    // A break owns the placement until its timer fires: it has already faded
+    // out where it was, so the latest target is only recorded here. The timer
+    // is never restarted, so a sweep cannot leave the capsule hidden.
+    if (st.breaking) {
+      st.target = target;
+
+      return;
+    }
+
+    if (st.target === target) {
+      // Same destination (a re-render, or the pointer settling on one item):
+      // keep the current motion instead of starting it over.
+      if (!st.settled) ensureLoop();
 
       return;
     }
 
     if (cutByBreak(st.target, target)) {
-      stop();
-      st.lastVisible = false;
-      setBreaking(true);
-      window.clearTimeout(breakTimerRef.current);
-      breakTimerRef.current = window.setTimeout(
-        () => setBreaking(false),
-        FADE_DURATION_MS,
-      );
+      startBreak(target);
 
       return;
     }
 
-    const center = (st.left + st.right) / 2;
+    const center = (st.left.position + st.right.position) / 2;
     const movingRight = (box.left + box.right) / 2 >= center;
+    const turned = st.leadRight !== movingRight;
+    const wasSettled = st.settled;
 
     st.target = target;
-    st.flight = {
-      start: performance.now(),
-      leadFrom: movingRight ? st.right : st.left,
-      leadTo: movingRight ? box.right : box.left,
-      trailFrom: movingRight ? st.left : st.right,
-      trailTo: movingRight ? box.left : box.right,
-      leadingRight: movingRight,
-    };
+    st.leadRight = movingRight;
+    st.settled = false;
 
-    stop();
+    if (wasSettled) {
+      // A move from rest: hold the trail so the lead stretches away first. The
+      // held edge is at rest, so dropping its residual velocity is invisible.
+      st.trailHoldUntil = performance.now() + TRAIL_HOLD_MS;
 
-    const loop = (now: number) => {
-      const flight = st.flight;
+      const trail = movingRight ? st.left : st.right;
 
-      if (!flight) return;
+      trail.velocity = 0;
+    } else if (turned) {
+      // Reversing mid-flight swaps which edge leads, so an armed hold would
+      // freeze the edge that just became the leader. Let the trail go now.
+      st.trailHoldUntil = 0;
+    }
 
-      const elapsed = Math.max(0, (now - flight.start) / 1000);
-      const leadProgress = Math.min(1, elapsed / LEADING_DURATION);
-      const trailProgress = Math.min(
-        1,
-        Math.max(0, elapsed - TRAILING_DELAY) / TRAILING_DURATION,
-      );
-      const lead =
-        flight.leadFrom +
-        (flight.leadTo - flight.leadFrom) * leadingEase(leadProgress);
-      const trail =
-        flight.trailFrom +
-        (flight.trailTo - flight.trailFrom) * trailingEase(trailProgress);
-
-      if (flight.leadingRight) {
-        st.right = lead;
-        st.left = trail;
-      } else {
-        st.left = lead;
-        st.right = trail;
-      }
-
-      draw();
-
-      if (leadProgress >= 1 && trailProgress >= 1) {
-        if (snap(target)) draw();
-        st.raf = 0;
-
-        return;
-      }
-
-      st.raf = window.requestAnimationFrame(loop);
-    };
-
-    st.raf = window.requestAnimationFrame(loop);
-
-    return stop;
-  }, [items, target, shown]);
+    ensureLoop();
+  }, [items, target, visible]);
 
   useEffect(() => {
     const st = stateRef.current;
@@ -276,14 +367,7 @@ function GlideCapsule({
     };
   }, []);
 
-  return (
-    <span
-      ref={capsuleRef}
-      aria-hidden="true"
-      className="nav-glide"
-      data-visible={shown ? "" : undefined}
-    />
-  );
+  return <span ref={capsuleRef} aria-hidden="true" className="nav-glide" />;
 }
 
 /**
