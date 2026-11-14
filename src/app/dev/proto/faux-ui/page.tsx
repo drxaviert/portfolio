@@ -7,8 +7,9 @@ import type { Mode, Scene, Phase } from "./faux-ui";
  * Throwaway prototype: the featured work ProjectCard's product visual.
  *
  * Three generic faux scenes — desktop window, phone, bento tiles — each drawn
- * on the card's Figma canvas (753 × 416) and scaled to fit, with a still or an
- * 8s CSS loop and a Day/Night switch for review.
+ * on the card's Figma canvas (753 × 416) and scaled to fit, with an 8s CSS
+ * loop by default (Dat's pick for the featured card) or a still for
+ * reduced-motion review, plus a Day/Night switch.
  *
  * Dev-only; deep links 404 in a production build. The card frame reuses the
  * ring-hover surface from src/components/home, so its size, radius and shadow
@@ -51,6 +52,8 @@ export default async function FauxUiPage({
         ["window", "phone", "tiles"],
         "window",
       )}
+      // Dat picked Loop for all three scenes, so an absent ?mode= opens the
+      // loop; Still stays available as the reduced-motion fallback to check.
       initialMode={pick<Mode>(query.mode, ["still", "loop"], "loop")}
       initialPhase={pick<Phase>(query.theme, ["day", "night"], "day")}
     />
