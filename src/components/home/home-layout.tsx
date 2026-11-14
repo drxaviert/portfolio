@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
 import { HorizonLive } from "@/components/horizon/horizon-live";
+import { EntranceCell } from "./entrance-cell";
+import type { EntranceVariant } from "./entrance-cell";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
 import { HomeNav } from "./home-nav";
@@ -29,10 +31,18 @@ const frameGapStyle = {
  * Hover is the promoted "Ring + nav bar" language: every card and the nav bar
  * is one ring surface that grows into its own box and is lit by a glow in the
  * phase's horizon palette (see ring-hover.css).
+ *
+ * `entrance` is the throwaway prototype hook used by /dev/proto/entrance. It
+ * wraps each card and the nav bar in an animation cell and puts data-entrance
+ * on <main> for the variant CSS. Absent, the rendered tree is exactly the one
+ * `/` shipped before: no wrappers, no attribute, no extra nodes.
  */
-export function HomeLayout() {
+export function HomeLayout({ entrance }: { entrance?: EntranceVariant }) {
   return (
-    <main className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface">
+    <main
+      data-entrance={entrance}
+      className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface"
+    >
       <HorizonLive />
       <RingHoverPointer />
 
@@ -72,16 +82,34 @@ export function HomeLayout() {
           {/* Top band: the widget card, then the Play card's empty shell at
               its Figma size (275 + 12 + 849 at 1440). No generative art. */}
           <div className="flex gap-3">
-            <TrackerWidget />
-            <PlayCard />
+            <EntranceCell
+              variant={entrance}
+              item={1}
+              row={1}
+              className="shrink-0"
+            >
+              <TrackerWidget />
+            </EntranceCell>
+            <EntranceCell
+              variant={entrance}
+              item={2}
+              row={1}
+              className="min-w-0 flex-1"
+            >
+              <PlayCard />
+            </EntranceCell>
           </div>
 
           <div className="grid gap-3 md:h-[560px] md:grid-cols-[444fr_120fr_52fr_52fr] lg:h-[360px] lg:grid-cols-[656fr_140fr_64fr_64fr] xl:h-[416px] xl:grid-cols-[753fr_180fr_83fr_84fr]">
-            <ProjectCard />
-            <WorkSlivers />
+            <EntranceCell variant={entrance} item={3} row={2}>
+              <ProjectCard />
+            </EntranceCell>
+            <WorkSlivers entrance={entrance} />
           </div>
 
-          <HomeNav />
+          <EntranceCell variant={entrance} item={7} row={3}>
+            <HomeNav />
+          </EntranceCell>
         </div>
 
         <FrameLineSpotlight />

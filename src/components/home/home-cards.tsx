@@ -1,3 +1,5 @@
+import { EntranceCell } from "./entrance-cell";
+import type { EntranceVariant } from "./entrance-cell";
 import { RingLayers } from "./ring-hover";
 
 /**
@@ -33,18 +35,23 @@ export function ProjectCard() {
   );
 }
 
-/** Decorative work-column stand-ins; empty by design. */
-export function WorkSlivers() {
+/**
+ * Decorative work-column stand-ins; empty by design. `entrance` is the
+ * throwaway prototype hook (see entrance-cell.tsx); the three slivers are
+ * items 4-6 in reading order.
+ */
+export function WorkSlivers({ entrance }: { entrance?: EntranceVariant }) {
   return (
     <>
       {WORK_SLIVERS.map((sliver, index) => (
-        <div
-          key={index}
-          aria-hidden="true"
-          className={`ring-host rounded-lg md:h-auto ${sliver.height}`}
-        >
-          <RingLayers fill={sliver.fill} />
-        </div>
+        <EntranceCell key={index} variant={entrance} item={4 + index} row={2}>
+          <div
+            aria-hidden="true"
+            className={`ring-host rounded-lg md:h-auto ${sliver.height}`}
+          >
+            <RingLayers fill={sliver.fill} />
+          </div>
+        </EntranceCell>
       ))}
     </>
   );

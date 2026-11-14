@@ -1,0 +1,228 @@
+/*
+ * Homepage entrance — throwaway prototype, dev route only.
+ *
+ * Loaded by /dev/proto/entrance, never by /. Everything is scoped under
+ * [data-entrance], an attribute HomeLayout only renders when the prototype
+ * passes a variant, so nothing here can reach the production page.
+ *
+ * Shared numbers
+ *   curve      cubic-bezier(0.23, 1, 0.32, 1)  (docs/design-system/motion.md)
+ *   per item   ~360ms
+ *   total      every variant settles by 700ms
+ *
+ * Variant timings (item = reading order: tracker, play, project, 3 slivers, nav)
+ *   scale  items 0/50/100/150/200/250/300ms, 360ms each        → ends 660ms
+ *   rise   rows at 0/60/120ms, 380ms each                      → ends 500ms
+ *   ring   edge at item*40ms (380ms), fill at +80ms (240ms)    → ends 620ms
+ *   sky    glow 0-300ms, cards 120 + item*36ms, 360ms each     → ends 696ms
+ *
+ * Fill mode is `backwards`, not `both`. Backwards still paints the from-state
+ * during the delay (the server-rendered HTML starts hidden, no flash, no JS),
+ * but once the animation finishes the element reverts to its own base styles.
+ * With `both` a finished animation would rest on an interpolated
+ * `filter: blur(0px)` and an identity transform: a permanent raster filter plus
+ * a stacking context on all seven cards, which is exactly what would fight the
+ * ring hover. The end keyframes match the base styles, so the handover is
+ * invisible.
+ *
+ * Reduced motion replaces all of it with one 120ms opacity fade.
+ */
+
+[data-entrance] {
+  --entrance-ease: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/*
+ * Layout parity: the wrapper is the flex/grid item the card used to be, and
+ * the body plus the card fill it. Sizing rules are here (not in the JSX) so
+ * the two branches stay one source of truth for the card's layout role.
+ */
+[data-entrance] .entrance-cell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+[data-entrance] .entrance-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+[data-entrance] .entrance-body > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Reading order (item) and row index, as animatable delay multipliers. */
+[data-entrance] [data-entrance-item="1"] {
+  --entrance-i: 0;
+}
+
+[data-entrance] [data-entrance-item="2"] {
+  --entrance-i: 1;
+}
+
+[data-entrance] [data-entrance-item="3"] {
+  --entrance-i: 2;
+}
+
+[data-entrance] [data-entrance-item="4"] {
+  --entrance-i: 3;
+}
+
+[data-entrance] [data-entrance-item="5"] {
+  --entrance-i: 4;
+}
+
+[data-entrance] [data-entrance-item="6"] {
+  --entrance-i: 5;
+}
+
+[data-entrance] [data-entrance-item="7"] {
+  --entrance-i: 6;
+}
+
+[data-entrance] [data-entrance-row="1"] {
+  --entrance-r: 0;
+}
+
+[data-entrance] [data-entrance-row="2"] {
+  --entrance-r: 1;
+}
+
+[data-entrance] [data-entrance-row="3"] {
+  --entrance-r: 2;
+}
+
+/* 1 — Scale + blur: cards stagger in reading order from 0.96 / 6px blur. */
+[data-entrance="scale"] .entrance-body {
+  animation: entrance-scale-in 360ms var(--entrance-ease) backwards;
+  animation-delay: calc(var(--entrance-i) * 50ms);
+}
+
+/* 2 — Rise: the row is the unit. One 8px lift per row, no blur. */
+[data-entrance="rise"] .entrance-body {
+  animation: entrance-rise-in 380ms var(--entrance-ease) backwards;
+  animation-delay: calc(var(--entrance-r) * 60ms);
+}
+
+/*
+ * 3 — Ring reveal: the card is drawn. The 1px edge arrives first, holds while
+ * the fill and content fade in inside it, then hands back to the rest state
+ * (no stroke). The edge is a pseudo-element on the cell, so the ring hover's
+ * own frame is untouched and still opens on pointer.
+ */
+[data-entrance="ring"] .entrance-cell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 1px solid var(--frame-line);
+  /* Rest radius of .ring-surface at the card box (ring-hover.css). */
+  border-radius: 12px;
+  pointer-events: none;
+  /* Rest state; `backwards` hands the edge back to this when it ends. */
+  opacity: 0;
+  animation: entrance-edge-draw 380ms var(--entrance-ease) backwards;
+  animation-delay: calc(var(--entrance-i) * 40ms);
+}
+
+[data-entrance="ring"] .entrance-body {
+  animation: entrance-fade-in 240ms var(--entrance-ease) backwards;
+  animation-delay: calc(var(--entrance-i) * 40ms + 80ms);
+}
+
+/*
+ * 4 — Sky first: the horizon glow rises before the objects, then the cards
+ * come in lighter than variant 1. The fade lands on the motion layer — the one
+ * wrapper around both CSS blobs (and their pulse copies) that carries no
+ * animation of its own, so it cannot override the drift, breathe or intensity
+ * animations inside it. Fading the whole horizon surface instead would flash
+ * the darker page background, since it also paints the base colour.
+ */
+[data-entrance="sky"] .horizon-motion-layer {
+  animation: entrance-fade-in 300ms var(--entrance-ease) backwards;
+}
+
+[data-entrance="sky"] .entrance-body {
+  animation: entrance-scale-light-in 360ms var(--entrance-ease) backwards;
+  animation-delay: calc(120ms + var(--entrance-i) * 36ms);
+}
+
+@keyframes entrance-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes entrance-scale-light-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes entrance-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes entrance-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Edge in over 45ms, hold to 220ms, gone by 380ms. */
+@keyframes entrance-edge-draw {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  58% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Reduced motion: one 120ms opacity fade, no scale, rise, blur or edge. */
+@media (prefers-reduced-motion: reduce) {
+  [data-entrance] .entrance-body,
+  [data-entrance="sky"] .horizon-motion-layer {
+    animation: entrance-fade-in 120ms ease-out backwards !important;
+    animation-delay: 0ms !important;
+  }
+
+  [data-entrance] .entrance-cell::before {
+    animation: none;
+  }
+}
