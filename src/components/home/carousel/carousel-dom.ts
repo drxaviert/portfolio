@@ -1,8 +1,5 @@
-import { blur, motionBlurAt } from "./blur-mode";
-import type { BlurMode } from "./blur-mode";
-import { lookFor } from "./sliver-mode";
-import type { Look, SliverMode } from "./sliver-mode";
-import { lerp, titleKeys } from "./carousel-math";
+import { blur } from "./edge-blur";
+import { titleKeys } from "./carousel-math";
 import type { Entity, Pose, TitleTiming } from "./carousel-math";
 
 /**
@@ -24,41 +21,16 @@ import type { Entity, Pose, TitleTiming } from "./carousel-math";
  * card is moving to.
  */
 
-type Parts = {
-  cover: HTMLElement | null;
-  grey: HTMLElement | null;
-  title: HTMLElement | null;
-};
-
-function parts(el: HTMLElement): Parts {
-  return {
-    cover: el.querySelector<HTMLElement>("[data-car-cover]"),
-    grey: el.querySelector<HTMLElement>("[data-car-grey]"),
-    title: el.querySelector<HTMLElement>("[data-car-title]"),
-  };
+function titleOf(el: HTMLElement): HTMLElement | null {
+  return el.querySelector<HTMLElement>("[data-car-title]");
 }
 
-function coverFilter(grayscale: number): string {
-  return grayscale > 0 ? `grayscale(${grayscale})` : "";
-}
-
-function applyLook(el: HTMLElement, look: Look) {
-  const { cover, grey } = parts(el);
-
-  if (cover) {
-    cover.style.opacity = String(look.cover);
-    cover.style.filter = coverFilter(look.grayscale);
-  }
-  if (grey) grey.style.opacity = String(look.grey);
-}
-
-/** Puts a card at rest: slot box, no clip, the look and title for `wide`. */
+/** Puts a card at rest: slot box, no clip, the title for `wide`. */
 export function restStyle(
   el: HTMLElement,
   pose: Pose,
   wide: number,
   visible: boolean,
-  mode: SliverMode,
 ) {
   el.style.width = `${pose.w}px`;
   el.style.setProperty("--car-x", `${pose.x}px`);
@@ -67,9 +39,7 @@ export function restStyle(
   delete el.dataset.edgeBlur;
   el.style.visibility = visible ? "" : "hidden";
 
-  applyLook(el, lookFor(mode, wide));
-
-  const { title } = parts(el);
+  const title = titleOf(el);
   if (title) title.style.opacity = String(wide);
 }
 
@@ -79,10 +49,6 @@ function crop(visibleOf: number, boxWidth: number): string {
 }
 
 export type PlayBlur = {
-  mode: BlurMode;
-  motionPeak: number;
-  /** Blur a moving card already has (an interrupt), px. */
-  motionFrom: number;
   edgeBlur: number;
   rowWidth: number;
 };
@@ -90,21 +56,20 @@ export type PlayBlur = {
 type PlayOptions = {
   duration: number;
   easing: string;
-  mode: SliverMode;
   timing: TitleTiming;
   blur: PlayBlur;
 };
 
 /**
  * Starts one entity's run. Everything on it (the card's transform and clip-path
- * and blur, the picture layers, the title) uses the same duration and curve and
- * starts together, so nothing drifts out of sync. Returns every animation so
- * the caller can cancel them as one.
+ * and blur, the title) uses the same duration and curve and starts together, so
+ * nothing drifts out of sync. Returns every animation so the caller can cancel
+ * them as one.
  */
 export function playEntity(
   el: HTMLElement,
   e: Entity,
-  { duration, easing, mode, timing, blur: b }: PlayOptions,
+  { duration, easing, timing, blur: b }: PlayOptions,
 ): Animation[] {
   const box = Math.max(e.from.w, e.to.w);
   const timeline = { duration, easing, fill: "both" as const };
@@ -121,26 +86,7 @@ export function playEntity(
     "--car-r": [crop(e.from.w, box), crop(e.to.w, box)],
   };
 
-  if (b.mode === "motion" && moves) {
-    // Peaks mid-step, 0 at rest; mid keyframe sits on the straight line so the
-    // path is unchanged.
-    keyframes["--car-x"] = [
-      `${e.from.x}px`,
-      `${lerp(e.from.x, e.to.x, 0.5)}px`,
-      `${e.to.x}px`,
-    ];
-    keyframes["--car-r"] = [
-      crop(e.from.w, box),
-      crop(lerp(e.from.w, e.to.w, 0.5), box),
-      crop(e.to.w, box),
-    ];
-    keyframes.filter = [
-      blur(b.motionFrom),
-      blur(Math.max(b.motionFrom, motionBlurAt(b.motionPeak, 0.5))),
-      "none",
-    ];
-    keyframes.offset = [0, 0.5, 1];
-  } else if (b.mode === "edge") {
+  if (moves) {
     const outside = (x: number) => x < 0 || x >= b.rowWidth;
 
     if (outside(e.to.x)) keyframes.filter = ["none", blur(b.edgeBlur)];
@@ -160,30 +106,7 @@ export function playEntity(
 
   const animations: Animation[] = [el.animate(keyframes, timeline)];
 
-  const { cover, grey, title } = parts(el);
-  const a = lookFor(mode, e.fromWide);
-  const z = lookFor(mode, e.toWide);
-
-  if (cover && (a.cover !== z.cover || a.grayscale !== z.grayscale)) {
-    animations.push(
-      cover.animate(
-        {
-          opacity: [a.cover, z.cover],
-          filter: [
-            coverFilter(a.grayscale) || "none",
-            coverFilter(z.grayscale) || "none",
-          ],
-        },
-        timeline,
-      ),
-    );
-  } else if (cover) {
-    applyLook(el, z);
-  }
-
-  if (grey && a.grey !== z.grey) {
-    animations.push(grey.animate({ opacity: [a.grey, z.grey] }, timeline));
-  }
+  const title = titleOf(el);
 
   if (title) {
     if (e.fromTitle === e.toTitle) {

@@ -8,15 +8,14 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
 import { flushSync } from "react-dom";
 import { Cover } from "@/components/work/cover";
 import type { WorkMeta } from "@/lib/work";
-import { WORK_SLIVERS } from "../home-cards";
 import { RingLayers } from "../ring-hover";
-import { EDGE_KEYFRAMES, motionBlurAt, parseBlurMode } from "./blur-mode";
-import type { BlurMode } from "./blur-mode";
+import { EDGE_KEYFRAMES } from "./edge-blur";
 import { restStyle, playEntity } from "./carousel-dom";
 import {
   EMPTY_GEOMETRY,
@@ -60,7 +59,6 @@ import {
   OVERLAY_OPENED_EVENT,
 } from "@/components/work/overlay-exit";
 import { announceStep } from "../step-events";
-import { parseSliverMode, useLocationSearch } from "./sliver-mode";
 import "../home-cards.css";
 import "./home-carousel.css";
 
@@ -74,8 +72,6 @@ type Tween = {
   duration: number;
   ease: Ease;
   timing: TitleTiming;
-  blurMode: BlurMode;
-  motionPeak: number;
   animations: Animation[];
 };
 
@@ -114,6 +110,20 @@ function overlayPresent(): boolean {
 }
 const CROSSFADE_FROM = 0.6;
 const TITLE_OUT_END = 0.12;
+
+function subscribeToLocation(onChange: () => void) {
+  window.addEventListener("popstate", onChange);
+  return () => window.removeEventListener("popstate", onChange);
+}
+
+/** The query string, read on the client only so the page stays static. */
+function useLocationSearch(): string {
+  return useSyncExternalStore(
+    subscribeToLocation,
+    () => window.location.search,
+    () => "",
+  );
+}
 
 function supportsLinearEasing(): boolean {
   return (
@@ -158,7 +168,6 @@ type SlideProps = {
   ghost: boolean;
   /** The hover peek's strip: the previous item, as a plain inert copy. */
   peek?: boolean;
-  fillSlot: number;
   register: (key: string, element: HTMLElement | null) => void;
   onActivate: (event: MouseEvent<HTMLElement>, index: number) => void;
 };
@@ -174,14 +183,12 @@ function Slide({
   total,
   ghost,
   peek = false,
-  fillSlot,
   register,
   onActivate,
 }: SlideProps) {
   const first = slot === 0 && !ghost;
   const offscreen = slot >= VISIBLE_SLOTS;
   const key = peek ? "peekL" : `${ghost ? "g" : "m"}${index}`;
-  const fill = WORK_SLIVERS[(fillSlot - 1) % WORK_SLIVERS.length].fill;
   const hostClass = "car-host ring-host rounded-lg";
 
   const body = (
@@ -189,11 +196,6 @@ function Slide({
       <RingLayers fill="bg-surface-container-low" />
       <div className="car-clip rounded-lg">
         <div className="car-content">
-          <span
-            aria-hidden="true"
-            data-car-grey=""
-            className={`car-grey absolute inset-0 ${fill}`}
-          />
           {item.kind === "work" ? (
             <>
               <div
@@ -287,8 +289,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const n = items.length;
   const reduce = useReducedMotion() ?? false;
   const search = useLocationSearch();
-  const mode = parseSliverMode(search);
-  const blurMode = parseBlurMode(search);
   const hoverCapable = useHoverCapable();
   const tune = new URLSearchParams(search).get("tune") === "1";
 
@@ -299,9 +299,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const [offset, setOffset] = useState(0);
   const [domOffset, setDomOffset] = useState(0);
   const [ghosts, setGhosts] = useState<number[]>([]);
-  const [fills, setFills] = useState<number[]>(() =>
-    items.map((_, index) => (index === 0 ? 1 : Math.min(index, 3))),
-  );
   const [announcement, setAnnouncement] = useState("");
   const [settled, setSettled] = useState(0);
 
@@ -312,7 +309,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const offsetRef = useRef(0);
   const tween = useRef<Tween | null>(null);
   const focusFirst = useRef(false);
-  const latest = useRef({ settings, mode, blurMode, reduce });
+  const latest = useRef({ settings, reduce });
   const peek = useRef<PeekState>(idlePeek());
   const pointer = useRef<{ x: number; y: number } | null>(null);
   // The row's box for the hover zone. It is read lazily, once, after anything
@@ -335,7 +332,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   });
 
   useEffect(() => {
-    latest.current = { settings, mode, blurMode, reduce };
+    latest.current = { settings, reduce };
     hoverApi.current = {
       evaluate: evaluateHover,
       close: closePeeks,
@@ -363,7 +360,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         slotPose(g, slot),
         slot === 0 ? 1 : 0,
         slot < VISIBLE_SLOTS,
-        latest.current.mode,
       );
     });
   }
@@ -556,18 +552,8 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const next = advance(prev, k, n);
     if (next === prev) return;
 
-    const {
-      settings: s,
-      mode: m,
-      blurMode: bm,
-      reduce: reduced,
-    } = latest.current;
+    const { settings: s, reduce: reduced } = latest.current;
     const g = geometry.current;
-    const nextFills = (previous: number[]) =>
-      previous.map((fill, index) => {
-        const slot = slotOf(index, next, n);
-        return slot > 0 ? Math.min(slot, 3) : fill;
-      });
 
     focusFirst.current = viaKeyboard;
     offsetRef.current = next;
@@ -579,7 +565,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         setOffset(next);
         setDomOffset(next);
         setGhosts([]);
-        setFills(nextFills);
         if (!viaKeyboard) setAnnouncement(`Showing ${items[next].title}`);
       });
       applyRest(next);
@@ -681,7 +666,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     flushSync(() => {
       setOffset(next);
       setGhosts(planned.filter((e) => e.ghost).map((e) => e.item));
-      setFills(nextFills);
       if (!viaKeyboard) setAnnouncement(`Showing ${items[next].title}`);
     });
 
@@ -695,14 +679,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     }
 
     const animations: Animation[] = [];
-    const elapsed = running ? now - running.t0 : 0;
-    const progress = running
-      ? running.ease(Math.min(Math.max(elapsed / running.duration, 0), 1))
-      : 0;
-    const motionFrom =
-      running && running.blurMode === "motion"
-        ? motionBlurAt(running.motionPeak, progress)
-        : 0;
 
     for (const entity of planned) {
       const element = elements.current.get(entityKey(entity));
@@ -712,12 +688,8 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         ...playEntity(element, entity, {
           duration: s.duration,
           easing,
-          mode: m,
           timing,
           blur: {
-            mode: bm,
-            motionPeak: s.motionPeak,
-            motionFrom,
             edgeBlur: s.edgeBlur,
             rowWidth: g.rowWidth,
           },
@@ -727,31 +699,18 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
     row.dataset.stepping = "";
 
-    if (bm === "edge") {
-      // Same duration and start as the cards: eases in, holds, eases out. From
-      // a peek it carries on from the mask's strength then, so it never pops.
-      animations.push(
-        row.animate(
-          EDGE_KEYFRAMES.map((k, index) => ({
-            offset: k.offset,
-            easing: k.easing,
-            "--car-fade": index === 0 ? Math.max(fadeNow, k.fade) : k.fade,
-          })),
-          { duration: s.duration, easing: "linear", fill: "both" },
-        ),
-      );
-    } else if (fadeNow > 0.01) {
-      // The peek's mask eases out instead of vanishing when the step starts.
-      row.dataset.mask = "";
-      const out = row.animate(
-        { "--car-fade": [fadeNow, 0] },
-        { duration: 220, easing: "ease-out" },
-      );
-      out.onfinish = () => {
-        if (tween.current === started) delete row.dataset.mask;
-      };
-      animations.push(out);
-    }
+    // Same duration and start as the cards: eases in, holds, eases out. From a
+    // peek it carries on from the mask's strength then, so it never pops.
+    animations.push(
+      row.animate(
+        EDGE_KEYFRAMES.map((k, index) => ({
+          offset: k.offset,
+          easing: k.easing,
+          "--car-fade": index === 0 ? Math.max(fadeNow, k.fade) : k.fade,
+        })),
+        { duration: s.duration, easing: "linear", fill: "both" },
+      ),
+    );
 
     // Stepping forward with the peek open: the previous card slides back out to
     // the left with the row instead of vanishing.
@@ -774,8 +733,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       duration: s.duration,
       ease,
       timing,
-      blurMode: bm,
-      motionPeak: s.motionPeak,
       animations: [...animations, clock],
     };
 
@@ -819,10 +776,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
     return () => observer.disconnect();
   }, []);
-
-  useEffect(() => {
-    sync();
-  }, [mode, blurMode]);
 
   // After a step the peek is re-evaluated: if the pointer is still in the zone
   // it comes back, showing the new previous item.
@@ -1015,12 +968,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         onKeyDown={onKeyDown}
         className="hidden md:block"
       >
-        <div
-          ref={rowRef}
-          className="car-row"
-          data-blur={blurMode}
-          style={rowStyle}
-        >
+        <div ref={rowRef} className="car-row" style={rowStyle}>
           <div ref={guideRef} aria-hidden="true" className="car-guide">
             <div />
             <div />
@@ -1036,7 +984,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
               slot={slotOf(index, offset, n)}
               total={n}
               ghost={false}
-              fillSlot={fills[index]}
               register={register}
               onActivate={onActivate}
             />
@@ -1050,7 +997,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
               total={n}
               ghost
               peek
-              fillSlot={fills[peekOf(n, domOffset)]}
               register={register}
               onActivate={onActivate}
             />
@@ -1064,7 +1010,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
               slot={slotOf(index, offset, n)}
               total={n}
               ghost
-              fillSlot={fills[index]}
               register={register}
               onActivate={onActivate}
             />
@@ -1079,7 +1024,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       {tune ? (
         <CarouselTuner
           settings={settings}
-          blurMode={blurMode}
           onChange={(patch) =>
             setSettings((previous) => ({ ...previous, ...patch }))
           }

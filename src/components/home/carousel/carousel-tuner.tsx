@@ -2,16 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { DEFAULT_BLUR } from "./blur-mode";
+import { DEFAULT_BLUR } from "./edge-blur";
 import { DEFAULT_HOVER_PEEK } from "./hover-peek";
 import type { HoverPeekSettings } from "./hover-peek";
-import type { BlurMode, BlurSettings } from "./blur-mode";
-import {
-  EASE_OPTIONS,
-  STEP_PRESETS,
-  easeSpec,
-  parseBezier,
-} from "./carousel-math";
+import type { BlurSettings } from "./edge-blur";
+import { EASE_OPTIONS, easeSpec, parseBezier } from "./carousel-math";
 import type { Bezier, EaseKey } from "./carousel-math";
 
 export type CarouselSettings = BlurSettings &
@@ -25,8 +20,11 @@ export type CarouselSettings = BlurSettings &
     titleSpan: number;
   };
 
+/** The one step: 900ms on the gentle-start smooth curve. */
 export const DEFAULT_SETTINGS: CarouselSettings = {
-  ...STEP_PRESETS.default,
+  duration: 900,
+  ease: "smooth",
+  custom: [0.5, 0, 0.1, 1],
   titleStart: 0.75,
   titleSpan: 0.2,
   ...DEFAULT_BLUR,
@@ -61,12 +59,9 @@ const FIELD: CSSProperties = {
 
 type NumberKey =
   | "duration"
-  | "titleStart"
-  | "titleSpan"
   | "edgeWidth"
   | "edgeBlur"
-  | "motionPeak"
-  | keyof HoverPeekSettings;
+  | keyof Pick<HoverPeekSettings, "revealMs" | "retractMs" | "leaveMs">;
 
 /**
  * Dev tuner, mounted only at `/?tune=1`. Values apply to the next step; Copy
@@ -74,11 +69,9 @@ type NumberKey =
  */
 export function CarouselTuner({
   settings,
-  blurMode,
   onChange,
 }: {
   settings: CarouselSettings;
-  blurMode: BlurMode;
   onChange: (patch: Partial<CarouselSettings>) => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -93,25 +86,9 @@ export function CarouselTuner({
     [],
   );
 
-  const preset =
-    (Object.keys(STEP_PRESETS) as (keyof typeof STEP_PRESETS)[]).find(
-      (key) =>
-        STEP_PRESETS[key].duration === settings.duration &&
-        STEP_PRESETS[key].ease === settings.ease &&
-        STEP_PRESETS[key].custom.join() === settings.custom.join(),
-    ) ?? "custom";
-
-  function choosePreset(key: string) {
-    if (key !== "default" && key !== "responsive") return;
-
-    const next = STEP_PRESETS[key];
-    setBezierText(next.custom.join(", "));
-    onChange({ ...next });
-  }
-
   function copy() {
     const resolved = easeSpec(settings.ease, settings.custom).css;
-    const values = { ...settings, easing: resolved, blur: blurMode, preset };
+    const values = { ...settings, easing: resolved };
 
     void navigator.clipboard?.writeText(JSON.stringify(values, null, 2));
     setCopied(true);
@@ -146,19 +123,6 @@ export function CarouselTuner({
   return (
     <div role="group" aria-label="Carousel tuner" style={PANEL}>
       <strong style={{ color: "#fff", fontSize: 13 }}>Carousel tuner</strong>
-      <label style={FIELD}>
-        <span>Step preset (sets duration and curve)</span>
-        <select
-          value={preset}
-          onChange={(event) => choosePreset(event.target.value)}
-        >
-          <option value="default">default (900ms, 0.5 0 0.1 1)</option>
-          <option value="responsive">responsive (800ms, 0.3 0 0.1 1)</option>
-          <option value="custom" disabled>
-            custom
-          </option>
-        </select>
-      </label>
       {slider("duration", "Duration", "ms", 200, 2500, 50)}
       <label style={FIELD}>
         <span>Easing</span>
@@ -189,20 +153,13 @@ export function CarouselTuner({
           style={bezierValid ? undefined : { outline: "1px solid #f66" }}
         />
       </label>
-      {slider("titleStart", "Title in at", " of step", 0, 1, 0.05)}
-      {slider("titleSpan", "Title fade span", "", 0.05, 0.6, 0.05)}
-      <strong style={{ color: "#fff" }}>Blur: ?blur={blurMode}</strong>
-      {slider("edgeWidth", "Edge width", "px", 8, 64, 2)}
+      <strong style={{ color: "#fff" }}>Edge</strong>
+      {slider("edgeWidth", "Edge mask width", "px", 8, 64, 2)}
       {slider("edgeBlur", "Edge blur", "px", 0, 12, 0.5)}
-      {slider("motionPeak", "Motion blur peak", "px", 0, 8, 0.5)}
       <strong style={{ color: "#fff" }}>Hover peek (one-column shift)</strong>
-      {slider("hoverZone", "Hover zone", "px", 20, 120, 2)}
       {slider("revealMs", "Reveal", "ms", 100, 600, 10)}
       {slider("retractMs", "Retract", "ms", 100, 600, 10)}
       {slider("leaveMs", "Leave delay", "ms", 0, 400, 10)}
-      {slider("hoverBlur", "Prev blur", "px", 0, 12, 0.5)}
-      {slider("hoverBlurOn", "Prev blur on hover", "px", 0, 12, 0.5)}
-      {slider("hoverFade", "Prev left fade", "", 0, 1, 0.05)}
       <button type="button" onClick={copy}>
         {copied ? "Copied" : "Copy values"}
       </button>

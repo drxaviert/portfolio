@@ -1,4 +1,4 @@
-import { EDGE_KEYFRAMES } from "./blur-mode";
+import { EDGE_KEYFRAMES } from "./edge-blur";
 import { PEEK_EASING, PEEK_FADE_MS, TURN_EASING } from "./hover-peek";
 import type { PeekLayout } from "./hover-peek";
 

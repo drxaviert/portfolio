@@ -122,10 +122,6 @@
   width: var(--car-wide, 100%);
 }
 
-.car-grey {
-  opacity: 0;
-}
-
 .car-title {
   position: absolute;
   left: 32px;
@@ -163,20 +159,19 @@
 }
 
 /*
- * Blur comparison (?blur=), removed once Dat picks.
+ * Edge treatment: while a step (or the hover peek) runs the row's card layer is
+ * alpha-masked so cards melt out at both ends. A mask paints nothing: no
+ * colour, no backdrop. The mask image is 24px taller than the row and unclipped
+ * (no-clip) so shadows and rings above and below survive; horizontally it is
+ * exactly the column.
  */
-
-/* edge: while a step runs the row's card layer is alpha-masked so cards melt
-   out at both ends. A mask paints nothing: no colour, no backdrop. The mask
-   image is 24px taller than the row and unclipped (no-clip) so shadows and
-   rings above and below survive; horizontally it is exactly the column. */
 @property --car-fade {
   syntax: "<number>";
   inherits: false;
   initial-value: 0;
 }
 
-.car-row[data-stepping][data-blur="edge"],
+.car-row[data-stepping],
 .car-row[data-mask] {
   --car-mask: linear-gradient(
     to right,

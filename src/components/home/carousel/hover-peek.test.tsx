@@ -513,23 +513,19 @@ describe("left hover peek", () => {
     expect(row(container)).not.toHaveAttribute("data-stepping");
   });
 
-  it("works whatever ?blur= is, and ?peekRight= and ?peekFit= are gone", () => {
-    for (const blur of ["edge", "motion", "none"]) {
-      window.history.pushState(
-        {},
-        "",
-        `/?blur=${blur}&peekRight=hover&peekFit=proportional`,
-      );
-      const { container, unmount } = render(<HomeCarousel items={ITEMS} />);
-      move(110);
+  it("works with the old ?blur= switch ignored, and ?peekRight= and ?peekFit= are gone", () => {
+    window.history.pushState(
+      {},
+      "",
+      "/?blur=none&peekRight=hover&peekFit=proportional",
+    );
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
 
-      expect(row(container)).toHaveAttribute("data-peeking");
-      expect(slides(prevCard(container)!)).toHaveLength(1);
-      expect(container.querySelectorAll(".car-peek-edge")).toHaveLength(1);
-      expect(card(container, 0).style.width).toBe("753px");
-      move(1090);
-      unmount();
-    }
+    expect(row(container)).toHaveAttribute("data-peeking");
+    expect(slides(prevCard(container)!)).toHaveLength(1);
+    expect(container.querySelectorAll(".car-peek-edge")).toHaveLength(1);
+    expect(card(container, 0).style.width).toBe("753px");
   });
 });
 
@@ -842,8 +838,7 @@ describe("peek glitch fixes", () => {
     expect(prevCard(container)!.style.visibility).toBe("hidden");
   });
 
-  it("eases the mask out when a step starts from a peek without the edge mode", () => {
-    window.history.pushState({}, "", "/?blur=none");
+  it("carries the peek's mask strength into the step instead of popping", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     move(110);
     row(container).style.setProperty("--car-fade", "0.8");
@@ -853,16 +848,13 @@ describe("peek glitch fixes", () => {
       key: "ArrowRight",
     });
 
-    const out = recorded
+    const mask = recorded
       .slice(before)
       .find(
-        (r) =>
-          r.target === row(container) &&
-          !Array.isArray(r.keyframes) &&
-          "--car-fade" in r.keyframes,
+        (r) => r.target === row(container) && Array.isArray(r.keyframes),
       )!;
-    expect(out.keyframes["--car-fade"]).toEqual([0.8, 0]);
-    expect(row(container)).toHaveAttribute("data-mask");
+    const first = (mask.keyframes as unknown as { "--car-fade": number }[])[0];
+    expect(first["--car-fade"]).toBe(0.8);
   });
 });
 
@@ -874,7 +866,7 @@ describe("peek css", () => {
 
   it("masks by alpha only, with no painted colour, and clips to the column", () => {
     expect(css).toMatch(
-      /\.car-row\[data-stepping\]\[data-blur="edge"\],\s*\.car-row\[data-mask\]\s*\{\s*--car-mask/,
+      /\.car-row\[data-stepping\],\s*\.car-row\[data-mask\]\s*\{\s*--car-mask/,
     );
     expect(css).toMatch(
       /\.car-row\[data-stepping\]\s*\{\s*clip-path:\s*inset\(-12px 0\)/,

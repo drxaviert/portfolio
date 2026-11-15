@@ -3,7 +3,6 @@ import { resolve } from "node:path";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CAROUSEL_STEP_END, CAROUSEL_STEP_START } from "../step-events";
-import { STEP_PRESETS } from "./carousel-math";
 import { HomeCarousel } from "./home-carousel";
 import type { CarouselItem } from "./home-carousel";
 
@@ -345,9 +344,9 @@ describe("carousel CSS", () => {
     );
   });
 
-  it("edge mode paints no colour: a mask only", () => {
+  it("edge treatment paints no colour: a mask only", () => {
     const start = css.indexOf("@property --car-fade");
-    const end = css.indexOf(".car-row[data-stepping],", start);
+    const end = css.indexOf(".car-row[data-stepping] {", start);
     const edge = css.slice(start, end);
 
     expect(edge).toMatch(/mask-image/);
@@ -421,21 +420,13 @@ describe("easing and one timeline", () => {
     window.history.pushState({}, "", "/?tune=1");
     render(<HomeCarousel items={ITEMS} />);
 
-    // Default first: 900ms smooth.
-    expect(STEP_PRESETS.default).toMatchObject({
-      duration: 900,
-      ease: "smooth",
-    });
-
-    fireEvent.change(screen.getByLabelText(/Step preset/), {
-      target: { value: "responsive" },
-    });
+    const duration = screen.getByLabelText(/Duration/);
+    fireEvent.change(duration, { target: { value: "800" } });
     const first = host("Systems");
     fireEvent.keyDown(first, { key: "ArrowRight" });
 
     const move = recorded.find((r) => hasProp(r, "--car-x"))!;
     expect(move.options.duration).toBe(800);
-    expect(move.options.easing).toBe("cubic-bezier(0.3, 0, 0.1, 1)");
 
     // An interrupt still takes the ease-out that carries speed.
     const before = recorded.length;
@@ -445,13 +436,6 @@ describe("easing and one timeline", () => {
       .find((r) => hasProp(r, "--car-x"))!;
     expect(retargeted.options.easing).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
     expect(retargeted.options.duration).toBe(800);
-
-    // The preset shows in the select and goes back to default.
-    expect(screen.getByLabelText(/Step preset/)).toHaveValue("responsive");
-    fireEvent.change(screen.getByLabelText(/Step preset/), {
-      target: { value: "default" },
-    });
-    expect(screen.getByLabelText(/Step preset/)).toHaveValue("default");
   });
 
   it("tells the page when a step starts and ends, for things that follow the pointer", () => {
@@ -487,8 +471,8 @@ describe("easing and one timeline", () => {
   });
 });
 
-describe("blur modes", () => {
-  it("defaults to edge: a mask fades with the step, no overlay elements", () => {
+describe("edge blur", () => {
+  it("a step fades the row's edge mask, with no overlay elements", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     const row = container.querySelector<HTMLElement>(".car-row")!;
     expect(container.querySelector(".car-edge")).toBeNull();
@@ -552,45 +536,21 @@ describe("blur modes", () => {
     expect(container.querySelectorAll("[data-edge-blur]")).toHaveLength(0);
   });
 
-  it("none adds nothing", () => {
-    window.history.pushState({}, "", "/?blur=none");
+  it("ignores the old ?blur= and ?sliver= switches: it is always crop and edge", () => {
+    window.history.pushState({}, "", "/?blur=none&sliver=grey");
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
     fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
 
-    expect(container.querySelector(".car-edge")).toBeNull();
-    expect(container.querySelector(".car-peek")).toBeNull();
-    expect(recorded.some((r) => hasProp(r, "filter"))).toBe(false);
-  });
-
-  it("motion blurs moving cards in the same animation and ends at 0", () => {
-    window.history.pushState({}, "", "/?blur=motion");
-    render(<HomeCarousel items={ITEMS} />);
-
-    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
-
-    const moving = recorded.filter(
-      (r) => hasProp(r, "--car-x") && hasProp(r, "filter"),
-    );
-    expect(moving.length).toBeGreaterThan(0);
-    for (const r of moving) {
-      expect(r.keyframes.filter).toHaveLength(3);
-      expect(r.keyframes.filter?.at(0)).toBe("none");
-      expect(r.keyframes.filter?.at(-1)).toBe("none");
-      expect(String(r.keyframes.filter?.[1])).toContain("blur(2.50px)");
-      expect(r.keyframes.offset).toEqual([0, 0.5, 1]);
-    }
-  });
-
-  it("treats ?blur=peek as gone: no strip at the right edge", () => {
-    window.history.pushState({}, "", "/?blur=peek");
-    const { container } = render(<HomeCarousel items={ITEMS} />);
-
-    expect(container.querySelector(".car-peek")).toBeNull();
-    expect(container.querySelector(".car-row")).toHaveAttribute(
-      "data-blur",
-      "edge",
-    );
+    // The row still masks and the leaving/entering cards still blur.
+    const row = container.querySelector<HTMLElement>(".car-row")!;
+    expect(row).toHaveAttribute("data-stepping");
+    expect(
+      recorded.filter((r) => r.target === row && Array.isArray(r.keyframes)),
+    ).toHaveLength(1);
+    expect(recorded.some((r) => hasProp(r, "filter"))).toBe(true);
+    // No sliver fill layer exists at all any more.
+    expect(container.querySelector(".car-grey, [data-car-grey]")).toBeNull();
   });
 });
 
