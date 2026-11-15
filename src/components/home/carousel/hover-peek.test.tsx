@@ -533,6 +533,135 @@ describe("left hover peek", () => {
   });
 });
 
+describe("held motion without a reader", () => {
+  /** Opens the peek, then clicks the featured card so the motion is held. */
+  function hold() {
+    const rendered = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    drawShifted(rendered.container);
+    const host = card(rendered.container, 0).querySelector<HTMLElement>(
+      ".car-host",
+    )!;
+    host.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(host);
+    return rendered;
+  }
+
+  it("lets go on popstate when no reader is open, retracting with animation instead of snapping", () => {
+    const { container } = hold();
+    expect(row(container)).toHaveAttribute("data-peeking");
+    const before = recorded.length;
+
+    // A hard back: the url is the home page again and no reader is mounted.
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      vi.advanceTimersByTime(1);
+    });
+
+    const back = recorded
+      .slice(before)
+      .filter(
+        (r) => "--car-x" in r.keyframes && r.target !== prevCard(container),
+      );
+    expect(back).toHaveLength(4);
+    for (let slot = 0; slot < 4; slot++) {
+      const run = back.find((r) => r.target === card(container, slot))!;
+      // From where it is drawn to rest, over the retract curve: no jump.
+      expect(run.keyframes["--car-x"]).toEqual([
+        `${OPEN_X[slot]}px`,
+        `${REST_X[slot]}px`,
+      ]);
+      expect(run.options.duration).toBe(350);
+    }
+    // Nothing was reset instantly: the cards still hold their drawn position
+    // until the retract finishes.
+    expect(card(container, 0).style.getPropertyValue("--car-x")).toBe(
+      `${OPEN_X[0]}px`,
+    );
+
+    act(() => slides(prevCard(container)!).at(-1)!.onfinish?.());
+    expect(row(container)).not.toHaveAttribute("data-peeking");
+    expect(row(container).style.getPropertyValue("--car-fade")).toBe("");
+  });
+
+  it("stays held on popstate while a reader is open", () => {
+    const { container } = hold();
+    window.history.pushState({}, "", "/work/systems-in-motion");
+    const before = recorded.length;
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(recorded).toHaveLength(before);
+    expect(row(container)).toHaveAttribute("data-peeking");
+  });
+
+  it("finds no reader after the grace period and lets go on the next pointer move", () => {
+    const { container } = hold();
+    const before = recorded.length;
+
+    // A slow navigation gets a grace period first.
+    act(() => vi.advanceTimersByTime(1000));
+    move(100 + 400);
+    expect(recorded).toHaveLength(before);
+
+    act(() => vi.advanceTimersByTime(600));
+    move(100 + 400);
+    expect(recorded.length).toBeGreaterThan(before);
+    expect(
+      recorded
+        .slice(before)
+        .some(
+          (r) => r.target === card(container, 0) && "--car-x" in r.keyframes,
+        ),
+    ).toBe(true);
+  });
+
+  it("does not let go while the reader's layer is in the page", () => {
+    const { container } = hold();
+    const layer = document.createElement("div");
+    layer.className = "wd-expand-layer";
+    document.body.appendChild(layer);
+    const before = recorded.length;
+
+    act(() => vi.advanceTimersByTime(3000));
+    move(100 + 400);
+
+    expect(recorded).toHaveLength(before);
+    expect(row(container)).toHaveAttribute("data-peeking");
+    layer.remove();
+  });
+
+  it("settles a held step on popstate", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    fireEvent.keyDown(card(container, 0).querySelector(".car-host")!, {
+      key: "ArrowRight",
+    });
+    const titles = [
+      ...container.querySelectorAll<HTMLElement>(".car-slide"),
+    ].find(
+      (el) =>
+        !el.hasAttribute("data-ghost") &&
+        el.getAttribute("aria-label")?.endsWith(": Titles"),
+    )!;
+    titles.style.setProperty("--car-x", "310px");
+    const host = titles.querySelector<HTMLElement>(".car-host")!;
+    host.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(host);
+    expect(row(container)).toHaveAttribute("data-stepping");
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(row(container)).not.toHaveAttribute("data-stepping");
+    expect(titles.style.getPropertyValue("--car-x")).toBe("0px");
+  });
+});
+
 describe("hover zone cost", () => {
   /** Counts the row's box reads, the one layout read the zone could cause. */
   function countRowReads() {

@@ -102,6 +102,16 @@ function idlePeek(): PeekState {
 
 const FALLBACK_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
 const CROSSFADE_MS = 120;
+/** How long held motion waits for a slow navigation before it lets go. */
+const HELD_GRACE_MS = 1500;
+
+/** Whether the reader is open (or about to be) over the page. */
+function overlayPresent(): boolean {
+  return (
+    window.location.pathname.startsWith("/work/") ||
+    document.querySelector(".wd-expand-layer") !== null
+  );
+}
 const CROSSFADE_FROM = 0.6;
 const TITLE_OUT_END = 0.12;
 
@@ -308,6 +318,10 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   // The row's box for the hover zone. It is read lazily, once, after anything
   // that can move it (a scroll, a resize, a step ending, a peek changing state),
   // never once per pointer move.
+  // Set while motion is held for the reader (see freezeMotion). If the reader
+  // never reports back (a hard back navigation unmounts it), this is how the
+  // carousel finds out and lets go.
+  const held = useRef<{ at: number } | null>(null);
   const zone = useRef<{ rect: DOMRect | null; dirty: boolean }>({
     rect: null,
     dirty: true,
@@ -316,6 +330,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     evaluate: () => {},
     close: () => {},
     release: () => {},
+    letGo: () => {},
     click: (() => {}) as (event: globalThis.MouseEvent) => void,
   });
 
@@ -325,6 +340,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       evaluate: evaluateHover,
       close: closePeeks,
       release: releaseMotion,
+      letGo: releaseGently,
       click: onRowClick,
     };
   });
@@ -354,6 +370,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
   function cancelTween() {
     zone.current.dirty = true;
+    held.current = null;
     const current = tween.current;
     if (tween.current) announceStep("end");
     tween.current = null;
@@ -418,6 +435,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         state.els = null;
         state.layout = null;
         delete row.dataset.peeking;
+        row.style.removeProperty("--car-fade");
       },
     );
   }
@@ -426,6 +444,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   function closePeeks() {
     const state = peek.current;
     zone.current.dirty = true;
+    held.current = null;
 
     if (state.timer !== null) window.clearTimeout(state.timer);
     if (state.els) closeSnap(state.els, state.anims);
@@ -454,6 +473,15 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
     const { settings: s } = latest.current;
     const state = peek.current;
+
+    // Held for a reader that is not there: let go (a navigation that is merely
+    // slow gets a grace period first).
+    if (held.current && Date.now() - held.current.at > HELD_GRACE_MS) {
+      if (!overlayPresent()) {
+        releaseGently();
+        return;
+      }
+    }
     if (state.frozen) return;
     const at = pointer.current;
 
@@ -819,10 +847,19 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   useEffect(() => {
     const release = () => hoverApi.current.release();
 
+    // A hard back navigation takes the reader away without a closing event.
+    const popped = () => {
+      window.setTimeout(() => {
+        if (held.current && !overlayPresent()) hoverApi.current.letGo();
+      }, 0);
+    };
+
     window.addEventListener(OVERLAY_OPENED_EVENT, release);
     window.addEventListener(OVERLAY_CLOSING_EVENT, release);
+    window.addEventListener("popstate", popped);
 
     return () => {
+      window.removeEventListener("popstate", popped);
       window.removeEventListener(OVERLAY_OPENED_EVENT, release);
       window.removeEventListener(OVERLAY_CLOSING_EVENT, release);
     };
@@ -911,6 +948,23 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       hover.open = false;
       hover.frozen = true;
     }
+    held.current = { at: Date.now() };
+  }
+
+  /**
+   * Lets go of held motion with the row in view: a peek retracts on its own
+   * curve from where it is drawn (no snap); a held step is settled.
+   */
+  function releaseGently() {
+    held.current = null;
+
+    const state = peek.current;
+    if (state.frozen && state.els) {
+      state.frozen = false;
+      state.open = true;
+      setPeek(false);
+    }
+    if (tween.current) settle();
   }
 
   /** Back to rest, unseen: the reader has landed, or is about to close. */
