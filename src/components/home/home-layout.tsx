@@ -1,6 +1,10 @@
 import type { CSSProperties } from "react";
 import type { WorkMeta } from "@/lib/work";
 import { HorizonLive } from "@/components/horizon/horizon-live";
+import { EntranceCell } from "./entrance-cell";
+import type { EntranceVariant } from "./entrance-cell";
+import { HomeEntrancePlayed } from "./home-entrance";
+import { EntranceGrain } from "./entrance-grain";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
 import { RingHoverPointer } from "./ring-pointer";
@@ -29,6 +33,15 @@ const frameGapStyle = {
  * Hover is the promoted "Ring + nav bar" language: every card and the nav bar
  * is one ring surface that grows into its own box and is lit by a glow in the
  * phase's horizon palette (see ring-hover.css).
+ *
+ * `entrance` wraps each card in an animation cell (the nav, which lives in the
+ * root layout's dock, is reached from home-entrance.css) and puts
+ * data-entrance on <main> for the variant CSS. `/` passes `entrance="soft"
+ * shipped`, which adds the veil layer and the one-play-per-document gate; the
+ * dev route passes a variant only and keeps its own overlay in the harness.
+ *
+ * `shipped` marks <main> so the entrance CSS can tell the production entrance
+ * from the prototype's replays.
  */
 export type HomeWorkSource = {
   title: string;
@@ -49,12 +62,26 @@ type HomeLayoutProps = {
    * never touches the content loader.
    */
   featured?: { slug: string; title: string; cover: WorkMeta["cover"] };
+  entrance?: EntranceVariant;
+  shipped?: boolean;
 };
 
-export function HomeLayout({ work, featured }: HomeLayoutProps = {}) {
+export function HomeLayout({
+  work,
+  featured,
+  entrance,
+  shipped = false,
+}: HomeLayoutProps = {}) {
   return (
-    <main className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface">
+    <main
+      data-entrance={entrance}
+      data-entrance-shipped={shipped ? "" : undefined}
+      className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface"
+    >
       <HorizonLive />
+      {/* Prototype hook: the grain sits above the glow and under the cards,
+          so it can only live between the two. Absent on `/`. */}
+      {entrance === "grain" ? <EntranceGrain /> : null}
       <RingHoverPointer />
 
       <div
@@ -93,31 +120,59 @@ export function HomeLayout({ work, featured }: HomeLayoutProps = {}) {
           {/* Top band: the widget card, then the Play card's empty shell at
               its Figma size (275 + 12 + 849 at 1440). No generative art. */}
           <div className="flex gap-3">
-            <TrackerWidget />
-            <PlayCard />
+            <EntranceCell
+              variant={entrance}
+              item={1}
+              row={1}
+              className="shrink-0"
+            >
+              <TrackerWidget />
+            </EntranceCell>
+            <EntranceCell
+              variant={entrance}
+              item={2}
+              row={1}
+              className="min-w-0 flex-1"
+            >
+              <PlayCard />
+            </EntranceCell>
           </div>
 
           <div className="grid gap-3 md:h-[560px] md:grid-cols-[444fr_120fr_52fr_52fr] lg:h-[360px] lg:grid-cols-[656fr_140fr_64fr_64fr] xl:h-[416px] xl:grid-cols-[753fr_180fr_83fr_84fr]">
-            {work ? (
-              <ProjectCard title={work.title} onOpen={work.onOpen} />
-            ) : (
-              <ProjectCard
-                title={featured?.title}
-                slug={featured?.slug}
-                scene={featured?.cover}
-              />
-            )}
-            <WorkSlivers items={work?.slivers} />
+            <EntranceCell variant={entrance} item={3} row={2}>
+              {work ? (
+                <ProjectCard title={work.title} onOpen={work.onOpen} />
+              ) : (
+                <ProjectCard
+                  title={featured?.title}
+                  slug={featured?.slug}
+                  scene={featured?.cover}
+                />
+              )}
+            </EntranceCell>
+            <WorkSlivers items={work?.slivers} entrance={entrance} />
           </div>
 
           {/* The nav itself lives in the root layout, so one element carries
               from the homepage into the drawer. This slot reserves its box and
-              gives the dock its home position. */}
-          <div className="h-16" aria-hidden="true" data-nav-slot="" />
+              gives the dock its home position. The slot keeps item 7 so the
+              reading order stays whole; the nav's own entrance is applied to
+              the dock in home-entrance.css. */}
+          <EntranceCell variant={entrance} item={7} row={3}>
+            <div className="h-16" aria-hidden="true" data-nav-slot="" />
+          </EntranceCell>
         </div>
 
         <FrameLineSpotlight />
       </div>
+
+      {/* The shipped entrance's veil: server-rendered so the first frame is
+          already washed, CSS-only so it clears without JS, and cancelled by
+          the played gate on a client-side return. */}
+      {shipped && entrance === "soft" ? (
+        <div aria-hidden="true" className="entrance-soft" />
+      ) : null}
+      {shipped ? <HomeEntrancePlayed /> : null}
     </main>
   );
 }

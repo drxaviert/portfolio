@@ -210,7 +210,10 @@ describe("ThemeToggle", () => {
 
     expect(root().dataset.mode).toBe("auto");
     expect(root().dataset.phase).toBe("day");
-    expect(root().dataset.phaseSwitching).toBe("auto");
+
+    // jsdom has no View Transitions, so the clock-driven switch is applied in
+    // one frame with no marker to clean up. The crossfade duration is CSS-only.
+    expect(root().dataset.phaseSwitching).toBeUndefined();
 
     act(() => {
       vi.advanceTimersByTime(500);
@@ -517,7 +520,7 @@ describe("ThemeToggle", () => {
     expect(window.localStorage.getItem(DAY_PHASE_STORAGE_KEY)).toBe("dusk");
   });
 
-  it("hides the phone phase choices in Auto", async () => {
+  it("offers the phone phase choices in Auto and picks Day plus that phase", async () => {
     const user = userEvent.setup();
     renderToggle();
 
@@ -526,11 +529,23 @@ describe("ThemeToggle", () => {
     );
 
     expect(
-      screen.queryByRole("menuitemradio", { name: "Clock" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("menuitemradio", { name: "Clock" }),
+    ).toBeChecked();
     expect(
-      screen.queryByRole("menuitemradio", { name: "Dusk" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("menuitemradio", { name: "Dawn" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitemradio", { name: "Midday" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("menuitemradio", { name: "Dusk" }));
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(root().dataset.mode).toBe("day");
+    expect(root().dataset.phase).toBe("dusk");
+    expect(root().dataset.dayPhase).toBe("dusk");
+    expect(window.localStorage.getItem(MODE_STORAGE_KEY)).toBe("day");
+    expect(window.localStorage.getItem(DAY_PHASE_STORAGE_KEY)).toBe("dusk");
   });
 
   it("offers the phase choices under Day in Night and picks Day plus that phase", async () => {
@@ -1140,7 +1155,34 @@ describe("ThemeToggle", () => {
     expect(root().dataset.mode).toBe("night");
   });
 
-  it("leaves Auto unchanged: hovering Day opens no row", () => {
+  it("opens the row from Auto and picking a phase lands in Day at it", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    expect(root().dataset.mode).toBe("auto");
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+
+    fireEvent.pointerOver(screen.getByRole("radio", { name: "Day" }), {
+      relatedTarget: document.body,
+    });
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+    // Auto shows the stored pin as checked, exactly as Night does.
+    expect(screen.getByRole("radio", { name: "Clock" })).toBeChecked();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Dusk" }));
+
+    expect(root().dataset.mode).toBe("day");
+    expect(root().dataset.phase).toBe("dusk");
+    expect(root().dataset.dayPhase).toBe("dusk");
+    expect(window.localStorage.getItem(MODE_STORAGE_KEY)).toBe("day");
+    expect(window.localStorage.getItem(DAY_PHASE_STORAGE_KEY)).toBe("dusk");
+    expect(screen.getByRole("radio", { name: "Dusk" })).toBeChecked();
+  });
+
+  it("closes the row from Auto after the pointer leaves", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
     mockHoverCanHover(true);
@@ -1149,12 +1191,55 @@ describe("ThemeToggle", () => {
     fireEvent.pointerOver(screen.getByRole("radio", { name: "Day" }), {
       relatedTarget: document.body,
     });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
 
-    expect(root().dataset.mode).toBe("auto");
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(99);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(phaseRow()).toHaveAttribute("data-visible", "false");
-    expect(
-      screen.queryByRole("radiogroup", { name: "Day phase" }),
-    ).not.toBeInTheDocument();
+  });
+
+  it("reaches the row by keyboard from Auto and picks Day plus the phase", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+
+    // Keyboard focus on Day opens the row in Auto exactly as in Day and Night.
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => day.focus());
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    // Keyboard focus holds the row open after the pointer leaves.
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    const clock = screen.getByRole("radio", { name: "Clock" });
+
+    fireEvent.keyDown(day, { key: "ArrowUp" });
+
+    expect(clock).toHaveFocus();
+    expect(root().dataset.mode).toBe("auto");
+
+    fireEvent.keyDown(clock, { key: "ArrowRight" });
+
+    expect(screen.getByRole("radio", { name: "Dawn" })).toBeChecked();
+    expect(root().dataset.mode).toBe("day");
+    expect(root().dataset.phase).toBe("dawn");
+    expect(screen.getByRole("radio", { name: "Dawn" })).toHaveFocus();
   });
 
   it("clips each sun on its own side of the horizon", () => {

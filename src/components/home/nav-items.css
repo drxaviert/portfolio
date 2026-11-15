@@ -9,9 +9,9 @@
   position: relative;
   z-index: 1;
   transition:
-    color 150ms ease-out,
-    background-color 150ms ease-out,
-    scale 150ms ease-out;
+    color var(--duration-short-3) var(--ease-decelerate),
+    background-color var(--duration-short-3) var(--ease-decelerate),
+    scale var(--duration-short-3) var(--ease-decelerate);
 }
 
 .nav-item:active,
@@ -45,16 +45,24 @@
   clip-path: inset(0 100% 0 0 round var(--radius-md, 6px));
   opacity: 0;
   pointer-events: none;
-  transition: opacity 150ms ease-out;
+  transition: opacity var(--duration-short-3) var(--ease-decelerate);
 }
 
 /*
  * The 0.55 weight is the toggle's hover capsule. Touch never sees it: the
  * runner only follows a fine pointer, and this reveal is gated too.
+ *
+ * `data-visible` means the pointer is in the run and is never removed while a
+ * move is in flight; a group break adds `data-fading` on top, which blanks the
+ * capsule for the instant it is re-placed across the divider.
  */
 @media (hover: hover) and (pointer: fine) {
   .nav-glide[data-visible] {
     opacity: 0.55;
+  }
+
+  .nav-glide[data-visible][data-fading] {
+    opacity: 0;
   }
 }
 
@@ -66,13 +74,14 @@
 
 .nav-glyph:focus-visible .nav-tooltip {
   opacity: 1;
-  transition: opacity 150ms ease-out;
+  transition: opacity var(--duration-short-3) var(--ease-decelerate);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .nav-glyph:hover .nav-tooltip {
     opacity: 1;
-    transition: opacity 150ms ease-out 300ms;
+    transition: opacity var(--duration-short-3) var(--ease-decelerate)
+      var(--duration-medium-5);
   }
 }
 
@@ -116,8 +125,8 @@
   .nav-item,
   .nav-glyph {
     transition:
-      color 120ms ease-out,
-      background-color 120ms ease-out;
+      color var(--duration-short-2) var(--ease-decelerate),
+      background-color var(--duration-short-2) var(--ease-decelerate);
   }
 
   .nav-item:active,

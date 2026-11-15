@@ -1,0 +1,1214 @@
+import type { EntranceVariant } from "@/components/home/entrance-cell";
+
+/**
+ * Throwaway prototype (dev route only): the tunable numbers behind each
+ * entrance variant, and the one place where they turn into CSS custom
+ * properties.
+ *
+ * The panel writes these vars onto the stable `.entrance-scope` wrapper, so a
+ * slider drag repaints the layout without re-rendering React; the values are
+ * inherited into HomeLayout and read by home-entrance.css.
+ *
+ * The defaults are the shipped 76f8961 values (plus the prototype-only tuning
+ * for "clear"), which is what "Reset" restores.
+ */
+
+export const BUDGET_MS = 700;
+
+export type ScaleSettings = {
+  from: number;
+  blur: number;
+  duration: number;
+  stagger: number;
+};
+
+export type RiseSettings = {
+  distance: number;
+  duration: number;
+  stagger: number;
+};
+
+export type RingSettings = {
+  edgeDuration: number;
+  edgeHold: number;
+  fillDelay: number;
+  fillDuration: number;
+  stagger: number;
+};
+
+export type SkySettings = {
+  glowDuration: number;
+  delay: number;
+  stagger: number;
+  duration: number;
+  from: number;
+  blur: number;
+};
+
+export type ClearSettings = {
+  blur: number;
+  duration: number;
+  /** Soft edge on the clearing mask, in vh so it tracks the viewport height. */
+  feather: number;
+  delay: number;
+};
+
+export type StepSettings = {
+  /** Hard cuts per card; the total travel is count x distance. */
+  count: number;
+  distance: number;
+  duration: number;
+  stagger: number;
+  markerSize: number;
+  /** How long the corner markers stay at full opacity after the first cut. */
+  markerHold: number;
+  markerFade: number;
+};
+
+export type GrainSettings = {
+  /** Peak grain opacity, in percent. */
+  strength: number;
+  jitter: number;
+  /** One jitter step, in ms; a cycle is four of them. */
+  rate: number;
+  duration: number;
+  delay: number;
+  stagger: number;
+  itemDuration: number;
+};
+
+export type GrowSettings = {
+  /** Where the card surface starts on its vertical scale, 1 = no grow. */
+  from: number;
+  rise: number;
+  duration: number;
+  stagger: number;
+};
+
+export type BreathSettings = {
+  /** The glow's one inhale, start to settle. */
+  inhale: number;
+  /** Vertical squash the glow starts at; 1 is no swell. */
+  swell: number;
+  /** How far into the inhale the cards start. */
+  delay: number;
+  duration: number;
+  blur: number;
+  stagger: number;
+};
+
+export type MistSettings = {
+  /** Haze opacity at the top edge, in percent. */
+  density: number;
+  /** Upward travel, in percent of the viewport. */
+  lift: number;
+  duration: number;
+  cardDuration: number;
+  stagger: number;
+};
+
+export type DawnSettings = {
+  /** Veil opacity at full exposure, 0-1. */
+  dim: number;
+  bloomDuration: number;
+  /** Where the glow's scale starts; 1 is no bloom. */
+  bloomScale: number;
+  contentDelay: number;
+  rise: number;
+  contentDuration: number;
+  /** Per row, from the nav up. */
+  stagger: number;
+};
+
+export type SoftSettings = {
+  blur: number;
+  /** Veil strength, in percent. */
+  veil: number;
+  duration: number;
+  cardDelay: number;
+  cardDuration: number;
+  /** How far each card rises into place, in px. */
+  rise: number;
+  /** Between cards, in ms. */
+  stagger: number;
+};
+
+/** How soft focus gets its blur. Not a slider: it changes the mechanism. */
+export const SOFT_METHODS = [
+  { id: "split", label: "Split blur" },
+  { id: "lighter", label: "Lighter" },
+  { id: "grain", label: "Grain" },
+  { id: "overlay", label: "Overlay" },
+] as const;
+
+export type SoftMethod = (typeof SOFT_METHODS)[number]["id"];
+
+export const DEFAULT_SOFT_METHOD: SoftMethod = "split";
+
+/**
+ * Slider values a method wants instead of the sheet's. The overlay's own blur
+ * is what goes blotchy at 8px over a card layout, so the lighter method keeps
+ * the mechanism and drops the radius; the others keep Dat's numbers.
+ */
+export const SOFT_METHOD_PATCH: Record<
+  SoftMethod,
+  { blur: number; veil: number }
+> = {
+  split: { blur: 8, veil: 24 },
+  lighter: { blur: 4, veil: 32 },
+  grain: { blur: 8, veil: 24 },
+  overlay: { blur: 8, veil: 24 },
+};
+
+export type Settings = {
+  scale: ScaleSettings;
+  rise: RiseSettings;
+  ring: RingSettings;
+  sky: SkySettings;
+  clear: ClearSettings;
+  step: StepSettings;
+  grain: GrainSettings;
+  grow: GrowSettings;
+  breath: BreathSettings;
+  mist: MistSettings;
+  dawn: DawnSettings;
+  soft: SoftSettings;
+};
+
+export const DEFAULT_SETTINGS: Settings = {
+  scale: { from: 0.96, blur: 6, duration: 360, stagger: 50 },
+  rise: { distance: 8, duration: 380, stagger: 60 },
+  ring: {
+    edgeDuration: 380,
+    edgeHold: 175,
+    fillDelay: 80,
+    fillDuration: 240,
+    stagger: 40,
+  },
+  sky: {
+    glowDuration: 300,
+    delay: 120,
+    stagger: 36,
+    duration: 360,
+    from: 0.98,
+    blur: 4,
+  },
+  // 20px of blur over the whole viewport, clearing from the horizon outwards.
+  // 680ms keeps the whole reveal inside the 700ms budget; the feather is 25vh
+  // — a quarter of the screen tall at the reference 1440x900.
+  clear: { blur: 20, duration: 680, feather: 25, delay: 0 },
+  // Base44 hero cuts: three 5px jumps per card, 40ms apart from the nav up.
+  // 600ms is the marker fade on the last card, not the card itself.
+  step: {
+    count: 3,
+    distance: 5,
+    duration: 180,
+    stagger: 40,
+    markerSize: 6,
+    markerHold: 100,
+    markerFade: 200,
+  },
+  // Base44's boiling texture: a 120px noise tile stepped 3px four times a
+  // cycle (400ms) while it decays over 460ms; the cards land last at 672ms.
+  grain: {
+    strength: 8,
+    jitter: 3,
+    rate: 100,
+    duration: 460,
+    delay: 160,
+    stagger: 32,
+    itemDuration: 320,
+  },
+  // Base44's box-grow, bottom-anchored: 40% of the card's height grows back in
+  // while the content rises 12px, one row per 70ms from the nav up.
+  grow: { from: 0.6, rise: 12, duration: 420, stagger: 70 },
+  // Calm family: the glow inhales over 1200ms, cards start at 40% into it and
+  // take 540ms each, 30ms apart — five cards in flight at once.
+  breath: {
+    inhale: 1200,
+    swell: 0.9,
+    delay: 480,
+    duration: 540,
+    blur: 2.5,
+    stagger: 30,
+  },
+  // A 90% haze at the top thinning to nothing at the horizon, gone in 1100ms
+  // while 900ms card fades overlap on a 30ms beat.
+  mist: {
+    density: 90,
+    lift: 4,
+    duration: 1100,
+    cardDuration: 900,
+    stagger: 30,
+  },
+  // Low exposure: 60% scrim, a 4% bloom from (50% 88%), content from the
+  // halfway point up 4px per row. Everything lands at 1300ms.
+  dawn: {
+    dim: 0.6,
+    bloomDuration: 1300,
+    bloomScale: 0.96,
+    contentDelay: 650,
+    rise: 4,
+    contentDuration: 600,
+    stagger: 25,
+  },
+  // The shipped home entrance (split blur), on Dat's final sheet: an 8px
+  // per-card blur, a 24% veil and a 1400ms dissolve, with the cards rising 7px
+  // into place over 1100ms each, 60ms apart from the bottom up; 1710ms total.
+  soft: {
+    blur: 8,
+    veil: 24,
+    duration: 1400,
+    cardDelay: 250,
+    cardDuration: 1100,
+    rise: 7,
+    stagger: 60,
+  },
+};
+
+/** Curves already in docs/design-system/motion.md; no new ones. */
+export const EASINGS = [
+  {
+    id: "entrance",
+    label: "Entrance (0.23, 1, 0.32, 1)",
+    value: "cubic-bezier(0.23, 1, 0.32, 1)",
+  },
+  {
+    id: "settle",
+    label: "Icon settle (0.34, 1.3, 0.64, 1)",
+    value: "cubic-bezier(0.34, 1.3, 0.64, 1)",
+  },
+  {
+    id: "ring",
+    label: "Ring grow (0.165, 0.84, 0.44, 1)",
+    value: "cubic-bezier(0.165, 0.84, 0.44, 1)",
+  },
+  {
+    id: "soft",
+    label: "Frame glow (0.32, 0.72, 0, 1)",
+    value: "cubic-bezier(0.32, 0.72, 0, 1)",
+  },
+  {
+    id: "calm",
+    label: "Calm (proposed, not in motion.md)",
+    value: "cubic-bezier(0.4, 0, 0.2, 1)",
+  },
+] as const;
+
+export const DEFAULT_EASING = EASINGS[0].value;
+
+/**
+ * The calm family's own default curve: 0.4/0/0.2/1 leaves at zero velocity and
+ * settles on a long tail, so nothing ever launches. The alternative,
+ * 0.25/0.1/0.25/1, is a decelerate curve that starts at full speed — that is a
+ * "snappy premium" shape, not a calm one. It is not in motion.md yet; the label
+ * says so.
+ */
+export const CALM_EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
+
+/** The calm family, which defaults to CALM_EASING instead of the house curve. */
+const CALM_VARIANTS: readonly EntranceVariant[] = [
+  "breath",
+  "mist",
+  "dawn",
+  "soft",
+];
+
+export function isCalm(variant: EntranceVariant): boolean {
+  return CALM_VARIANTS.includes(variant);
+}
+
+/** The curve a fresh pick of this variant should use, or null to keep the pick. */
+export function defaultEasing(variant: EntranceVariant): string | null {
+  return isCalm(variant) ? CALM_EASING : null;
+}
+
+export type Control = {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  unit: "ms" | "px" | "vh" | "%" | "×";
+  digits?: number;
+};
+
+export const CONTROLS: Record<EntranceVariant, Control[]> = {
+  scale: [
+    {
+      key: "from",
+      label: "Start scale",
+      min: 0.8,
+      max: 1,
+      step: 0.01,
+      unit: "×",
+      digits: 2,
+    },
+    {
+      key: "blur",
+      label: "Blur",
+      min: 0,
+      max: 12,
+      step: 0.5,
+      unit: "px",
+      digits: 1,
+    },
+    {
+      key: "duration",
+      label: "Item duration",
+      min: 120,
+      max: 800,
+      step: 10,
+      unit: "ms",
+    },
+    { key: "stagger", label: "Stagger", min: 0, max: 120, step: 5, unit: "ms" },
+  ],
+  rise: [
+    {
+      key: "distance",
+      label: "Distance",
+      min: 0,
+      max: 32,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "duration",
+      label: "Row duration",
+      min: 120,
+      max: 800,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "stagger",
+      label: "Row stagger",
+      min: 0,
+      max: 160,
+      step: 5,
+      unit: "ms",
+    },
+  ],
+  ring: [
+    {
+      key: "edgeDuration",
+      label: "Edge duration",
+      min: 120,
+      max: 800,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "edgeHold",
+      label: "Edge hold",
+      min: 0,
+      max: 400,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "fillDelay",
+      label: "Fill delay",
+      min: 0,
+      max: 300,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "fillDuration",
+      label: "Fill duration",
+      min: 80,
+      max: 600,
+      step: 10,
+      unit: "ms",
+    },
+    { key: "stagger", label: "Stagger", min: 0, max: 100, step: 5, unit: "ms" },
+  ],
+  sky: [
+    {
+      key: "glowDuration",
+      label: "Glow duration",
+      min: 0,
+      max: 600,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "delay",
+      label: "Card start delay",
+      min: 0,
+      max: 400,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "stagger",
+      label: "Per-item stagger",
+      min: 0,
+      max: 100,
+      step: 4,
+      unit: "ms",
+    },
+    {
+      key: "duration",
+      label: "Item duration",
+      min: 120,
+      max: 800,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "from",
+      label: "Start scale",
+      min: 0.8,
+      max: 1,
+      step: 0.01,
+      unit: "×",
+      digits: 2,
+    },
+    {
+      key: "blur",
+      label: "Blur",
+      min: 0,
+      max: 12,
+      step: 0.5,
+      unit: "px",
+      digits: 1,
+    },
+  ],
+  clear: [
+    {
+      key: "blur",
+      label: "Start blur",
+      min: 0,
+      max: 40,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "duration",
+      label: "Clear duration",
+      min: 120,
+      max: 1600,
+      step: 20,
+      unit: "ms",
+    },
+    {
+      key: "feather",
+      label: "Feather width",
+      min: 0,
+      max: 60,
+      step: 1,
+      unit: "vh",
+    },
+    {
+      key: "delay",
+      label: "Delay",
+      min: 0,
+      max: 500,
+      step: 10,
+      unit: "ms",
+    },
+  ],
+  step: [
+    { key: "count", label: "Step count", min: 2, max: 6, step: 1, unit: "×" },
+    {
+      key: "distance",
+      label: "Step distance",
+      min: 1,
+      max: 10,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "duration",
+      label: "Card duration",
+      min: 80,
+      max: 400,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "stagger",
+      label: "Card stagger",
+      min: 0,
+      max: 120,
+      step: 5,
+      unit: "ms",
+    },
+    {
+      key: "markerSize",
+      label: "Marker size",
+      min: 2,
+      max: 12,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "markerHold",
+      label: "Marker hold",
+      min: 0,
+      max: 300,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "markerFade",
+      label: "Marker fade",
+      min: 60,
+      max: 400,
+      step: 10,
+      unit: "ms",
+    },
+  ],
+  grain: [
+    {
+      key: "strength",
+      label: "Grain strength",
+      min: 0,
+      max: 25,
+      step: 1,
+      unit: "%",
+    },
+    {
+      key: "jitter",
+      label: "Jitter distance",
+      min: 1,
+      max: 6,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "rate",
+      label: "Jitter step rate",
+      min: 40,
+      max: 200,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "duration",
+      label: "Grain duration",
+      min: 120,
+      max: 900,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "delay",
+      label: "Card start delay",
+      min: 0,
+      max: 500,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "stagger",
+      label: "Per-item stagger",
+      min: 0,
+      max: 100,
+      step: 4,
+      unit: "ms",
+    },
+    {
+      key: "itemDuration",
+      label: "Item duration",
+      min: 120,
+      max: 800,
+      step: 10,
+      unit: "ms",
+    },
+  ],
+  grow: [
+    {
+      key: "from",
+      label: "Start scaleY",
+      min: 0.4,
+      max: 1,
+      step: 0.01,
+      unit: "×",
+      digits: 2,
+    },
+    {
+      key: "rise",
+      label: "Rise distance",
+      min: 0,
+      max: 32,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "duration",
+      label: "Card duration",
+      min: 120,
+      max: 800,
+      step: 10,
+      unit: "ms",
+    },
+    {
+      key: "stagger",
+      label: "Row stagger",
+      min: 0,
+      max: 120,
+      step: 5,
+      unit: "ms",
+    },
+  ],
+  breath: [
+    {
+      key: "inhale",
+      label: "Inhale duration",
+      min: 600,
+      max: 2000,
+      step: 50,
+      unit: "ms",
+    },
+    {
+      key: "swell",
+      label: "Swell amount",
+      min: 0.8,
+      max: 1,
+      step: 0.01,
+      unit: "×",
+      digits: 2,
+    },
+    {
+      key: "delay",
+      label: "Card delay",
+      min: 0,
+      max: 1200,
+      step: 20,
+      unit: "ms",
+    },
+    {
+      key: "duration",
+      label: "Card duration",
+      min: 200,
+      max: 1600,
+      step: 20,
+      unit: "ms",
+    },
+    {
+      key: "blur",
+      label: "Card blur",
+      min: 0,
+      max: 6,
+      step: 0.5,
+      unit: "px",
+      digits: 1,
+    },
+    {
+      key: "stagger",
+      label: "Card stagger",
+      min: 0,
+      max: 80,
+      step: 2,
+      unit: "ms",
+    },
+  ],
+  mist: [
+    {
+      key: "density",
+      label: "Haze density",
+      min: 0,
+      max: 100,
+      step: 5,
+      unit: "%",
+    },
+    {
+      key: "lift",
+      label: "Lift distance",
+      min: 0,
+      max: 12,
+      step: 1,
+      unit: "%",
+    },
+    {
+      key: "duration",
+      label: "Haze duration",
+      min: 500,
+      max: 2000,
+      step: 50,
+      unit: "ms",
+    },
+    {
+      key: "cardDuration",
+      label: "Card duration",
+      min: 300,
+      max: 1600,
+      step: 50,
+      unit: "ms",
+    },
+    {
+      key: "stagger",
+      label: "Card stagger",
+      min: 0,
+      max: 80,
+      step: 2,
+      unit: "ms",
+    },
+  ],
+  dawn: [
+    {
+      key: "dim",
+      label: "Dim strength",
+      min: 0,
+      max: 0.9,
+      step: 0.05,
+      unit: "×",
+      digits: 2,
+    },
+    {
+      key: "bloomDuration",
+      label: "Bloom duration",
+      min: 500,
+      max: 2500,
+      step: 50,
+      unit: "ms",
+    },
+    {
+      key: "bloomScale",
+      label: "Bloom scale",
+      min: 0.85,
+      max: 1,
+      step: 0.01,
+      unit: "×",
+      digits: 2,
+    },
+    {
+      key: "contentDelay",
+      label: "Content delay",
+      min: 0,
+      max: 1500,
+      step: 25,
+      unit: "ms",
+    },
+    {
+      key: "rise",
+      label: "Content rise",
+      min: 0,
+      max: 12,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "contentDuration",
+      label: "Content duration",
+      min: 200,
+      max: 1400,
+      step: 20,
+      unit: "ms",
+    },
+    {
+      key: "stagger",
+      label: "Row stagger",
+      min: 0,
+      max: 80,
+      step: 2,
+      unit: "ms",
+    },
+  ],
+  soft: [
+    {
+      key: "blur",
+      label: "Start blur",
+      min: 0,
+      max: 16,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "veil",
+      label: "Veil strength",
+      min: 0,
+      max: 40,
+      step: 1,
+      unit: "%",
+    },
+    {
+      key: "duration",
+      label: "Duration",
+      min: 400,
+      max: 2000,
+      step: 50,
+      unit: "ms",
+    },
+    {
+      key: "cardDelay",
+      label: "Card delay",
+      min: 0,
+      max: 1000,
+      step: 25,
+      unit: "ms",
+    },
+    {
+      key: "cardDuration",
+      label: "Card duration",
+      min: 200,
+      max: 1600,
+      step: 25,
+      unit: "ms",
+    },
+    {
+      key: "rise",
+      label: "Card rise",
+      min: 0,
+      max: 16,
+      step: 1,
+      unit: "px",
+    },
+    {
+      key: "stagger",
+      label: "Card stagger",
+      min: 0,
+      max: 200,
+      step: 10,
+      unit: "ms",
+    },
+  ],
+};
+
+/** 7 reading-order items: the last one starts at 6 x stagger. */
+const LAST_ITEM = 6;
+/** 3 rows: the last one starts at 2 x stagger. */
+const LAST_ROW = 2;
+
+/** Milliseconds between the edge's own in/out fades. Symmetric by design. */
+export function edgeFades(ring: RingSettings): { inMs: number; outMs: number } {
+  const fade = (ring.edgeDuration - ring.edgeHold) / 2;
+  const inMs = Math.max(20, fade);
+
+  return {
+    inMs,
+    outMs: Math.max(20, ring.edgeDuration - ring.edgeHold - inMs),
+  };
+}
+
+/** One hard cut of a step-cut card: the whole duration over the cut count. */
+export function stepFirstMs(step: StepSettings): number {
+  return step.duration / step.count;
+}
+
+/** The card timing the panel and Copy values show for a non-eased variant. */
+export function stepsTiming(
+  variant: EntranceVariant,
+  settings: Settings,
+): string | null {
+  return variant === "step" ? `steps(${settings.step.count}, end)` : null;
+}
+
+export function totalMs(variant: EntranceVariant, settings: Settings): number {
+  switch (variant) {
+    case "scale":
+      return LAST_ITEM * settings.scale.stagger + settings.scale.duration;
+    case "rise":
+      return LAST_ROW * settings.rise.stagger + settings.rise.duration;
+    case "ring": {
+      const { inMs, outMs } = edgeFades(settings.ring);
+      const edge = inMs + settings.ring.edgeHold + outMs;
+      const fill = settings.ring.fillDelay + settings.ring.fillDuration;
+
+      return LAST_ITEM * settings.ring.stagger + Math.max(edge, fill);
+    }
+    case "sky":
+      return Math.max(
+        settings.sky.glowDuration,
+        settings.sky.delay +
+          LAST_ITEM * settings.sky.stagger +
+          settings.sky.duration,
+      );
+    case "clear":
+      // One layer, one reveal: the mask radius is the whole animation.
+      return settings.clear.delay + settings.clear.duration;
+    case "step": {
+      const s = settings.step;
+      const card = s.duration;
+      // The markers outlive the card: they arrive on its first cut and fade
+      // after the hold, so the sequence ends when the last card's markers go.
+      const markers = stepFirstMs(s) + s.markerHold + s.markerFade;
+
+      return LAST_ITEM * s.stagger + Math.max(card, markers);
+    }
+    case "grain":
+      // The grain and the last card both finish the sequence; whichever is
+      // later is the settle.
+      return Math.max(
+        settings.grain.duration,
+        settings.grain.delay +
+          LAST_ITEM * settings.grain.stagger +
+          settings.grain.itemDuration,
+      );
+    case "grow":
+      // Row 3 (the nav) starts at 0 and row 1 at 2 x stagger.
+      return LAST_ROW * settings.grow.stagger + settings.grow.duration;
+    case "breath":
+      // The inhale can outlast the cards, or the last card can land after the
+      // inhale has settled; whichever is later is the end.
+      return Math.max(
+        settings.breath.inhale,
+        settings.breath.delay +
+          LAST_ITEM * settings.breath.stagger +
+          settings.breath.duration,
+      );
+    case "mist":
+      // Cards start with the haze, so the later of the two ends it.
+      return Math.max(
+        settings.mist.duration,
+        LAST_ITEM * settings.mist.stagger + settings.mist.cardDuration,
+      );
+    case "dawn":
+      // The scrim and the bloom share one clock; the content starts at its
+      // halfway point, one row per stagger from the nav up.
+      return Math.max(
+        settings.dawn.bloomDuration,
+        settings.dawn.contentDelay +
+          LAST_ROW * settings.dawn.stagger +
+          settings.dawn.contentDuration,
+      );
+    case "soft":
+      // One dissolve; the cards finish inside it. The staggering spreads the
+      // last card by (n-1) beats, so the settle includes that tail.
+      return Math.max(
+        settings.soft.duration,
+        settings.soft.cardDelay +
+          LAST_ITEM * settings.soft.stagger +
+          settings.soft.cardDuration,
+      );
+  }
+}
+
+/** The custom properties home-entrance.css reads, for one variant. */
+export function cssVars(
+  variant: EntranceVariant,
+  settings: Settings,
+  easing: string,
+): Record<string, string> {
+  const shared = { "--entrance-ease": easing };
+
+  switch (variant) {
+    case "scale": {
+      const s = settings.scale;
+
+      return {
+        ...shared,
+        "--scale-from": String(s.from),
+        "--scale-blur": `${s.blur}px`,
+        "--scale-duration": `${s.duration}ms`,
+        "--scale-stagger": `${s.stagger}ms`,
+      };
+    }
+    case "rise": {
+      const s = settings.rise;
+
+      return {
+        ...shared,
+        "--rise-distance": `${s.distance}px`,
+        "--rise-duration": `${s.duration}ms`,
+        "--rise-stagger": `${s.stagger}ms`,
+      };
+    }
+    case "ring": {
+      const s = settings.ring;
+      const { inMs, outMs } = edgeFades(s);
+
+      return {
+        ...shared,
+        "--ring-edge-in": `${inMs}ms`,
+        "--ring-edge-out": `${outMs}ms`,
+        "--ring-edge-hold": `${s.edgeHold}ms`,
+        "--ring-fill-delay": `${s.fillDelay}ms`,
+        "--ring-fill-duration": `${s.fillDuration}ms`,
+        "--ring-stagger": `${s.stagger}ms`,
+      };
+    }
+    case "sky": {
+      const s = settings.sky;
+
+      return {
+        ...shared,
+        "--sky-glow-duration": `${s.glowDuration}ms`,
+        "--sky-delay": `${s.delay}ms`,
+        "--sky-stagger": `${s.stagger}ms`,
+        "--sky-duration": `${s.duration}ms`,
+        "--sky-from": String(s.from),
+        "--sky-blur": `${s.blur}px`,
+      };
+    }
+    case "clear": {
+      const s = settings.clear;
+
+      return {
+        ...shared,
+        "--clear-blur": `${s.blur}px`,
+        "--clear-duration": `${s.duration}ms`,
+        "--clear-feather": `${s.feather}vh`,
+        "--clear-delay": `${s.delay}ms`,
+      };
+    }
+    case "step": {
+      const s = settings.step;
+
+      return {
+        ...shared,
+        "--step-count": String(s.count),
+        "--step-distance": `${s.distance}px`,
+        "--step-duration": `${s.duration}ms`,
+        "--step-stagger": `${s.stagger}ms`,
+        "--step-marker-size": `${s.markerSize}px`,
+        "--step-marker-hold": `${s.markerHold}ms`,
+        "--step-marker-fade": `${s.markerFade}ms`,
+      };
+    }
+    case "grain": {
+      const s = settings.grain;
+
+      return {
+        ...shared,
+        "--grain-strength": String(s.strength / 100),
+        "--grain-jitter": `${s.jitter}px`,
+        "--grain-rate": `${s.rate}ms`,
+        "--grain-duration": `${s.duration}ms`,
+        "--grain-delay": `${s.delay}ms`,
+        "--grain-stagger": `${s.stagger}ms`,
+        "--grain-item-duration": `${s.itemDuration}ms`,
+      };
+    }
+    case "grow": {
+      const s = settings.grow;
+
+      return {
+        ...shared,
+        "--grow-from": String(s.from),
+        "--grow-rise": `${s.rise}px`,
+        "--grow-duration": `${s.duration}ms`,
+        "--grow-stagger": `${s.stagger}ms`,
+      };
+    }
+    case "breath": {
+      const s = settings.breath;
+
+      return {
+        ...shared,
+        "--breath-inhale": `${s.inhale}ms`,
+        "--breath-swell": String(s.swell),
+        "--breath-delay": `${s.delay}ms`,
+        "--breath-duration": `${s.duration}ms`,
+        "--breath-blur": `${s.blur}px`,
+        "--breath-stagger": `${s.stagger}ms`,
+      };
+    }
+    case "mist": {
+      const s = settings.mist;
+
+      return {
+        ...shared,
+        "--mist-density": String(s.density / 100),
+        "--mist-lift": `${s.lift}%`,
+        "--mist-duration": `${s.duration}ms`,
+        "--mist-card-duration": `${s.cardDuration}ms`,
+        "--mist-stagger": `${s.stagger}ms`,
+      };
+    }
+    case "dawn": {
+      const s = settings.dawn;
+
+      return {
+        ...shared,
+        "--dawn-dim": String(s.dim),
+        "--dawn-bloom-duration": `${s.bloomDuration}ms`,
+        "--dawn-bloom-scale": String(s.bloomScale),
+        "--dawn-content-delay": `${s.contentDelay}ms`,
+        "--dawn-rise": `${s.rise}px`,
+        "--dawn-content-duration": `${s.contentDuration}ms`,
+        "--dawn-stagger": `${s.stagger}ms`,
+      };
+    }
+    case "soft": {
+      const s = settings.soft;
+
+      return {
+        ...shared,
+        "--soft-blur": `${s.blur}px`,
+        "--soft-veil": String(s.veil / 100),
+        "--soft-duration": `${s.duration}ms`,
+        "--soft-card-delay": `${s.cardDelay}ms`,
+        "--soft-card-duration": `${s.cardDuration}ms`,
+        "--soft-rise": `${s.rise}px`,
+        "--soft-stagger": `${s.stagger}ms`,
+      };
+    }
+  }
+}
+
+export function formatValue(control: Control, value: number): string {
+  return `${value.toFixed(control.digits ?? 0)}${control.unit}`;
+}
+
+function values(
+  settings: Settings,
+  variant: EntranceVariant,
+): Record<string, number> {
+  return settings[variant] as unknown as Record<string, number>;
+}
+
+export function valueOf(
+  settings: Settings,
+  variant: EntranceVariant,
+  key: string,
+): number {
+  return values(settings, variant)[key];
+}
+
+/** One field replaced; the variant object is never mutated in place. */
+export function patch(
+  settings: Settings,
+  variant: EntranceVariant,
+  key: string,
+  value: number,
+): Settings {
+  return {
+    ...settings,
+    [variant]: { ...values(settings, variant), [key]: value },
+  } as Settings;
+}
+
+export function resetVariant(
+  settings: Settings,
+  variant: EntranceVariant,
+): Settings {
+  return { ...settings, [variant]: { ...DEFAULT_SETTINGS[variant] } };
+}
+
+/** Paste-ready block: the chosen variant, its curve, every var and the total. */
+export function copyBlock(
+  variant: EntranceVariant,
+  settings: Settings,
+  easing: string,
+  total: number,
+  method?: SoftMethod,
+): string {
+  const easingName =
+    EASINGS.find((entry) => entry.value === easing)?.id ?? "custom";
+  const vars = Object.entries(cssVars(variant, settings, easing)).filter(
+    ([name]) => name !== "--entrance-ease",
+  );
+  const steps = stepsTiming(variant, settings);
+  const curve = steps
+    ? `cards ${steps} · markers on ${easingName}`
+    : `easing ${easingName}`;
+
+  return [
+    `/* home entrance · ${variant} · ${curve} */`,
+    steps
+      ? `/* --entrance-ease is the marker fade only; cards do not tween */`
+      : null,
+    method
+      ? `/* blur method: ${method} (data-soft-method on .entrance-scope) */`
+      : null,
+    `--entrance-ease: ${easing};`,
+    ...vars.map(([name, value]) => `${name}: ${value};`),
+    `/* settles by ${total}ms */`,
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
+}

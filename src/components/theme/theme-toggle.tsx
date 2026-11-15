@@ -10,6 +10,7 @@ import type {
   Ref,
 } from "react";
 import { useTheme } from "@/components/theme/theme-provider";
+import { isPhaseSwitching } from "@/lib/theme";
 import type { DayPhase, Mode } from "@/lib/theme";
 import "./theme-toggle.css";
 
@@ -818,12 +819,6 @@ export function ThemeToggle() {
   const currentMode =
     OPTIONS.find((option) => option.mode === mode) ?? OPTIONS[2];
   const dayActive = mode === "day";
-  const nightActive = mode === "night";
-  // Night offers the row too, so Dat can pick a phase without switching first;
-  // the pick itself lands in Day. Auto has no row. A mode that loses the row
-  // hides it without a state effect.
-  const phaseRowActive = dayActive || nightActive;
-  const rowVisible = rowOpen && phaseRowActive;
   const modeIndex = Math.max(
     0,
     OPTIONS.findIndex((option) => option.mode === mode),
@@ -910,11 +905,11 @@ export function ThemeToggle() {
     );
     // data-visible flips false now, but the row keeps painting for the exit
     // fade; hold the nav raise until that finishes.
-    if (rowVisible) {
+    if (rowOpen) {
       startExit();
     }
     setRowOpen(false);
-  }, [clearCloseTimer, clearEnter, rowVisible, startExit]);
+  }, [clearCloseTimer, clearEnter, rowOpen, startExit]);
 
   const scheduleClose = useCallback(() => {
     clearCloseTimer();
@@ -957,13 +952,14 @@ export function ThemeToggle() {
     };
   }, []);
 
-  // A pinned row belongs to Day and Night; any other mode closes it at once.
+  // A closed row must not keep a pending close timer: the next reopen would
+  // inherit it.
   useEffect(() => {
-    if (!rowVisible && closeTimer.current !== null) {
+    if (!rowOpen && closeTimer.current !== null) {
       window.clearTimeout(closeTimer.current);
       closeTimer.current = null;
     }
-  }, [rowVisible]);
+  }, [rowOpen]);
 
   /**
    * A row that closes while one of its options has focus must not strand the
@@ -971,7 +967,7 @@ export function ThemeToggle() {
    * back to <body> (which would restart Tab at the top of the page).
    */
   useEffect(() => {
-    if (rowVisible || !rowHadFocus.current) {
+    if (rowOpen || !rowHadFocus.current) {
       return;
     }
 
@@ -979,7 +975,7 @@ export function ThemeToggle() {
     suppressFocusOpen.current = true;
     dayRef.current?.focus();
     suppressFocusOpen.current = false;
-  }, [rowVisible]);
+  }, [rowOpen]);
 
   useEffect(() => {
     return () => {
@@ -1000,7 +996,7 @@ export function ThemeToggle() {
   // Escape closes the row from anywhere in the toggle and hands focus back to
   // Day.
   useEffect(() => {
-    if (!rowVisible) {
+    if (!rowOpen) {
       return;
     }
 
@@ -1042,11 +1038,11 @@ export function ThemeToggle() {
     document.addEventListener("keydown", onKeyDown);
 
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [rowVisible, closeRow]);
+  }, [rowOpen, closeRow]);
 
   // Touch has no pointer-leave, so a tap outside is the close gesture.
   useEffect(() => {
-    if (!rowVisible || canHover()) {
+    if (!rowOpen || canHover()) {
       return;
     }
 
@@ -1061,7 +1057,7 @@ export function ThemeToggle() {
     document.addEventListener("pointerdown", onPointerDown);
 
     return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [rowVisible, closeRow]);
+  }, [rowOpen, closeRow]);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -1124,7 +1120,7 @@ export function ThemeToggle() {
    * a task.
    */
   function enterPhaseRow() {
-    if (rowVisible) {
+    if (rowOpen) {
       focusPhaseRow();
       return;
     }
@@ -1143,18 +1139,14 @@ export function ThemeToggle() {
      * A forward Tab from Day has to reach the phase group even when the row
      * was closed while Day kept focus (Escape, or the pointer leaving after a
      * click). Opening during keydown runs before the browser picks the next
-     * focusable, so in Day this same Tab lands inside the row. Night offers
-     * the row the same way, but its checked Night segment sits between Day and
-     * the row, so there the row is focused directly once it is no longer inert.
+     * focusable, so in Day this same Tab lands inside the row. Night and Auto
+     * offer the row the same way, but their checked segment sits between Day
+     * and the row, so there the row is focused directly once it is no longer
+     * inert.
      */
-    if (
-      event.key === "Tab" &&
-      !event.shiftKey &&
-      option.mode === "day" &&
-      phaseRowActive
-    ) {
+    if (event.key === "Tab" && !event.shiftKey && option.mode === "day") {
       if (dayActive) {
-        if (!rowVisible) {
+        if (!rowOpen) {
           openRow();
         }
 
@@ -1169,10 +1161,10 @@ export function ThemeToggle() {
 
     /*
      * Up from Day reaches the phase group above it, matching where the row
-     * sits on screen. Night offers the same row, so it takes the same key
-     * instead of walking the mode selection back to Auto.
+     * sits on screen. Night and Auto offer the same row, so Day takes the same
+     * key instead of stepping the mode selection.
      */
-    if (event.key === "ArrowUp" && option.mode === "day" && phaseRowActive) {
+    if (event.key === "ArrowUp" && option.mode === "day") {
       event.preventDefault();
       enterPhaseRow();
 
@@ -1219,10 +1211,10 @@ export function ThemeToggle() {
   }
 
   /**
-   * Picking a phase lands in Day at that phase. In Night the pin is stored
-   * first while Night still ignores it, then Day applies it, so the document
-   * fades once from night straight to the chosen phase instead of detouring
-   * through the previously pinned one.
+   * Picking a phase lands in Day at that phase. In Night or Auto the pin is
+   * stored first while that mode still ignores it, then Day applies it, so the
+   * document fades once from the current phase straight to the chosen one
+   * instead of detouring through the previously pinned one.
    */
   function chooseDayPhase(phase: DayPhase) {
     setDayPhase(phase);
@@ -1325,11 +1317,18 @@ export function ThemeToggle() {
   }
 
   function leaveHoverRegion() {
+    // A crossfade hides the live page from hit tests for its length; the
+    // pointer has not really left, so keep the row and let the next real
+    // pointer event decide.
+    if (isPhaseSwitching()) return;
+
     hoverRegion.current = false;
     scheduleClose();
   }
 
   function onDesktopPointerLeave() {
+    if (isPhaseSwitching()) return;
+
     hoverRegion.current = false;
 
     if (canHover()) {
@@ -1403,10 +1402,7 @@ export function ThemeToggle() {
                   }
 
                   enterHoverRegion();
-
-                  if (phaseRowActive) {
-                    openRow();
-                  }
+                  openRow();
                 }}
                 onPointerLeave={
                   option.mode === "day" ? leaveHoverRegion : undefined
@@ -1418,7 +1414,6 @@ export function ThemeToggle() {
 
                   if (
                     option.mode === "day" &&
-                    phaseRowActive &&
                     inputModality.current === "keyboard"
                   ) {
                     openRow();
@@ -1432,7 +1427,7 @@ export function ThemeToggle() {
 
         {/* Bridges the 4px gap so moving from the toggle to the row keeps
             hovering, and keeps the whole journey one hover target. */}
-        {rowVisible ? (
+        {rowOpen ? (
           <span
             aria-hidden="true"
             className="absolute inset-x-0 -top-1 h-1"
@@ -1442,19 +1437,19 @@ export function ThemeToggle() {
         ) : null}
 
         {/*
-         * Phase row, shared by Day and Night. It opens above the toggle in the
+         * Phase row, shared by every mode. It opens above the toggle in the
          * gap below the cards; absolute positioning keeps the page from moving.
          */}
         <SegmentTrack
           label="Day phase"
           segments={PHASE_OPTIONS.length}
           selectedIndex={phaseIndex}
-          active={rowVisible}
+          active={rowOpen}
           trackRef={setRowRef}
-          aria-hidden={!rowVisible}
-          inert={!rowVisible}
+          aria-hidden={!rowOpen}
+          inert={!rowOpen}
           data-phase-row="true"
-          data-visible={rowVisible}
+          data-visible={rowOpen}
           data-exiting={rowExiting}
           data-entering={rowEntering}
           onPointerEnter={enterHoverRegion}
@@ -1464,7 +1459,7 @@ export function ThemeToggle() {
               return;
             }
 
-            if (event.propertyName === "opacity" && !rowVisible) {
+            if (event.propertyName === "opacity" && !rowOpen) {
               clearExit();
             }
           }}
@@ -1542,7 +1537,7 @@ export function ThemeToggle() {
                     {selected ? <CheckIcon /> : null}
                   </button>
 
-                  {option.mode === "day" && phaseRowActive ? (
+                  {option.mode === "day" ? (
                     <div role="group" aria-label="Day phase">
                       {PHASE_OPTIONS.map((phaseOption) => {
                         const phaseSelected = phaseOption.phase === dayPhase;
