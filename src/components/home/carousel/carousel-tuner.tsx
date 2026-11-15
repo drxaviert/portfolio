@@ -163,16 +163,11 @@ export function CarouselTuner({
       {slider("edgeWidth", "Edge width", "px", 8, 64, 2)}
       {slider("edgeBlur", "Edge blur", "px", 0, 12, 0.5)}
       {slider("motionPeak", "Motion blur peak", "px", 0, 8, 0.5)}
-      <strong style={{ color: "#fff" }}>Hover peek (whole row)</strong>
-      {slider("hoverPeek", "Peek width", "px", 8, 40, 1)}
-      {slider("hoverGap", "Peek gap", "px", 4, 24, 1)}
+      <strong style={{ color: "#fff" }}>Hover peek (one-column shift)</strong>
       {slider("hoverZone", "Hover zone", "px", 20, 120, 2)}
       {slider("revealMs", "Reveal", "ms", 100, 600, 10)}
       {slider("retractMs", "Retract", "ms", 100, 600, 10)}
       {slider("leaveMs", "Leave delay", "ms", 0, 400, 10)}
-      {slider("hoverBlur", "Peek blur", "px", 0, 12, 0.5)}
-      {slider("hoverFade", "Peek edge fade", "", 0, 1, 0.05)}
-      {slider("hoverBlurOn", "Peek blur on hover", "px", 0, 12, 0.5)}
       <button type="button" onClick={copy}>
         {copied ? "Copied" : "Copy values"}
       </button>

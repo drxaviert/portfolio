@@ -44,13 +44,11 @@ import type { PeekCard, PeekEls } from "./hover-peek-dom";
 import {
   inZone,
   movedItems,
-  onStrip,
   peekItem as peekOf,
   peekLayout,
   useHoverCapable,
 } from "./hover-peek";
 import type { PeekLayout } from "./hover-peek";
-import { parsePeekFit } from "./peek-fit";
 import { parseSliverMode, useLocationSearch } from "./sliver-mode";
 import "../home-cards.css";
 import "./home-carousel.css";
@@ -233,7 +231,7 @@ function Slide({
       aria-roledescription="slide"
       aria-label={`${slot + 1} of ${total}: ${item.title}`}
       aria-hidden={ghost || undefined}
-      inert={ghost || offscreen}
+      inert={(ghost || offscreen) && !peek}
       data-slot={slot}
       data-ghost={ghost ? "" : undefined}
       data-offscreen={offscreen ? "" : undefined}
@@ -260,7 +258,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const search = useLocationSearch();
   const mode = parseSliverMode(search);
   const blurMode = parseBlurMode(search);
-  const peekFit = parsePeekFit(search);
   const hoverCapable = useHoverCapable();
   const tune = new URLSearchParams(search).get("tune") === "1";
 
@@ -284,7 +281,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const offsetRef = useRef(0);
   const tween = useRef<Tween | null>(null);
   const focusFirst = useRef(false);
-  const latest = useRef({ settings, mode, blurMode, reduce, peekFit });
+  const latest = useRef({ settings, mode, blurMode, reduce });
   const peek = useRef<PeekState>(idlePeek());
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const hoverApi = useRef({
@@ -294,7 +291,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   });
 
   useEffect(() => {
-    latest.current = { settings, mode, blurMode, reduce, peekFit };
+    latest.current = { settings, mode, blurMode, reduce };
     hoverApi.current = {
       evaluate: evaluateHover,
       close: closePeeks,
@@ -334,8 +331,8 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
   function peekEls(): PeekEls | null {
     const row = rowRef.current;
-    const strip = elements.current.get("peekL");
-    if (!row || !strip) return null;
+    const prev = elements.current.get("peekL");
+    if (!row || !prev) return null;
 
     const g = geometry.current;
     const cards: PeekCard[] = [];
@@ -344,16 +341,10 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       const el = elements.current.get(`m${item}`);
       if (!el) return null;
 
-      cards.push({
-        item,
-        el,
-        restX: g.slots[slot].x,
-        restW: g.slots[slot].w,
-        end: slot === VISIBLE_SLOTS - 1,
-      });
+      cards.push({ item, el, restX: g.slots[slot].x });
     }
 
-    return { row, strip, cards };
+    return { row, prev, cards };
   }
 
   function setPeek(open: boolean) {
@@ -366,13 +357,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     if (!els) return;
 
     const { settings: s, reduce: reduced } = latest.current;
-    const layout = peekLayout(
-      g,
-      s.hoverPeek,
-      s.hoverGap,
-      s.hoverBlur,
-      latest.current.peekFit,
-    );
+    const layout = peekLayout(g);
 
     state.open = open;
     state.els = els;
@@ -409,7 +394,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const row = rowRef.current;
     if (row) {
       delete row.dataset.peeking;
-      delete row.dataset.peekHot;
     }
   }
 
@@ -429,7 +413,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       !!at &&
       n >= VISIBLE_SLOTS &&
       !tween.current &&
-      inZone(at.x, at.y, rect, s.hoverZone);
+      inZone(at.x, at.y, rect, state.layout?.shift ?? s.hoverZone);
 
     if (want) {
       if (state.timer !== null) window.clearTimeout(state.timer);
@@ -441,25 +425,18 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         setPeek(false);
       }, s.leaveMs);
     }
-
-    if (at && state.open && onStrip(at.x, at.y, rect, s.hoverPeek))
-      row.dataset.peekHot = "";
-    else delete row.dataset.peekHot;
   }
 
-  /** The strip is inert, so the row takes the click and finds the strip. */
+  /** A click on the previous card steps back one from the shifted pose. */
   function onRowClick(event: globalThis.MouseEvent) {
     const row = rowRef.current;
-    if (!row || event.target !== row || tween.current) return;
-    if (!peek.current.open) return;
+    const target = event.target;
+    if (!row || tween.current || !peek.current.open) return;
+    if (!(target instanceof Element) || !target.closest(".car-peek-edge"))
+      return;
 
-    const rect = row.getBoundingClientRect();
-    const size = latest.current.settings.hoverPeek;
-
-    if (onStrip(event.clientX, event.clientY, rect, size)) {
-      event.preventDefault();
-      step(-1, false);
-    }
+    event.preventDefault();
+    step(-1, false);
   }
 
   /** Ends the running step now: every card at rest, the seam copy dropped. */
@@ -535,7 +512,9 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const hover = peek.current;
     const drawn = hover.els ? cardPoses(hover.els) : null;
     const wasOpen = hover.open;
-    const stripAt = hover.layout?.strip.toX ?? 0;
+    const prevAt = hover.layout
+      ? { x: hover.layout.prev.toX, w: hover.layout.prevW }
+      : null;
     // An interrupt starts on a card that is already moving, so it takes an
     // ease-out that carries speed instead of the gentle-start default.
     const spec = running
@@ -574,16 +553,11 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       : current;
     let planned = retarget(g, n, prev, k, withPush);
 
-    if (wasOpen && k < 0) {
+    if (wasOpen && k < 0 && prevAt) {
       const item = peekOf(n, prev);
-      const size = latest.current.settings.hoverPeek;
       planned = planned.map((e) =>
         e.item === item && e.to.x < g.rowWidth && e.to.x + e.to.w > 0
-          ? {
-              ...e,
-              from: { x: stripAt, w: size },
-              blurFrom: latest.current.settings.hoverBlur,
-            }
+          ? { ...e, from: prevAt }
           : e,
       );
     }
@@ -789,10 +763,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const domOrder = slotOrder(n, domOffset);
   const rowStyle = {
     "--car-edge-w": `${settings.edgeWidth}px`,
-    "--car-hp-blur": `${settings.hoverBlur}px`,
-    "--car-hp-blur-on": `${settings.hoverBlurOn}px`,
-    "--car-hp": `${settings.hoverPeek}px`,
-    "--car-hf": String(settings.hoverFade),
   } as CSSProperties;
 
   return (

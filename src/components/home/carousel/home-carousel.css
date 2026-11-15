@@ -176,7 +176,8 @@
   initial-value: 0;
 }
 
-.car-row[data-stepping][data-blur="edge"] {
+.car-row[data-stepping][data-blur="edge"],
+.car-row[data-peek-moving] {
   --car-mask: linear-gradient(
     to right,
     rgb(0 0 0 / calc(1 - var(--car-fade))),
@@ -201,69 +202,17 @@
 }
 
 /*
- * Hover peeks (hover-peek.ts). The strip is a plain copy of a neighbouring
- * card; it stays inert, so the row itself takes the click and the cursor.
+ * Hover peek (hover-peek.ts). The previous item is a plain aria-hidden copy of
+ * its card. It has no focusable content, so it takes the pointer itself and
+ * shows the card's hover ring and a pointer cursor.
  */
 .car-peek-edge {
-  --car-hp-edge: rgb(0 0 0 / calc(1 - var(--car-hf, 0.45)));
-
   visibility: hidden;
-  opacity: 0;
-  filter: blur(var(--car-hp-blur, 4px));
-  transition: filter 150ms ease-out;
-}
-
-/* Both ends get the same treatment over the same width (--car-hp): a blurred
-   slice whose outer edge fades. The left is the previous item's strip; the
-   right is the last card itself, slid under the column edge until only that
-   width shows (see data-peek-end below). */
-.car-peek-edge[data-side="left"] {
-  -webkit-mask-image: linear-gradient(
-    to right,
-    var(--car-hp-edge),
-    #000 var(--car-hp, 20px)
-  );
-  mask-image: linear-gradient(
-    to right,
-    var(--car-hp-edge),
-    #000 var(--car-hp, 20px)
-  );
-}
-
-/* The last card is the right-hand end shape: it slides under the column edge
-   until --car-hp of it shows, then it gets the same blur (animated on the card)
-   and the same fade as the left strip. --car-pe is 0 at rest, 1 when open. */
-@property --car-pe {
-  syntax: "<number>";
-  inherits: false;
-  initial-value: 0;
-}
-
-.car-slide[data-peek-end] {
-  --car-hp-edge-r: rgb(0 0 0 / calc(1 - var(--car-hf, 0.45) * var(--car-pe)));
-
-  -webkit-mask-image: linear-gradient(
-    to right,
-    #000,
-    var(--car-hp-edge-r) var(--car-hp, 20px)
-  );
-  mask-image: linear-gradient(
-    to right,
-    #000,
-    var(--car-hp-edge-r) var(--car-hp, 20px)
-  );
-}
-
-.car-row[data-peek-hot] .car-peek-edge[data-side="left"] {
-  filter: blur(var(--car-hp-blur-on, 2px));
-}
-
-.car-row[data-peek-hot] {
   cursor: pointer;
 }
 
-.car-peek {
-  pointer-events: none;
+.car-slide.car-peek-edge {
+  pointer-events: auto;
 }
 
 .car-peek [data-car-title] {

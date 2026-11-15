@@ -146,10 +146,6 @@ export function playEntity(
     else if (outside(e.from.x)) keyframes.filter = [blur(b.edgeBlur), "none"];
   }
 
-  if (e.blurFrom && b.mode !== "motion") {
-    keyframes.filter = [blur(e.blurFrom), "none"];
-  }
-
   const animations: Animation[] = [el.animate(keyframes, timeline)];
 
   const { cover, grey, title } = parts(el);

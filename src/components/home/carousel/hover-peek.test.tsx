@@ -120,14 +120,12 @@ function move(x: number, y = 200) {
 
 const REST_X = SLOTS.map((slot) => slot.x);
 const REST_W = SLOTS.map((slot) => slot.w);
-// With the peek open at xl widths (W = 1136, peek 20, gap 12) the extra 32px
-// goes to the first card when the fit is featured.
-const OPEN_X = [32, 829, 1021, 1116];
-const OPEN_W = [785, 180, 83, 84];
+// With the peek open at xl widths the row shifts by 84 + 12 = 96.
+const OPEN_X = REST_X.map((x) => x + 96);
 
 const row = (c: HTMLElement) => c.querySelector<HTMLElement>(".car-row")!;
-const strip = (c: HTMLElement) =>
-  c.querySelector<HTMLElement>('.car-peek-edge[data-side="left"]');
+const prevCard = (c: HTMLElement) =>
+  c.querySelector<HTMLElement>(".car-peek-edge");
 const card = (c: HTMLElement, slot: number) =>
   c.querySelector<HTMLElement>(
     `.car-slide[data-slot="${slot}"]:not([data-ghost])`,
@@ -151,24 +149,21 @@ function frontTitle(): string {
 }
 
 function finishStep() {
-  const clock = recorded.filter((r) => r.target.classList.contains("car-row"));
+  const clock = recorded.filter(
+    (r) =>
+      r.target.classList.contains("car-row") && !Array.isArray(r.keyframes),
+  );
   act(() => clock.at(-1)?.onfinish?.());
 }
 
 /** jsdom does not run animations: stand in for what the open peek draws. */
-function drawPushed(c: HTMLElement) {
-  for (let slot = 0; slot < 4; slot++) {
-    const el = card(c, slot);
-    el.style.setProperty("--car-x", `${OPEN_X[slot]}px`);
-    el.style.setProperty(
-      "--car-r",
-      `${Number.parseFloat(el.style.width) - OPEN_W[slot]}px`,
-    );
-  }
+function drawShifted(c: HTMLElement) {
+  for (let slot = 0; slot < 4; slot++)
+    card(c, slot).style.setProperty("--car-x", `${OPEN_X[slot]}px`);
 }
 
 describe("left hover peek", () => {
-  it("moves every card to its peek pose together, by position and crop only", () => {
+  it("shifts the whole row one column right, widths untouched, last card off the column", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     expect(row(container)).not.toHaveAttribute("data-peeking");
 
@@ -177,50 +172,76 @@ describe("left hover peek", () => {
     expect(row(container)).toHaveAttribute("data-peeking");
     for (let slot = 0; slot < 4; slot++) {
       const run = slides(card(container, slot))[0];
-      const box = Math.max(OPEN_W[slot], REST_W[slot]);
 
       expect(run.keyframes["--car-x"]).toEqual([
         `${REST_X[slot]}px`,
         `${OPEN_X[slot]}px`,
       ]);
-      // The crop starts where the card looks like rest and ends at the peek
-      // width; the box is set once, never animated.
-      expect(run.keyframes["--car-r"]).toEqual([
-        `${box - REST_W[slot]}px`,
-        `${box - OPEN_W[slot]}px`,
-      ]);
+      // Position only: no crop, no width.
+      expect("--car-r" in run.keyframes).toBe(false);
       expect("width" in run.keyframes).toBe(false);
-      expect(card(container, slot).style.width).toBe(`${box}px`);
+      expect(card(container, slot).style.width).toBe(`${REST_W[slot]}px`);
       expect(run.options.duration).toBe(250);
       expect(run.options.easing).toBe("cubic-bezier(0.23, 1, 0.32, 1)");
     }
+    // [prev 84][12][featured 753][12][180][12][83] fills the column exactly,
+    // and the last card is out past its right edge.
+    const prev = 0;
+    expect(prev + 84 + 12).toBe(OPEN_X[0]);
+    expect(OPEN_X[0] + 753 + 12).toBe(OPEN_X[1]);
+    expect(OPEN_X[1] + 180 + 12).toBe(OPEN_X[2]);
+    expect(OPEN_X[2] + 83).toBe(1136);
+    expect(OPEN_X[3]).toBeGreaterThanOrEqual(1136);
   });
 
-  it("slides the strip in from the column edge", () => {
+  it("brings the previous item in from beyond the left edge into a 84px first slot, unblurred", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
     move(110);
 
-    const slide = slides(strip(container)!)[0];
-    expect(slide.keyframes["--car-x"]).toEqual(["-20px", "0px"]);
+    const copy = prevCard(container)!;
+    const slide = slides(copy)[0];
+    expect(slide.keyframes["--car-x"]).toEqual(["-96px", "0px"]);
     expect(slide.options.duration).toBe(250);
+    expect(copy.style.width).toBe("84px");
+    expect(copy.style.visibility).toBe("visible");
+    expect(
+      recorded.some(
+        (r) => !Array.isArray(r.keyframes) && "filter" in r.keyframes,
+      ),
+    ).toBe(false);
   });
 
-  it("gives the last card the strip's blur and fade over its 20px shape", () => {
+  it("is a plain copy: aria-hidden, nothing focusable, no second data-work-card", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    const copy = prevCard(container)!;
+
+    expect(copy).toHaveAttribute("aria-hidden", "true");
+    expect(
+      copy.querySelector("a, button, [tabindex], [data-work-card]"),
+    ).toBeNull();
+    expect(container.querySelectorAll("[data-work-card]")).toHaveLength(1);
+    expect(container.querySelectorAll(".car-peek-edge")).toHaveLength(1);
+  });
+
+  it("masks the edges only while the row moves, not at the open rest state", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
     move(110);
 
-    const last = slides(card(container, 3))[0];
-    expect(last.keyframes.filter).toEqual(["none", "blur(4px)"]);
-    expect(last.keyframes["--car-pe"]).toEqual([0, 1]);
-    expect(card(container, 3)).toHaveAttribute("data-peek-end");
-    // No other card blurs, and there is no right-edge copy any more.
-    const blurred = recorded.filter((r) => r.keyframes.filter);
-    expect(blurred.map((r) => r.target)).toEqual([card(container, 3)]);
-    expect(container.querySelectorAll(".car-peek-edge")).toHaveLength(1);
-    // The 20px shape: what shows of the card is the column's width minus its x.
-    expect(1136 - OPEN_X[3]).toBe(20);
+    expect(row(container)).toHaveAttribute("data-peek-moving");
+    const mask = recorded.find(
+      (r) => r.target === row(container) && Array.isArray(r.keyframes),
+    )!;
+    const frames = mask.keyframes as unknown as { "--car-fade": number }[];
+    expect(frames[0]["--car-fade"]).toBe(0);
+    expect(frames.at(-1)!["--car-fade"]).toBe(0);
+    expect(Math.max(...frames.map((f) => f["--car-fade"]))).toBe(1);
+    expect(mask.options.duration).toBe(250);
+
+    act(() => mask.onfinish?.());
+    expect(row(container)).not.toHaveAttribute("data-peek-moving");
+    expect(row(container)).toHaveAttribute("data-peeking");
   });
 
   it("reveals from the gutter, not only from inside the column", () => {
@@ -239,6 +260,23 @@ describe("left hover peek", () => {
 
     expect(row(container)).not.toHaveAttribute("data-peeking");
     expect(recorded).toHaveLength(0);
+  });
+
+  it("keeps the zone open over the previous card so the pointer can reach it", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    const after = recorded.length;
+
+    // The previous card is the first 84px; the open zone reaches the featured card.
+    move(100 + 80);
+    act(() => vi.advanceTimersByTime(300));
+    expect(recorded).toHaveLength(after);
+    expect(row(container)).toHaveAttribute("data-peeking");
+
+    // Over the featured card the zone ends and the peek retracts.
+    move(100 + 300);
+    act(() => vi.advanceTimersByTime(121));
+    expect(recorded.length).toBeGreaterThan(after);
   });
 
   it("retracts every card after a 120ms leave delay, and not if the pointer returns", () => {
@@ -262,46 +300,34 @@ describe("left hover peek", () => {
       expect(back.options.duration).toBe(200);
       expect(back.options.easing).toBe("ease-out");
     }
+    const copy = slides(prevCard(container)!).at(-1)!;
+    expect(copy.keyframes["--car-x"].at(-1)).toBe("-96px");
 
-    act(() => slides(strip(container)!).at(-1)!.onfinish?.());
+    act(() => copy.onfinish?.());
     expect(row(container)).not.toHaveAttribute("data-peeking");
-    for (let slot = 0; slot < 4; slot++) {
-      expect(card(container, slot).style.width).toBe(`${REST_W[slot]}px`);
-      expect(card(container, slot)).not.toHaveAttribute("data-clipped");
-    }
+    expect(prevCard(container)!.style.visibility).toBe("hidden");
   });
 
-  it("shows order[(first - 1 + n) % n] as an inert, hidden, unfocusable copy", () => {
-    const { container } = render(<HomeCarousel items={ITEMS} />);
-    const left = strip(container)!;
+  it("shows order[(first - 1 + n) % n]: the last item for four, the one before for six", () => {
+    const four = render(<HomeCarousel items={ITEMS} />);
+    expect(prevCard(four.container)!.textContent).toContain("More work soon");
+    four.unmount();
 
-    expect(left.textContent).toContain("More work soon");
-    expect(left).toHaveAttribute("aria-hidden", "true");
-    expect(left).toHaveAttribute("inert");
-    expect(
-      left.querySelector("a, button, [tabindex], [data-work-card]"),
-    ).toBeNull();
-    expect(container.querySelectorAll("[data-work-card]")).toHaveLength(1);
-    expect(container.querySelectorAll(".car-peek-edge")).toHaveLength(1);
+    const six = render(<HomeCarousel items={SIX} />);
+    expect(prevCard(six.container)!.textContent).toContain("Six");
   });
 
-  it("shows the item before the first for six items", () => {
-    const { container } = render(<HomeCarousel items={SIX} />);
-
-    expect(strip(container)!.textContent).toContain("Six");
-  });
-
-  it("steps back one from the pushed pose, with no snap, then reappears if the pointer stays", () => {
+  it("steps back one from the shifted pose when the previous card is clicked, no snap", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     move(110);
-    drawPushed(container);
+    drawShifted(container);
     const cards = [0, 1, 2, 3].map((slot) => card(container, slot));
     const before = recorded.length;
 
-    fireEvent.click(row(container), { clientX: 110, clientY: 200 });
+    fireEvent.click(prevCard(container)!);
 
     expect(frontTitle()).toBe("More work soon");
-    expect(strip(container)!.style.visibility).toBe("hidden");
+    expect(prevCard(container)!.style.visibility).toBe("hidden");
     expect(row(container)).not.toHaveAttribute("data-peeking");
 
     const steps = recorded.slice(before);
@@ -309,131 +335,99 @@ describe("left hover peek", () => {
       const run = steps.find(
         (r) => r.target === cards[slot] && "--car-x" in r.keyframes,
       );
-      // Each card starts where the peek left it, not at its rest slot.
+      // Each card starts where the shift left it, not at its rest slot.
       expect(run?.keyframes["--car-x"][0]).toBe(`${OPEN_X[slot]}px`);
     }
-    // The item stepping in grows out of the strip, still blurred.
+    // The previous item grows out of its 84px first slot into the wide one.
     const entering = steps.find(
-      (r) => r.keyframes.filter?.[0] === "blur(4.00px)",
-    );
-    expect(entering!.keyframes["--car-x"][0]).toBe("0px");
-    expect(entering!.keyframes["--car-r"][0]).toBe(`${753 - 20}px`);
+      (r) =>
+        r.target instanceof HTMLElement &&
+        r.target.hasAttribute("data-ghost") &&
+        "--car-x" in r.keyframes,
+    )!;
+    expect(entering.keyframes["--car-x"][0]).toBe("0px");
+    expect(entering.keyframes["--car-r"][0]).toBe(`${753 - 84}px`);
 
     const afterStep = recorded.length;
     finishStep();
 
     expect(recorded.length).toBeGreaterThan(afterStep);
     expect(row(container)).toHaveAttribute("data-peeking");
-    expect(strip(container)!.textContent).toContain("Type");
+    expect(prevCard(container)!.textContent).toContain("Type");
   });
 
-  it("does not step when the click lands off the strip", () => {
+  it("does not step when the click is not on the previous card", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     move(110);
 
-    fireEvent.click(row(container), { clientX: 130, clientY: 200 });
+    fireEvent.click(row(container));
 
     expect(frontTitle()).toBe("Systems");
   });
 
-  it("puts the row back before the first card opens", () => {
+  it("puts the row back before the featured card opens its drawer", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     move(110);
-    drawPushed(container);
+    drawShifted(container);
 
     const host = card(container, 0).querySelector<HTMLElement>(".car-host")!;
     host.addEventListener("click", (event) => event.preventDefault());
     fireEvent.click(host);
 
-    for (let slot = 0; slot < 4; slot++) {
-      const el = card(container, slot);
-      expect(el.style.getPropertyValue("--car-x")).toBe(`${REST_X[slot]}px`);
-      expect(el.style.getPropertyValue("--car-r")).toBe("0px");
-      expect(el.style.width).toBe(`${REST_W[slot]}px`);
-    }
+    for (let slot = 0; slot < 4; slot++)
+      expect(card(container, slot).style.getPropertyValue("--car-x")).toBe(
+        `${REST_X[slot]}px`,
+      );
     expect(row(container)).not.toHaveAttribute("data-peeking");
+    expect(prevCard(container)!.style.visibility).toBe("hidden");
   });
 
-  it("treats both ends the same whatever ?blur= is, and ?peekRight= is gone", () => {
+  it("works whatever ?blur= is, and ?peekRight= and ?peekFit= are gone", () => {
     for (const blur of ["edge", "motion", "none"]) {
-      window.history.pushState({}, "", `/?blur=${blur}&peekRight=hover`);
+      window.history.pushState(
+        {},
+        "",
+        `/?blur=${blur}&peekRight=hover&peekFit=proportional`,
+      );
       const { container, unmount } = render(<HomeCarousel items={ITEMS} />);
       move(110);
 
       expect(row(container)).toHaveAttribute("data-peeking");
-      expect(slides(strip(container)!)).toHaveLength(1);
-      expect(card(container, 3)).toHaveAttribute("data-peek-end");
+      expect(slides(prevCard(container)!)).toHaveLength(1);
       expect(container.querySelectorAll(".car-peek-edge")).toHaveLength(1);
+      expect(card(container, 0).style.width).toBe("753px");
       move(1090);
       unmount();
     }
   });
 });
 
-describe("?peekFit=", () => {
-  it("featured is the default: the first card takes the 32px, the others keep their widths", () => {
-    const { container } = render(<HomeCarousel items={ITEMS} />);
-
-    move(110);
-
-    expect(card(container, 0).style.width).toBe("785px");
-    expect(card(container, 1).style.width).toBe("180px");
-    expect(card(container, 2).style.width).toBe("83px");
-  });
-
-  it("proportional shares the extra by rest width, and the pieces still add up", () => {
-    window.history.pushState({}, "", "/?peekFit=proportional");
-    const { container } = render(<HomeCarousel items={ITEMS} />);
-
-    move(110);
-
-    const widths = [0, 1, 2].map((slot) => {
-      const run = slides(card(container, slot))[0];
-      const box = Number.parseFloat(card(container, slot).style.width);
-      return box - Number.parseFloat(String(run.keyframes["--car-r"][1]));
-    });
-    expect(widths[0] + widths[1] + widths[2]).toBeCloseTo(1048, 1);
-    expect(widths[0]).toBeCloseTo(753 + (32 * 753) / 1016, 1);
-    expect(widths[1]).toBeCloseTo(180 + (32 * 180) / 1016, 1);
-    expect(widths[2]).toBeCloseTo(83 + (32 * 83) / 1016, 1);
-  });
-});
-
-describe("edge treatment css", () => {
+describe("peek css", () => {
   const css = readFileSync(
     resolve(process.cwd(), "src/components/home/carousel/home-carousel.css"),
     "utf8",
   );
 
-  it("masks both end shapes over the same width with the same fade, painting no colour", () => {
-    const left = css.match(
-      /\.car-peek-edge\[data-side="left"\]\s*\{([^}]*)\}/,
-    )![1];
-    const end = css.match(/\.car-slide\[data-peek-end\]\s*\{([^}]*)\}/)![1];
-
-    expect(left).toContain("var(--car-hp-edge)");
-    expect(left).toContain("var(--car-hp, 20px)");
-    expect(end).toContain("var(--car-hp-edge-r)");
-    expect(end).toContain("var(--car-hp, 20px)");
-    // Both fade by the same tunable (--car-hf); the right one is scaled by
-    // --car-pe, which is 1 when the peek is open.
-    expect(css).toMatch(/--car-hp-edge:[^;]*var\(--car-hf, 0\.45\)/);
-    expect(css).toMatch(/--car-hp-edge-r:[^;]*var\(--car-hf, 0\.45\)/);
-    expect(css).not.toMatch(/color-mix|backdrop-filter/);
-  });
-
-  it("keeps the step mask on the row and the column clip while peeking", () => {
+  it("masks only while moving, with no painted colour, and clips to the column", () => {
     expect(css).toMatch(
-      /\.car-row\[data-stepping\]\[data-blur="edge"\]\s*\{\s*--car-mask/,
+      /\.car-row\[data-stepping\]\[data-blur="edge"\],\s*\.car-row\[data-peek-moving\]\s*\{\s*--car-mask/,
     );
     expect(css).toMatch(
       /\.car-row\[data-stepping\],\s*\.car-row\[data-peeking\]\s*\{\s*clip-path:\s*inset\(-12px 0\)/,
     );
+    expect(css).not.toMatch(/color-mix|backdrop-filter/);
+  });
+
+  it("lets the previous card take the pointer for its ring and cursor", () => {
+    expect(css).toMatch(
+      /\.car-slide\.car-peek-edge\s*\{\s*pointer-events:\s*auto/,
+    );
+    expect(css).toMatch(/\.car-peek-edge\s*\{[^}]*cursor:\s*pointer/);
   });
 });
 
 describe("without a hovering pointer", () => {
-  it("renders no strip and ignores the pointer", () => {
+  it("renders no copy and ignores the pointer", () => {
     stubMedia(false, false);
     const { container } = render(<HomeCarousel items={ITEMS} />);
 

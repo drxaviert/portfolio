@@ -95,7 +95,7 @@ afterEach(() => {
 });
 
 describe("hover peek under reduced motion", () => {
-  it("snaps the whole row and crossfades with opacity only", () => {
+  it("snaps the whole row one column right and crossfades with opacity only", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
     act(() => {
@@ -104,17 +104,15 @@ describe("hover peek under reduced motion", () => {
       );
     });
 
-    [32, 829, 1021, 1116].forEach((x, slot) => {
+    [96, 861, 1053, 1148].forEach((x, slot) => {
       const el = container.querySelector<HTMLElement>(
         `.car-slide[data-slot="${slot}"]:not([data-ghost])`,
       )!;
       expect(el.style.getPropertyValue("--car-x")).toBe(`${x}px`);
     });
-    const last = container.querySelector<HTMLElement>(
-      '.car-slide[data-slot="3"]:not([data-ghost])',
-    )!;
-    expect(last.style.filter).toBe("blur(4px)");
-    expect(last.style.getPropertyValue("--car-pe")).toBe("1");
+    const prev = container.querySelector<HTMLElement>(".car-peek-edge")!;
+    expect(prev.style.getPropertyValue("--car-x")).toBe("0px");
+    expect(prev.style.opacity).toBe("1");
 
     expect(recorded.length).toBeGreaterThan(0);
     for (const r of recorded) {

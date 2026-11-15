@@ -244,8 +244,6 @@ export type Entity = {
   toWide: number;
   fromTitle: number;
   toTitle: number;
-  /** Blur (px) the card starts with and loses over the step: a hover peek. */
-  blurFrom?: number;
 };
 
 export function entityKey(e: Pick<Entity, "item" | "ghost">): string {
