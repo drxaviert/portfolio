@@ -39,6 +39,31 @@ describe("BottomSheet", () => {
 
     expect(handle()).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(handle()).toHaveFocus();
+  });
+
+  it("opens by drag without stealing focus from the handle", () => {
+    renderSheet();
+    handle().focus();
+
+    drag(400, 340);
+
+    expect(handle()).toHaveAttribute("aria-expanded", "true");
+    expect(handle()).toHaveFocus();
+    expect(screen.getByRole("dialog")).not.toHaveFocus();
+  });
+
+  it("returns focus to the handle when dragged closed", async () => {
+    const user = userEvent.setup();
+
+    renderSheet();
+    await user.click(handle());
+    expect(screen.getByRole("dialog")).toHaveFocus();
+
+    drag(400, 460);
+
+    expect(handle()).toHaveAttribute("aria-expanded", "false");
+    expect(handle()).toHaveFocus();
   });
 
   it("keeps the closed content inert while the handle stays reachable", async () => {

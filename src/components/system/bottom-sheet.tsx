@@ -40,10 +40,16 @@ export function BottomSheet({
   const handleRef = useRef<HTMLButtonElement | null>(null);
   const dragStartY = useRef<number | null>(null);
   const dragged = useRef(false);
+  const focusOnOpen = useRef(true);
 
   const close = useCallback(() => {
     setOpen(false);
     handleRef.current?.focus();
+  }, []);
+
+  const openSheet = useCallback((focus: boolean) => {
+    focusOnOpen.current = focus;
+    setOpen(true);
   }, []);
 
   useEffect(() => {
@@ -53,7 +59,10 @@ export function BottomSheet({
 
     if (!sheet) return;
 
-    sheet.focus();
+    // A pointer drag opens the sheet from the handle; stealing focus there
+    // would move it away from the control the finger is still on. Tap and
+    // keyboard opens do move focus into the dialog.
+    if (focusOnOpen.current) sheet.focus();
 
     const focusables = (): HTMLElement[] =>
       Array.from(
@@ -109,7 +118,13 @@ export function BottomSheet({
     if (Math.abs(delta) <= DRAG_THRESHOLD_PX) return;
 
     dragged.current = true;
-    setOpen(delta < 0);
+
+    if (delta < 0) {
+      if (!open) openSheet(false);
+    } else if (open) {
+      close();
+    }
+
     dragStartY.current = event.clientY;
   };
 
@@ -125,9 +140,9 @@ export function BottomSheet({
       return;
     }
 
-    setOpen((value) => !value);
+    if (open) close();
+    else openSheet(true);
   };
-
   const sheetStyle: CSSProperties = {
     transform: open ? "translateY(0)" : `translateY(calc(100% - ${PEEK_HEIGHT}))`,
     paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
