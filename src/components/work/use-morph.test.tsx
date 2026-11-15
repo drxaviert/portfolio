@@ -30,7 +30,6 @@ const SLUG = "systems-in-motion";
 
 const CARD_A: Box = { left: 100, top: 200, width: 753, height: 416 };
 const CARD_B: Box = { left: 50, top: 60, width: 720, height: 450 };
-const CARD_TITLE: Box = { left: 120, top: 500, width: 300, height: 40 };
 // jsdom has no layout, so the untransformed panel box comes from offsetLeft
 // (0 here) plus the mocked rect width and height.
 const PANEL: Box = { left: 0, top: 0, width: 1408, height: 868 };
@@ -54,9 +53,7 @@ function placeCard(rect: Box) {
   card.dataset.workCard = SLUG;
 
   const title = document.createElement("h1");
-  title.dataset.workCardTitle = "";
   title.textContent = "Systems in motion";
-  title.getBoundingClientRect = () => toDomRect(CARD_TITLE);
   card.append(title);
 
   card.getBoundingClientRect = () => toDomRect(rect);
@@ -142,14 +139,11 @@ describe("findCard", () => {
   it("reads the card's live rect on every call", () => {
     const card = placeCard(CARD_A);
 
-    expect(findCard(SLUG)).toEqual({
-      card: CARD_A,
-      title: CARD_TITLE,
-    });
+    expect(findCard(SLUG)).toEqual(CARD_A);
 
     card.setRect(CARD_B);
 
-    expect(findCard(SLUG)?.card).toEqual(CARD_B);
+    expect(findCard(SLUG)).toEqual(CARD_B);
   });
 });
 
@@ -270,10 +264,10 @@ describe("ExpandShell", () => {
     expect(layerElement()).toHaveAttribute("data-reveal", "pending");
   });
 
-  it("fades the title clone out on the reveal, not after it", async () => {
+  it("does not render or animate a separate title clone", async () => {
     placeCard(CARD_A);
 
-    render(
+    const view = render(
       <ExpandShell slug={SLUG}>
         <ReaderStub />
       </ExpandShell>,
@@ -283,21 +277,15 @@ describe("ExpandShell", () => {
       expect(layerElement()).toHaveAttribute("data-phase", "open"),
     );
 
-    const clone = document.querySelector<HTMLElement>(".wd-title-fly")!;
-    const fades = mocks.animate.mock.calls.filter(
-      ([element, keyframes]) =>
-        element === clone &&
-        (keyframes as { opacity?: number } | undefined)?.opacity === 0,
+    // Only the panel moves: no fixed title element, and no animation on
+    // anything but the panel (the nav lives outside this tree).
+    expect(document.querySelector(".wd-title-fly")).toBeNull();
+    const animated = new Set(
+      mocks.animate.mock.calls.map(([element]) => element as Element),
     );
+    expect([...animated]).toEqual([panelElement()]);
 
-    expect(fades).toHaveLength(1);
-    // 480ms morph - 120ms reveal lead - 180ms fade = the fade starts at 180ms
-    // and lands exactly when the cascade starts.
-    expect(fades[0][2]).toMatchObject({
-      duration: 0.18,
-      ease: "easeOut",
-      delay: 0.18,
-    });
+    view.unmount();
   });
 
   it("measures the card again for the close morph", async () => {

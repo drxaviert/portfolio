@@ -83,10 +83,7 @@ export function ProjectCard({
           />
         </>
       ) : null}
-      <h1
-        data-work-card-title={slug ? "" : undefined}
-        className="ring-title relative z-10 text-balance text-title-sm font-semibold md:text-title"
-      >
+      <h1 className="ring-title relative z-10 text-balance text-title-sm font-semibold md:text-title">
         {title}
       </h1>
     </>

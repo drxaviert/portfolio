@@ -18,7 +18,8 @@ const FOCUSABLE =
 /**
  * The intercepted reader. The page passes its `<Reader mode="overlay">` in as
  * children, so the MDX body and the reader stay server-rendered; this shell
- * only owns the backdrop, the morph and the flying title.
+ * only owns the backdrop and the panel's morph. The reader's title is the
+ * cascade's first step inside the panel, not a separate flying element.
  */
 export function ExpandShell({
   slug,
@@ -28,8 +29,7 @@ export function ExpandShell({
   children: ReactNode;
 }) {
   const panelRef = useRef<HTMLElement | null>(null);
-  const titleRef = useRef<HTMLDivElement>(null);
-  const { phase, reveal, close } = useMorph(slug, panelRef, titleRef);
+  const { phase, reveal, close } = useMorph(slug, panelRef);
 
   const setLayer = useCallback((layer: HTMLDivElement | null) => {
     panelRef.current =
@@ -69,12 +69,6 @@ export function ExpandShell({
       <div className="wd-expand-content" inert={phase !== "open"}>
         <ReaderCloseProvider close={close}>{children}</ReaderCloseProvider>
       </div>
-
-      <div
-        ref={titleRef}
-        aria-hidden="true"
-        className="wd-title-fly text-balance text-title-sm font-semibold md:text-title"
-      />
     </div>
   );
 }

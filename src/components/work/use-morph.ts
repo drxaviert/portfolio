@@ -14,7 +14,6 @@ import { flipFrom, toBox } from "./morph";
 import type { Box } from "./morph";
 import { announceOverlayExit } from "./overlay-exit";
 import { moveNav } from "@/components/nav/nav-flight";
-import { READER_TITLE_ID } from "./parts";
 
 export type MorphPhase = "opening" | "open" | "closing";
 
@@ -29,26 +28,16 @@ const CLOSE_S = 0.3;
 const FADE_S = 0.12;
 /** The entrance starts this long before the morph lands, so reading does not wait for it. */
 const REVEAL_LEAD_S = 0.12;
-/** The title clone's fade-out; it ends on the reveal (see startTitleFlight). */
-const TITLE_FADE_S = 0.18;
 
 export function cardSelector(slug: string): string {
   return `[data-work-card="${slug}"]`;
 }
 
 /** The source card, measured now. Close calls this again for the live rect. */
-export function findCard(
-  slug: string,
-): { card: Box; title: Box | null } | null {
+export function findCard(slug: string): Box | null {
   const card = document.querySelector<HTMLElement>(cardSelector(slug));
-  if (!card) return null;
 
-  const title = card.querySelector<HTMLElement>("[data-work-card-title]");
-
-  return {
-    card: toBox(card.getBoundingClientRect()),
-    title: title ? toBox(title.getBoundingClientRect()) : null,
-  };
+  return card ? toBox(card.getBoundingClientRect()) : null;
 }
 
 /**
@@ -75,22 +64,9 @@ function setPose(
   panel.style.transform = `translate(${pose.x}px, ${pose.y}px) scale(${pose.scaleX}, ${pose.scaleY})`;
 }
 
-/**
- * The title clone keeps the destination's type size, so the honest uniform
- * scale is the font-size ratio. Scaling by the two block widths would stretch
- * the glyphs to the card's column width instead of matching its text.
- */
-function titleScale(from: HTMLElement, to: HTMLElement): number {
-  const source = Number.parseFloat(getComputedStyle(from).fontSize);
-  const target = Number.parseFloat(getComputedStyle(to).fontSize);
-
-  return source && target ? source / target : 1;
-}
-
 export function useMorph(
   slug: string,
   panelRef: RefObject<HTMLElement | null>,
-  titleRef: RefObject<HTMLElement | null>,
 ): { phase: MorphPhase; reveal: RevealState; close: () => Promise<void> } {
   const router = useRouter();
   const reduce = useReducedMotion() ?? false;
@@ -121,53 +97,6 @@ export function useMorph(
 
     setPhase("open");
   }, [panelRef, setPhase, clearRevealTimer]);
-
-  const startTitleFlight = useCallback(
-    (
-      card: { card: Box; title: Box | null },
-      target: Box,
-      targetEl: HTMLElement,
-    ) => {
-      const title = titleRef.current;
-      const source = document.querySelector<HTMLElement>(
-        `${cardSelector(slug)} [data-work-card-title]`,
-      );
-      const text = source?.textContent?.trim();
-      if (!title || !card.title || !source || !text) return;
-
-      title.textContent = text;
-      title.style.left = `${target.left}px`;
-      title.style.top = `${target.top}px`;
-      title.style.width = `${target.width}px`;
-      title.style.opacity = "1";
-
-      const pose = flipFrom(card.title, target);
-      const scale = titleScale(source, targetEl);
-      title.style.transformOrigin = "top left";
-      title.style.transform = `translate(${pose.x}px, ${pose.y}px) scale(${scale})`;
-
-      animate(
-        title,
-        { x: 0, y: 0, scale: 1 },
-        { duration: MORPH_S, ease: EASE_ENTER },
-      );
-
-      // The clone is the title's only carrier until the content cascade starts,
-      // then it must be gone: its fade lands exactly on the reveal, so the
-      // title is hidden when the cascade's first step begins rather than
-      // hanging over it for another 230ms.
-      animate(
-        title,
-        { opacity: 0 },
-        {
-          duration: TITLE_FADE_S,
-          ease: "easeOut",
-          delay: MORPH_S - REVEAL_LEAD_S - TITLE_FADE_S,
-        },
-      );
-    },
-    [slug, titleRef],
-  );
 
   // Measure once, before the first paint, then animate from the card to the
   // panel's own layout box. Nothing here reads geometry after the morph.
@@ -207,11 +136,9 @@ export function useMorph(
       return;
     }
 
-    const target = panel.querySelector<HTMLElement>(`#${READER_TITLE_ID}`);
-    const targetBox = target ? toBox(target.getBoundingClientRect()) : null;
     const layout = layoutBox(panel);
 
-    setPose(panel, flipFrom(card.card, layout));
+    setPose(panel, flipFrom(card, layout));
 
     const morph = animate(
       panel,
@@ -231,9 +158,7 @@ export function useMorph(
       () => setReveal("on"),
       (MORPH_S - REVEAL_LEAD_S) * 1000,
     );
-
-    if (target && targetBox) startTitleFlight(card, targetBox, target);
-  }, [slug, reduce, panelRef, settle, startTitleFlight]);
+  }, [slug, reduce, panelRef, settle]);
 
   // A resize mid-morph jumps to the end; after that the panel is pure CSS, so
   // the new viewport just reflows it and close measures the card again.
@@ -275,7 +200,7 @@ export function useMorph(
           navHome,
         ]);
       } else {
-        const pose = flipFrom(card.card, layoutBox(panel));
+        const pose = flipFrom(card, layoutBox(panel));
         await Promise.all([
           animate(panel, pose, { duration: CLOSE_S, ease: "easeIn" }).finished,
           navHome,
