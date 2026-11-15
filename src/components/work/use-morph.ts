@@ -143,6 +143,10 @@ export function useMorph(
       // And remember that this document's entry is the study itself, so a
       // reader opened over it (study to study) closes to '/' as well.
       document.documentElement.dataset.readerEntry = "direct";
+      // Match the state a settled open morph leaves behind. The FLIP pose is
+      // measured from the panel's top-left corner, so a panel carrying the CSS
+      // default origin would shrink from its centre and land in the wrong place.
+      panelRef.current?.style.setProperty("transform-origin", "left top");
       return;
     }
 
@@ -251,6 +255,9 @@ export function useMorph(
           navHome,
         ]);
       } else if (card) {
+        // The pose maps the panel's top-left corner onto the card's: the origin
+        // must be that corner whatever state the panel was opened in.
+        panel.style.transformOrigin = "left top";
         const pose = flipFrom(card, layoutBox(panel));
         await Promise.all([
           landWithin(

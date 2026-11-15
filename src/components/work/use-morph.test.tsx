@@ -416,6 +416,36 @@ describe("ExpandShell", () => {
     // overlay (closing replaces it instead of going back).
     expect(document.documentElement.dataset.entrancePlayed).toBe("true");
     expect(window.history.state?.workOverlay).toBeUndefined();
+    // Exactly what a settled open morph leaves: the FLIP pose is measured from
+    // the panel's top-left corner, so the resting panel must carry that origin.
+    expect(panelElement().style.transformOrigin).toBe("left top");
+  });
+
+  it("gives a direct load and a soft open the same close origin", async () => {
+    placeCard(CARD_A);
+
+    const resting = render(
+      <ExpandShell slug={SLUG} resting>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+    const restingOrigin = panelElement().style.transformOrigin;
+    resting.unmount();
+    document.body.innerHTML = "";
+
+    placeCard(CARD_A);
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    // The soft open's morph settles to the same inline origin.
+    expect(panelElement().style.transformOrigin).toBe(restingOrigin);
   });
 
   it("flips a direct load's panel into its card and replaces the entry", async () => {
