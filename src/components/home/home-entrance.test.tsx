@@ -58,9 +58,10 @@ describe("shipped home entrance", () => {
     expect(css).toContain("backwards");
     // The veil must not depend on backdrop-filter.
     expect(css).not.toMatch(/\.entrance-soft\s*{[^}]*backdrop-filter/);
-    // Reduced motion: one 120ms fade, no filter, no softness animation.
+    // Reduced motion: one 120ms fade (--entrance-reduced-duration, which points
+    // at --duration-short-2), no filter, no softness animation.
     expect(css).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*entrance-fade-in 120ms/,
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*entrance-fade-in var\(--entrance-reduced-duration\)/,
     );
     expect(css).toMatch(
       /@media \(prefers-reduced-motion: reduce\)[\s\S]*filter: none !important/,

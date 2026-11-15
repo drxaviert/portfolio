@@ -1,4 +1,4 @@
-# Design system tokens — 2026-11-10
+# Design system tokens — 2026-11-14
 
 Figma file `18bX1w3gLtGeKJ2KS2K2BT`. Sampled from the Design page sections: Dawn 121:3828, Day 121:1349, Dusk 121:5067, Night 121:2589.
 
@@ -39,16 +39,81 @@ Figma file `18bX1w3gLtGeKJ2KS2K2BT`. Sampled from the Design page sections: Dawn
 
 Light phases (Dawn, Day, Dusk) share the same surface/text shell; only `primary`, `secondary` and `tracker/*` differ. `primary` is the phase accent (tracker/4), `secondary` is tracker/2.
 
-## Shadows
+## Primitive tier
 
-| Style | Layer | x | y | blur | spread | colour |
-| --- | --- | --- | --- | --- | --- | --- |
-| `shadow-light` | 1 | 0 | 0 | 0 | 1 | rgba(0,0,0,0.06) |
-| `shadow-light` | 2 | 0 | 1 | 2 | -1 | rgba(0,0,0,0.06) |
-| `shadow-light` | 3 | 0 | 2 | 4 | 0 | rgba(0,0,0,0.04) |
-| `shadow-dark` | 1 | 0 | 0 | 0 | 1 | rgba(255,255,255,0.08) |
+Every role above resolves to a primitive, never a raw hex. Primitives live on `:root` in `src/app/globals.css` as `--palette-<hue>-<step>`; steps are ordered by lightness inside a family (not a shared cross-family scale). Alpha overlays are their own primitives.
 
-Both styles already existed with these values (no styles were created). Style ids: `S:0e426ce577fa003cd9fe125e1f9119ae45330f77,` (shadow-light), `S:52af8fdd4c236fd0247a40575fdf0387cd8e1964,` (shadow-dark).
+| Family | Steps | Used for |
+| --- | --- | --- |
+| `--palette-neutral-*` | 50–800 | surfaces, text, outlines, Night surfaces |
+| `--palette-blue-*` | 50–800 | Day accent and tracker ramp, cool horizon tints, Day/Night play |
+| `--palette-violet-*` | 50–800 | Dawn accent and tracker, Dusk/Night play, Night horizon cast |
+| `--palette-rose-*` | 50–200 | Dawn horizon and orb pink, Night play |
+| `--palette-red-*` | 50–400 | Night accent, secondary and tracker browns |
+| `--palette-amber-*` | 50–800 | Dusk accent and tracker, warm horizon tints, Day/Dawn play |
+| `--palette-green-*`, `--palette-teal-*` | 50 | Day play green, Dusk play teal, Night horizon mint |
+| `--palette-black-a8`, `--palette-white-a8` | — | `outline-variant`, Night `frame-line` |
+
+`@property` initial-values cannot take `var()`, so the registered horizon/orb initial values stay literal; they mirror the Day primitives (commented in place).
+
+## Elevation
+
+| Token | Day / Dawn / Dusk | Night |
+| --- | --- | --- |
+| `--shadow-card` | `0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06), 0 2px 4px 0 rgb(0 0 0 / 0.04)` | `0 0 0 1px rgb(255 255 255 / 0.08)` |
+
+Applied with the `shadow-card` utility (`@utility shadow-card`, `globals.css`). Cards and menus never get a stroke; the 1px ring inside the shadow is the card edge.
+
+## Radius
+
+| Token | Value | Where |
+| --- | --- | --- |
+| `--radius-xs` | 2px | tracker cells |
+| `--radius-sm` | 0.25rem (4px) | small chips |
+| `--radius-md` | 0.5rem (8px) | menu rows, nav capsule |
+| `--radius-lg` | 0.75rem (12px) | cards, nav bar, menus |
+
+The ring surface uses `--radius-lg` outside and `calc(var(--radius-lg) - 1px)` for the inner fill.
+
+## Type
+
+| Token | Value | Where |
+| --- | --- | --- |
+| `--text-xs` … `--text-4xl` | 0.75 / 0.875 / 1 / 1.125 / 1.25 / 1.5 / 1.875 / 2.25rem | body and UI steps |
+| `--text-title` | 2.5rem / 2.75rem, tracking -0.4px | highlight card title, ≥768 |
+| `--text-title-sm` | 2rem / 2.2rem, tracking -0.4px | highlight card title, 375 |
+| `--font-sans` | Work Sans → system sans | whole app |
+
+## Horizon, play and orb
+
+| Token | Role |
+| --- | --- |
+| `--horizon-base`, `--horizon-mid`, `--horizon-mid-at`, `--horizon-3` | page base, mid stop and its percentage, tinted bottom edge |
+| `--horizon-1`, `--horizon-2`, `--horizon-1-alpha`, `--horizon-2-alpha` | bottom-corner blob hues and alphas |
+| `--horizon-ring-glow` | the same hues at ring strength, per phase |
+| `--horizon-blob-*`, `--horizon-blob-blur` | blob geometry and blur (phase-independent) |
+| `--horizon-transition-duration`, `--horizon-transition-ease` | click-driven crossfade (400ms) |
+| `--phase-auto-transition-duration`, `--phase-auto-transition-ease` | clock-driven crossfade (4000ms) |
+| `--orb-gradient`, `--orb-1`, `--orb-2`, `--orb-2-at`, `--orb-3` | nav orb head gradient |
+| `--play-bg-top`, `--play-bg-mid`, `--play-base`, `--play-bg-bottom`, `--play-strand`, `--play-glow` | play card fan and horizon band; `--play-bg-bottom` aliases `--play-base` |
+
+Play card stops per phase:
+
+| Phase | top | mid | base | strand | glow |
+| --- | --- | --- | --- | --- | --- |
+| Day | #FFE97A | #A9D98B | #8FB0F0 | #FFFDF4 | #FFF8D4 |
+| Dawn | #F2A0C8 | #E9786F | #F3C46B | #FFF8F4 | #FFE3D6 |
+| Dusk | #9B8BE0 | #B49AE6 | #8FC3C9 | #FDFBFF | #EFE7FF |
+| Night | #7F9BEA | #6670E0 | #E7A6E0 | #EEF0FF | #C9CCFF |
+
+Nav orb stops per phase:
+
+| Phase | `--orb-1` | `--orb-2` @ | `--orb-3` |
+| --- | --- | --- | --- |
+| Day | #60A8E2 | #0071C1 @ 100% | #0071C1 |
+| Dawn | #FF90B9 | #CB83FF @ 100% | #CB83FF |
+| Dusk | #B4D8FF | #F7C1D9 @ 50% | #FFB451 |
+| Night | #D6B49D | #FD6850 @ 45% | #FD6850 |
 
 ## Theme components (Components page, section "Theme controls" 131:10728)
 

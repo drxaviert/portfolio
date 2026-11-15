@@ -691,19 +691,19 @@
 /* Window: the cursor fades in, travels straight to New, presses once, fades
    out. It rests at the button for 37% of the cycle. */
 [data-mode="loop"] .fu-cursor {
-  animation: fu-cursor 8000ms linear infinite;
+  animation: fu-cursor var(--duration-extra-long-3) var(--ease-linear) infinite;
 }
 
 @keyframes fu-cursor {
   0% {
     transform: translate3d(-190px, 150px, 0);
     opacity: 0;
-    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+    animation-timing-function: var(--ease-emphasized-decelerate);
   }
   3% {
     transform: translate3d(-190px, 150px, 0);
     opacity: 1;
-    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+    animation-timing-function: var(--ease-emphasized-decelerate);
   }
   25% {
     transform: translate3d(-1px, 1px, 0);
@@ -712,7 +712,7 @@
   62% {
     transform: translate3d(-1px, 1px, 0);
     opacity: 1;
-    animation-timing-function: ease-in;
+    animation-timing-function: var(--ease-accelerate);
   }
   68% {
     transform: translate3d(-1px, 1px, 0);
@@ -726,7 +726,7 @@
 
 /* The press: 0.97 down, one small settle back. No ripple. */
 [data-mode="loop"] .fu-new {
-  animation: fu-press 8000ms linear infinite;
+  animation: fu-press var(--duration-extra-long-3) var(--ease-linear) infinite;
 }
 
 @keyframes fu-press {
@@ -736,7 +736,7 @@
   }
   28% {
     transform: scale(0.97);
-    animation-timing-function: cubic-bezier(0.34, 1.3, 0.64, 1);
+    animation-timing-function: var(--ease-spring);
   }
   31%,
   100% {
@@ -747,14 +747,15 @@
 /* Phone: the selection walks down two rows, then fades out in place and
    resets invisibly. It is still for 68% of the cycle. */
 [data-mode="loop"] .fu-phone__hl {
-  animation: fu-row-walk 7800ms linear infinite;
+  animation: fu-row-walk var(--duration-extra-long-2) var(--ease-linear)
+    infinite;
 }
 
 @keyframes fu-row-walk {
   0% {
     transform: translateY(0);
     opacity: 0;
-    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+    animation-timing-function: var(--ease-emphasized-decelerate);
   }
   4% {
     transform: translateY(0);
@@ -763,7 +764,7 @@
   24% {
     transform: translateY(0);
     opacity: 1;
-    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+    animation-timing-function: var(--ease-emphasized-decelerate);
   }
   36% {
     transform: translateY(74px);
@@ -772,7 +773,7 @@
   52% {
     transform: translateY(74px);
     opacity: 1;
-    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+    animation-timing-function: var(--ease-emphasized-decelerate);
   }
   64% {
     transform: translateY(148px);
@@ -781,7 +782,7 @@
   86% {
     transform: translateY(148px);
     opacity: 1;
-    animation-timing-function: ease-in;
+    animation-timing-function: var(--ease-accelerate);
   }
   94% {
     transform: translateY(148px);
@@ -796,19 +797,20 @@
 /* Tiles: the chart takes one new sample — all bars settle together, then hold
    for 70% of the cycle. */
 [data-mode="loop"] .fu-tile--chart .fu-bars > span {
-  animation: fu-bar-sample 8200ms linear infinite;
+  animation: fu-bar-sample var(--duration-extra-long-4) var(--ease-linear)
+    infinite;
 }
 
 @keyframes fu-bar-sample {
   0%,
   4% {
     transform: scaleY(0.82);
-    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+    animation-timing-function: var(--ease-emphasized-decelerate);
   }
   22%,
   92% {
     transform: scaleY(1);
-    animation-timing-function: ease-in;
+    animation-timing-function: var(--ease-accelerate);
   }
   100% {
     transform: scaleY(0.82);
@@ -911,8 +913,8 @@
   font-weight: 500;
   cursor: pointer;
   transition:
-    background-color 150ms ease-out,
-    color 150ms ease-out;
+    background-color var(--duration-short-3) var(--ease-decelerate),
+    color var(--duration-short-3) var(--ease-decelerate);
 }
 
 .fu-seg__item:hover {

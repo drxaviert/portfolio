@@ -55,11 +55,11 @@
 
 .entrance-scope,
 [data-entrance="soft"] {
-  --entrance-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --entrance-ease: var(--ease-emphasized-decelerate);
 
   --scale-from: 0.96;
   --scale-blur: 6px;
-  --scale-duration: 360ms;
+  --scale-duration: var(--duration-medium-7);
   --scale-stagger: 50ms;
 
   --rise-distance: 8px;
@@ -71,13 +71,13 @@
   --ring-edge-out: 102.5ms;
   --ring-edge-hold: 175ms;
   --ring-fill-delay: 80ms;
-  --ring-fill-duration: 240ms;
+  --ring-fill-duration: var(--duration-medium-1);
   --ring-stagger: 40ms;
 
-  --sky-glow-duration: 300ms;
-  --sky-delay: 120ms;
+  --sky-glow-duration: var(--duration-medium-5);
+  --sky-delay: var(--duration-short-2);
   --sky-stagger: 36ms;
-  --sky-duration: 360ms;
+  --sky-duration: var(--duration-medium-7);
   --sky-from: 0.98;
   --sky-blur: 4px;
 
@@ -88,19 +88,19 @@
 
   --step-count: 3;
   --step-distance: 5px;
-  --step-duration: 180ms;
+  --step-duration: var(--duration-short-6);
   --step-stagger: 40ms;
   --step-marker-size: 6px;
-  --step-marker-hold: 100ms;
+  --step-marker-hold: var(--duration-short-1);
   --step-marker-fade: 200ms;
   /* Design-tool marker: the glow's own blob hue, blue by Day, mint by Night. */
   --step-marker-color: var(--horizon-2);
 
   --grain-strength: 0.08;
   --grain-jitter: 3px;
-  --grain-rate: 100ms;
+  --grain-rate: var(--duration-short-1);
   --grain-duration: 460ms;
-  --grain-delay: 160ms;
+  --grain-delay: var(--duration-short-4);
   --grain-stagger: 32ms;
   --grain-item-duration: 320ms;
 
@@ -129,7 +129,7 @@
   --dawn-bloom-scale: 0.96;
   --dawn-content-delay: 650ms;
   --dawn-rise: 4px;
-  --dawn-content-duration: 600ms;
+  --dawn-content-duration: var(--duration-long-2);
   --dawn-stagger: 25ms;
   /* The phase halves the bloom's scale delta at Night; the panel never writes
      this one, so the rule keeps applying. */
@@ -138,10 +138,13 @@
   --soft-blur: 8px;
   --soft-veil: 0.24;
   --soft-duration: 1400ms;
-  --soft-card-delay: 250ms;
+  --soft-card-delay: var(--duration-medium-2);
   --soft-card-duration: 1100ms;
   --soft-rise: 7px;
   --soft-stagger: 60ms;
+
+  /* Reduced motion: one fade, no rise or blur. */
+  --entrance-reduced-duration: var(--duration-short-2);
 }
 
 /*
@@ -149,7 +152,7 @@
  * so the prototype's curve picker keeps working on its own variants.
  */
 [data-entrance-shipped] {
-  --entrance-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --entrance-ease: var(--ease-calm);
 }
 
 /*
@@ -302,7 +305,8 @@
 /* Reduced motion: one 120ms opacity fade, no blur, no rise, no softness. */
 @media (prefers-reduced-motion: reduce) {
   [data-entrance="soft"] .entrance-body {
-    animation: entrance-fade-in 120ms ease-out backwards !important;
+    animation: entrance-fade-in var(--entrance-reduced-duration)
+      var(--ease-decelerate) backwards !important;
     animation-delay: 0ms !important;
     filter: none !important;
   }
