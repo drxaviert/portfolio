@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "gen:system": "node scripts/gen-system-source.mjs"
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",
