@@ -106,7 +106,34 @@ describe("MotionDemo", () => {
         easing: "cubic-bezier(0.32, 0.72, 0, 1)",
       }),
     );
+
+    const frames = (
+      animate.mock.calls as unknown as Array<
+        [Keyframe[], KeyframeAnimationOptions]
+      >
+    )[0][0];
+
+    expect(frames[1].transform).toContain("100cqw");
     expect(container.querySelector("[data-motion-dot]")).toBeInTheDocument();
+  });
+
+  it("rounds the visible label to whole ms but animates the exact value", () => {
+    renderDemo();
+
+    emit({
+      "--duration-medium-5": "272.727ms",
+      "--ease-emphasized-standard": "cubic-bezier(0.32, 0.72, 0, 1)",
+    });
+
+    expect(screen.getByText("273ms")).toBeInTheDocument();
+    expect(screen.queryByText("272.727ms")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Replay" }));
+
+    expect(animate).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({ duration: 272.727 }),
+    );
   });
 
   it("converts second-based tokens to milliseconds", () => {
@@ -130,7 +157,7 @@ describe("MotionDemo", () => {
     fireEvent.click(screen.getByRole("button", { name: "Replay" }));
 
     expect(animate).not.toHaveBeenCalled();
-    expect(dot.style.transform).toContain("translateX");
+    expect(dot.style.transform).toContain("100cqw");
   });
 
   it("uses the live ease token when documenting an easing", () => {

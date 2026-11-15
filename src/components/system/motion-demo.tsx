@@ -6,9 +6,11 @@ import { useSystem } from "@/app/design-system/system-shell";
 import type { TokenMap } from "@/lib/system/derive";
 import { DURATIONS, EASES } from "@/lib/system/source.generated";
 
-const TRACK_INSET_PX = 8;
 const EASE_FOR_DURATION = "--ease-emphasized-standard";
 const DURATION_FOR_EASE = "--duration-long-2";
+// The dot travels the track minus its own width and an 8px inset. Container
+// units keep this correct at any viewport instead of freezing a measured px.
+const TRAVEL_TRANSFORM = "translateX(calc(100cqw - 100% - 8px))";
 
 function prefersReducedMotion(): boolean {
   return (
@@ -26,6 +28,13 @@ function parseMs(value: string): number | null {
   const amount = Number(match[1]);
 
   return match[2] === "s" ? amount * 1000 : amount;
+}
+
+/** Visible labels round to whole ms; the animation keeps the exact value. */
+function formatDuration(value: string): string {
+  const ms = parseMs(value);
+
+  return ms === null ? value : `${Math.round(ms)}ms`;
 }
 
 /**
@@ -73,7 +82,9 @@ export function MotionDemo({
       if (easing) easingRef.current = easing;
 
       if (durationLabelRef.current) {
-        durationLabelRef.current.textContent = durationRef.current;
+        durationLabelRef.current.textContent = formatDuration(
+          durationRef.current,
+        );
       }
 
       if (easingLabelRef.current) {
@@ -90,29 +101,20 @@ export function MotionDemo({
   }, [engine, update]);
 
   const replay = useCallback(() => {
-    const track = trackRef.current;
     const dot = dotRef.current;
 
-    if (!track || !dot) return;
-
-    const distance = Math.max(
-      0,
-      track.clientWidth - dot.offsetWidth - TRACK_INSET_PX,
-    );
+    if (!dot) return;
 
     dot.getAnimations?.().forEach((animation) => animation.cancel());
 
     if (prefersReducedMotion() || typeof dot.animate !== "function") {
-      dot.style.transform = `translateX(${distance}px)`;
+      dot.style.transform = TRAVEL_TRANSFORM;
 
       return;
     }
 
     dot.animate(
-      [
-        { transform: "translateX(0)" },
-        { transform: `translateX(${distance}px)` },
-      ],
+      [{ transform: "translateX(0)" }, { transform: TRAVEL_TRANSFORM }],
       {
         duration: parseMs(durationRef.current) ?? 0,
         easing: easingRef.current,
@@ -137,7 +139,7 @@ export function MotionDemo({
       </div>
 
       <p className="mt-1 flex flex-wrap gap-x-2 text-[11px] tabular-nums text-on-surface-variant">
-        <span ref={durationLabelRef}>{initialDuration}</span>
+        <span ref={durationLabelRef}>{formatDuration(initialDuration)}</span>
         <span aria-hidden="true">·</span>
         <span ref={easingLabelRef} className="min-w-0 break-all">
           {initialEasing}
@@ -146,13 +148,13 @@ export function MotionDemo({
 
       <div
         ref={trackRef}
-        className="relative mt-2 h-6 overflow-hidden rounded-full bg-surface-container"
+        className="relative mt-2 h-6 overflow-hidden rounded-full bg-surface-container [container-type:inline-size]"
       >
         <span
           ref={dotRef}
           aria-hidden="true"
           data-motion-dot=""
-          className="absolute top-1/2 left-1 size-4 -translate-y-1/2 rounded-full bg-primary"
+          className="absolute top-1 left-1 size-4 rounded-full bg-primary"
         />
       </div>
     </div>
