@@ -236,6 +236,16 @@
 }
 
 /*
+ * No double-tap-zoom wait on controls: iOS Safari holds the first tap ~300ms
+ * before it decides it is not a double tap, which reads as a dead button.
+ * `:where()` keeps the rule at zero specificity, so nothing here outranks a
+ * component's own touch behaviour.
+ */
+:where(a, button, input, select, textarea, label, [role="button"]) {
+  touch-action: manipulation;
+}
+
+/*
  * Reader and nav geometry. These are on the root element because they are
  * shared by two trees: the reader panel (inside the modal slot) and the single
  * nav dock (root layout). The nav's height is HomeNav's h-16, and the reader's

@@ -357,6 +357,9 @@
 
 .wd-p {
   margin: 14px 0 0;
+  /* Long-form body: keep the measure inside the reading band even if the
+     column ever widens. Headings and the meta row keep the full column. */
+  max-width: 68ch;
   color: var(--on-surface-variant);
   font-size: 14px;
   line-height: 1.45;

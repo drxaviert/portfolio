@@ -1,4 +1,12 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme/theme-provider";
@@ -159,5 +167,19 @@ describe("reader overlay", () => {
 
     expect(panel?.style.getPropertyValue("--wd-beat-lead")).toBe("-120ms");
     expect(panel).toHaveAttribute("data-progression", "lead");
+  });
+
+  it("caps the body measure without narrowing the rest of the column", () => {
+    const css = readFileSync(
+      join(process.cwd(), "src", "components", "work", "reader.css"),
+      "utf8",
+    );
+    const paragraph = css.match(/\.wd-p \{[^}]*\}/)?.[0];
+
+    expect(paragraph).toMatch(/max-width: 68ch;/);
+
+    // Headings, the intro block and the column keep the full 550px measure.
+    expect(css).not.toMatch(/\.wd-h2 \{[^}]*max-width: 68ch/);
+    expect(css).not.toMatch(/\.wd-intro-title \{[^}]*max-width: 68ch/);
   });
 });
