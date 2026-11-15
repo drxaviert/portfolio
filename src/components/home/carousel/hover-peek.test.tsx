@@ -505,6 +505,11 @@ describe("left hover peek", () => {
     expect(row(container)).toHaveAttribute("data-stepping");
     expect(findCard("title-sequence")!.card.left).toBe(ROW.left + 310);
 
+    // The reader's panel is in the page when it reports it has landed.
+    const layer = document.createElement("div");
+    layer.className = "wd-expand-layer";
+    document.body.appendChild(layer);
+
     act(() => {
       window.dispatchEvent(new Event(OVERLAY_OPENED_EVENT));
     });
@@ -513,6 +518,8 @@ describe("left hover peek", () => {
     // its rest box right after this.
     expect(titles.style.getPropertyValue("--car-x")).toBe("0px");
     expect(row(container)).not.toHaveAttribute("data-stepping");
+
+    layer.remove();
   });
 
   it("works with the old ?blur= switch ignored, and ?peekRight= and ?peekFit= are gone", () => {

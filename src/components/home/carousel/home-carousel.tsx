@@ -73,6 +73,8 @@ type Tween = {
   ease: Ease;
   timing: TitleTiming;
   animations: Animation[];
+  /** True for a released run gliding to rest (see settle). */
+  settling?: boolean;
 };
 
 type PeekState = {
@@ -329,6 +331,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     evaluate: () => {},
     close: () => {},
     release: () => {},
+    opened: () => {},
     letGo: () => {},
     click: (() => {}) as (event: globalThis.MouseEvent) => void,
   });
@@ -339,6 +342,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       evaluate: evaluateHover,
       close: closePeeks,
       release: releaseMotion,
+      opened: releaseOpened,
       letGo: releaseGently,
       click: onRowClick,
     };
@@ -535,11 +539,13 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
    * A run that reached its end (the clock's own finish) lands at once: the
    * cards are already there. A run that is cut short (a hard back, a reader
    * that never reported) glides to rest on the retarget curve instead of
-   * jumping. Reduced motion lands at once, since it never moves anything.
+   * jumping, and further soft releases while it glides are ignored. Reduced
+   * motion lands at once, since it never moves anything.
    */
   function settle(instant = false) {
     const running = tween.current;
     if (!running) return;
+    if (running.settling && !instant) return;
 
     const row = rowRef.current;
     const at = offsetRef.current;
@@ -632,6 +638,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       ease: spec.fn,
       timing: running.timing,
       animations: [...animations, clock],
+      settling: true,
     };
 
     tween.current = started;
@@ -901,23 +908,29 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   // The reader reports when it has landed and when it starts to close; the row
   // goes back to rest then, while the reader covers it.
   useEffect(() => {
-    const release = () => hoverApi.current.release();
+    const opened = () => hoverApi.current.opened();
+    const closing = () => hoverApi.current.release();
 
-    // A hard back navigation takes the reader away without a closing event.
+    // A hard back navigation takes the reader away without a closing event. The
+    // layer can still be in the DOM for the transition, so the URL decides: back
+    // on the home page means the reader is gone.
     const popped = () => {
       window.setTimeout(() => {
-        if (held.current && !overlayPresent()) hoverApi.current.letGo();
+        if (!held.current) return;
+        if (!window.location.pathname.startsWith("/work/")) {
+          hoverApi.current.letGo();
+        }
       }, 0);
     };
 
-    window.addEventListener(OVERLAY_OPENED_EVENT, release);
-    window.addEventListener(OVERLAY_CLOSING_EVENT, release);
+    window.addEventListener(OVERLAY_OPENED_EVENT, opened);
+    window.addEventListener(OVERLAY_CLOSING_EVENT, closing);
     window.addEventListener("popstate", popped);
 
     return () => {
       window.removeEventListener("popstate", popped);
-      window.removeEventListener(OVERLAY_OPENED_EVENT, release);
-      window.removeEventListener(OVERLAY_CLOSING_EVENT, release);
+      window.removeEventListener(OVERLAY_OPENED_EVENT, opened);
+      window.removeEventListener(OVERLAY_CLOSING_EVENT, closing);
     };
   }, []);
 
@@ -1038,10 +1051,19 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     if (tween.current) settle();
   }
 
-  /** Back to rest, unseen: the reader has landed, or is about to close. */
+  /** The reader has landed. Whoever held motion can let go. */
+  function releaseOpened() {
+    // Under the reader this is unseen, so it can land at once. If the reader is
+    // not there (its opened event can arrive after a hard back took it away),
+    // the row is in view and glides to rest instead.
+    if (tween.current) settle(overlayPresent());
+    closePeeks();
+  }
+
+  /** Back to rest, unseen: the reader is about to close and will measure. */
   function releaseMotion() {
-    // Instant: the reader covers the row, and the close morph measures the card
-    // right after this, so it has to already be at its rest box.
+    // Instant: the close morph measures the card right after this, so it has to
+    // already be at its rest box.
     if (tween.current) settle(true);
     closePeeks();
   }
