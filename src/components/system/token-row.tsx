@@ -27,7 +27,7 @@ export function TokenRow({
   preview,
 }: TokenRowProps): JSX.Element {
   const engine = useSystemEngine();
-  const rowRef = useContentVisibility<HTMLDivElement>("row");
+  const rowRef = useContentVisibility<HTMLDivElement>();
   const valueRef = useRef<HTMLSpanElement | null>(null);
   const { copied, copy } = useCopy();
   const isCopied = copied === token;

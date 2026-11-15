@@ -50,7 +50,7 @@ export function ComponentDoc({
   notes,
 }: ComponentDocProps): JSX.Element {
   const [forced, setForced] = useState<ForceState | undefined>(undefined);
-  const docRef = useContentVisibility<HTMLDivElement>("section");
+  const docRef = useContentVisibility<HTMLDivElement>();
 
   return (
     <div ref={docRef} className="space-y-6">

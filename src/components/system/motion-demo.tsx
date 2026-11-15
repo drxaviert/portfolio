@@ -53,7 +53,7 @@ export function MotionDemo({
   token: string;
 }): JSX.Element {
   const engine = useSystemEngine();
-  const cardRef = useContentVisibility<HTMLDivElement>("row");
+  const cardRef = useContentVisibility<HTMLDivElement>();
   const trackRef = useRef<HTMLDivElement | null>(null);
   const dotRef = useRef<HTMLSpanElement | null>(null);
   const durationLabelRef = useRef<HTMLSpanElement | null>(null);

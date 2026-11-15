@@ -17,7 +17,7 @@ export function VisibleSection({
   className?: string;
   children: ReactNode;
 }): JSX.Element {
-  const ref = useContentVisibility<HTMLElement>("section");
+  const ref = useContentVisibility<HTMLElement>();
 
   return (
     <section
