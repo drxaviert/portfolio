@@ -208,6 +208,51 @@ describe("left hover peek", () => {
     expect(OPEN_X[3]).toBeGreaterThanOrEqual(1136);
   });
 
+  it("ramps a blur on the outer edges only: left on the copy, right on the last visible card", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    const rightLayer = card(container, 2).querySelector<HTMLElement>(
+      "[data-peek-blur]",
+    )!;
+    const leftLayer = prevCard(container)!.querySelector<HTMLElement>(
+      "[data-peek-blur]",
+    )!;
+
+    // At rest the right-most slot is not the column's edge and nothing shows.
+    expect(rightLayer).toHaveAttribute("data-edge", "right");
+    expect(leftLayer).toHaveAttribute("data-edge", "left");
+    // What the css draws at rest (jsdom has no stylesheet).
+    rightLayer.style.opacity = "0";
+    leftLayer.style.opacity = "0";
+    expect(recorded.some((r) => r.target === rightLayer)).toBe(false);
+    expect(recorded.some((r) => r.target === leftLayer)).toBe(false);
+
+    move(110);
+
+    // The right-most visible card (slot 2, once the 4th left) fades its right
+    // edge in with the reveal, and the copy fades its left edge in with it.
+    const rightIn = recorded.find((r) => r.target === rightLayer)!;
+    expect(rightIn.keyframes.opacity).toEqual([0, 1]);
+    expect(rightIn.options.duration).toBe(450);
+    expect(
+      recorded.find((r) => r.target === leftLayer)!.keyframes.opacity,
+    ).toEqual([0, 1]);
+
+    // Nothing in the middle, nor on the card that was pushed out.
+    expect(card(container, 0).querySelector("[data-peek-blur]")).toBeNull();
+    expect(card(container, 1).querySelector("[data-peek-blur]")).toBeNull();
+    expect(card(container, 3).querySelector("[data-peek-blur]")).toBeNull();
+
+    // Leaving fades the right edge back out on the retract timing.
+    rightLayer.style.opacity = "1";
+    move(100 + 400);
+    act(() => vi.advanceTimersByTime(121));
+    const rightOut = recorded
+      .filter((r) => r.target === rightLayer && !Array.isArray(r.keyframes))
+      .at(-1)!;
+    expect(rightOut.keyframes.opacity).toEqual([1, 0]);
+    expect(rightOut.options.duration).toBe(350);
+  });
+
   it("brings the previous item in from beyond the left edge into a 84px first slot", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
@@ -347,7 +392,6 @@ describe("left hover peek", () => {
     move(110);
     drawShifted(container);
     // What the css draws on the open copy (jsdom has no stylesheet).
-    prevCard(container)!.style.filter = "blur(4px)";
     prevCard(container)!.style.setProperty("--car-x", "0px");
     const cards = [0, 1, 2, 3].map((slot) => card(container, slot));
     const before = recorded.length;
@@ -375,9 +419,9 @@ describe("left hover peek", () => {
     )!;
     expect(entering.keyframes["--car-x"][0]).toBe("0px");
     expect(entering.keyframes["--car-r"][0]).toBe(`${753 - 84}px`);
-    // It leaves the peek blurred with its left end faded, and loses both as it
-    // grows: no pop.
-    expect(entering.keyframes.filter).toEqual(["blur(4.00px)", "none"]);
+    // It leaves the peek with its left end faded, and loses that as it grows
+    // into the wide slot: no pop.
+    expect("filter" in entering.keyframes).toBe(false);
     expect(entering.keyframes["--car-lf"]).toEqual([0.5, 0]);
     expect(entering.target).toHaveAttribute("data-peek-fade");
 
@@ -860,7 +904,6 @@ describe("peek glitch fixes", () => {
     move(110);
     const copy = prevCard(container)!;
     copy.style.setProperty("--car-x", "-40px");
-    copy.style.filter = "blur(4px)";
     drawShifted(container);
     const before = recorded.length;
 
@@ -938,15 +981,25 @@ describe("peek css", () => {
     expect(css).toMatch(
       /\.car-row\[data-peeking\]\s*\{\s*clip-path:\s*inset\(-12px 0 -12px -6px\)/,
     );
-    expect(css).not.toMatch(/color-mix|backdrop-filter/);
+    expect(css).not.toMatch(/color-mix/);
   });
 
-  it("blurs the previous card, lessens it on hover, and fades its left end by mask", () => {
+  it("ramps a masked blurred copy on the outer edges, and fades the left end by mask", () => {
     expect(css).toMatch(
-      /\.car-peek-edge\s*\{[^}]*filter:\s*blur\(var\(--car-hp-blur, 4px\)\)/,
+      /\.car-peek-blur-copy\s*\{[^}]*filter:\s*blur\(\s*var\(--car-peek-blur, 6px\)/,
+    );
+    // Opaque at the outer edge, fading to sharp at the ramp width, mirrored per
+    // side: a ramp, never a hard mask. The mask is on the wrapper because an
+    // element with both a filter and a mask is not painted.
+    expect(css).toMatch(
+      /\.car-peek-blur\[data-edge="left"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*#000 0,\s*transparent calc\(var\(--car-peek-ramp, 50\) \* 1%\)/,
     );
     expect(css).toMatch(
-      /\.car-peek-edge:hover\s*\{[^}]*filter:\s*blur\(var\(--car-hp-blur-on, 1\.5px\)\)/,
+      /\.car-peek-blur\[data-edge="right"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to left,\s*#000 0,\s*transparent calc\(var\(--car-peek-ramp, 50\) \* 1%\)/,
+    );
+    // Only while the peek is open is the filtered copy promoted.
+    expect(css).toMatch(
+      /\.car-row\[data-peeking\] \.car-peek-blur-copy\s*\{\s*will-change:\s*filter/,
     );
     expect(css).toMatch(/mask-image:\s*var\(--car-lf-fade\)/);
     // The mask reaches past the box so the hover ring is not masked away.

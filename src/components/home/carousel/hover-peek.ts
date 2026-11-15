@@ -18,11 +18,12 @@ export type HoverPeekSettings = {
   retractMs: number;
   /** Delay before the peek retracts once the pointer leaves, ms. */
   leaveMs: number;
-  /** The previous card's blur while open, and while the pointer is on it, px. */
-  hoverBlur: number;
-  hoverBlurOn: number;
   /** Strength of the soft fade on the previous card's left end. */
   hoverFade: number;
+  /** Width of the progressive edge blur, as a percentage of the card's width. */
+  peekBlurRamp: number;
+  /** Blur radius at the outer edge of the peek's progressive blur, px. */
+  peekBlurMax: number;
 };
 
 export const DEFAULT_HOVER_PEEK: HoverPeekSettings = {
@@ -30,9 +31,9 @@ export const DEFAULT_HOVER_PEEK: HoverPeekSettings = {
   revealMs: 450,
   retractMs: 350,
   leaveMs: 120,
-  hoverBlur: 4,
-  hoverBlurOn: 1.5,
   hoverFade: 0.5,
+  peekBlurRamp: 50,
+  peekBlurMax: 6,
 };
 
 export const PEEK_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";

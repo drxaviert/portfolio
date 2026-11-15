@@ -39,7 +39,6 @@ import {
 import type { Ease, Entity, Geometry, TitleTiming } from "./carousel-math";
 import { CarouselTuner, DEFAULT_SETTINGS } from "./carousel-tuner";
 import {
-  blurNow,
   cardPoses,
   closeSnap,
   read,
@@ -194,6 +193,14 @@ function Slide({
   const offscreen = slot >= VISIBLE_SLOTS;
   const key = peek ? "peekL" : `${ghost ? "g" : "m"}${index}`;
   const hostClass = "car-host ring-host rounded-lg";
+  // The peek blurs its own outer edges: the previous card's left one, and the
+  // right-most visible card's right one (slot 2, once the 4th has been pushed
+  // out). The layer is always mounted and stays at rest until the peek fades it.
+  const edgeBlur = peek
+    ? "left"
+    : !ghost && slot === VISIBLE_SLOTS - 2
+      ? "right"
+      : null;
 
   const body = (
     <>
@@ -229,6 +236,27 @@ function Slide({
             {item.title}
           </div>
         </div>
+        {edgeBlur ? (
+          <span
+            aria-hidden="true"
+            data-peek-blur=""
+            data-edge={edgeBlur}
+            className="car-peek-blur"
+          >
+            <span className="car-peek-blur-copy">
+              <span className="car-content">
+                {item.kind === "work" ? (
+                  <>
+                    <span className="absolute inset-0 overflow-hidden">
+                      <Cover scene={item.cover} fit="cover" />
+                    </span>
+                    <span className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]" />
+                  </>
+                ) : null}
+              </span>
+            </span>
+          </span>
+        ) : null}
       </div>
     </>
   );
@@ -714,7 +742,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
             x: read(prevEl, "--car-x"),
             w: hover.layout.prevW,
             outX: hover.layout.prev.fromX,
-            blur: blurNow(prevEl),
           }
         : null;
     const rowNow = rowRef.current;
@@ -764,7 +791,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
           ? {
               ...e,
               from: { x: prevDrawn.x, w: prevDrawn.w },
-              peekFrom: { blur: prevDrawn.blur, fade: s.hoverFade },
+              peekFrom: { fade: s.hoverFade },
             }
           : e,
       );
@@ -1098,8 +1125,8 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const domOrder = slotOrder(n, domOffset);
   const rowStyle = {
     "--car-edge-w": `${settings.edgeWidth}px`,
-    "--car-hp-blur": `${settings.hoverBlur}px`,
-    "--car-hp-blur-on": `${settings.hoverBlurOn}px`,
+    "--car-peek-blur": `${settings.peekBlurMax}px`,
+    "--car-peek-ramp": `${settings.peekBlurRamp}`,
   } as CSSProperties;
 
   return (

@@ -217,8 +217,6 @@
 
   visibility: hidden;
   cursor: pointer;
-  filter: blur(var(--car-hp-blur, 4px));
-  transition: filter 180ms ease-out;
 
   /* Nothing of the copy paints left of the column's edge while it slides in. The
      hover ring is the one thing allowed into the 6px outset, and only while it
@@ -230,8 +228,68 @@
 
 .car-peek-edge:hover {
   --car-ring: 6px;
+}
 
-  filter: blur(var(--car-hp-blur-on, 1.5px));
+/*
+ * The peek's progressive edge blur. A blurred copy of the card's own picture
+ * sits over it, masked with a gradient: the card's inner half stays sharp and
+ * the blur ramps up to the outer edge. The layer fades in and out with the peek
+ * (its opacity), never the radius, and is clipped by the card's own rounded box,
+ * so rings and shadows stay crisp. The mask lives on the wrapper, not on the
+ * filtered copy: Chromium does not paint an element that has both a filter and a
+ * mask, and it drops a masked backdrop-filter entirely.
+ */
+.car-peek-blur {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.car-peek-blur[data-edge="left"] {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 0,
+    transparent calc(var(--car-peek-ramp, 50) * 1%)
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 0,
+    transparent calc(var(--car-peek-ramp, 50) * 1%)
+  );
+}
+
+.car-peek-blur[data-edge="right"] {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    #000 0,
+    transparent calc(var(--car-peek-ramp, 50) * 1%)
+  );
+  mask-image: linear-gradient(
+    to left,
+    #000 0,
+    transparent calc(var(--car-peek-ramp, 50) * 1%)
+  );
+}
+
+.car-peek-blur-copy {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  -webkit-filter: blur(var(--car-peek-blur, 6px));
+  filter: blur(var(--car-peek-blur, 6px));
+}
+
+/* Promoted only while the peek is open. */
+.car-row[data-peeking] .car-peek-blur {
+  will-change: opacity;
+}
+
+.car-row[data-peeking] .car-peek-blur-copy {
+  will-change: filter;
 }
 
 /* The previous card's left end fades with an alpha mask (no painted colour), so

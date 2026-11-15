@@ -61,7 +61,10 @@ type NumberKey =
   | "duration"
   | "edgeWidth"
   | "edgeBlur"
-  | keyof Pick<HoverPeekSettings, "revealMs" | "retractMs" | "leaveMs">;
+  | keyof Pick<
+      HoverPeekSettings,
+      "revealMs" | "retractMs" | "leaveMs" | "peekBlurRamp" | "peekBlurMax"
+    >;
 
 /**
  * Dev tuner, mounted only at `/?tune=1`. Values apply to the next step; Copy
@@ -160,6 +163,8 @@ export function CarouselTuner({
       {slider("revealMs", "Reveal", "ms", 100, 600, 10)}
       {slider("retractMs", "Retract", "ms", 100, 600, 10)}
       {slider("leaveMs", "Leave delay", "ms", 0, 400, 10)}
+      {slider("peekBlurRamp", "Peek blur width", "%", 10, 100, 5)}
+      {slider("peekBlurMax", "Peek blur max", "px", 0, 12, 0.5)}
       <button type="button" onClick={copy}>
         {copied ? "Copied" : "Copy values"}
       </button>

@@ -96,11 +96,10 @@ export function playEntity(
   }
 
   if (e.peekFrom) {
-    // The previous card leaves the peek looking different (blurred, its left
-    // end faded) and loses both as it grows into the wide slot: no pop.
+    // The previous card leaves the peek with its left end faded and loses that as
+    // it grows into the wide slot: no pop.
     el.dataset.peekFade = "";
     el.style.setProperty("--car-lf", String(e.peekFrom.fade));
-    keyframes.filter = [blur(e.peekFrom.blur), "none"];
     keyframes["--car-lf"] = [e.peekFrom.fade, 0];
   }
 

@@ -37,10 +37,9 @@ export function read(el: HTMLElement, prop: string): number {
   return Number.parseFloat(getComputedStyle(el).getPropertyValue(prop)) || 0;
 }
 
-/** The blur (px) an element is drawn with right now. */
-export function blurNow(el: HTMLElement): number {
-  const match = /blur\(([\d.]+)px\)/.exec(getComputedStyle(el).filter);
-  return match ? Number.parseFloat(match[1]) : 0;
+/** The progressive edge blur layer a card carries, if it has one. */
+function blurLayer(el: HTMLElement): HTMLElement | null {
+  return el.querySelector<HTMLElement>("[data-peek-blur]");
 }
 
 /** Each card's pose as drawn this instant, mid-tween values included. */
@@ -91,6 +90,14 @@ export function tweenPeek(
   };
   const fromCards = cards.map((card) => read(card.el, "--car-x"));
   const fromFade = read(row, "--car-fade");
+  // The edge blur layers: the previous card's left edge and the right-most
+  // visible card's right edge. They fade with the run, never the radius.
+  const blurs = [prev, ...cards.map((card) => card.el)]
+    .map(blurLayer)
+    .filter((el): el is HTMLElement => el !== null);
+  const fromBlur = blurs.map(
+    (el) => Number.parseFloat(getComputedStyle(el).opacity) || 0,
+  );
 
   previous.forEach((animation) => animation.cancel());
   prev.style.width = `${layout.prevW}px`;
@@ -114,12 +121,14 @@ export function tweenPeek(
   };
 
   if (timing.reduce) {
-    // No movement: the final state is set at once and a fade carries it.
+    // No movement: the final state is set at once and a fade carries it. The
+    // edge blur appears with the copy rather than fading on its own.
     cards.forEach((card, index) =>
       card.el.style.setProperty("--car-x", `${toX(index)}px`),
     );
     prev.style.setProperty("--car-x", `${toPrev.x}px`);
     prev.style.opacity = String(toPrev.o);
+    for (const blur of blurs) blur.style.opacity = open ? "1" : "0";
 
     const prevFade = prev.animate(
       { opacity: [fromPrev.o, toPrev.o] },
@@ -169,8 +178,14 @@ export function tweenPeek(
     })),
     { duration: options.duration, easing: "linear" },
   );
+  const blurRuns = blurs.map((el, index) =>
+    el.animate(
+      { opacity: [fromBlur[index], open ? 1 : 0] },
+      { ...options, fill: open ? ("forwards" as const) : ("none" as const) },
+    ),
+  );
 
   prevRun.onfinish = finish;
 
-  return [...runs, prevRun, maskRun];
+  return [...runs, prevRun, maskRun, ...blurRuns];
 }
