@@ -1,9 +1,19 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { getWork } from "@/lib/work";
+import { announceProgressionEntry, clearProgressionLead } from "./progression";
 import { READER_TITLE_ID, Reader } from "./reader";
+
+const { push, replace } = vi.hoisted(() => ({
+  push: vi.fn(),
+  replace: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push, replace }),
+}));
 
 // The only observable difference between push and replace is the prop Next's
 // Link receives; a plain anchor keeps the assertion version-independent.
@@ -31,6 +41,9 @@ function featured() {
 }
 
 beforeEach(() => {
+  clearProgressionLead();
+  push.mockReset();
+  replace.mockReset();
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -112,5 +125,39 @@ describe("reader overlay", () => {
     expect(
       screen.getByRole("link", { name: "Next project: The title sequence" }),
     ).toHaveAttribute("data-replace", "false");
+  });
+
+  it("hands the next study off on the close fade, not a hard cut", async () => {
+    const fade = vi.spyOn(Element.prototype, "animate");
+    renderReader(<p>Case-study body</p>);
+
+    fireEvent.click(
+      screen.getByRole("link", { name: "Next project: The title sequence" }),
+    );
+
+    expect(fade).toHaveBeenCalledWith(
+      [{ opacity: 1 }, { opacity: 0 }],
+      expect.objectContaining({
+        duration: 140,
+        easing: "ease-in",
+        fill: "forwards",
+      }),
+    );
+
+    // The route moves while the fade is still running.
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/work/title-sequence"),
+    );
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("lands the next study's entrance part-way in", () => {
+    announceProgressionEntry();
+    renderReader(<p>Case-study body</p>);
+
+    const panel = document.querySelector<HTMLElement>(".wd-reader-panel");
+
+    expect(panel?.style.getPropertyValue("--wd-beat-lead")).toBe("-120ms");
+    expect(panel).toHaveAttribute("data-progression", "lead");
   });
 });

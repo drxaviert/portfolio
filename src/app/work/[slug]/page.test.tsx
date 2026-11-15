@@ -11,7 +11,10 @@ const { notFound } = vi.hoisted(() => ({
   }),
 }));
 
-vi.mock("next/navigation", () => ({ notFound }));
+vi.mock("next/navigation", () => ({
+  notFound,
+  useRouter: () => ({ push: () => undefined, replace: () => undefined }),
+}));
 
 // Vitest has no MDX transform; the body is a placeholder here. The page test
 // checks the reader shell and the route, not the compiled prose.

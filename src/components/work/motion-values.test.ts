@@ -96,7 +96,7 @@ describe("drawer motion values", () => {
     );
     // Cover: the same timing, no filter.
     expect(entrance).toMatch(
-      /\.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{\s*animation: wd-enter-rise var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards;\s*animation-delay: 240ms;/,
+      /\.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{\s*animation: wd-enter-rise var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards;\s*animation-delay: calc\(240ms \+ var\(--wd-beat-lead, 0ms\)\);/,
     );
   });
 
@@ -105,6 +105,26 @@ describe("drawer motion values", () => {
 
     expect(entrance).not.toContain("data-entrance");
     expect(entrance).not.toContain("wd-blur-in");
+  });
+
+  it("starts a study-to-study entrance part-way in, on the same beat", () => {
+    const entrance = read("entrance.css");
+
+    // The lead rides on top of the beat; the beat itself is untouched.
+    expect(entrance).toMatch(
+      /animation-delay: calc\(\s*var\(--wd-enter-delay, 0ms\) \+ var\(--wd-beat-lead, 0ms\)\s*\);/,
+    );
+    expect(entrance).toContain(
+      "animation-delay: calc(240ms + var(--wd-beat-lead, 0ms));",
+    );
+  });
+
+  it("does not fade the incoming column in again after a hand-off", () => {
+    const reduced = reducedMotionBlock(read("entrance.css"));
+
+    expect(reduced).toMatch(
+      /\.wd-reader-panel\[data-progression="lead"\] \.wd-reader-scroll \{\s*opacity: 1;\s*transition: none;/,
+    );
   });
 
   it("opens the reader's nav tooltips inward instead of into the viewport edge", () => {

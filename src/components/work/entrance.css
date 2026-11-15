@@ -16,6 +16,9 @@
  *            last visible block
  *   cover    opacity + translate only, no filter on the large media
  *   window   480 + 800 = 1280ms from the reveal
+ *   hand-off "Next project" mounts the next article `--wd-beat-lead` (120ms)
+ *            into this entrance, so it overlaps the outgoing body's 140ms
+ *            content-out and the panel is never bare between studies
  *
  * A direct load has no panel flight, so it starts at 0; closing mid-entrance
  * only fades the scroll column out. Items animate opacity, transform and a
@@ -79,14 +82,16 @@
   :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *) {
   animation: wd-enter-blur var(--wd-enter-duration) var(--wd-enter-ease)
     backwards;
-  animation-delay: var(--wd-enter-delay, 0ms);
+  animation-delay: calc(
+    var(--wd-enter-delay, 0ms) + var(--wd-beat-lead, 0ms)
+  );
 }
 
 .wd-reader-panel[data-mode="page"] .wd-hero,
 .wd-expand-layer[data-reveal="on"] .wd-hero {
   animation: wd-enter-rise var(--wd-enter-duration) var(--wd-enter-ease)
     backwards;
-  animation-delay: 240ms;
+  animation-delay: calc(240ms + var(--wd-beat-lead, 0ms));
 }
 
 /* One beat, in reading order: title 0, subtitle 80, meta 160, cover 240,
@@ -134,6 +139,14 @@
   .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
     .wd-reader-scroll {
     transition: opacity var(--wd-fade-reduced);
+  }
+
+  /* The hand-off swaps the article in one commit. The incoming column must not
+     run a fade from zero on top of that, which would add an empty beat between
+     studies. Reduced motion wants a state change, not a second entrance. */
+  .wd-reader-panel[data-progression="lead"] .wd-reader-scroll {
+    opacity: 1;
+    transition: none;
   }
 
   @starting-style {

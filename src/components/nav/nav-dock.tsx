@@ -44,7 +44,8 @@ type Flight = ReturnType<typeof animate>;
 export function NavDock() {
   const ref = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion() ?? false;
-  const readerRoute = usePathname().startsWith("/work/");
+  const pathname = usePathname();
+  const readerRoute = pathname.startsWith("/work/");
   // Read once: later pathname changes must not snap the nav while a flight or
   // the reader owns it. The live state is the DOM attribute, which the flights
   // write directly.
@@ -197,6 +198,10 @@ export function NavDock() {
     event.stopPropagation();
     requestReaderClose();
   }
+
+  // The dock is the site's nav; the /dev prototype routes draw their own
+  // chrome and the dock's reader rules would cover their corners (T16 M3).
+  if (pathname.startsWith("/dev")) return null;
 
   return (
     <div
