@@ -374,11 +374,13 @@
   --horizon-1-alpha: 0.06;
   --horizon-2: var(--palette-blue-800);
   --horizon-2-alpha: 0.06;
-  /* Ring hover: the same blob hues at 75% so they survive on a 1px ring. */
+  /* Ring hover: the same blob hues at 75% so they survive on a 1px ring.
+     Literal rgb() keeps it valid below Safari 18; it mirrors
+     --palette-blue-600 and --palette-blue-800. */
   --horizon-ring-glow: linear-gradient(
     45deg,
-    rgb(from var(--palette-blue-600) r g b / 0.75) 0%,
-    rgb(from var(--palette-blue-800) r g b / 0.75) 100%
+    rgb(96 168 226 / 0.75) 0%,
+    rgb(0 113 193 / 0.75) 100%
   );
 
   /* Orb head (nav): blob-left → blob-right, bottom-left to top-right. */
@@ -448,11 +450,13 @@
   --horizon-1-alpha: 0.06;
   --horizon-2: var(--palette-violet-550);
   --horizon-2-alpha: 0.06;
-  /* Ring hover: the same blob hues at 90% so they survive on a 1px ring. */
+  /* Ring hover: the same blob hues at 90% so they survive on a 1px ring.
+     Literal rgb() keeps it valid below Safari 18; it mirrors
+     --palette-rose-200 and --palette-violet-550. */
   --horizon-ring-glow: linear-gradient(
     45deg,
-    rgb(from var(--palette-rose-200) r g b / 0.9) 0%,
-    rgb(from var(--palette-violet-550) r g b / 0.9) 100%
+    rgb(255 144 185 / 0.9) 0%,
+    rgb(203 131 255 / 0.9) 100%
   );
 
   --orb-1: var(--palette-rose-200);
@@ -518,11 +522,13 @@
   --horizon-2: var(--palette-amber-650);
   --horizon-2-alpha: 0.06;
   /* Ring hover: Dusk's accent into a deeper amber, not the horizon blobs, so
-     the 1px ring keeps real contrast on the pale surface. */
+     the 1px ring keeps real contrast on the pale surface. Literal rgb() keeps
+     it valid below Safari 18; it mirrors --palette-amber-700 and
+     --palette-amber-800. */
   --horizon-ring-glow: linear-gradient(
     45deg,
-    rgb(from var(--palette-amber-700) r g b / 0.9) 0%,
-    rgb(from var(--palette-amber-800) r g b / 0.9) 100%
+    rgb(240 176 117 / 0.9) 0%,
+    rgb(224 128 48 / 0.9) 100%
   );
 
   --orb-1: var(--palette-blue-400);
@@ -588,12 +594,14 @@
   --horizon-2: var(--palette-teal-50);
   --horizon-2-alpha: 0.03;
   /* Ring hover: the orb hues at 55% so they survive on a 1px ring; the night
-     ring follows the nav orb rather than the cool horizon blobs. */
+     ring follows the nav orb rather than the cool horizon blobs. Literal rgb()
+     keeps it valid below Safari 18; it mirrors --palette-amber-750 and
+     --palette-red-50. */
   --horizon-ring-glow: linear-gradient(
     45deg,
-    rgb(from var(--palette-amber-750) r g b / 0.55) 0%,
-    rgb(from var(--palette-red-50) r g b / 0.55) 45%,
-    rgb(from var(--palette-red-50) r g b / 0.55) 100%
+    rgb(214 180 157 / 0.55) 0%,
+    rgb(253 104 80 / 0.55) 45%,
+    rgb(253 104 80 / 0.55) 100%
   );
 
   --orb-1: var(--palette-amber-750);
