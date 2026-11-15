@@ -14,6 +14,14 @@ export type Flip = {
 };
 
 /**
+ * The one flight the panel and the nav dock share: the curve and the two
+ * durations live here so a retune moves both, never one of them.
+ */
+export const MORPH_EASE: [number, number, number, number] = [0.32, 0.72, 0, 1];
+export const MORPH_OPEN_S = 0.48;
+export const MORPH_CLOSE_S = 0.3;
+
+/**
  * The transform that puts the `to` box exactly over the `from` box, with the
  * origin at the top-left corner. The panel keeps its final layout box the whole
  * time, so only `transform` ever animates.

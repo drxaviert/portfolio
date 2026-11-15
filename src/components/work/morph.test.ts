@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { flipFrom } from "./morph";
+import { MORPH_CLOSE_S, MORPH_EASE, MORPH_OPEN_S, flipFrom } from "./morph";
+
+describe("the shared flight", () => {
+  it("keeps the panel and the dock on one curve and two durations", () => {
+    // use-morph.ts and nav-dock.tsx both import these; one retune moves both.
+    expect(MORPH_EASE).toEqual([0.32, 0.72, 0, 1]);
+    expect(MORPH_OPEN_S).toBe(0.48);
+    expect(MORPH_CLOSE_S).toBe(0.3);
+  });
+});
 
 describe("flipFrom", () => {
   it("maps the destination box onto the source box", () => {

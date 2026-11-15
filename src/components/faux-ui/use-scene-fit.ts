@@ -4,8 +4,8 @@ import { useEffect } from "react";
 import type { RefObject } from "react";
 
 /** The Figma canvas every scene is drawn on. */
-export const SCENE_WIDTH = 753;
-export const SCENE_HEIGHT = 416;
+const SCENE_WIDTH = 753;
+const SCENE_HEIGHT = 416;
 
 export type SceneFit = "contain" | "cover";
 

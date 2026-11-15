@@ -18,8 +18,8 @@ const FOCUSABLE =
 /**
  * The intercepted reader. The page passes its `<Reader mode="overlay">` in as
  * children, so the MDX body and the reader stay server-rendered; this shell
- * only owns the backdrop and the panel's morph. The reader's title is the
- * cascade's first step inside the panel, not a separate flying element.
+ * only owns the backdrop and the panel's morph. The reader's cover is the
+ * cascade's first step inside the panel, so nothing has to fly into it.
  */
 export function ExpandShell({
   slug,
@@ -80,9 +80,7 @@ function returnTarget(slug: string): HTMLElement | null {
     // A study opened from "Next project" has no card of its own; the nav's logo
     // is the nearest thing a keyboard user met. It lives in the root layout's
     // dock, not inside the homepage, so the fallback has to reach outside main.
-    document.querySelector<HTMLElement>(
-      `${DOCK_SELECTOR} a[aria-label="Home"]`,
-    )
+    document.querySelector<HTMLElement>(`${DOCK_SELECTOR} a[aria-label="Home"]`)
   );
 }
 

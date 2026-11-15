@@ -18,11 +18,13 @@ import {
   requestReaderClose,
 } from "./nav-flight";
 import type { NavDockState, NavFlightMode } from "./nav-flight";
+import {
+  MORPH_CLOSE_S,
+  MORPH_EASE,
+  MORPH_OPEN_S,
+} from "@/components/work/morph";
 import "./nav-dock.css";
 
-const EASE_OPEN: [number, number, number, number] = [0.32, 0.72, 0, 1];
-const OPEN_S = 0.48;
-const CLOSE_S = 0.3;
 /** Half of the 120ms reduced-motion crossfade. */
 const FADE_S = 0.06;
 const SNAP_PX = 0.5;
@@ -106,8 +108,8 @@ export function NavDock() {
       el,
       { transform: [`translateY(${delta}px)`, "translateY(0px)"] },
       {
-        duration: to === "reader" ? OPEN_S : CLOSE_S,
-        ease: to === "reader" ? EASE_OPEN : "easeIn",
+        duration: to === "reader" ? MORPH_OPEN_S : MORPH_CLOSE_S,
+        ease: to === "reader" ? MORPH_EASE : "easeIn",
       },
     );
     flyingRef.current = flight;

@@ -10,7 +10,13 @@ import {
   useState,
 } from "react";
 import type { RefObject } from "react";
-import { flipFrom, toBox } from "./morph";
+import {
+  flipFrom,
+  toBox,
+  MORPH_CLOSE_S,
+  MORPH_EASE,
+  MORPH_OPEN_S,
+} from "./morph";
 import type { Box } from "./morph";
 import { announceOverlayExit } from "./overlay-exit";
 import { moveNav } from "@/components/nav/nav-flight";
@@ -22,9 +28,6 @@ export type RevealState = "pending" | "on";
 
 type Morph = ReturnType<typeof animate>;
 
-const EASE_ENTER: [number, number, number, number] = [0.32, 0.72, 0, 1];
-const MORPH_S = 0.48;
-const CLOSE_S = 0.3;
 const FADE_S = 0.12;
 /** The entrance starts this long before the morph lands, so reading does not wait for it. */
 const REVEAL_LEAD_S = 0.12;
@@ -156,7 +159,7 @@ export function useMorph(
     const morph = animate(
       panel,
       { x: 0, y: 0, scaleX: 1, scaleY: 1 },
-      { duration: MORPH_S, ease: EASE_ENTER },
+      { duration: MORPH_OPEN_S, ease: MORPH_EASE },
     );
     openingRef.current = morph;
     void morph.finished.then(settle);
@@ -171,7 +174,7 @@ export function useMorph(
       () => {
         if (mountedRef.current) setReveal("on");
       },
-      (MORPH_S - REVEAL_LEAD_S) * 1000,
+      (MORPH_OPEN_S - REVEAL_LEAD_S) * 1000,
     );
   }, [slug, reduce, panelRef, settle]);
 
@@ -214,7 +217,8 @@ export function useMorph(
       } else {
         const pose = flipFrom(card, layoutBox(panel));
         await Promise.all([
-          animate(panel, pose, { duration: CLOSE_S, ease: "easeIn" }).finished,
+          animate(panel, pose, { duration: MORPH_CLOSE_S, ease: "easeIn" })
+            .finished,
           navHome,
         ]);
       }
