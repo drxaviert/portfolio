@@ -166,45 +166,47 @@
  * Blur comparison (?blur=), removed once Dat picks.
  */
 
-/* edge: a soft blur and fade at both ends, shown only while a step runs. */
-.car-edge {
-  position: absolute;
-  top: -12px;
-  bottom: -12px;
-  z-index: 5;
-  width: var(--car-edge-w, 28px);
-  pointer-events: none;
-  opacity: 0;
-  backdrop-filter: blur(var(--car-edge-blur, 5px));
-  -webkit-backdrop-filter: blur(var(--car-edge-blur, 5px));
+/* edge: while a step runs the row's card layer is alpha-masked so cards melt
+   out at both ends. A mask paints nothing: no colour, no backdrop. The mask
+   image is 24px taller than the row and unclipped (no-clip) so shadows and
+   rings above and below survive; horizontally it is exactly the column. */
+@property --car-fade {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
 }
 
-.car-edge[data-side="left"] {
-  left: -6px;
-  background: linear-gradient(
+.car-row[data-stepping][data-blur="edge"] {
+  --car-mask: linear-gradient(
     to right,
-    color-mix(in oklab, var(--surface) 70%, transparent),
-    transparent
+    rgb(0 0 0 / calc(1 - var(--car-fade))),
+    #000 var(--car-edge-w, 28px),
+    #000 calc(100% - var(--car-edge-w, 28px)),
+    rgb(0 0 0 / calc(1 - var(--car-fade)))
   );
-  -webkit-mask-image: linear-gradient(to right, #000, transparent);
-  mask-image: linear-gradient(to right, #000, transparent);
+
+  -webkit-mask-image: var(--car-mask);
+  mask-image: var(--car-mask);
+  mask-repeat: no-repeat;
+  mask-size: 100% calc(100% + 24px);
+  mask-position: 0 -12px;
+  mask-clip: no-clip;
 }
 
-.car-edge[data-side="right"] {
-  right: -6px;
-  background: linear-gradient(
-    to left,
-    color-mix(in oklab, var(--surface) 70%, transparent),
-    transparent
-  );
-  -webkit-mask-image: linear-gradient(to left, #000, transparent);
-  mask-image: linear-gradient(to left, #000, transparent);
+/* During a step the clip is exactly the column's edges, so a leaving or
+   entering card never shows outside it. At rest the outset above returns. */
+.car-row[data-stepping] {
+  clip-path: inset(-12px 0);
 }
 
 /* peek: the row clip opens 16px on the right; the strip sits 8px out, so 8px
    of it shows. */
 .car-row[data-blur="peek"] {
   clip-path: inset(-12px -16px -12px -6px);
+}
+
+.car-row[data-blur="peek"][data-stepping] {
+  clip-path: inset(-12px -16px -12px 0);
 }
 
 .car-peek {

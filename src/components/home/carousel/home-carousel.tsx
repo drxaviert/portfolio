@@ -306,6 +306,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   function cancelTween() {
     const current = tween.current;
     tween.current = null;
+    delete rowRef.current?.dataset.stepping;
     current?.animations.forEach((animation) => animation.cancel());
   }
 
@@ -445,27 +446,27 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
             motionPeak: s.motionPeak,
             motionFrom,
             peekBlur: s.peekBlur,
+            edgeBlur: s.edgeBlur,
             rowWidth: g.rowWidth,
           },
         }),
       );
     }
 
+    row.dataset.stepping = "";
+
     if (bm === "edge") {
       // Same duration and start as the cards, linear in time: in fast, hold,
       // out before the end.
-      row.querySelectorAll<HTMLElement>(".car-edge").forEach((edge) => {
-        const shown = Number.parseFloat(getComputedStyle(edge).opacity) || 0;
-        animations.push(
-          edge.animate(
-            EDGE_KEYFRAMES.map((k, index) => ({
-              offset: k.offset,
-              opacity: index === 0 ? shown : k.opacity,
-            })),
-            { duration: s.duration, easing: "linear", fill: "both" },
-          ),
-        );
-      });
+      animations.push(
+        row.animate(
+          EDGE_KEYFRAMES.map((k) => ({
+            offset: k.offset,
+            "--car-fade": k.fade,
+          })),
+          { duration: s.duration, easing: "linear", fill: "both" },
+        ),
+      );
     }
 
     if (bm === "peek") {
@@ -594,7 +595,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const peekItem = domOrder[VISIBLE_SLOTS % n];
   const rowStyle = {
     "--car-edge-w": `${settings.edgeWidth}px`,
-    "--car-edge-blur": `${settings.edgeBlur}px`,
   } as CSSProperties;
 
   return (
@@ -644,13 +644,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
               register={register}
               onActivate={onActivate}
             />
-          ) : null}
-
-          {blurMode === "edge" ? (
-            <>
-              <span aria-hidden="true" className="car-edge" data-side="left" />
-              <span aria-hidden="true" className="car-edge" data-side="right" />
-            </>
           ) : null}
 
           {ghosts.map((index) => (

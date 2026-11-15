@@ -83,6 +83,7 @@ export type PlayBlur = {
   /** Blur a moving card already has (an interrupt), px. */
   motionFrom: number;
   peekBlur: number;
+  edgeBlur: number;
   rowWidth: number;
 };
 
@@ -142,6 +143,11 @@ export function playEntity(
     keyframes.offset = [0, 0.5, 1];
   } else if (b.mode === "peek" && enters) {
     keyframes.filter = [blur(b.peekBlur), "none"];
+  } else if (b.mode === "edge") {
+    const outside = (x: number) => x < 0 || x >= b.rowWidth;
+
+    if (outside(e.to.x)) keyframes.filter = ["none", blur(b.edgeBlur)];
+    else if (outside(e.from.x)) keyframes.filter = [blur(b.edgeBlur), "none"];
   }
 
   const animations: Animation[] = [el.animate(keyframes, timeline)];

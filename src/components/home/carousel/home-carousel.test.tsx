@@ -270,10 +270,11 @@ describe("the wrap seam", () => {
     const moves = recorded.filter((r) => hasProp(r, "--car-x"));
     expect(moves.length).toBeGreaterThan(0);
     for (const move of moves) {
-      expect(Object.keys(move.keyframes).sort()).toEqual([
-        "--car-r",
-        "--car-x",
-      ]);
+      expect(
+        Object.keys(move.keyframes)
+          .filter((key) => key !== "filter")
+          .sort(),
+      ).toEqual(["--car-r", "--car-x"]);
       expect(move.target.hasAttribute("data-clipped")).toBe(true);
     }
     expect(recorded.some((r) => hasProp(r, "transform"))).toBe(false);
@@ -318,6 +319,25 @@ describe("carousel CSS", () => {
     );
   });
 
+  it("clips exactly to the column edges while stepping, outset only at rest", () => {
+    expect(css).toMatch(/\.car-row\s*\{[^}]*clip-path:\s*inset\(-12px -6px\)/);
+    expect(css).toMatch(
+      /\.car-row\[data-stepping\]\s*\{\s*clip-path:\s*inset\(-12px 0\)/,
+    );
+  });
+
+  it("edge mode paints no colour: a mask only", () => {
+    const start = css.indexOf("@property --car-fade");
+    const end = css.indexOf('.car-row[data-blur="peek"]', start);
+    const edge = css.slice(start, end);
+
+    expect(edge).toMatch(/mask-image/);
+    expect(edge).not.toMatch(
+      /background|backdrop-filter|color-mix|var\(--surface/,
+    );
+    expect(css).not.toMatch(/\.car-edge/);
+  });
+
   it("registers position and crop as non-inheriting lengths", () => {
     for (const name of ["--car-x", "--car-r"]) {
       expect(css).toMatch(
@@ -346,9 +366,7 @@ describe("easing and one timeline", () => {
     fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
 
     const timeline = recorded.filter(
-      (r) =>
-        !r.target.classList.contains("car-row") &&
-        !r.target.classList.contains("car-edge"),
+      (r) => !r.target.classList.contains("car-row"),
     );
     const titles = timeline.filter((r) =>
       r.target.hasAttribute("data-car-title"),
@@ -396,23 +414,41 @@ describe("easing and one timeline", () => {
 });
 
 describe("blur modes", () => {
-  it("defaults to edge: overlays fade with the step, not at rest", () => {
+  it("defaults to edge: a mask fades with the step, no overlay elements", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
-    const edges = container.querySelectorAll(".car-edge");
-    expect(edges).toHaveLength(2);
+    const row = container.querySelector<HTMLElement>(".car-row")!;
+    expect(container.querySelector(".car-edge")).toBeNull();
     expect(recorded).toHaveLength(0);
+    expect(row).not.toHaveAttribute("data-stepping");
 
     fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
 
-    const fades = recorded.filter((r) =>
-      r.target.classList.contains("car-edge"),
+    expect(row).toHaveAttribute("data-stepping");
+    const fades = recorded.filter(
+      (r) =>
+        r.target === row &&
+        Array.isArray(r.keyframes) &&
+        r.keyframes.length > 1,
     );
-    expect(fades).toHaveLength(2);
+    expect(fades).toHaveLength(1);
+    expect(fades[0].target).toBe(row);
     expect(fades[0].options.duration).toBe(900);
     expect(
-      (fades[0].keyframes as unknown as { opacity: number }[]).at(-1),
-    ).toMatchObject({ opacity: 0 });
-    expect(recorded.some((r) => hasProp(r, "filter"))).toBe(false);
+      (fades[0].keyframes as unknown as { "--car-fade": number }[]).at(-1),
+    ).toMatchObject({ "--car-fade": 0 });
+
+    finishStep();
+    expect(row).not.toHaveAttribute("data-stepping");
+  });
+
+  it("edge blurs only the leaving and entering cards", () => {
+    render(<HomeCarousel items={ITEMS} />);
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+
+    const blurred = recorded.filter((r) => hasProp(r, "filter"));
+    expect(blurred.length).toBeGreaterThan(0);
+    for (const r of blurred) expect(r.target.classList).toContain("car-slide");
   });
 
   it("none adds nothing", () => {
