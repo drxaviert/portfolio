@@ -98,8 +98,10 @@ function idlePeek(): PeekState {
 
 const FALLBACK_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
 const CROSSFADE_MS = 120;
-/** How long held motion waits for a slow navigation before it lets go. */
+/** How long a released step waits for a slow navigation before it lets go. */
 const HELD_GRACE_MS = 1500;
+/** How long a step that is released mid-flight takes to glide to rest. */
+const SETTLE_MS = 350;
 
 /** Whether the reader is open (or about to be) over the page. */
 function overlayPresent(): boolean {
@@ -527,15 +529,116 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     step(-1, false);
   }
 
-  /** Ends the running step now: every card at rest, the seam copy dropped. */
-  function settle() {
-    if (!tween.current) return;
+  /**
+   * Ends the running step.
+   *
+   * A run that reached its end (the clock's own finish) lands at once: the
+   * cards are already there. A run that is cut short (a hard back, a reader
+   * that never reported) glides to rest on the retarget curve instead of
+   * jumping. Reduced motion lands at once, since it never moves anything.
+   */
+  function settle(instant = false) {
+    const running = tween.current;
+    if (!running) return;
+
+    const row = rowRef.current;
+    const at = offsetRef.current;
+    const g = geometry.current;
+    const { settings: s, reduce: reduced } = latest.current;
+
+    const land = () => {
+      applyRest(at);
+      setGhosts([]);
+      setDomOffset(at);
+      setSettled((count) => count + 1);
+    };
+
+    if (
+      instant ||
+      reduced ||
+      !row ||
+      typeof row.animate !== "function" ||
+      g.rowWidth === 0
+    ) {
+      cancelTween();
+      land();
+      return;
+    }
+
+    // Read where each card is drawn this instant, not from the clock: a frozen
+    // step has cancelled its animations, so the clock alone would be ahead.
+    const planned = restEntities(g, n, at).map((entity) => {
+      const element = elements.current.get(`m${entity.item}`);
+      if (!element) return entity;
+
+      const title = element.querySelector<HTMLElement>("[data-car-title]");
+      const opacity = title
+        ? Number.parseFloat(getComputedStyle(title).opacity)
+        : Number.NaN;
+
+      return {
+        ...entity,
+        from: {
+          x: read(element, "--car-x"),
+          w: Number.parseFloat(element.style.width) || entity.to.w,
+        },
+        fromTitle: Number.isFinite(opacity) ? opacity : entity.toTitle,
+      };
+    });
 
     cancelTween();
-    applyRest(offsetRef.current);
-    setGhosts([]);
-    setDomOffset(offsetRef.current);
-    setSettled((count) => count + 1);
+    // The seam copies are stand-ins: the cards they copy glide to rest.
+    for (const [key, element] of elements.current) {
+      if (key.startsWith("g")) element.style.visibility = "hidden";
+    }
+
+    const spec = bezierSpec(RETARGET_BEZIER);
+    const easing =
+      spec.css.startsWith("linear(") && !supportsLinearEasing()
+        ? FALLBACK_EASING
+        : spec.css;
+    const animations: Animation[] = [];
+
+    for (const entity of planned) {
+      const element = elements.current.get(`m${entity.item}`);
+      if (!element) continue;
+      if (
+        entity.from.x === entity.to.x &&
+        entity.from.w === entity.to.w &&
+        entity.fromTitle === entity.toTitle
+      ) {
+        continue;
+      }
+
+      animations.push(
+        ...playEntity(element, entity, {
+          duration: SETTLE_MS,
+          easing,
+          timing: running.timing,
+          blur: { edgeBlur: 0, rowWidth: g.rowWidth },
+        }),
+      );
+    }
+
+    row.dataset.stepping = "";
+    const clock = row.animate(
+      { opacity: [1, 1] },
+      { duration: SETTLE_MS },
+    );
+    const started: Tween = {
+      entities: planned,
+      t0: performance.now(),
+      duration: SETTLE_MS,
+      ease: spec.fn,
+      timing: running.timing,
+      animations: [...animations, clock],
+    };
+
+    tween.current = started;
+    announceStep("start");
+    clock.onfinish = () => {
+      if (tween.current === started) settle(true);
+    };
   }
 
   function firstCard(at: number): HTMLElement | null {
@@ -739,7 +842,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     tween.current = started;
     announceStep("start");
     clock.onfinish = () => {
-      if (tween.current === started) settle();
+      if (tween.current === started) settle(true);
     };
 
     if (viaKeyboard) firstCard(next)?.focus({ preventScroll: true });
@@ -922,7 +1025,9 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
   /** Back to rest, unseen: the reader has landed, or is about to close. */
   function releaseMotion() {
-    if (tween.current) settle();
+    // Instant: the reader covers the row, and the close morph measures the card
+    // right after this, so it has to already be at its rest box.
+    if (tween.current) settle(true);
     closePeeks();
   }
 

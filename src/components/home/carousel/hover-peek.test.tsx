@@ -509,6 +509,8 @@ describe("left hover peek", () => {
       window.dispatchEvent(new Event(OVERLAY_OPENED_EVENT));
     });
 
+    // Under the reader it lands at once: the close morph measures the card at
+    // its rest box right after this.
     expect(titles.style.getPropertyValue("--car-x")).toBe("0px");
     expect(row(container)).not.toHaveAttribute("data-stepping");
   });
@@ -648,10 +650,33 @@ describe("held motion without a reader", () => {
     fireEvent.click(host);
     expect(row(container)).toHaveAttribute("data-stepping");
 
+    const mark = recorded.length;
     act(() => {
       window.dispatchEvent(new PopStateEvent("popstate"));
       vi.advanceTimersByTime(1);
     });
+
+    // The hard back releases the step: it eases to rest instead of snapping.
+    expect(row(container)).toHaveAttribute("data-stepping");
+    expect(titles.style.getPropertyValue("--car-x")).toBe("310px");
+    const runs = recorded
+      .slice(mark)
+      .filter(
+        (r) =>
+          !Array.isArray(r.keyframes) &&
+          "--car-x" in r.keyframes &&
+          r.target !== row(container),
+      );
+    expect(runs.length).toBeGreaterThan(0);
+    const titlesRun = runs.find((r) => r.target === titles)!;
+    expect(titlesRun).toBeDefined();
+    expect(titlesRun.keyframes["--car-x"]).toEqual(["310px", "0px"]);
+    for (const r of runs) {
+      expect(r.options.duration).toBe(350);
+      expect(r.options.easing).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
+    }
+
+    finishStep();
 
     expect(row(container)).not.toHaveAttribute("data-stepping");
     expect(titles.style.getPropertyValue("--car-x")).toBe("0px");

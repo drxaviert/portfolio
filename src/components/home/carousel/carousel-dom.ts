@@ -86,7 +86,7 @@ export function playEntity(
     "--car-r": [crop(e.from.w, box), crop(e.to.w, box)],
   };
 
-  if (moves) {
+  if (moves && b.edgeBlur > 0.01) {
     const outside = (x: number) => x < 0 || x >= b.rowWidth;
 
     if (outside(e.to.x)) keyframes.filter = ["none", blur(b.edgeBlur)];
