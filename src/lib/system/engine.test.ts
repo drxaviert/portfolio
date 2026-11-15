@@ -129,8 +129,36 @@ describe("engine writes", () => {
     expect(engine.get()).toEqual(params({ hue: 50 }));
   });
 
-  it("notifies subscribers once per frame after the write", () => {
+  it("writes only variables whose value changed", () => {
     const frames = stubFrames();
+    const setProperty = vi.spyOn(root.style, "setProperty");
+    const engine = createSystemEngine(root);
+
+    engine.set(params());
+    frames.frame();
+
+    setProperty.mockClear();
+
+    // A repeated frame is a no-op: no property is rewritten.
+    engine.set(params());
+    frames.frame();
+
+    expect(
+      setProperty.mock.calls.filter(([name]) => name !== "color-scheme"),
+    ).toHaveLength(0);
+
+    setProperty.mockClear();
+    engine.set(params({ hue: 10 }));
+    frames.frame();
+
+    const names = setProperty.mock.calls.map(([name]) => name);
+
+    expect(names).toContain("--palette-blue-600");
+    expect(names).not.toContain("--radius-lg");
+    expect(names.length).toBeLessThan(100);
+  });
+
+  it("notifies subscribers once per frame after the write", () => {    const frames = stubFrames();
     const engine = createSystemEngine(root);
     const listener = vi.fn();
 

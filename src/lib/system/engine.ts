@@ -45,6 +45,8 @@ export function createSystemEngine(
 
   /** Every custom property this engine has written, for exact cleanup. */
   const written = new Set<string>();
+  /** The last value written for each property, so unchanged frames skip it. */
+  const lastValues = new Map<string, string>();
   const listeners = new Set<(tokens: TokenMap, params: Params) => void>();
 
   const write = (): void => {
@@ -59,22 +61,40 @@ export function createSystemEngine(
       if (!(name in tokens)) {
         root.style.removeProperty(name);
         written.delete(name);
+        lastValues.delete(name);
       }
     }
 
+    // A parameter drag changes a subset of the map: about 60 of 209 tokens for
+    // one hue step. Writing only those keeps the style invalidation (and the
+    // document-wide recalc it causes) proportional to what actually moved.
     for (const [name, value] of Object.entries(tokens)) {
+      if (lastValues.get(name) === value) continue;
+
       root.style.setProperty(name, value);
       written.add(name);
+      lastValues.set(name, value);
     }
 
     const phase = phaseAtTod(current.tod);
 
-    root.setAttribute("data-phase", phase);
-    root.style.setProperty(
-      "color-scheme",
-      phase === "night" ? "dark" : "light",
-    );
-    root.classList.toggle("dark", phase === "night");
+    // Attributes are compared against the DOM, not the previous engine write:
+    // the theme can move root attributes while this page is mounted.
+    if (root.getAttribute("data-phase") !== phase) {
+      root.setAttribute("data-phase", phase);
+    }
+
+    const colorScheme = phase === "night" ? "dark" : "light";
+
+    if (root.style.getPropertyValue("color-scheme") !== colorScheme) {
+      root.style.setProperty("color-scheme", colorScheme);
+    }
+
+    const dark = phase === "night";
+
+    if (root.classList.contains("dark") !== dark) {
+      root.classList.toggle("dark", dark);
+    }
 
     for (const listener of listeners) listener(tokens, current);
   };
