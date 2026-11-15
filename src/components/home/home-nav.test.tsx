@@ -1,4 +1,6 @@
 import { render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { HomeNav } from "./home-nav";
@@ -62,5 +64,24 @@ describe("HomeNav", () => {
       "href",
       "#",
     );
+  });
+
+  it("takes a 44px touch target for the labels and the orb", () => {
+    renderNav();
+
+    // A coarse pointer gets 6px of the bar's padding on each edge, so the 32px
+    // label and the 36px orb clear the 44px floor without moving.
+    const css = readFileSync(
+      join(process.cwd(), "src", "components", "home", "nav-items.css"),
+      "utf8",
+    );
+
+    expect(css).toMatch(
+      /@media \(pointer: coarse\) \{\s*\.nav-item::before \{[^}]*inset: -6px 0;/,
+    );
+    expect(css).toMatch(
+      /\.nav-logo::before,\s*\.nav-glyph::before \{[^}]*inset: -6px;/,
+    );
+    expect(screen.getByRole("link", { name: "Home" })).toHaveClass("nav-logo");
   });
 });

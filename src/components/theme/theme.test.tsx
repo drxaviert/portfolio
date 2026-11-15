@@ -478,9 +478,7 @@ describe("ThemeToggle", () => {
       screen.getByRole("button", { name: /Choose theme, currently Day/ }),
     );
 
-    expect(
-      screen.getByRole("menuitemradio", { name: "Clock" }),
-    ).toBeChecked();
+    expect(screen.getByRole("menuitemradio", { name: "Clock" })).toBeChecked();
     expect(
       screen.getByRole("menuitemradio", { name: "Dawn" }),
     ).toBeInTheDocument();
@@ -523,9 +521,7 @@ describe("ThemeToggle", () => {
       screen.getByRole("button", { name: /Choose theme, currently Night/ }),
     );
 
-    expect(
-      screen.getByRole("menuitemradio", { name: "Clock" }),
-    ).toBeChecked();
+    expect(screen.getByRole("menuitemradio", { name: "Clock" })).toBeChecked();
 
     await user.click(screen.getByRole("menuitemradio", { name: "Dusk" }));
 
@@ -910,6 +906,25 @@ describe("ThemeToggle", () => {
     expect(phaseRow()).toHaveAttribute("data-visible", "false");
   });
 
+  it("leaves Escape to the reader when nothing in the toggle has focus", () => {
+    mockHoverCanHover(true);
+    renderToggle();
+
+    const day = screen.getByRole("radio", { name: "Day" });
+    fireEvent.click(day);
+
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+    expect(day).not.toHaveFocus();
+
+    const escape = createEvent.keyDown(document, { key: "Escape" });
+    fireEvent(document, escape);
+
+    // The reader's Esc listener sits on window: an unhandled press closes the
+    // drawer instead of being eaten here, and focus stays where the user is.
+    expect(escape.defaultPrevented).toBe(false);
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+  });
+
   it("starts closed on load but opens when Day is hovered", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
@@ -1227,4 +1242,3 @@ describe("ThemeToggle", () => {
     expect(phaseRow()).toHaveAttribute("data-visible", "true");
   });
 });
-

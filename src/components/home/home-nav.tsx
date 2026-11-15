@@ -48,7 +48,7 @@ export function HomeNav() {
       <Link
         href="/"
         aria-label="Home"
-        className={`shrink-0 rounded-full no-underline ${FOCUS_RING}`}
+        className={`nav-logo relative shrink-0 rounded-full no-underline ${FOCUS_RING}`}
       >
         <OrbHead />
       </Link>

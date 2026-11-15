@@ -99,7 +99,11 @@ describe("reader close", () => {
     const onClose = vi.fn();
     renderOverlay(onClose);
 
-    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    const day = screen.getByRole("radio", { name: "Day" });
+    fireEvent.click(day);
+    // A real click also focuses the segment, which is what makes the row the
+    // owner of the next Escape while the user is in it.
+    fireEvent.focus(day);
     expect(phaseRow()).toHaveAttribute("data-visible", "true");
 
     fireEvent.keyDown(document, { key: "Escape" });

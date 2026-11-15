@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type {
   ComponentPropsWithoutRef,
   FocusEvent,
@@ -51,7 +45,11 @@ type PhaseOption = {
 };
 
 const PHASE_OPTIONS: PhaseOption[] = [
-  { phase: "clock", label: "Clock", tooltip: "Clock · follows the time of day" },
+  {
+    phase: "clock",
+    label: "Clock",
+    tooltip: "Clock · follows the time of day",
+  },
   { phase: "dawn", label: "Dawn", tooltip: "Dawn" },
   { phase: "day", label: "Midday", tooltip: "Midday" },
   { phase: "dusk", label: "Dusk", tooltip: "Dusk" },
@@ -264,10 +262,7 @@ function readRowExitMs(row: HTMLElement | null): number {
   }
 
   const value = Number.parseFloat(
-    window
-      .getComputedStyle(row)
-      .getPropertyValue("--phase-row-exit-ms")
-      .trim(),
+    window.getComputedStyle(row).getPropertyValue("--phase-row-exit-ms").trim(),
   );
 
   return Number.isFinite(value) ? value : PHASE_ROW_EXIT_MS;
@@ -1002,7 +997,8 @@ export function ThemeToggle() {
     };
   }, []);
 
-  // Escape closes the row from anywhere and hands focus back to Day.
+  // Escape closes the row from anywhere in the toggle and hands focus back to
+  // Day.
   useEffect(() => {
     if (!rowVisible) {
       return;
@@ -1019,6 +1015,14 @@ export function ThemeToggle() {
       }
 
       if (event.key !== "Escape") {
+        return;
+      }
+
+      // Only the row's own interaction owns the key. A row still open while
+      // focus and pointer are elsewhere (a keyboard user already tabbed on into
+      // the reader) must not swallow the drawer's Escape and pull focus back to
+      // Day.
+      if (!focusInside.current && !hoverRegion.current) {
         return;
       }
 
@@ -1538,8 +1542,7 @@ export function ThemeToggle() {
                   {option.mode === "day" && phaseRowActive ? (
                     <div role="group" aria-label="Day phase">
                       {PHASE_OPTIONS.map((phaseOption) => {
-                        const phaseSelected =
-                          phaseOption.phase === dayPhase;
+                        const phaseSelected = phaseOption.phase === dayPhase;
 
                         return (
                           <button
@@ -1563,9 +1566,7 @@ export function ThemeToggle() {
                             <GlyphIcon
                               glyph={dayPhaseGlyph(phaseOption.phase)}
                             />
-                            <span className="flex-1">
-                              {phaseOption.label}
-                            </span>
+                            <span className="flex-1">{phaseOption.label}</span>
                             {phaseSelected ? <CheckIcon /> : null}
                           </button>
                         );
