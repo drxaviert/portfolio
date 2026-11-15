@@ -544,7 +544,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const row = rowRef.current;
     const at = offsetRef.current;
     const g = geometry.current;
-    const { settings: s, reduce: reduced } = latest.current;
+    const { reduce: reduced } = latest.current;
 
     const land = () => {
       applyRest(at);
@@ -957,7 +957,13 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     document.documentElement.addEventListener("mouseleave", leave);
     row?.addEventListener("click", click);
 
+    // The row's own box can move or change size without a window resize (a font
+    // swap, the column reflowing), so watch the row as well.
+    const observer = new ResizeObserver(stale);
+    if (row) observer.observe(row);
+
     return () => {
+      observer.disconnect();
       window.removeEventListener("pointermove", move);
       window.removeEventListener("scroll", stale, true);
       window.removeEventListener("resize", stale);

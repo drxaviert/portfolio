@@ -737,6 +737,36 @@ describe("hover zone cost", () => {
     expect(count.reads - before).toBeLessThanOrEqual(1);
   });
 
+  it("invalidates the cached box when the row itself resizes, once", () => {
+    const callbacks: (() => void)[] = [];
+    const original = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class {
+      constructor(callback: () => void) {
+        callbacks.push(callback);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+
+    try {
+      const count = countRowReads();
+      const { container } = render(<HomeCarousel items={ITEMS} />);
+      for (let i = 0; i < 5; i++) move(100 + 300);
+      const before = count.reads;
+
+      // The hover effect's observer is the last one registered (the measure
+      // effect's comes first); a row resize marks the box stale.
+      act(() => callbacks.at(-1)!());
+
+      for (let i = 0; i < 20; i++) move(100 + 300);
+      expect(count.reads - before).toBe(1);
+      expect(container.querySelector(".car-row")).toBeInTheDocument();
+    } finally {
+      globalThis.ResizeObserver = original;
+    }
+  });
+
   it("still opens, holds and retracts from the cached box", () => {
     const count = countRowReads();
     const { container } = render(<HomeCarousel items={ITEMS} />);
