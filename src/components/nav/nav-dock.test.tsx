@@ -196,6 +196,51 @@ describe("NavDock", () => {
     expect(readerRow).not.toMatch(/\+ 24px/);
   });
 
+  it("points each track's labels away from the other track", () => {
+    const css = readFileSync(
+      join(process.cwd(), "src", "components", "nav", "nav-dock.css"),
+      "utf8",
+    );
+    const rule = (pattern: RegExp) => css.match(pattern)?.[0];
+
+    // Reader: the row hangs below the toggle, so the toggle's own labels go
+    // above it...
+    expect(
+      rule(
+        /\.wd-nav-dock\[data-nav-state="reader"\]\s+\[data-mode-track\]\s+\.segment-tooltip \{[^}]*\}/,
+      ),
+    ).toMatch(/bottom: calc\(100% \+ 8px\)/);
+
+    // ...and the row's labels go below, away from the toggle.
+    expect(
+      rule(
+        /\.wd-nav-dock\[data-nav-state="reader"\] \.phase-row \.segment-tooltip \{[^}]*\}/,
+      ),
+    ).toMatch(/top: calc\(100% \+ 8px\)/);
+
+    // Home: the row is above the toggle, so the toggle's labels go below it.
+    expect(
+      rule(
+        /\.wd-nav-dock:not\(\[data-nav-state="reader"\]\)\s+\[data-mode-track\]\s+\.segment-tooltip \{[^}]*\}/,
+      ),
+    ).toMatch(/top: calc\(100% \+ 8px\)/);
+  });
+
+  it("measures the nav-to-content gap from one token", () => {
+    const read = (...parts: string[]) =>
+      readFileSync(join(process.cwd(), ...parts), "utf8");
+    const globals = read("src", "app", "globals.css");
+    const readerCss = read("src", "components", "work", "reader.css");
+
+    expect(globals.match(/--wd-nav-content-gap:/g)).toHaveLength(2);
+    expect(globals).toMatch(/--wd-nav-content-gap: 24px;/);
+    expect(globals).toMatch(/--wd-nav-content-gap: 32px;/);
+
+    // The column clearance and the rail both read it, with no leftover 12px.
+    expect(readerCss.match(/var\(--wd-nav-content-gap\)/g)).toHaveLength(2);
+    expect(readerCss).not.toMatch(/--wd-nav-height\) \+ 12px/);
+  });
+
   it("reaches the overlay's close from anywhere in the app", () => {
     const close = vi.fn();
     registerReaderClose(close);

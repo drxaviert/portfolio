@@ -11,7 +11,7 @@
  * eye reads is the beat, not the gesture:
  *
  *   beat     80ms between consecutive blocks, no sub-steps
- *   order    title, subtitle, meta, cover, then the body blocks
+ *   order    cover, title, subtitle, meta, then the body blocks
  *   cap      the first viewport (p1, p2, p3); everything below arrives with the
  *            last visible block
  *   cover    opacity + translate only, no filter on the large media
@@ -91,21 +91,22 @@
 .wd-expand-layer[data-reveal="on"] .wd-hero {
   animation: wd-enter-rise var(--wd-enter-duration) var(--wd-enter-ease)
     backwards;
-  animation-delay: calc(240ms + var(--wd-beat-lead, 0ms));
+  animation-delay: calc(0ms + var(--wd-beat-lead, 0ms));
 }
 
-/* One beat, in reading order: title 0, subtitle 80, meta 160, cover 240,
-   p1 320, p2 400, p3 and everything below 480. */
+/* One beat, in reading order: cover 0, title 80, subtitle 160, meta 240,
+   p1 320, p2 400, p3 and everything below 480. The cover leads: it is what
+   Dat reads first, and it has no filter to finish settling. */
 .wd-intro-title {
-  --wd-enter-delay: 0ms;
-}
-
-.wd-intro-subtitle {
   --wd-enter-delay: 80ms;
 }
 
-.wd-intro-meta {
+.wd-intro-subtitle {
   --wd-enter-delay: 160ms;
+}
+
+.wd-intro-meta {
+  --wd-enter-delay: 240ms;
 }
 
 .wd-prose > *:nth-child(1) {

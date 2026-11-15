@@ -13,6 +13,17 @@ describe("Cover", () => {
     expect(tiles).toHaveAttribute("data-mode", "loop");
   });
 
+  it("draws the scene as DOM, so no image decode can delay the entrance", () => {
+    const { container } = render(<Cover scene="tiles" />);
+
+    // The cascade's first beat is the cover; there is no image request to wait
+    // on, which is why the entrance needs no decode gate.
+    expect(container.querySelector("img, canvas")).toBeNull();
+    expect(
+      container.querySelector('[data-scene="tiles"] .fu-tiles'),
+    ).toBeInTheDocument();
+  });
+
   it("renders the neutral surface for a scene it cannot resolve", () => {
     const { container } = render(
       <Cover scene={"poster" as WorkMeta["cover"]} />,

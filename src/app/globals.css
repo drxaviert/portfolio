@@ -244,8 +244,11 @@
  * --wd-nav-inset is how far the docked nav sits inside the panel. The drawer's
  * top edge read as cramped against the top of the page, so it carries one
  * spacing step more than the 8/12px it started at; the blur zone, the column
- * clearance and the rail are all measured from it, so they move with it and the
- * nav-to-content gap stays at 12px.
+ * clearance and the rail are all measured from it, so they move with it.
+ *
+ * --wd-nav-content-gap is the air between the docked nav's bottom edge and the
+ * study's first block: the column's top padding and the rail's sticky offset
+ * both read it, so the rail stays level with the cover.
  *
  * --wd-phase-row-gap is the one gap between the theme toggle and the Day phase
  * row in both docks: the row opens above the toggle on the homepage and below
@@ -255,6 +258,7 @@
   --wd-panel-inset: 0px;
   --wd-nav-inset: 16px;
   --wd-nav-height: 4rem;
+  --wd-nav-content-gap: 24px;
   --wd-phase-row-gap: 4px;
 }
 
@@ -262,6 +266,7 @@
   :root {
     --wd-panel-inset: 16px;
     --wd-nav-inset: 28px;
+    --wd-nav-content-gap: 32px;
   }
 }
 

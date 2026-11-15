@@ -78,13 +78,13 @@ describe("drawer motion values", () => {
       /animation: wd-enter-blur var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards;/,
     );
 
-    // One 80ms beat: title 0, subtitle 80, meta 160, cover 240, p1 320, p2 400,
+    // One 80ms beat: cover 0, title 80, subtitle 160, meta 240, p1 320, p2 400,
     // p3+ 480.
-    expect(entrance).toMatch(/\.wd-intro-title \{\s*--wd-enter-delay: 0ms;/);
+    expect(entrance).toMatch(/\.wd-intro-title \{\s*--wd-enter-delay: 80ms;/);
     expect(entrance).toMatch(
-      /\.wd-intro-subtitle \{\s*--wd-enter-delay: 80ms;/,
+      /\.wd-intro-subtitle \{\s*--wd-enter-delay: 160ms;/,
     );
-    expect(entrance).toMatch(/\.wd-intro-meta \{\s*--wd-enter-delay: 160ms;/);
+    expect(entrance).toMatch(/\.wd-intro-meta \{\s*--wd-enter-delay: 240ms;/);
     expect(entrance).toMatch(
       /\.wd-prose > \*:nth-child\(1\) \{\s*--wd-enter-delay: 320ms;/,
     );
@@ -94,9 +94,9 @@ describe("drawer motion values", () => {
     expect(entrance).toMatch(
       /\.wd-prose > \*:nth-child\(n \+ 3\) \{\s*--wd-enter-delay: 480ms;/,
     );
-    // Cover: the same timing, no filter.
+    // Cover: the first beat, the same timing, no filter.
     expect(entrance).toMatch(
-      /\.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{\s*animation: wd-enter-rise var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards;\s*animation-delay: calc\(240ms \+ var\(--wd-beat-lead, 0ms\)\);/,
+      /\.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{\s*animation: wd-enter-rise var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards;\s*animation-delay: calc\(0ms \+ var\(--wd-beat-lead, 0ms\)\);/,
     );
   });
 
@@ -115,7 +115,7 @@ describe("drawer motion values", () => {
       /animation-delay: calc\(\s*var\(--wd-enter-delay, 0ms\) \+ var\(--wd-beat-lead, 0ms\)\s*\);/,
     );
     expect(entrance).toContain(
-      "animation-delay: calc(240ms + var(--wd-beat-lead, 0ms));",
+      "animation-delay: calc(0ms + var(--wd-beat-lead, 0ms));",
     );
   });
 

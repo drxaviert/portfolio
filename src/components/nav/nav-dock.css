@@ -62,12 +62,28 @@
 }
 
 /*
- * The nav is the reader's top edge, so a tooltip or the Day row opening above
- * it would leave the viewport. HomeNav's own popovers are unchanged on the
- * homepage; in the reader they open downward, and the toggle's widest label
+ * The Day row and the toggle sit on opposite sides, and every label points away
+ * from the other track, so a label never lands under a popover. Reader: the row
+ * hangs below the toggle, so the toggle's labels go above it and the row's own
+ * labels go below. Home: the row is above, so the toggle's labels go below it.
+ * The glyph's label keeps the reader's downward side. The toggle's widest label
  * right-aligns to its segment so it never runs past the panel.
  */
-.wd-nav-dock[data-nav-state="reader"] .segment-tooltip,
+.wd-nav-dock:not([data-nav-state="reader"]) [data-mode-track] .segment-tooltip {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+
+.wd-nav-dock[data-nav-state="reader"] [data-mode-track] .segment-tooltip {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
+.wd-nav-dock[data-nav-state="reader"] .phase-row .segment-tooltip {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+
 .wd-nav-dock[data-nav-state="reader"] .nav-tooltip {
   top: calc(100% + 8px);
   bottom: auto;

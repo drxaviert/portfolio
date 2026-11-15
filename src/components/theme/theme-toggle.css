@@ -303,9 +303,12 @@
  * Tooltip: the documented 150ms fade on the way in (300ms after hover, so
  * travel across the track does not flash labels), released at once on the way
  * out. Two labels can never be visible together, and the outgoing one cannot
- * cover the neighbouring icons.
+ * cover the neighbouring icons. Above the segment by default; the dock puts the
+ * mode track's labels on the far side of the Day row (nav-dock.css).
  */
 .segment-tooltip {
+  top: auto;
+  bottom: calc(100% + 8px);
   opacity: 0;
 }
 

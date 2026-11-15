@@ -735,7 +735,6 @@ type SegmentProps = {
   onPointerLeave?: () => void;
   onFocus?: () => void;
   hitArea?: "track" | "finger";
-  tooltipBelow?: boolean;
 };
 
 /** Shared segment button: same classes, icon size and tooltip everywhere. */
@@ -751,7 +750,6 @@ function Segment({
   onPointerLeave,
   onFocus,
   hitArea,
-  tooltipBelow = false,
 }: SegmentProps) {
   return (
     <button
@@ -774,25 +772,21 @@ function Segment({
         .join(" ")}
     >
       <GlyphIcon glyph={glyph} />
-      <Tooltip below={tooltipBelow}>{tooltip}</Tooltip>
+      <Tooltip>{tooltip}</Tooltip>
     </button>
   );
 }
 
-function Tooltip({
-  children,
-  below = false,
-}: {
-  children: ReactNode;
-  below?: boolean;
-}) {
+/**
+ * The label's side is the dock's business, not the button's: whichever dock the
+ * toggle is in puts the label away from the phase row (nav-dock.css), so a
+ * tooltip never lands under a popover.
+ */
+function Tooltip({ children }: { children: ReactNode }) {
   return (
     <span
       aria-hidden="true"
-      className={[
-        "segment-tooltip pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface",
-        below ? "top-full mt-2" : "-top-9",
-      ].join(" ")}
+      className="segment-tooltip pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface"
     >
       {children}
     </span>
@@ -1388,7 +1382,6 @@ export function ThemeToggle() {
                 label={option.label}
                 tooltip={option.tooltip}
                 glyph={option.mode}
-                tooltipBelow={dayActive || rowVisible}
                 hitArea="finger"
                 buttonRef={option.mode === "day" ? dayRef : undefined}
                 onClick={() => {

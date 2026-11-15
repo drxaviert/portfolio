@@ -43,8 +43,11 @@
   width: 100%;
   max-width: 582px; /* 550px measure + 2 × 16px gutters */
   margin-inline: auto;
-  /* Clears the header nav: its top inset, its bar and a 12px gap. */
-  padding: calc(var(--wd-nav-inset) + var(--wd-nav-height) + 12px) 16px 64px;
+  /* Clears the header nav: its top inset, its bar and the shared gap. */
+  padding: calc(
+      var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
+    )
+    16px 64px;
 }
 
 /* Anchors the margin notes and the wide breakouts without pixel geometry. */
@@ -96,8 +99,10 @@
 .wd-rail-work {
   position: sticky;
   /* The nav's bottom edge, which is the blur zone's edge, plus the reading
-     column's own 12px clearance. */
-  top: calc(var(--wd-nav-inset) + var(--wd-nav-height) + 12px);
+     column's own clearance. */
+  top: calc(
+    var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
+  );
   display: inline-flex;
   align-items: center;
   gap: 6px;
