@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { JSX, ReactNode } from "react";
 import { useSystem } from "@/app/design-system/system-shell";
+import type { TokenMap } from "@/lib/system/derive";
 import { ChainPopover } from "./chain-popover";
 import { useCopy } from "./use-copy";
 
@@ -30,18 +31,28 @@ export function TokenRow({
   const isCopied = copied === token;
 
   useEffect(() => {
-    const read = () => {
-      const value = window
-        .getComputedStyle(document.documentElement)
-        .getPropertyValue(token)
-        .trim();
+    let sawEngineValue = false;
+
+    const apply = (tokens?: TokenMap) => {
+      let value = tokens?.[token];
+
+      if (value !== undefined) {
+        sawEngineValue = true;
+      } else if (!sawEngineValue) {
+        // Only tokens the engine does not write (the text scale) are read back
+        // from CSS; the engine already hands us the values it just set.
+        value = window
+          .getComputedStyle(document.documentElement)
+          .getPropertyValue(token)
+          .trim();
+      }
 
       if (valueRef.current) valueRef.current.textContent = value || "—";
     };
 
-    read();
+    apply();
 
-    return engine.subscribe(read);
+    return engine.subscribe((tokens) => apply(tokens));
   }, [engine, token]);
 
   return (

@@ -8,7 +8,7 @@ import { DEFAULT_PARAMS } from "@/lib/system/params";
 
 type System = ReturnType<typeof useSystemParams>;
 
-let listeners: Array<() => void> = [];
+let listeners: Array<(tokens: Record<string, string>) => void> = [];
 let values: Record<string, string> = {};
 
 function makeSystem(): System {
@@ -20,7 +20,7 @@ function makeSystem(): System {
     engine: {
       set: vi.fn(),
       get: () => DEFAULT_PARAMS,
-      subscribe: (listener: () => void) => {
+      subscribe: (listener: (tokens: Record<string, string>) => void) => {
         listeners.push(listener);
 
         return () => {
@@ -69,15 +69,29 @@ afterEach(() => {
 });
 
 describe("TokenRow", () => {
-  it("shows the live computed value and follows engine frames", () => {
+  it("shows the live computed value on mount and follows engine frames", () => {
     renderRow();
 
     expect(screen.getByText("12px")).toBeInTheDocument();
 
     values["--radius-lg"] = "18px";
-    act(() => listeners.forEach((listener) => listener()));
+    act(() => listeners.forEach((listener) => listener({})));
 
     expect(screen.getByText("18px")).toBeInTheDocument();
+  });
+
+  it("prefers the value the engine just wrote over computed style", () => {
+    renderRow();
+
+    values["--radius-lg"] = "18px";
+    act(() =>
+      listeners.forEach((listener) =>
+        listener({ "--radius-lg": "24px" }),
+      ),
+    );
+
+    expect(screen.getByText("24px")).toBeInTheDocument();
+    expect(screen.queryByText("18px")).not.toBeInTheDocument();
   });
 
   it("copies the token name and reverts Copied after 1500ms", () => {
