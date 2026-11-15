@@ -2,6 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { findCard } from "@/components/work/use-morph";
+import {
+  OVERLAY_CLOSING_EVENT,
+  OVERLAY_OPENED_EVENT,
+} from "@/components/work/overlay-exit";
 import { HomeCarousel } from "./home-carousel";
 import type { CarouselItem } from "./home-carousel";
 
@@ -76,6 +81,15 @@ beforeEach(() => {
   Element.prototype.getBoundingClientRect = function () {
     if (this.classList.contains("car-row"))
       return rect(ROW.left, ROW.top, ROW.width, ROW.height);
+
+    if (this.matches("[data-work-card], [data-work-card-title]")) {
+      // Where the card is drawn: the row's left plus its --car-x.
+      const slide = this.closest<HTMLElement>(".car-slide");
+      const x = Number.parseFloat(
+        slide?.style.getPropertyValue("--car-x") ?? "0",
+      );
+      return rect(ROW.left + x, ROW.top, 753, ROW.height);
+    }
 
     const parent = this.parentElement;
     if (parent?.classList.contains("car-guide")) {
@@ -384,7 +398,39 @@ describe("left hover peek", () => {
     expect(frontTitle()).toBe("Systems");
   });
 
-  it("puts the row back before the featured card opens its drawer", () => {
+  it("holds the row where it is drawn when the featured card is clicked, no instant reset", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    drawShifted(container);
+    const running = recorded.filter(
+      (r) => "cancel" in r && (r as unknown as { cancel: unknown }).cancel,
+    );
+
+    const host = card(container, 0).querySelector<HTMLElement>(".car-host")!;
+    host.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(host);
+
+    // Nothing went back to rest: every card keeps its drawn position, the copy
+    // stays, and the peek is neither retracting nor reopening.
+    for (let slot = 0; slot < 4; slot++)
+      expect(card(container, slot).style.getPropertyValue("--car-x")).toBe(
+        `${OPEN_X[slot]}px`,
+      );
+    expect(row(container)).toHaveAttribute("data-peeking");
+    expect(prevCard(container)!.style.visibility).toBe("visible");
+    // The animations that were in flight are cancelled (frozen), not left to run.
+    expect(running.length).toBeGreaterThan(0);
+    for (const r of running)
+      expect(
+        (r as unknown as { cancel: ReturnType<typeof vi.fn> }).cancel,
+      ).toHaveBeenCalled();
+    const before = recorded.length;
+    move(100 + 400);
+    act(() => vi.advanceTimersByTime(500));
+    expect(recorded).toHaveLength(before);
+  });
+
+  it("gives the morph the featured card's drawn box, not its rest box", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     move(110);
     drawShifted(container);
@@ -393,12 +439,78 @@ describe("left hover peek", () => {
     host.addEventListener("click", (event) => event.preventDefault());
     fireEvent.click(host);
 
-    for (let slot = 0; slot < 4; slot++)
-      expect(card(container, slot).style.getPropertyValue("--car-x")).toBe(
-        `${REST_X[slot]}px`,
+    // The reader's morph reads this at open and again at close.
+    const measured = findCard("systems-in-motion")!;
+    expect(measured.card.left).toBe(ROW.left + OPEN_X[0]);
+    expect(measured.card.left).not.toBe(ROW.left + REST_X[0]);
+  });
+
+  it("puts the row back once the reader has landed, and before it measures to close", () => {
+    for (const event of [OVERLAY_OPENED_EVENT, OVERLAY_CLOSING_EVENT]) {
+      const { container, unmount } = render(<HomeCarousel items={ITEMS} />);
+      move(110);
+      drawShifted(container);
+      const host = card(container, 0).querySelector<HTMLElement>(".car-host")!;
+      host.addEventListener("click", (e) => e.preventDefault());
+      fireEvent.click(host);
+      expect(row(container)).toHaveAttribute("data-peeking");
+
+      act(() => {
+        window.dispatchEvent(new Event(event));
+      });
+
+      for (let slot = 0; slot < 4; slot++)
+        expect(card(container, slot).style.getPropertyValue("--car-x")).toBe(
+          `${REST_X[slot]}px`,
+        );
+      expect(row(container)).not.toHaveAttribute("data-peeking");
+      expect(prevCard(container)!.style.visibility).toBe("hidden");
+      // The close morph now finds the card at its rest box.
+      expect(findCard("systems-in-motion")!.card.left).toBe(
+        ROW.left + REST_X[0],
       );
-    expect(row(container)).not.toHaveAttribute("data-peeking");
-    expect(prevCard(container)!.style.visibility).toBe("hidden");
+      unmount();
+    }
+  });
+
+  it("holds a step in flight where it is drawn when its card is clicked, then settles unseen", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    fireEvent.keyDown(card(container, 0).querySelector(".car-host")!, {
+      key: "ArrowRight",
+    });
+    // "Titles" is first now (its slot is the target) and is still growing.
+    const titles = [
+      ...container.querySelectorAll<HTMLElement>(".car-slide"),
+    ].find(
+      (el) =>
+        !el.hasAttribute("data-ghost") &&
+        el.getAttribute("aria-label")?.endsWith(": Titles"),
+    )!;
+    titles.style.setProperty("--car-x", "310px");
+    const inFlight = recorded.filter(
+      (r) => !r.target.classList.contains("car-row"),
+    );
+
+    const host = titles.querySelector<HTMLElement>(".car-host")!;
+    host.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(host);
+
+    // Not settled: the card stays at the pose it is drawn at, and the step's
+    // animations are stopped rather than left running or snapped to the end.
+    expect(titles.style.getPropertyValue("--car-x")).toBe("310px");
+    for (const r of inFlight)
+      expect(
+        (r as unknown as { cancel: ReturnType<typeof vi.fn> }).cancel,
+      ).toHaveBeenCalled();
+    expect(row(container)).toHaveAttribute("data-stepping");
+    expect(findCard("title-sequence")!.card.left).toBe(ROW.left + 310);
+
+    act(() => {
+      window.dispatchEvent(new Event(OVERLAY_OPENED_EVENT));
+    });
+
+    expect(titles.style.getPropertyValue("--car-x")).toBe("0px");
+    expect(row(container)).not.toHaveAttribute("data-stepping");
   });
 
   it("works whatever ?blur= is, and ?peekRight= and ?peekFit= are gone", () => {
@@ -578,12 +690,21 @@ describe("peek css", () => {
       /\.car-peek-edge\s*\{[^}]*filter:\s*blur\(var\(--car-hp-blur, 4px\)\)/,
     );
     expect(css).toMatch(
-      /\.car-peek-edge:hover\s*\{\s*filter:\s*blur\(var\(--car-hp-blur-on, 1\.5px\)\)/,
+      /\.car-peek-edge:hover\s*\{[^}]*filter:\s*blur\(var\(--car-hp-blur-on, 1\.5px\)\)/,
     );
-    expect(css).toMatch(
-      /\.car-peek-edge\s*\{[^}]*mask-image|\.car-peek-edge\s*\{[^}]*\}[\s\S]*\.car-peek-edge\s*\{[^}]*mask-image/,
-    );
+    expect(css).toMatch(/mask-image:\s*var\(--car-lf-fade\)/);
+    // The mask reaches past the box so the hover ring is not masked away.
+    expect(css).toMatch(/mask-clip:\s*no-clip/);
     expect(css).toMatch(/@property --car-lf/);
+  });
+
+  it("clips the copy at the column's edge; only its hovered ring may enter the outset", () => {
+    const block = css.match(/\.car-peek-edge\s*\{([^}]*)\}/)![1];
+
+    expect(block).toMatch(/clip-path:\s*inset\(/);
+    expect(block).toContain("var(--car-x) * -1");
+    expect(block).toContain("--car-ring: 0px");
+    expect(css).toMatch(/\.car-peek-edge:hover\s*\{[^}]*--car-ring:\s*6px/);
   });
 
   it("lets the previous card take the pointer for its ring and cursor", () => {

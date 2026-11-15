@@ -12,7 +12,11 @@ import {
 import type { RefObject } from "react";
 import { flipFrom, toBox } from "./morph";
 import type { Box } from "./morph";
-import { announceOverlayExit } from "./overlay-exit";
+import {
+  announceOverlayClosing,
+  announceOverlayExit,
+  announceOverlayOpened,
+} from "./overlay-exit";
 import { READER_TITLE_ID } from "./parts";
 
 export type MorphPhase = "opening" | "open" | "closing";
@@ -125,6 +129,7 @@ export function useMorph(
     panel?.style.removeProperty("opacity");
 
     setPhase("open");
+    announceOverlayOpened();
 
     const title = titleRef.current;
     if (flightRef.current) {
@@ -254,6 +259,9 @@ export function useMorph(
       clearRevealTimer();
       setPhase("closing");
       openingRef.current?.stop();
+      // The card measured below must be at rest: the homepage behind puts itself
+      // back now, while the panel still covers it.
+      announceOverlayClosing();
 
       const panel = panelRef.current;
       if (!panel) return;

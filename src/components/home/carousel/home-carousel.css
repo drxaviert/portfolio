@@ -212,13 +212,24 @@
  * shows the card's hover ring and a pointer cursor.
  */
 .car-peek-edge {
+  --car-ring: 0px;
+
   visibility: hidden;
   cursor: pointer;
   filter: blur(var(--car-hp-blur, 4px));
   transition: filter 180ms ease-out;
+
+  /* Nothing of the copy paints left of the column's edge while it slides in. The
+     hover ring is the one thing allowed into the 6px outset, and only while it
+     is hovered. */
+  clip-path: inset(
+    -12px -12px -12px calc(max(0px, var(--car-x) * -1) - var(--car-ring))
+  );
 }
 
 .car-peek-edge:hover {
+  --car-ring: 6px;
+
   filter: blur(var(--car-hp-blur-on, 1.5px));
 }
 
@@ -233,16 +244,21 @@
 
 .car-slide[data-peek-fade],
 .car-peek-edge {
-  -webkit-mask-image: linear-gradient(
+  /* The mask image reaches 12px past the box on every side (and is not clipped
+     to it) so the hover ring outside the box is not masked away. The fade runs
+     over the card's own left end, which starts 12px into the image. */
+  --car-lf-fade: linear-gradient(
     to right,
-    rgb(0 0 0 / calc(1 - var(--car-lf))),
-    #000 var(--car-edge-w, 28px)
+    rgb(0 0 0 / calc(1 - var(--car-lf))) 12px,
+    #000 calc(12px + var(--car-edge-w, 28px))
   );
-  mask-image: linear-gradient(
-    to right,
-    rgb(0 0 0 / calc(1 - var(--car-lf))),
-    #000 var(--car-edge-w, 28px)
-  );
+
+  -webkit-mask-image: var(--car-lf-fade);
+  mask-image: var(--car-lf-fade);
+  mask-repeat: no-repeat;
+  mask-size: calc(100% + 24px) calc(100% + 24px);
+  mask-position: -12px -12px;
+  mask-clip: no-clip;
 }
 
 .car-slide.car-peek-edge {

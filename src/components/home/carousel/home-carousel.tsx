@@ -55,6 +55,10 @@ import {
   useHoverCapable,
 } from "./hover-peek";
 import type { PeekLayout } from "./hover-peek";
+import {
+  OVERLAY_CLOSING_EVENT,
+  OVERLAY_OPENED_EVENT,
+} from "@/components/work/overlay-exit";
 import { parseSliverMode, useLocationSearch } from "./sliver-mode";
 import "../home-cards.css";
 import "./home-carousel.css";
@@ -80,10 +84,19 @@ type PeekState = {
   timer: number | null;
   els: PeekEls | null;
   layout: PeekLayout | null;
+  /** Held at its drawn pose while the reader opens over it. */
+  frozen: boolean;
 };
 
 function idlePeek(): PeekState {
-  return { open: false, anims: [], timer: null, els: null, layout: null };
+  return {
+    open: false,
+    anims: [],
+    timer: null,
+    els: null,
+    layout: null,
+    frozen: false,
+  };
 }
 
 const FALLBACK_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
@@ -293,6 +306,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const hoverApi = useRef({
     evaluate: () => {},
     close: () => {},
+    release: () => {},
     click: (() => {}) as (event: globalThis.MouseEvent) => void,
   });
 
@@ -301,6 +315,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     hoverApi.current = {
       evaluate: evaluateHover,
       close: closePeeks,
+      release: releaseMotion,
       click: onRowClick,
     };
   });
@@ -333,6 +348,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     tween.current = null;
     delete rowRef.current?.dataset.stepping;
     delete rowRef.current?.dataset.mask;
+    rowRef.current?.style.removeProperty("--car-fade");
     // A copy that slid out with the step is finished with.
     const copy = elements.current.get("peekL");
     if (copy && !peek.current.els) copy.style.visibility = "hidden";
@@ -402,12 +418,14 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     if (state.els) closeSnap(state.els, state.anims);
     state.timer = null;
     state.open = false;
+    state.frozen = false;
     state.anims = [];
     state.els = null;
     state.layout = null;
 
     const row = rowRef.current;
     if (row) {
+      row.style.removeProperty("--car-fade");
       delete row.dataset.peeking;
       delete row.dataset.mask;
     }
@@ -423,6 +441,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
     const { settings: s } = latest.current;
     const state = peek.current;
+    if (state.frozen) return;
     const rect = row.getBoundingClientRect();
     const at = pointer.current;
     const want =
@@ -764,6 +783,20 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       firstCard(offsetRef.current)?.focus({ preventScroll: true });
   }, [domOffset]);
 
+  // The reader reports when it has landed and when it starts to close; the row
+  // goes back to rest then, while the reader covers it.
+  useEffect(() => {
+    const release = () => hoverApi.current.release();
+
+    window.addEventListener(OVERLAY_OPENED_EVENT, release);
+    window.addEventListener(OVERLAY_CLOSING_EVENT, release);
+
+    return () => {
+      window.removeEventListener(OVERLAY_OPENED_EVENT, release);
+      window.removeEventListener(OVERLAY_CLOSING_EVENT, release);
+    };
+  }, []);
+
   const hoverOn = hoverCapable && n >= VISIBLE_SLOTS;
 
   useEffect(() => {
@@ -793,15 +826,67 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     };
   }, [hoverOn]);
 
+  /** Stops an animation where it is: its drawn values stay, nothing jumps. */
+  function freezeAnimation(animation: Animation) {
+    try {
+      animation.commitStyles?.();
+    } catch {
+      // An element that is not rendered has nothing to commit.
+    }
+    animation.cancel();
+  }
+
+  /**
+   * The reader is about to measure the featured card, so whatever motion is
+   * running (a peek, a reveal or retract, a step) is held exactly where it is
+   * drawn: animations are cancelled with their current values written down. The
+   * morph then starts from the card's real box and nothing moves. The row goes
+   * back to rest only once the reader covers it (releaseMotion).
+   */
+  function freezeMotion() {
+    const hover = peek.current;
+
+    if (hover.timer !== null) window.clearTimeout(hover.timer);
+    hover.timer = null;
+
+    const row = rowRef.current;
+    const poses = [...elements.current.values()].map((el) => ({
+      el,
+      x: read(el, "--car-x"),
+      r: read(el, "--car-r"),
+    }));
+    const fade = row ? read(row, "--car-fade") : 0;
+    const running = [...hover.anims, ...(tween.current?.animations ?? [])];
+
+    if (running.length === 0 && !hover.els) return;
+
+    running.forEach(freezeAnimation);
+    for (const { el, x, r } of poses) {
+      el.style.setProperty("--car-x", `${x}px`);
+      el.style.setProperty("--car-r", `${r}px`);
+    }
+    row?.style.setProperty("--car-fade", String(fade));
+
+    hover.anims = [];
+    if (hover.els) {
+      hover.open = false;
+      hover.frozen = true;
+    }
+  }
+
+  /** Back to rest, unseen: the reader has landed, or is about to close. */
+  function releaseMotion() {
+    if (tween.current) settle();
+    closePeeks();
+  }
+
   function onActivate(event: MouseEvent<HTMLElement>, index: number) {
     const slot = slotOf(index, offsetRef.current, n);
     const action = clickAction(slot, items[index].kind);
 
     if (action.type === "open") {
-      // The morph measures the card at rest, so a pushed card goes back first.
-      closePeeks();
-      // Finish a running step first so the morph measures the card at rest.
-      if (!isModified(event)) settle();
+      // The morph measures the card where it is drawn, so hold it there.
+      if (!isModified(event)) freezeMotion();
       return;
     }
 
