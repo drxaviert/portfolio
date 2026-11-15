@@ -101,6 +101,7 @@ function idlePeek(): PeekState {
 
 const FALLBACK_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
 const CROSSFADE_MS = 120;
+const CROSSFADE_FROM = 0.6;
 const TITLE_OUT_END = 0.12;
 
 function supportsLinearEasing(): boolean {
@@ -535,12 +536,20 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       });
       applyRest(next);
 
-      const row = rowRef.current;
-      if (row && typeof row.animate === "function") {
-        row.animate(
-          { opacity: [0.2, 1] },
-          { duration: CROSSFADE_MS, easing: "ease-out" },
-        );
+      // Only the slots whose item changed fade, and only part of the way, so
+      // what stays put stays put.
+      const was = slotOrder(n, prev);
+      const now = slotOrder(n, next);
+      for (let slot = 0; slot < VISIBLE_SLOTS; slot++) {
+        if (was[slot] === now[slot]) continue;
+
+        const card = elements.current.get(`m${now[slot]}`);
+        if (card && typeof card.animate === "function") {
+          card.animate(
+            { opacity: [CROSSFADE_FROM, 1] },
+            { duration: CROSSFADE_MS, easing: "ease-out" },
+          );
+        }
       }
       if (viaKeyboard) firstCard(next)?.focus({ preventScroll: true });
       evaluateHover();

@@ -13,7 +13,11 @@ const ITEMS: CarouselItem[] = [
 /** Property-indexed keyframes, or the array form (the title's). */
 type Frames = Record<string, unknown[]> & { length?: number };
 
-type Recorded = { target: Element; keyframes: Frames };
+type Recorded = {
+  target: Element;
+  keyframes: Frames;
+  options: { duration?: number; easing?: string };
+};
 
 function hasProp(r: { keyframes: Frames }, key: string): boolean {
   return !Array.isArray(r.keyframes) && key in r.keyframes;
@@ -41,8 +45,9 @@ beforeEach(() => {
   Element.prototype.animate = function animate(
     this: Element,
     keyframes: Frames,
+    options: Recorded["options"],
   ) {
-    recorded.push({ target: this, keyframes });
+    recorded.push({ target: this, keyframes, options });
     return { cancel: vi.fn() } as unknown as Animation;
   } as unknown as typeof Element.prototype.animate;
 });
@@ -66,8 +71,19 @@ describe("HomeCarousel with reduced motion", () => {
     expect(recorded.some((r) => hasProp(r, "--car-x"))).toBe(false);
     expect(recorded.some((r) => hasProp(r, "--car-r"))).toBe(false);
 
-    const fade = recorded.find((r) => hasProp(r, "opacity"));
-    expect(fade?.target).toBe(container.querySelector(".car-row"));
+    // Only the slots whose item changed fade, from 0.6, in 120ms; the row as a
+    // whole does not.
+    const fades = recorded.filter((r) => hasProp(r, "opacity"));
+    expect(fades).toHaveLength(4);
+    for (const fade of fades) {
+      expect(fade.target).toHaveClass("car-slide");
+      expect(fade.keyframes.opacity).toEqual([0.6, 1]);
+      expect(fade.options.duration).toBe(120);
+      expect(fade.options.easing).toBe("ease-out");
+    }
+    expect(
+      recorded.some((r) => r.target === container.querySelector(".car-row")),
+    ).toBe(false);
     expect(container.querySelector("[data-ghost]")).toBeNull();
   });
 });
