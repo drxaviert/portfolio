@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ColourSection } from "./sections/colour";
+import { ComponentsSection } from "./sections/components";
 import { MotionSection } from "./sections/motion";
 import { OverviewSection } from "./sections/overview";
 import { ParametersSection } from "./sections/parameters";
@@ -42,6 +43,8 @@ function sectionContent(id: SectionId): ReactNode | null {
       return <ShadowSection />;
     case "motion":
       return <MotionSection />;
+    case "components":
+      return <ComponentsSection />;
     default:
       return null;
   }

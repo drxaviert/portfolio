@@ -1,0 +1,55 @@
+/*
+ * Forced states for the documented samples. The bodies mirror the live
+ * hover/focus rules in ring-hover.css; keeping them here means the home CSS is
+ * untouched and the doc sample cannot drift into a different interaction.
+ */
+
+.ring-host[data-state="hover"] {
+  z-index: 1;
+}
+
+.ring-host[data-state="hover"] .ring-frame {
+  clip-path: inset(0 round var(--ring-radius));
+  opacity: 1;
+  transition:
+    clip-path var(--ring-grow) var(--ring-ease),
+    opacity var(--duration-short-1) var(--ease-linear);
+}
+
+.ring-host[data-state="hover"] .ring-surface {
+  clip-path: inset(1px round var(--ring-inner-radius));
+}
+
+.ring-host[data-state="hover"] .ring-glow {
+  opacity: 1;
+  will-change: transform;
+}
+
+.ring-host[data-state="hover"] .ring-title {
+  transform: translate(
+    calc(var(--ring-shift-x) * -1),
+    calc(var(--ring-shift-y) * -1)
+  );
+}
+
+.ring-host[data-state="focus-visible"] {
+  z-index: 1;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.ring-host[data-state="focus-visible"] .ring-frame {
+  clip-path: inset(0 round var(--ring-radius));
+  opacity: 1;
+  transition:
+    clip-path var(--ring-grow) var(--ring-ease),
+    opacity var(--duration-short-1) var(--ease-linear);
+}
+
+.ring-host[data-state="focus-visible"] .ring-surface {
+  clip-path: inset(1px round var(--ring-inner-radius));
+}
+
+.ring-host[data-state="focus-visible"] .ring-glow {
+  opacity: 1;
+}
