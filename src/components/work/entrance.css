@@ -1,32 +1,34 @@
 /*
- * The reader's content entrance: a cascade (Dat's pick from the T9 comparison).
+ * The reader's content entrance: the blur reveal (Dat's pick from the T9/T14
+ * comparison), on an even beat.
  *
  * It is a handoff from the panel, not a second entrance. The drawer releases it
  * at the reveal (75% through the panel's 480ms flight, when the panel is
  * visually settled); nothing starts while the panel is still travelling.
  *
- * Then it reads as one wave rather than a queue:
+ * Then every block makes the same move - opacity 0 + blur(8px) + 10px rise to
+ * nothing, 800ms on easeOutQuint, which keeps a long soft tail - so what the
+ * eye reads is the beat, not the gesture:
  *
- *   lead      the title: rises 12px over 320ms on the panel's own curve, so it
- *             belongs to the morph that just landed
- *   support   the subtitle, meta and body blocks: 8px then 6px over 280ms on a
- *             gentler ease-out, so they glide instead of popping
- *   stagger   0 / 60 / 105 / 140 / 165ms - gaps that shrink, and only the first
- *             five groups stagger; everything below arrives with the last step
- *   window    165 + 280 = 445ms
- *   cover     fade only (no translate), with the title
+ *   beat     80ms between consecutive blocks, no sub-steps
+ *   order    title, subtitle, meta, cover, then the body blocks
+ *   cap      the first viewport (p1, p2, p3); everything below arrives with the
+ *            last visible block
+ *   cover    opacity + translate only, no filter on the large media
+ *   window   480 + 800 = 1280ms from the reveal
  *
- * Items animate opacity and a translateY, ending on `none` so no transform
- * survives. Reduced motion replaces the cascade with one 120ms ease-out opacity
- * pass on the scroll column, cover included, no stagger.
+ * A direct load has no panel flight, so it starts at 0; closing mid-entrance
+ * only fades the scroll column out. Items animate opacity, transform and a
+ * small filter, and nothing keeps a filter or transform afterwards (fill is
+ * `backwards`, so the base style is the end state).
+ *
+ * Reduced motion replaces the entrance with one 120ms ease-out opacity pass on
+ * the scroll column, no blur, no delays.
  */
 
 .wd-reader-panel {
-  --wd-enter-panel-ease: cubic-bezier(0.32, 0.72, 0, 1);
-  --wd-enter-support-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --wd-enter-lead: 320ms var(--wd-enter-panel-ease);
-  --wd-enter-support: 280ms var(--wd-enter-support-ease);
-  --wd-blur-ease: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --wd-enter-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --wd-enter-duration: 800ms;
   --wd-fade-reduced: 120ms ease-out;
 }
 
@@ -43,101 +45,11 @@
   opacity: 1;
 }
 
-@keyframes wd-enter-rise {
+@keyframes wd-enter-blur {
   from {
     opacity: 0;
-    transform: translateY(var(--wd-enter-rise, 6px));
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes wd-enter-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* --------------------------------------------------------------- cascade -- */
-
-.wd-reader-panel[data-mode="page"]
-  :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
-.wd-expand-layer[data-reveal="on"]
-  :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *) {
-  animation: wd-enter-rise var(--wd-enter-support) both;
-  animation-delay: var(--wd-enter-delay, 0ms);
-}
-
-.wd-intro-title {
-  --wd-enter-rise: 12px;
-  --wd-enter-delay: 0ms;
-}
-
-/* The lead keeps the panel's own curve and a longer travel, so it reads as the
-   morph handing over rather than one more item in the queue. */
-.wd-reader-panel[data-mode="page"] .wd-intro-title,
-.wd-expand-layer[data-reveal="on"] .wd-intro-title {
-  animation: wd-enter-rise var(--wd-enter-lead) both;
-}
-
-.wd-intro-subtitle,
-.wd-intro-meta {
-  --wd-enter-rise: 8px;
-  --wd-enter-delay: 60ms;
-}
-
-.wd-prose > * {
-  --wd-enter-rise: 6px;
-}
-
-.wd-prose > *:nth-child(1) {
-  --wd-enter-delay: 105ms;
-}
-
-.wd-prose > *:nth-child(2) {
-  --wd-enter-delay: 140ms;
-}
-
-/* Only five groups stagger; everything from the third block arrives together. */
-.wd-prose > *:nth-child(n + 3) {
-  --wd-enter-delay: 165ms;
-}
-
-/* The cover is decorative: it fades in with the title, no translate. */
-.wd-reader-panel[data-mode="page"] .wd-hero,
-.wd-expand-layer[data-reveal="on"] .wd-hero {
-  animation: wd-enter-fade var(--wd-enter-lead) both;
-}
-
-/* ------------------------------------------------- T14: blur reveal (temp) -- */
-
-/*
- * `?entrance=blur` swaps the cascade for the reference's move
- * (dannyjpwilliams.com/about): one keyframe, opacity + blur(6px) + 8px rise to
- * nothing, 700ms on easeOutQuart, every block on it.
- *
- *   start    0ms after the same handoff the cascade uses, in reading order
- *   steps    top-level blocks +100ms; the intro's subtitle/meta are its inner
- *            items at +45ms, like the reference's meta chips
- *   cap      the first viewport (cover, title, intro, p1, p2, p3); everything
- *            below arrives with the last step
- *   media    the cover gets opacity + translate only - no blur on the large
- *            image, and below-the-fold blocks skip the blur too (nobody sees
- *            it there and it keeps the filter count bounded)
- *
- * Temporary: the switch, the keyframes and these rules go together.
- */
-
-@keyframes wd-blur-in {
-  from {
-    opacity: 0;
-    filter: blur(6px);
-    transform: translateY(8px);
+    filter: blur(8px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -146,10 +58,12 @@
   }
 }
 
-@keyframes wd-blur-rise {
+/* The cover: the same move without the filter (blur on the large media is the
+   one thing measured to cost frames). */
+@keyframes wd-enter-rise {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -157,74 +71,59 @@
   }
 }
 
-html[data-entrance="blur"]
-  .wd-reader-panel[data-mode="page"]
+/* ------------------------------------------------------ blur, on the beat -- */
+
+.wd-reader-panel[data-mode="page"]
   :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
-html[data-entrance="blur"]
-  .wd-expand-layer[data-reveal="on"]
+.wd-expand-layer[data-reveal="on"]
   :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *) {
-  animation: wd-blur-in 700ms var(--wd-blur-ease) backwards;
-  animation-delay: var(--wd-blur-delay, 0ms);
+  animation: wd-enter-blur var(--wd-enter-duration) var(--wd-enter-ease)
+    backwards;
+  animation-delay: var(--wd-enter-delay, 0ms);
 }
 
-/* Below the first viewport the blur is invisible: rise without the filter. */
-html[data-entrance="blur"]
-  .wd-reader-panel[data-mode="page"]
-  .wd-prose
-  > *:nth-child(n + 4),
-html[data-entrance="blur"]
-  .wd-expand-layer[data-reveal="on"]
-  .wd-prose
-  > *:nth-child(n + 4) {
-  animation-name: wd-blur-rise;
+.wd-reader-panel[data-mode="page"] .wd-hero,
+.wd-expand-layer[data-reveal="on"] .wd-hero {
+  animation: wd-enter-rise var(--wd-enter-duration) var(--wd-enter-ease)
+    backwards;
+  animation-delay: 240ms;
 }
 
-html[data-entrance="blur"] .wd-reader-panel[data-mode="page"] .wd-hero,
-html[data-entrance="blur"] .wd-expand-layer[data-reveal="on"] .wd-hero {
-  animation: wd-blur-rise 700ms var(--wd-blur-ease) backwards;
+/* One beat, in reading order: title 0, subtitle 80, meta 160, cover 240,
+   p1 320, p2 400, p3 and everything below 480. */
+.wd-intro-title {
+  --wd-enter-delay: 0ms;
 }
 
-html[data-entrance="blur"] .wd-intro-title {
-  --wd-blur-delay: 100ms;
+.wd-intro-subtitle {
+  --wd-enter-delay: 80ms;
 }
 
-html[data-entrance="blur"] .wd-intro-subtitle {
-  --wd-blur-delay: 145ms;
+.wd-intro-meta {
+  --wd-enter-delay: 160ms;
 }
 
-html[data-entrance="blur"] .wd-intro-meta {
-  --wd-blur-delay: 190ms;
+.wd-prose > *:nth-child(1) {
+  --wd-enter-delay: 320ms;
 }
 
-html[data-entrance="blur"] .wd-prose > *:nth-child(1) {
-  --wd-blur-delay: 300ms;
+.wd-prose > *:nth-child(2) {
+  --wd-enter-delay: 400ms;
 }
 
-html[data-entrance="blur"] .wd-prose > *:nth-child(2) {
-  --wd-blur-delay: 400ms;
-}
-
-html[data-entrance="blur"] .wd-prose > *:nth-child(n + 3) {
-  --wd-blur-delay: 500ms;
+.wd-prose > *:nth-child(n + 3) {
+  --wd-enter-delay: 480ms;
 }
 
 /* Reduced motion keeps the state change and drops the choreography: one 120ms
-   opacity pass on the scroll column, no per-item animation, no transforms. */
+   opacity pass on the scroll column, no per-item animation, no filter. */
 @media (prefers-reduced-motion: reduce) {
   .wd-reader-panel[data-mode="page"]
     :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
   .wd-expand-layer[data-reveal="on"]
     :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
   .wd-reader-panel[data-mode="page"] .wd-hero,
-  .wd-expand-layer[data-reveal="on"] .wd-hero,
-  html[data-entrance="blur"]
-    .wd-reader-panel[data-mode="page"]
-    :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
-  html[data-entrance="blur"]
-    .wd-expand-layer[data-reveal="on"]
-    :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
-  html[data-entrance="blur"] .wd-reader-panel[data-mode="page"] .wd-hero,
-  html[data-entrance="blur"] .wd-expand-layer[data-reveal="on"] .wd-hero {
+  .wd-expand-layer[data-reveal="on"] .wd-hero {
     animation: none;
   }
 

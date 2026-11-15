@@ -63,69 +63,48 @@ describe("drawer motion values", () => {
     expect(reduced).not.toContain("transition-duration");
   });
 
-  it("starts the content cascade with the title and keeps the total at 415ms", () => {
+  it("runs the blur reveal on one even beat, in reading order", () => {
     const entrance = read("entrance.css");
 
+    // The move and its curve.
     expect(entrance).toMatch(
-      /--wd-enter-lead: 320ms var\(--wd-enter-panel-ease\);/,
+      /--wd-enter-ease: cubic-bezier\(0\.22, 1, 0\.36, 1\);/,
+    );
+    expect(entrance).toMatch(/--wd-enter-duration: 800ms;/);
+    expect(entrance).toMatch(
+      /@keyframes wd-enter-blur \{\s*from \{\s*opacity: 0;\s*filter: blur\(8px\);\s*transform: translateY\(10px\);/,
     );
     expect(entrance).toMatch(
-      /--wd-enter-support: 280ms var\(--wd-enter-support-ease\);/,
+      /animation: wd-enter-blur var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards;/,
     );
-    // Title: 12px, 320ms, no delay, on the panel's curve.
+
+    // One 80ms beat: title 0, subtitle 80, meta 160, cover 240, p1 320, p2 400,
+    // p3+ 480.
+    expect(entrance).toMatch(/\.wd-intro-title \{\s*--wd-enter-delay: 0ms;/);
     expect(entrance).toMatch(
-      /\.wd-intro-title \{\s*--wd-enter-rise: 12px;\s*--wd-enter-delay: 0ms;/,
+      /\.wd-intro-subtitle \{\s*--wd-enter-delay: 80ms;/,
     );
-    // Support: 8px then 6px, gaps that shrink 60 / 105 / 140 / 165.
+    expect(entrance).toMatch(/\.wd-intro-meta \{\s*--wd-enter-delay: 160ms;/);
     expect(entrance).toMatch(
-      /\.wd-intro-subtitle,\s*\.wd-intro-meta \{\s*--wd-enter-rise: 8px;\s*--wd-enter-delay: 60ms;/,
-    );
-    expect(entrance).toMatch(/\.wd-prose > \* \{\s*--wd-enter-rise: 6px;/);
-    expect(entrance).toMatch(
-      /\.wd-prose > \*:nth-child\(1\) \{\s*--wd-enter-delay: 105ms;/,
-    );
-    expect(entrance).toMatch(
-      /\.wd-prose > \*:nth-child\(2\) \{\s*--wd-enter-delay: 140ms;/,
+      /\.wd-prose > \*:nth-child\(1\) \{\s*--wd-enter-delay: 320ms;/,
     );
     expect(entrance).toMatch(
-      /\.wd-prose > \*:nth-child\(n \+ 3\) \{\s*--wd-enter-delay: 165ms;/,
+      /\.wd-prose > \*:nth-child\(2\) \{\s*--wd-enter-delay: 400ms;/,
     );
-    // The cover is fade-only.
     expect(entrance).toMatch(
-      /\.wd-hero \{\s*animation: wd-enter-fade var\(--wd-enter-lead\) both;/,
+      /\.wd-prose > \*:nth-child\(n \+ 3\) \{\s*--wd-enter-delay: 480ms;/,
+    );
+    // Cover: the same timing, no filter.
+    expect(entrance).toMatch(
+      /\.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{\s*animation: wd-enter-rise var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards;\s*animation-delay: 240ms;/,
     );
   });
 
-  it("keeps the default cascade un-gated and the blur variant opt-in", () => {
+  it("has no entrance switch left", () => {
     const entrance = read("entrance.css");
 
-    // The T13 cascade applies with no attribute; only the blur rules are gated.
-    expect(entrance).toMatch(
-      /\.wd-reader-panel\[data-mode="page"\]\s*:is\(\.wd-intro-title, \.wd-intro-subtitle, \.wd-intro-meta, \.wd-prose > \*\)/,
-    );
-    expect(entrance).toMatch(
-      /@keyframes wd-blur-in \{\s*from \{\s*opacity: 0;\s*filter: blur\(6px\);\s*transform: translateY\(8px\);/,
-    );
-    expect(entrance).toMatch(
-      /--wd-blur-ease: cubic-bezier\(0\.165, 0\.84, 0\.44, 1\);/,
-    );
-    expect(entrance).toMatch(
-      /animation: wd-blur-in 700ms var\(--wd-blur-ease\) backwards;/,
-    );
-    // Reading-order steps: title 100, intro meta chips 145/190, body 300/400/500.
-    expect(entrance).toMatch(
-      /html\[data-entrance="blur"\] \.wd-intro-title \{\s*--wd-blur-delay: 100ms;/,
-    );
-    expect(entrance).toMatch(
-      /html\[data-entrance="blur"\] \.wd-intro-subtitle \{\s*--wd-blur-delay: 145ms;/,
-    );
-    expect(entrance).toMatch(
-      /html\[data-entrance="blur"\] \.wd-prose > \*:nth-child\(n \+ 3\) \{\s*--wd-blur-delay: 500ms;/,
-    );
-    // The cover rises without the filter; ditto below the first viewport.
-    expect(entrance).toMatch(
-      /html\[data-entrance="blur"\] \.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{\s*animation: wd-blur-rise 700ms var\(--wd-blur-ease\) backwards;/,
-    );
+    expect(entrance).not.toContain("data-entrance");
+    expect(entrance).not.toContain("wd-blur-in");
   });
 
   it("opens the reader's nav tooltips inward instead of into the viewport edge", () => {
