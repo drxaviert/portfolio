@@ -172,7 +172,13 @@ export function BottomSheet({
           {label}
         </button>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">{children}</div>
+        <div
+          data-sheet-content
+          inert={!open}
+          className="min-h-0 flex-1 overflow-y-auto px-4 pb-4"
+        >
+          {children}
+        </div>
       </div>
     </>
   );

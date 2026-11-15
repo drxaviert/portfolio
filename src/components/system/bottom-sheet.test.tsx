@@ -41,6 +41,23 @@ describe("BottomSheet", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("keeps the closed content inert while the handle stays reachable", async () => {
+    const user = userEvent.setup();
+    const { container } = renderSheet();
+    const content = container.querySelector("[data-sheet-content]");
+
+    expect(content).toHaveAttribute("inert");
+    expect(handle()).not.toHaveAttribute("inert");
+
+    await user.click(handle());
+
+    expect(content).not.toHaveAttribute("inert");
+
+    await user.click(handle());
+
+    expect(content).toHaveAttribute("inert");
+  });
+
   it("toggles on Enter and Space", async () => {
     const user = userEvent.setup();
 
