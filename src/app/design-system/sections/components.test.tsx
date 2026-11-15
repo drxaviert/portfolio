@@ -52,10 +52,14 @@ describe("ComponentsSection", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Card" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Nav item + Glide" }),
+    ).toBeInTheDocument();
     expect(container.textContent).toContain("hover-only today");
     expect(container.querySelectorAll(".ring-host").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll(".nav-glide").length).toBeGreaterThan(0);
     expect(
       container.querySelectorAll('[data-token^="--"]').length,
-    ).toBe(5);
+    ).toBe(12);
   });
 });

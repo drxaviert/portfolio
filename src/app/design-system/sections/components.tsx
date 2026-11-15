@@ -3,6 +3,10 @@
 import type { JSX } from "react";
 import { ComponentDoc } from "@/components/system/component-doc";
 import { CardSample } from "@/components/system/samples/card-sample";
+import {
+  NavGlideDemo,
+  NavItemSample,
+} from "@/components/system/samples/nav-item-sample";
 
 export function ComponentsSection(): JSX.Element {
   return (
@@ -28,6 +32,43 @@ export function ComponentsSection(): JSX.Element {
           "--horizon-ring-glow",
         ]}
         notes="Cards are hover-only today: the ring is feedback, not a link. Nothing on the card is clickable until the work-drawer job lands."
+      />
+
+      <ComponentDoc
+        name="Nav item + Glide"
+        description="A nav label with one shared capsule across the whole item run. Hover or keyboard focus slides and stretches the capsule; the glyph is part of the same run."
+        states={["rest", "hover", "active", "focus-visible"]}
+        render={(state) =>
+          state === undefined ? (
+            <div className="p-2">
+              <NavGlideDemo />
+            </div>
+          ) : (
+            <NavItemSample
+              label="Work"
+              forceState={state}
+              active={state === "active"}
+            />
+          )
+        }
+        use={[
+          "The home nav labels and the design-system glyph.",
+          "Let one capsule serve the whole run, and retarget it mid-flight as the pointer sweeps.",
+        ]}
+        dont={[
+          "Don’t give an item its own capsule or transition.",
+          "Don’t add a filled hover state to a non-current item; the capsule is the hover.",
+        ]}
+        tokens={[
+          "--primary",
+          "--on-surface",
+          "--surface-container",
+          "--radius-md",
+          "--duration-short-2",
+          "--duration-short-3",
+          "--duration-medium-5",
+        ]}
+        notes="The Glide spring is read through the engine, so Motion speed time-scales it. The capsule is a clip-path on a shared layer (paint-only, no layout), the glyph is part of the run, and reduced motion moves it instantly."
       />
     </div>
   );
