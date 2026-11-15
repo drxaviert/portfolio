@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   reduce: false,
   back: vi.fn(),
   push: vi.fn(),
-  prefetch: vi.fn(),
+  replace: vi.fn(),
 }));
 
 vi.mock("motion/react", async (importOriginal) => {
@@ -29,7 +29,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({
     back: mocks.back,
     push: mocks.push,
-    prefetch: mocks.prefetch,
+    replace: mocks.replace,
   }),
 }));
 
@@ -73,20 +73,6 @@ function placeCard(rect: Box) {
   };
 }
 
-/**
- * A hard-loaded study's reader. `painted` mirrors a live route: Next parks a
- * route it left with `display: none`, and jsdom has no layout, so the painted
- * state comes from `getClientRects`.
- */
-function placePageReader(painted: boolean) {
-  const page = document.createElement("main");
-  page.className = "wd-reader-panel";
-  page.dataset.mode = "page";
-  page.getClientRects = () =>
-    (painted ? [toDomRect(PANEL)] : []) as unknown as DOMRectList;
-  document.body.append(page);
-}
-
 function ReaderStub() {
   return (
     <div className="wd-reader-panel">
@@ -117,7 +103,7 @@ beforeEach(() => {
   mocks.reduce = false;
   mocks.back.mockReset();
   mocks.push.mockReset();
-  mocks.prefetch.mockReset();
+  mocks.replace.mockReset();
 
   window.history.replaceState({}, "", "/work/systems-in-motion");
 
@@ -391,7 +377,7 @@ describe("ExpandShell", () => {
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
-  it("pushes home when the entry is not marked as the in-app overlay", async () => {
+  it("replaces home when the entry is not marked as the in-app overlay", async () => {
     placeCard(CARD_A);
 
     render(
@@ -409,61 +395,51 @@ describe("ExpandShell", () => {
       document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
     );
 
-    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/"));
     expect(mocks.back).not.toHaveBeenCalled();
   });
 
-  it("pushes home when a direct load's page reader sits under the overlay", async () => {
+  it("starts a direct load open and resting, without an open morph", async () => {
     placeCard(CARD_A);
 
-    // Opening a second study from a hard-loaded one keeps that study's
-    // page-mode reader in the tree; the overlay mounts over it. Back would
-    // reveal that reader instead of the homepage.
-    placePageReader(true);
-
     render(
-      <ExpandShell slug={SLUG}>
+      <ExpandShell slug={SLUG} resting>
         <ReaderStub />
       </ExpandShell>,
     );
 
-    await waitFor(() =>
-      expect(layerElement()).toHaveAttribute("data-phase", "open"),
-    );
-
-    fireEvent.click(
-      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
-    );
-
-    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/"));
-    expect(mocks.back).not.toHaveBeenCalled();
-    // Home arrives by client navigation: marked before the route change.
+    // No morph and no nav flight: the reader is already where it belongs.
+    expect(layerElement()).toHaveAttribute("data-phase", "open");
+    expect(layerElement()).toHaveAttribute("data-reveal", "on");
+    expect(mocks.animate).not.toHaveBeenCalled();
+    // The homepage underneath is resting, and the entry is not the in-app
+    // overlay (closing replaces it instead of going back).
     expect(document.documentElement.dataset.entrancePlayed).toBe("true");
+    expect(window.history.state?.workOverlay).toBeUndefined();
   });
 
-  it("goes back when the page reader left in the tree is parked", async () => {
+  it("flips a direct load's panel into its card and replaces the entry", async () => {
     placeCard(CARD_A);
 
-    // Next keeps a route it left in the DOM, hidden: that is not a reader the
-    // user lands on, so the overlay still closes through Back.
-    placePageReader(false);
-
     render(
-      <ExpandShell slug={SLUG}>
+      <ExpandShell slug={SLUG} resting>
         <ReaderStub />
       </ExpandShell>,
     );
 
-    await waitFor(() =>
-      expect(layerElement()).toHaveAttribute("data-phase", "open"),
-    );
-
+    const panel = document.querySelector<HTMLElement>(
+      ".wd-expand-layer .wd-reader-panel",
+    )!;
     fireEvent.click(
       document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
     );
 
-    await waitFor(() => expect(mocks.back).toHaveBeenCalledTimes(1));
-    expect(mocks.push).not.toHaveBeenCalled();
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/"));
+    expect(mocks.back).not.toHaveBeenCalled();
+
+    const close = mocks.animate.mock.calls.filter(([el]) => el === panel);
+    const pose = close[close.length - 1][1];
+    expect(pose).toMatchObject(flipFrom(CARD_A, PANEL));
   });
 
   it("closes a card-less overlay on the close flight", async () => {
@@ -532,73 +508,6 @@ describe("ExpandShell", () => {
     const close = calls[calls.length - 1];
     expect(close[1]).toEqual({ opacity: 0 });
     expect(close[2]).toMatchObject({ duration: 0.12, ease: "easeOut" });
-  });
-
-  it("keeps the page reader behind hidden through the exit, until it lands", async () => {
-    document.body.innerHTML = "";
-    placePageReader(true);
-    const page = document.querySelector<HTMLElement>('[data-mode="page"]')!;
-
-    let finish!: () => void;
-    mocks.animate.mockReturnValue({
-      finished: new Promise<void>((resolve) => {
-        finish = resolve;
-      }),
-      complete: vi.fn(),
-      stop: vi.fn(),
-    });
-
-    const view = render(
-      <ExpandShell slug={SLUG}>
-        <ReaderStub />
-      </ExpandShell>,
-    );
-
-    await waitFor(() =>
-      expect(layerElement()).toHaveAttribute("data-phase", "open"),
-    );
-
-    fireEvent.click(
-      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
-    );
-
-    await waitFor(() => expect(page).toHaveAttribute("data-behind-exit"));
-
-    await act(async () => finish());
-    expect(page).toHaveAttribute("data-behind-exit");
-
-    view.unmount();
-
-    expect(page).not.toHaveAttribute("data-behind-exit");
-  });
-
-  it("warms the homepage when a direct load's reader is behind", async () => {
-    document.body.innerHTML = "";
-    placePageReader(true);
-
-    render(
-      <ExpandShell slug={SLUG}>
-        <ReaderStub />
-      </ExpandShell>,
-    );
-
-    await waitFor(() => expect(mocks.prefetch).toHaveBeenCalledWith("/"));
-  });
-
-  it("leaves the router alone when the homepage is behind", async () => {
-    placeCard(CARD_A);
-
-    render(
-      <ExpandShell slug={SLUG}>
-        <ReaderStub />
-      </ExpandShell>,
-    );
-
-    await waitFor(() =>
-      expect(layerElement()).toHaveAttribute("data-phase", "open"),
-    );
-
-    expect(mocks.prefetch).not.toHaveBeenCalled();
   });
 
   it("leaves the route even when the close flight never finishes", async () => {

@@ -47,22 +47,6 @@ export function findCard(slug: string): Box | null {
 }
 
 /**
- * The direct load's reader, if it is still on screen behind the overlay. Opening
- * a study from a hard-loaded one leaves that study's page-mode reader in the
- * tree with the overlay on top, so Back from here would reveal a reader instead
- * of the homepage. Once Next parks a route it keeps the reader in the DOM with
- * `display: none`, which is not a reader the user could land on, so only a
- * rendered one counts.
- */
-function pageReaderBehind(): HTMLElement | null {
-  const page = document.querySelector<HTMLElement>(
-    '.wd-reader-panel[data-mode="page"]',
-  );
-
-  return page && page.getClientRects().length > 0 ? page : null;
-}
-
-/**
  * The panel's untransformed layout box. `offsetLeft`/`offsetTop` ignore the
  * transform, so a close during the open morph still knows where the panel will
  * settle on screen.
@@ -89,11 +73,22 @@ function setPose(
 export function useMorph(
   slug: string,
   panelRef: RefObject<HTMLElement | null>,
+  options: {
+    /**
+     * A direct load: the reader is already the destination, so it starts in its
+     * open resting state with no morph, and the entry is not the in-app overlay
+     * (closing replaces it instead of going back to a homepage entry).
+     */
+    resting?: boolean;
+  } = {},
 ): { phase: MorphPhase; reveal: RevealState; close: () => Promise<void> } {
+  const resting = options.resting ?? false;
   const router = useRouter();
   const reduce = useReducedMotion() ?? false;
-  const [phase, setPhase] = useState<MorphPhase>("opening");
-  const [reveal, setReveal] = useState<RevealState>("pending");
+  const [phase, setPhase] = useState<MorphPhase>(resting ? "open" : "opening");
+  const [reveal, setReveal] = useState<RevealState>(
+    resting ? "on" : "pending",
+  );
   const openingRef = useRef<Morph | null>(null);
   const startedRef = useRef(false);
   const closedRef = useRef(false);
@@ -139,10 +134,25 @@ export function useMorph(
     if (startedRef.current) return;
     startedRef.current = true;
 
-    window.history.replaceState(
-      { ...window.history.state, workOverlay: true },
-      "",
-    );
+    // A direct load is not an in-app overlay: there is no homepage entry behind
+    // it, so close replaces this entry instead of going back through history.
+    if (resting) {
+      // The homepage is mounted underneath and must be resting: mark the
+      // document before this commit paints, so its entrance never runs.
+      document.documentElement.dataset.entrancePlayed = "true";
+      // And remember that this document's entry is the study itself, so a
+      // reader opened over it (study to study) closes to '/' as well.
+      document.documentElement.dataset.readerEntry = "direct";
+      return;
+    }
+
+    // Only an entry reached from the homepage goes back to it.
+    if (document.documentElement.dataset.readerEntry !== "direct") {
+      window.history.replaceState(
+        { ...window.history.state, workOverlay: true },
+        "",
+      );
+    }
 
     const panel = panelRef.current;
     if (!panel) return;
@@ -195,7 +205,7 @@ export function useMorph(
       },
       (MORPH_OPEN_S - REVEAL_LEAD_S) * 1000,
     );
-  }, [slug, reduce, panelRef, settle]);
+  }, [slug, reduce, resting, panelRef, settle]);
 
   // A resize mid-morph jumps to the end; after that the panel is pure CSS, so
   // the new viewport just reflows it and close measures the card again.
@@ -207,13 +217,6 @@ export function useMorph(
 
     return () => window.removeEventListener("resize", onResize);
   }, [phase]);
-
-  // An overlay opened over a direct load will close to a homepage that is not
-  // mounted yet (and cannot be, from here). Warm its route while the reader is
-  // on screen so the exit does not end on empty background.
-  useEffect(() => {
-    if (pageReaderBehind()) router.prefetch("/");
-  }, [router]);
 
   /** Runs the reverse morph, then leaves the route. One flight at a time. */
   const close = useCallback(() => {
@@ -230,11 +233,6 @@ export function useMorph(
       if (!panel) return;
 
       const card = findCard(slug);
-      // A study opened from a direct load leaves that study's page reader under
-      // the overlay; the exit must not dissolve into it, nor flash it between the
-      // exit and the route change. The shell's unmount (or the early return
-      // below) is what lets it show again, so an interrupted close cannot hide it.
-      pageReaderBehind()?.setAttribute("data-behind-exit", "");
 
       // The nav returns on the same timing as whatever the panel does: the
       // close flight, or the 120ms fade. Both waits are capped at that timing
@@ -288,21 +286,16 @@ export function useMorph(
       panel.style.opacity = "0";
       announceOverlayExit();
 
-      if (window.location.pathname !== `/work/${slug}`) {
-        // Back (or another route change) already owns the screen.
-        document
-          .querySelector(".wd-reader-panel[data-behind-exit]")
-          ?.removeAttribute("data-behind-exit");
-        return;
-      }
+      if (window.location.pathname !== `/work/${slug}`) return;
 
-      // Pushing '/' from a direct load means home arrives by client navigation:
-      // mark the document before the route change so the resting page paints
-      // from its first frame, whatever order home's client chunks arrive in.
-      if (window.history.state?.workOverlay && !pageReaderBehind()) router.back();
+      // An in-app overlay leaves through the entry it was opened from (the
+      // homepage); a direct load — or a reader opened over one — has no such
+      // entry, so '/' replaces the study instead. Back from home must not
+      // reopen the reader.
+      if (window.history.state?.workOverlay) router.back();
       else {
-        document.documentElement.dataset.entrancePlayed = "true";
-        router.push("/");
+        delete document.documentElement.dataset.readerEntry;
+        router.replace("/");
       }
     })();
 

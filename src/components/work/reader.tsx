@@ -17,29 +17,23 @@ import "./entrance.css";
 
 export { READER_SCROLL_ID, READER_TITLE_ID } from "./parts";
 
-export type ReaderMode = "overlay" | "page";
-
 export type ReaderProps = {
   meta: WorkMeta;
   children: ReactNode;
-  /** `overlay` is the dialog over the homepage; `page` is a direct load. */
-  mode: ReaderMode;
 };
 
 /**
- * One reader for both routes: a fixed panel with a single scroll container, so
- * the margin notes, the wide breakouts and the sticky rail all measure against
- * the same box.
+ * The drawer's reader: a fixed panel with a single scroll container, so the
+ * margin notes, the wide breakouts and the sticky rail all measure against the
+ * same box. Both a soft navigation and a direct load render this over the
+ * homepage; only the shell around it differs (morph or resting).
  */
-export function Reader({ meta, children, mode }: ReaderProps) {
-  const overlay = mode === "overlay";
-  const Panel = overlay ? "div" : "main";
-
+export function Reader({ meta, children }: ReaderProps) {
   return (
-    <Panel
+    <div
       className="wd-reader-panel"
-      data-mode={mode}
-      role={overlay ? "dialog" : undefined}
+      data-mode="overlay"
+      role="dialog"
       // Deliberately not aria-modal: the one nav lives in the root layout, at
       // this panel's sibling, and must stay in the accessibility tree. The
       // homepage is inert and the focus trap holds, so the dialog is modal in
@@ -67,7 +61,7 @@ export function Reader({ meta, children, mode }: ReaderProps) {
 
             <div className="wd-prose">{children}</div>
 
-            <NextLink next={nextWork(meta.slug)} replace={overlay} />
+            <NextLink next={nextWork(meta.slug)} />
           </div>
         </div>
       </div>
@@ -75,6 +69,6 @@ export function Reader({ meta, children, mode }: ReaderProps) {
       {/* Below 1024px the ways back are fixed to the panel's foot, outside the
           scroll container so they stay put while the article moves. */}
       <ReaderMobileActions />
-    </Panel>
+    </div>
   );
 }

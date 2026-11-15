@@ -16,20 +16,23 @@ const FOCUSABLE =
   'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 /**
- * The intercepted reader. The page passes its `<Reader mode="overlay">` in as
+ * The reader's shell over the homepage. The page passes its `<Reader>` in as
  * children, so the MDX body and the reader stay server-rendered; this shell
- * only owns the backdrop and the panel's morph. The reader's cover is the
- * cascade's first step inside the panel, so nothing has to fly into it.
+ * only owns the backdrop and the panel's morph. A direct load renders it
+ * `resting`: the reader is already the destination, so it starts open with no
+ * morph and no nav flight, exactly where a soft navigation's morph lands.
  */
 export function ExpandShell({
   slug,
+  resting = false,
   children,
 }: {
   slug: string;
+  resting?: boolean;
   children: ReactNode;
 }) {
   const panelRef = useRef<HTMLElement | null>(null);
-  const { phase, reveal, close } = useMorph(slug, panelRef);
+  const { phase, reveal, close } = useMorph(slug, panelRef, { resting });
 
   const setLayer = useCallback((layer: HTMLDivElement | null) => {
     panelRef.current =
@@ -42,18 +45,6 @@ export function ExpandShell({
   useEffect(() => registerReaderClose(close), [close]);
 
   useOverlayBehaviour(panelRef, slug);
-
-  // A page reader left behind by a direct load stays hidden for the whole exit,
-  // route change included: the unmount that ends this overlay is what lets it
-  // show again, so Back or an interrupted close cannot leave it hidden.
-  useEffect(
-    () => () => {
-      document
-        .querySelector(".wd-reader-panel[data-behind-exit]")
-        ?.removeAttribute("data-behind-exit");
-    },
-    [],
-  );
 
   // The inert boundary comes off with the same commit that sets the phase, so
   // the title can only take focus after React has rendered the open state.

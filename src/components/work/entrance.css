@@ -80,8 +80,6 @@
 
 /* ------------------------------------------------------ blur, on the beat -- */
 
-.wd-reader-panel[data-mode="page"]
-  :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
 .wd-expand-layer[data-reveal="on"]
   :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *) {
   animation:
@@ -96,7 +94,6 @@
 
 /* The cover has no filter: the large media is the one thing measured to cost
    frames when blurred. */
-.wd-reader-panel[data-mode="page"] .wd-hero,
 .wd-expand-layer[data-reveal="on"] .wd-hero {
   animation: wd-enter-fade var(--wd-enter-duration) var(--wd-enter-ease)
     backwards;
@@ -133,17 +130,10 @@
 /* Reduced motion keeps the state change and drops the choreography: one 120ms
    opacity pass on the scroll column, no per-item animation, no filter. */
 @media (prefers-reduced-motion: reduce) {
-  .wd-reader-panel[data-mode="page"]
-    :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
   .wd-expand-layer[data-reveal="on"]
     :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
-  .wd-reader-panel[data-mode="page"] .wd-hero,
   .wd-expand-layer[data-reveal="on"] .wd-hero {
     animation: none;
-  }
-
-  .wd-reader-panel[data-mode="page"] .wd-reader-scroll {
-    transition: opacity var(--wd-fade-reduced);
   }
 
   .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
@@ -160,7 +150,7 @@
   }
 
   @starting-style {
-    .wd-reader-panel[data-mode="page"] .wd-reader-scroll {
+    .wd-expand-layer[data-reveal="on"] .wd-reader-scroll {
       opacity: 0;
     }
   }
