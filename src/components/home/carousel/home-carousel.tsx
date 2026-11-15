@@ -59,6 +59,7 @@ import {
   OVERLAY_CLOSING_EVENT,
   OVERLAY_OPENED_EVENT,
 } from "@/components/work/overlay-exit";
+import { announceStep } from "../step-events";
 import { parseSliverMode, useLocationSearch } from "./sliver-mode";
 import "../home-cards.css";
 import "./home-carousel.css";
@@ -346,6 +347,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
   function cancelTween() {
     const current = tween.current;
+    if (tween.current) announceStep("end");
     tween.current = null;
     delete rowRef.current?.dataset.stepping;
     delete rowRef.current?.dataset.mask;
@@ -732,6 +734,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     };
 
     tween.current = started;
+    announceStep("start");
     clock.onfinish = () => {
       if (tween.current === started) settle();
     };

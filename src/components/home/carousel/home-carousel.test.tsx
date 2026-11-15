@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CAROUSEL_STEP_END, CAROUSEL_STEP_START } from "../step-events";
 import { STEP_PRESETS } from "./carousel-math";
 import { HomeCarousel } from "./home-carousel";
 import type { CarouselItem } from "./home-carousel";
@@ -451,6 +452,24 @@ describe("easing and one timeline", () => {
       target: { value: "default" },
     });
     expect(screen.getByLabelText(/Step preset/)).toHaveValue("default");
+  });
+
+  it("tells the page when a step starts and ends, for things that follow the pointer", () => {
+    const events: string[] = [];
+    const start = () => events.push("start");
+    const end = () => events.push("end");
+    window.addEventListener(CAROUSEL_STEP_START, start);
+    window.addEventListener(CAROUSEL_STEP_END, end);
+    render(<HomeCarousel items={ITEMS} />);
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+    expect(events).toEqual(["start"]);
+
+    finishStep();
+    expect(events).toEqual(["start", "end"]);
+
+    window.removeEventListener(CAROUSEL_STEP_START, start);
+    window.removeEventListener(CAROUSEL_STEP_END, end);
   });
 
   it("retargets a running step on an ease-out", () => {
