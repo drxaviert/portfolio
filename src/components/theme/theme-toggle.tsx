@@ -1471,7 +1471,7 @@ export function ThemeToggle() {
               clearExit();
             }
           }}
-          className="phase-row absolute right-0 bottom-full mb-1 shadow-card"
+          className="phase-row absolute right-0 bottom-full shadow-card"
         >
           {PHASE_OPTIONS.map((option, index) => {
             const selected = option.phase === dayPhase;

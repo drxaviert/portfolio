@@ -5,6 +5,8 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
@@ -164,6 +166,34 @@ describe("NavDock", () => {
     await waitFor(() =>
       expect(dock()).toHaveAttribute("data-nav-state", "home"),
     );
+  });
+
+  it("hangs the phase row on one shared gap in both docks", () => {
+    const read = (...parts: string[]) =>
+      readFileSync(join(process.cwd(), ...parts), "utf8");
+    const globals = read("src", "app", "globals.css");
+    const dockCss = read("src", "components", "nav", "nav-dock.css");
+    const toggleCss = read("src", "components", "theme", "theme-toggle.css");
+
+    // One token, read once.
+    expect(globals.match(/--wd-phase-row-gap:/g)).toHaveLength(1);
+    expect(globals).toMatch(/--wd-phase-row-gap:\s*4px;/);
+
+    // Home: the row hangs above the toggle by that token.
+    expect(toggleCss).toMatch(
+      /\.phase-row \{[\s\S]*?margin-bottom: var\(--wd-phase-row-gap\);/,
+    );
+
+    // Reader: the row hangs below the toggle by the same token, with no
+    // drawer-only pixel gap.
+    const readerRow = dockCss.match(
+      /\.wd-nav-dock\[data-nav-state="reader"\] \.phase-row \{[^}]*\}/,
+    )?.[0];
+
+    expect(readerRow).toMatch(
+      /top: calc\(100% \+ var\(--wd-phase-row-gap\)\);/,
+    );
+    expect(readerRow).not.toMatch(/\+ 24px/);
   });
 
   it("reaches the overlay's close from anywhere in the app", () => {

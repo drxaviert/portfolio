@@ -240,17 +240,28 @@
  * shared by two trees: the reader panel (inside the modal slot) and the single
  * nav dock (root layout). The nav's height is HomeNav's h-16, and the reader's
  * blur zone, column clearance and rail offset all derive from it.
+ *
+ * --wd-nav-inset is how far the docked nav sits inside the panel. The drawer's
+ * top edge read as cramped against the top of the page, so it carries one
+ * spacing step more than the 8/12px it started at; the blur zone, the column
+ * clearance and the rail are all measured from it, so they move with it and the
+ * nav-to-content gap stays at 12px.
+ *
+ * --wd-phase-row-gap is the one gap between the theme toggle and the Day phase
+ * row in both docks: the row opens above the toggle on the homepage and below
+ * it in the drawer, at the same distance either way.
  */
 :root {
   --wd-panel-inset: 0px;
-  --wd-nav-inset: 8px;
+  --wd-nav-inset: 16px;
   --wd-nav-height: 4rem;
+  --wd-phase-row-gap: 4px;
 }
 
 @media (min-width: 768px) {
   :root {
     --wd-panel-inset: 16px;
-    --wd-nav-inset: 12px;
+    --wd-nav-inset: 28px;
   }
 }
 
