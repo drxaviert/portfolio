@@ -77,12 +77,25 @@ export function useMorph(
   const closedRef = useRef(false);
   const closingRef = useRef<Promise<void> | null>(null);
   const revealTimerRef = useRef(0);
+  const mountedRef = useRef(true);
 
   const clearRevealTimer = useCallback(() => {
     if (revealTimerRef.current) {
       window.clearTimeout(revealTimerRef.current);
       revealTimerRef.current = 0;
     }
+  }, []);
+
+  // Development StrictMode re-runs effects on mount (setup, cleanup, setup).
+  // The entrance timer must survive that: an earlier version cleared it in the
+  // effect cleanup, so the timer was lost and the cascade only started at
+  // settle - 120ms late. This guard only stops a late fire after unmount.
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const settle = useCallback(() => {
@@ -155,7 +168,9 @@ export function useMorph(
     // The content starts arriving under the landing panel rather than after
     // it, so the reader is readable at the moment the morph ends.
     revealTimerRef.current = window.setTimeout(
-      () => setReveal("on"),
+      () => {
+        if (mountedRef.current) setReveal("on");
+      },
       (MORPH_S - REVEAL_LEAD_S) * 1000,
     );
   }, [slug, reduce, panelRef, settle]);
@@ -170,9 +185,6 @@ export function useMorph(
 
     return () => window.removeEventListener("resize", onResize);
   }, [phase]);
-
-  // The entrance timer must not fire into a closed reader.
-  useEffect(() => clearRevealTimer, [clearRevealTimer]);
 
   /** Runs the reverse morph, then leaves the route. One flight at a time. */
   const close = useCallback(() => {

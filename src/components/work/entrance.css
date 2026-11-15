@@ -1,22 +1,31 @@
 /*
  * The reader's content entrance: a cascade (Dat's pick from the T9 comparison).
  *
- * The title is the first step on its own; the subtitle and meta follow as one
- * block, then each body block 40-45ms apart, capped so nothing waits behind
- * the sixth step. The drawer releases the cascade 120ms before the panel's
- * morph lands (use-morph's reveal) and the title clone is gone by then, so the
- * title's first appearance is step 0. A direct load runs the same animation
- * from mount, so the column never flashes untransformed.
+ * It is a handoff from the panel, not a second entrance. The drawer releases it
+ * at the reveal (75% through the panel's 480ms flight, when the panel is
+ * visually settled); nothing starts while the panel is still travelling.
  *
- * Items animate opacity and a translateY(8px) on the entrance curve, ending on
- * `none` so no transform survives the entrance. Reduced motion replaces the
- * cascade with one 120ms ease-out opacity pass on the scroll column, title
- * included, no stagger.
+ * Then it reads as one wave rather than a queue:
+ *
+ *   lead      the title: rises 12px over 320ms on the panel's own curve, so it
+ *             belongs to the morph that just landed
+ *   support   the subtitle, meta and body blocks: 8px then 6px over 280ms on a
+ *             gentler ease-out, so they glide instead of popping
+ *   stagger   0 / 60 / 105 / 140 / 165ms - gaps that shrink, and only the first
+ *             five groups stagger; everything below arrives with the last step
+ *   window    165 + 280 = 445ms
+ *   cover     fade only (no translate), with the title
+ *
+ * Items animate opacity and a translateY, ending on `none` so no transform
+ * survives. Reduced motion replaces the cascade with one 120ms ease-out opacity
+ * pass on the scroll column, cover included, no stagger.
  */
 
 .wd-reader-panel {
-  --wd-enter-ease: cubic-bezier(0.23, 1, 0.32, 1);
-  --wd-enter-item: 220ms var(--wd-enter-ease);
+  --wd-enter-panel-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --wd-enter-support-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --wd-enter-lead: 320ms var(--wd-enter-panel-ease);
+  --wd-enter-support: 280ms var(--wd-enter-support-ease);
   --wd-fade-reduced: 120ms ease-out;
 }
 
@@ -36,7 +45,7 @@
 @keyframes wd-enter-rise {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(var(--wd-enter-rise, 6px));
   }
   to {
     opacity: 1;
@@ -44,53 +53,64 @@
   }
 }
 
+@keyframes wd-enter-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* --------------------------------------------------------------- cascade -- */
 
-/*
- * 0  title       .wd-intro-title
- * 1  header      .wd-intro-subtitle, .wd-intro-meta
- * 2-6 body       .wd-prose > *, 85 / 125 / 160 / 190ms, capped at 195ms
- *
- * 195 + 220 = 415ms total, one stagger step shorter than the T9 A variant
- * (which started the whole header block at 0 and ran 415ms with a 6th-item
- * cap). The cap keeps the total from growing as blocks are added.
- */
 .wd-reader-panel[data-mode="page"]
   :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
 .wd-expand-layer[data-reveal="on"]
   :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *) {
-  animation: wd-enter-rise var(--wd-enter-item) both;
+  animation: wd-enter-rise var(--wd-enter-support) both;
   animation-delay: var(--wd-enter-delay, 0ms);
 }
 
 .wd-intro-title {
+  --wd-enter-rise: 12px;
   --wd-enter-delay: 0ms;
+}
+
+/* The lead keeps the panel's own curve and a longer travel, so it reads as the
+   morph handing over rather than one more item in the queue. */
+.wd-reader-panel[data-mode="page"] .wd-intro-title,
+.wd-expand-layer[data-reveal="on"] .wd-intro-title {
+  animation: wd-enter-rise var(--wd-enter-lead) both;
 }
 
 .wd-intro-subtitle,
 .wd-intro-meta {
-  --wd-enter-delay: 40ms;
+  --wd-enter-rise: 8px;
+  --wd-enter-delay: 60ms;
+}
+
+.wd-prose > * {
+  --wd-enter-rise: 6px;
 }
 
 .wd-prose > *:nth-child(1) {
-  --wd-enter-delay: 85ms;
+  --wd-enter-delay: 105ms;
 }
 
 .wd-prose > *:nth-child(2) {
-  --wd-enter-delay: 125ms;
+  --wd-enter-delay: 140ms;
 }
 
-.wd-prose > *:nth-child(3) {
-  --wd-enter-delay: 160ms;
+/* Only five groups stagger; everything from the third block arrives together. */
+.wd-prose > *:nth-child(n + 3) {
+  --wd-enter-delay: 165ms;
 }
 
-.wd-prose > *:nth-child(4) {
-  --wd-enter-delay: 190ms;
-}
-
-/* Cap the stagger: everything from the fifth block arrives with the fourth. */
-.wd-prose > *:nth-child(n + 5) {
-  --wd-enter-delay: 195ms;
+/* The cover is decorative: it fades in with the title, no translate. */
+.wd-reader-panel[data-mode="page"] .wd-hero,
+.wd-expand-layer[data-reveal="on"] .wd-hero {
+  animation: wd-enter-fade var(--wd-enter-lead) both;
 }
 
 /* Reduced motion keeps the state change and drops the choreography: one 120ms
@@ -99,7 +119,9 @@
   .wd-reader-panel[data-mode="page"]
     :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
   .wd-expand-layer[data-reveal="on"]
-    :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *) {
+    :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
+  .wd-reader-panel[data-mode="page"] .wd-hero,
+  .wd-expand-layer[data-reveal="on"] .wd-hero {
     animation: none;
   }
 

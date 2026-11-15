@@ -1,4 +1,5 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Box } from "./morph";
 import { flipFrom } from "./morph";
@@ -219,6 +220,33 @@ describe("ExpandShell", () => {
     act(() => {
       vi.advanceTimersByTime(1);
     });
+    expect(layerElement()).toHaveAttribute("data-reveal", "on");
+  });
+
+  it("releases the content on the reveal timer even when effects re-run", async () => {
+    // StrictMode remounts effects in development: the entrance timer must
+    // survive that, or the cascade only starts when the morph settles 120ms
+    // later (the T13 report's dev-only delay).
+    placeCard(CARD_A);
+    mocks.animate.mockReturnValue({
+      finished: new Promise(() => {}),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+    vi.useFakeTimers();
+
+    render(
+      <StrictMode>
+        <ExpandShell slug={SLUG}>
+          <ReaderStub />
+        </ExpandShell>
+      </StrictMode>,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(360);
+    });
+
     expect(layerElement()).toHaveAttribute("data-reveal", "on");
   });
 

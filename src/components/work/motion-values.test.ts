@@ -66,16 +66,33 @@ describe("drawer motion values", () => {
   it("starts the content cascade with the title and keeps the total at 415ms", () => {
     const entrance = read("entrance.css");
 
-    expect(entrance).toMatch(/--wd-enter-item: 220ms var\(--wd-enter-ease\);/);
-    expect(entrance).toMatch(/\.wd-intro-title \{\s*--wd-enter-delay: 0ms;/);
     expect(entrance).toMatch(
-      /\.wd-intro-subtitle,\s*\.wd-intro-meta \{\s*--wd-enter-delay: 40ms;/,
+      /--wd-enter-lead: 320ms var\(--wd-enter-panel-ease\);/,
     );
     expect(entrance).toMatch(
-      /\.wd-prose > \*:nth-child\(1\) \{\s*--wd-enter-delay: 85ms;/,
+      /--wd-enter-support: 280ms var\(--wd-enter-support-ease\);/,
+    );
+    // Title: 12px, 320ms, no delay, on the panel's curve.
+    expect(entrance).toMatch(
+      /\.wd-intro-title \{\s*--wd-enter-rise: 12px;\s*--wd-enter-delay: 0ms;/,
+    );
+    // Support: 8px then 6px, gaps that shrink 60 / 105 / 140 / 165.
+    expect(entrance).toMatch(
+      /\.wd-intro-subtitle,\s*\.wd-intro-meta \{\s*--wd-enter-rise: 8px;\s*--wd-enter-delay: 60ms;/,
+    );
+    expect(entrance).toMatch(/\.wd-prose > \* \{\s*--wd-enter-rise: 6px;/);
+    expect(entrance).toMatch(
+      /\.wd-prose > \*:nth-child\(1\) \{\s*--wd-enter-delay: 105ms;/,
     );
     expect(entrance).toMatch(
-      /\.wd-prose > \*:nth-child\(n \+ 5\) \{\s*--wd-enter-delay: 195ms;/,
+      /\.wd-prose > \*:nth-child\(2\) \{\s*--wd-enter-delay: 140ms;/,
+    );
+    expect(entrance).toMatch(
+      /\.wd-prose > \*:nth-child\(n \+ 3\) \{\s*--wd-enter-delay: 165ms;/,
+    );
+    // The cover is fade-only.
+    expect(entrance).toMatch(
+      /\.wd-hero \{\s*animation: wd-enter-fade var\(--wd-enter-lead\) both;/,
     );
   });
 
