@@ -22,7 +22,7 @@ const heights = new WeakMap<HTMLElement, number>();
 let listening = false;
 let teardown: (() => void) | null = null;
 
-function measure(element: HTMLElement): void {
+function readHeight(element: HTMLElement): number | undefined {
   const rect = element.getBoundingClientRect();
 
   if (rect.height > 0) {
@@ -36,8 +36,10 @@ function measure(element: HTMLElement): void {
     heights.set(element, Math.max(1, rect.height - vertical));
   }
 
-  const height = heights.get(element);
+  return heights.get(element);
+}
 
+function writeHeight(element: HTMLElement, height: number | undefined): void {
   if (height !== undefined) {
     element.style.containIntrinsicSize = `auto ${height.toFixed(2)}px`;
   }
@@ -45,19 +47,33 @@ function measure(element: HTMLElement): void {
   element.style.contentVisibility = "auto";
 }
 
+function measure(element: HTMLElement): void {
+  writeHeight(element, readHeight(element));
+}
+
 /**
  * Re-measure everything, including content the browser is currently skipping.
- * Revealing and re-lazying in one task keeps that intermediate state out of a
- * paint; without it the intrinsic sizes would be the pre-font heights.
+ * Revealing is one write pass; all rect/computed-style reads then happen
+ * together, followed by the intrinsic-size/auto writes. Interleaving a read
+ * with each write would force a fresh layout per section.
  */
 function refresh(): void {
   if (tracked.size === 0) return;
 
-  for (const element of tracked) {
+  const elements = [...tracked];
+
+  for (const element of elements) {
     element.style.contentVisibility = "visible";
   }
 
-  for (const element of tracked) measure(element);
+  const measured = elements.map((element) => ({
+    element,
+    height: readHeight(element),
+  }));
+
+  for (const { element, height } of measured) {
+    writeHeight(element, height);
+  }
 }
 
 function listen(): void {
