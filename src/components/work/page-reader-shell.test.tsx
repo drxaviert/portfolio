@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   animate: vi.fn(),
   reduce: false,
   push: vi.fn(),
+  prefetch: vi.fn(),
 }));
 
 vi.mock("motion/react", async (importOriginal) => {
@@ -22,7 +23,7 @@ vi.mock("motion/react", async (importOriginal) => {
 });
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mocks.push, back: vi.fn() }),
+  useRouter: () => ({ push: mocks.push, back: vi.fn(), prefetch: mocks.prefetch }),
 }));
 
 /** Hands the shell's close to the test, the way the rail reads it. */
@@ -57,6 +58,7 @@ beforeEach(() => {
   });
   mocks.reduce = false;
   mocks.push.mockReset();
+  mocks.prefetch.mockReset();
   close = undefined;
 
   window.history.replaceState({}, "", "/work/systems-in-motion");
@@ -175,5 +177,17 @@ describe("PageReaderShell", () => {
     view.unmount();
 
     expect(hasReaderClose()).toBe(false);
+  });
+
+  it("warms the homepage route on mount", async () => {
+    placePageReader();
+
+    render(
+      <PageReaderShell>
+        <Probe />
+      </PageReaderShell>,
+    );
+
+    await waitFor(() => expect(mocks.prefetch).toHaveBeenCalledWith("/"));
   });
 });

@@ -206,6 +206,13 @@ export function useMorph(
     return () => window.removeEventListener("resize", onResize);
   }, [phase]);
 
+  // An overlay opened over a direct load will close to a homepage that is not
+  // mounted yet (and cannot be, from here). Warm its route while the reader is
+  // on screen so the exit does not end on empty background.
+  useEffect(() => {
+    if (pageReaderBehind()) router.prefetch("/");
+  }, [router]);
+
   /** Runs the reverse morph, then leaves the route. One flight at a time. */
   const close = useCallback(() => {
     if (closingRef.current) return closingRef.current;

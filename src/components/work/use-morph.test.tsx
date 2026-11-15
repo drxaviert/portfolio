@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   reduce: false,
   back: vi.fn(),
   push: vi.fn(),
+  prefetch: vi.fn(),
 }));
 
 vi.mock("motion/react", async (importOriginal) => {
@@ -25,7 +26,11 @@ vi.mock("motion/react", async (importOriginal) => {
 });
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ back: mocks.back, push: mocks.push }),
+  useRouter: () => ({
+    back: mocks.back,
+    push: mocks.push,
+    prefetch: mocks.prefetch,
+  }),
 }));
 
 const SLUG = "systems-in-motion";
@@ -112,6 +117,7 @@ beforeEach(() => {
   mocks.reduce = false;
   mocks.back.mockReset();
   mocks.push.mockReset();
+  mocks.prefetch.mockReset();
 
   window.history.replaceState({}, "", "/work/systems-in-motion");
 
@@ -560,6 +566,35 @@ describe("ExpandShell", () => {
     view.unmount();
 
     expect(page).not.toHaveAttribute("data-behind-exit");
+  });
+
+  it("warms the homepage when a direct load's reader is behind", async () => {
+    document.body.innerHTML = "";
+    placePageReader(true);
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() => expect(mocks.prefetch).toHaveBeenCalledWith("/"));
+  });
+
+  it("leaves the router alone when the homepage is behind", async () => {
+    placeCard(CARD_A);
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    expect(mocks.prefetch).not.toHaveBeenCalled();
   });
 
   it("stays put when the route already left the reader", async () => {

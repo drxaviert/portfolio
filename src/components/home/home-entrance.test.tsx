@@ -13,18 +13,31 @@ describe("shipped home entrance", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     delete document.documentElement.dataset.entrancePlayed;
+    delete document.documentElement.dataset.homeShown;
+    document.body.innerHTML = "";
   });
 
   afterEach(() => {
     vi.useRealTimers();
     delete document.documentElement.dataset.entrancePlayed;
+    delete document.documentElement.dataset.homeShown;
+    document.body.innerHTML = "";
   });
+
+  /** The server markup a first load hydrates (the page's own <main>). */
+  function placeServerMarkup() {
+    const main = document.createElement("main");
+    main.dataset.entrance = "soft";
+    main.dataset.entranceShipped = "";
+    document.body.append(main);
+  }
 
   it("settles at 1710ms", () => {
     expect(SHIPPED_ENTRANCE_TOTAL_MS).toBe(1710);
   });
 
   it("marks the document once the sequence has settled", () => {
+    placeServerMarkup();
     render(<HomeEntrancePlayed />);
 
     // Nothing is gated at first: the CSS animation is already running.
@@ -37,7 +50,30 @@ describe("shipped home entrance", () => {
     expect(document.documentElement.dataset.entrancePlayed).toBe("true");
   });
 
+  it("renders resting when home arrives by client navigation", () => {
+    // A client-side arrival has no home markup in the document on the first
+    // render: the page is created in the commit after it.
+    render(<HomeEntrancePlayed />);
+
+    // Gated before the first paint: the CSS animations never run.
+    expect(document.documentElement.dataset.entrancePlayed).toBe("true");
+    expect(document.documentElement.dataset.homeShown).toBe("");
+  });
+
+  it("still plays when home had already been shown in this document", () => {
+    // Leaving `/` mid-sequence and coming back costs a replay.
+    document.documentElement.dataset.homeShown = "";
+
+    render(<HomeEntrancePlayed />);
+
+    expect(document.documentElement.dataset.entrancePlayed).toBeUndefined();
+
+    vi.advanceTimersByTime(SHIPPED_ENTRANCE_TOTAL_MS);
+    expect(document.documentElement.dataset.entrancePlayed).toBe("true");
+  });
+
   it("does not mark when it is torn down before the sequence settles", () => {
+    placeServerMarkup();
     const view = render(<HomeEntrancePlayed />);
 
     view.unmount();
@@ -46,6 +82,7 @@ describe("shipped home entrance", () => {
 
     // A remount (React's dev double-invoke, or a return) starts a fresh timer
     // and still waits for the settle.
+    placeServerMarkup();
     render(<HomeEntrancePlayed />);
     vi.advanceTimersByTime(SHIPPED_ENTRANCE_TOTAL_MS);
     expect(document.documentElement.dataset.entrancePlayed).toBe("true");

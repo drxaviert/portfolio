@@ -13,7 +13,11 @@ const { notFound } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   notFound,
-  useRouter: () => ({ push: () => undefined, replace: () => undefined }),
+  useRouter: () => ({
+    push: () => undefined,
+    replace: () => undefined,
+    prefetch: () => undefined,
+  }),
 }));
 
 // Vitest has no MDX transform; the body is a placeholder here. The page test

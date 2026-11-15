@@ -66,5 +66,12 @@ export function PageReaderShell({ children }: { children: ReactNode }) {
   // same exit through nav-flight, as it does for the overlay.
   useEffect(() => registerReaderClose(close), [close]);
 
+  // Home is not mounted behind a direct load, so the push at the end of the
+  // exit would otherwise wait on its RSC (and land on empty background). Warm
+  // the route while the reader is still on screen.
+  useEffect(() => {
+    router.prefetch("/");
+  }, [router]);
+
   return <ReaderCloseProvider close={close}>{children}</ReaderCloseProvider>;
 }
