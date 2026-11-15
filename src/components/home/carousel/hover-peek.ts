@@ -23,6 +23,8 @@ export type HoverPeekSettings = {
   /** Strip blur at rest and under the pointer, px. */
   hoverBlur: number;
   hoverBlurOn: number;
+  /** How much the outer edge of each treated slice fades: 0 none, 1 fully. */
+  hoverFade: number;
 };
 
 export const DEFAULT_HOVER_PEEK: HoverPeekSettings = {
@@ -34,6 +36,7 @@ export const DEFAULT_HOVER_PEEK: HoverPeekSettings = {
   leaveMs: 120,
   hoverBlur: 4,
   hoverBlurOn: 2,
+  hoverFade: 0.45,
 };
 
 export const REVEAL_EASING = "cubic-bezier(0.23, 1, 0.32, 1)";
@@ -77,6 +80,8 @@ export function onStrip(
 export type PeekLayout = {
   /** How far every card moves right: strip plus gap. */
   shift: number;
+  /** Blur of the right-edge slice, the same as the left strip's. */
+  blur: number;
   strip: { box: number; fromX: number; toX: number; r: number };
 };
 
@@ -85,12 +90,18 @@ export type PeekLayout = {
  * right by `size + gap` along `--car-x`, so the strip and the first card are
  * exactly `gap` apart.
  */
-export function peekLayout(g: Geometry, size: number, gap: number): PeekLayout {
+export function peekLayout(
+  g: Geometry,
+  size: number,
+  gap: number,
+  blur: number,
+): PeekLayout {
   const first = g.slots[0];
   const box = Math.max(size, g.slots[VISIBLE_SLOTS - 1].w);
 
   return {
     shift: size + gap,
+    blur,
     strip: { box, fromX: first.x - size, toX: first.x, r: box - size },
   };
 }

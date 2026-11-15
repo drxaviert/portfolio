@@ -176,11 +176,10 @@
   initial-value: 0;
 }
 
-.car-row[data-stepping][data-blur="edge"],
-.car-row[data-peeking] {
+.car-row[data-stepping][data-blur="edge"] {
   --car-mask: linear-gradient(
     to right,
-    rgb(0 0 0 / calc(1 - var(--car-fade) * var(--car-fade-left, 1))),
+    rgb(0 0 0 / calc(1 - var(--car-fade))),
     #000 var(--car-edge-w, 28px),
     #000 calc(100% - var(--car-edge-w, 28px)),
     rgb(0 0 0 / calc(1 - var(--car-fade)))
@@ -192,11 +191,6 @@
   mask-size: 100% calc(100% + 24px);
   mask-position: 0 -12px;
   mask-clip: no-clip;
-}
-
-/* The peek softens the left end less, so the strip it reveals stays readable. */
-.car-row[data-peeking] {
-  --car-fade-left: 0.45;
 }
 
 /* During a step the clip is exactly the column's edges, so a leaving or
@@ -211,13 +205,62 @@
  * card; it stays inert, so the row itself takes the click and the cursor.
  */
 .car-peek-edge {
+  --car-hp-edge: rgb(0 0 0 / calc(1 - var(--car-hf, 0.45)));
+  --car-cut: calc(var(--car-rw, 0px) - var(--car-hp, 20px) - var(--car-x));
+
   visibility: hidden;
   opacity: 0;
   filter: blur(var(--car-hp-blur, 4px));
   transition: filter 150ms ease-out;
 }
 
-.car-row[data-peek-hot] .car-peek-edge {
+/* Both ends get the same treatment over the same width (--car-hp): a blurred
+   slice whose outer edge fades. The left is the previous item's strip; the
+   right is a copy of the last card clipped to the column's last --car-hp px,
+   while the card itself is cut away there (data-edge-cut), so blur and fade
+   touch only that slice. */
+.car-peek-edge[data-side="left"] {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    var(--car-hp-edge),
+    #000 var(--car-hp, 20px)
+  );
+  mask-image: linear-gradient(
+    to right,
+    var(--car-hp-edge),
+    #000 var(--car-hp, 20px)
+  );
+}
+
+.car-peek-edge[data-side="right"] {
+  clip-path: inset(0 0 0 var(--car-cut));
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 var(--car-cut),
+    var(--car-hp-edge) calc(var(--car-cut) + var(--car-hp, 20px))
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 var(--car-cut),
+    var(--car-hp-edge) calc(var(--car-cut) + var(--car-hp, 20px))
+  );
+}
+
+.car-slide[data-edge-cut] {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 var(--car-cut-at),
+    transparent var(--car-cut-at)
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 var(--car-cut-at),
+    transparent var(--car-cut-at)
+  );
+  --car-cut-at: calc(var(--car-rw, 0px) - var(--car-hp, 20px) - var(--car-x));
+}
+
+.car-row[data-peek-hot] .car-peek-edge[data-side="left"] {
   filter: blur(var(--car-hp-blur-on, 2px));
 }
 

@@ -171,6 +171,7 @@ export function CarouselTuner({
       {slider("retractMs", "Retract", "ms", 100, 600, 10)}
       {slider("leaveMs", "Leave delay", "ms", 0, 400, 10)}
       {slider("hoverBlur", "Peek blur", "px", 0, 12, 0.5)}
+      {slider("hoverFade", "Peek edge fade", "", 0, 1, 0.05)}
       {slider("hoverBlurOn", "Peek blur on hover", "px", 0, 12, 0.5)}
       <button type="button" onClick={copy}>
         {copied ? "Copied" : "Copy values"}

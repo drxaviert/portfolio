@@ -122,7 +122,9 @@ const REST_X = SLOTS.map((slot) => slot.x);
 
 const row = (c: HTMLElement) => c.querySelector<HTMLElement>(".car-row")!;
 const strip = (c: HTMLElement) =>
-  c.querySelector<HTMLElement>(".car-peek-edge");
+  c.querySelector<HTMLElement>('.car-peek-edge[data-side="left"]');
+const copy = (c: HTMLElement) =>
+  c.querySelector<HTMLElement>('.car-peek-edge[data-side="right"]');
 const card = (c: HTMLElement, slot: number) =>
   c.querySelector<HTMLElement>(
     `.car-slide[data-slot="${slot}"]:not([data-ghost])`,
@@ -183,7 +185,7 @@ describe("left hover peek", () => {
     }
   });
 
-  it("slides the strip in from the column edge and fades the edges in with it", () => {
+  it("slides the strip in from the column edge, with no row-wide mask", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
     move(110);
@@ -191,22 +193,49 @@ describe("left hover peek", () => {
     const slide = slides(strip(container)!)[0];
     expect(slide.keyframes["--car-x"]).toEqual(["-20px", "0px"]);
     expect(slide.options.duration).toBe(250);
-
-    const fade = fades(container)[0];
-    expect(fade.keyframes["--car-fade"]).toEqual([0, 1]);
-    expect(fade.options.duration).toBe(250);
+    expect(fades(container)).toHaveLength(0);
   });
 
-  it("blurs only the card that slips under the right edge", () => {
+  it("confines the right-edge blur to a copy: no card is blurred", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
     move(110);
 
-    const blurred = recorded.filter(
-      (r) => r.keyframes.filter && r.target !== strip(container),
+    const blurred = recorded.filter((r) => r.keyframes.filter);
+    // Only the right copy animates a blur, to the same amount the left strip has
+    // from css (--car-hp-blur); no card blurs.
+    expect(blurred.map((r) => r.target)).toEqual([copy(container)]);
+    expect(blurred[0].keyframes.filter?.at(-1)).toBe(
+      `blur(${row(container).style.getPropertyValue("--car-hp-blur")})`,
     );
-    expect(blurred.map((r) => r.target)).toEqual([card(container, 3)]);
-    expect(blurred[0].keyframes.filter).toEqual(["none", "blur(5px)"]);
+    // The copy rides the last card exactly; the card is cut where the copy is.
+    expect(slides(copy(container)!)[0].keyframes["--car-x"]).toEqual(
+      slides(card(container, 3))[0].keyframes["--car-x"],
+    );
+    expect(card(container, 3)).toHaveAttribute("data-edge-cut");
+    expect(card(container, 0)).not.toHaveAttribute("data-edge-cut");
+    expect(copy(container)).toHaveAttribute("aria-hidden", "true");
+    expect(copy(container)).toHaveAttribute("inert");
+  });
+
+  it("derives both treated widths from the one peek width", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+
+    expect(row(container).style.getPropertyValue("--car-hp")).toBe("20px");
+    expect(row(container).style.getPropertyValue("--car-hf")).toBe("0.45");
+    // The strip is 20px wide on the left and the copy's slice is 20px on the
+    // right: the css below reads the same --car-hp for both.
+    move(110);
+    expect(slides(strip(container)!)[0].keyframes["--car-x"]).toEqual([
+      "-20px",
+      "0px",
+    ]);
+    expect(
+      (strip(container)!.style.width.replace("px", "") as unknown as number) -
+        Number(
+          strip(container)!.style.getPropertyValue("--car-r").replace("px", ""),
+        ),
+    ).toBe(20);
   });
 
   it("reveals from the gutter, not only from inside the column", () => {
@@ -240,7 +269,6 @@ describe("left hover peek", () => {
     act(() => vi.advanceTimersByTime(200));
     expect(recorded).toHaveLength(after);
 
-    row(container).style.setProperty("--car-fade", "1");
     move(600);
     act(() => vi.advanceTimersByTime(121));
     for (let slot = 0; slot < 4; slot++) {
@@ -249,7 +277,6 @@ describe("left hover peek", () => {
       expect(back.options.duration).toBe(200);
       expect(back.options.easing).toBe("ease-out");
     }
-    expect(fades(container).at(-1)!.keyframes["--car-fade"]).toEqual([1, 0]);
 
     act(() => slides(strip(container)!).at(-1)!.onfinish?.());
     expect(row(container)).not.toHaveAttribute("data-peeking");
@@ -266,7 +293,7 @@ describe("left hover peek", () => {
       left.querySelector("a, button, [tabindex], [data-work-card]"),
     ).toBeNull();
     expect(container.querySelectorAll("[data-work-card]")).toHaveLength(1);
-    expect(container.querySelectorAll(".car-peek-edge")).toHaveLength(1);
+    expect(container.querySelectorAll(".car-peek-edge")).toHaveLength(2);
   });
 
   it("shows the item before the first for six items", () => {
@@ -279,7 +306,6 @@ describe("left hover peek", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     move(110);
     drawPushed(container);
-    row(container).style.setProperty("--car-fade", "1");
     const cards = [0, 1, 2, 3].map((slot) => card(container, slot));
     const before = recorded.length;
 
@@ -303,14 +329,6 @@ describe("left hover peek", () => {
     );
     expect(entering!.keyframes["--car-x"][0]).toBe("0px");
     expect(entering!.keyframes["--car-r"][0]).toBe("574px");
-    // The edge mask carries on from the peek's strength: no pop.
-    const stepFade = steps.find(
-      (r) => r.target === row(container) && Array.isArray(r.keyframes),
-    )!.keyframes as unknown as {
-      "--car-fade": number;
-    }[];
-    expect(stepFade[0]["--car-fade"]).toBe(1);
-
     const afterStep = recorded.length;
     finishStep();
 
@@ -344,35 +362,55 @@ describe("left hover peek", () => {
     expect(row(container)).not.toHaveAttribute("data-peeking");
   });
 
-  it("fades the edges whatever ?blur= is, and ?peekRight= is gone", () => {
+  it("treats both edges whatever ?blur= is, and ?peekRight= is gone", () => {
     for (const blur of ["edge", "motion", "none"]) {
       window.history.pushState({}, "", `/?blur=${blur}&peekRight=hover`);
       const { container, unmount } = render(<HomeCarousel items={ITEMS} />);
       move(110);
 
       expect(row(container)).toHaveAttribute("data-peeking");
-      expect(fades(container).length).toBeGreaterThan(0);
-      expect(container.querySelectorAll(".car-peek-edge")).toHaveLength(1);
+      expect(slides(strip(container)!)).toHaveLength(1);
+      expect(slides(copy(container)!)).toHaveLength(1);
+      expect(container.querySelectorAll(".car-peek-edge")).toHaveLength(2);
       move(1090);
       unmount();
     }
   });
 });
 
-describe("edge mask while peeking", () => {
+describe("edge treatment css", () => {
   const css = readFileSync(
     resolve(process.cwd(), "src/components/home/carousel/home-carousel.css"),
     "utf8",
   );
 
-  it("is a mask on the row with no painted colour, and clips to the column", () => {
+  it("masks both slices with the same width, fade and curve, and paints no colour", () => {
+    const left = css.match(
+      /\.car-peek-edge\[data-side="left"\]\s*\{([^}]*)\}/,
+    )![1];
+    const right = css.match(
+      /\.car-peek-edge\[data-side="right"\]\s*\{([^}]*)\}/,
+    )![1];
+
+    // Both are 1 - fade at the outer edge, #000 on the inner, over --car-hp.
+    expect(left).toContain("var(--car-hp-edge)");
+    expect(right).toContain("var(--car-hp-edge)");
+    expect(left).toContain("var(--car-hp, 20px)");
+    expect(right).toContain("var(--car-hp, 20px)");
+    expect(right).toMatch(/clip-path:\s*inset\(0 0 0 var\(--car-cut\)\)/);
     expect(css).toMatch(
-      /\.car-row\[data-stepping\]\[data-blur="edge"\],\s*\.car-row\[data-peeking\]\s*\{\s*--car-mask/,
+      /\.car-slide\[data-edge-cut\][^}]*var\(--car-hp, 20px\)/,
+    );
+    expect(css).not.toMatch(/color-mix|backdrop-filter/);
+  });
+
+  it("keeps the step mask on the row and the column clip while peeking", () => {
+    expect(css).toMatch(
+      /\.car-row\[data-stepping\]\[data-blur="edge"\]\s*\{\s*--car-mask/,
     );
     expect(css).toMatch(
       /\.car-row\[data-stepping\],\s*\.car-row\[data-peeking\]\s*\{\s*clip-path:\s*inset\(-12px 0\)/,
     );
-    expect(css).not.toMatch(/color-mix|backdrop-filter/);
   });
 });
 

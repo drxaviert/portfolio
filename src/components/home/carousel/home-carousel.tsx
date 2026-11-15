@@ -127,7 +127,7 @@ type SlideProps = {
   total: number;
   ghost: boolean;
   /** The hover peek's strip: the previous item, as a plain inert copy. */
-  peek?: boolean;
+  peek?: boolean | "right";
   fillSlot: number;
   register: (key: string, element: HTMLElement | null) => void;
   onActivate: (event: MouseEvent<HTMLElement>, index: number) => void;
@@ -150,7 +150,11 @@ function Slide({
 }: SlideProps) {
   const first = slot === 0 && !ghost;
   const offscreen = slot >= VISIBLE_SLOTS;
-  const key = peek ? "peekL" : `${ghost ? "g" : "m"}${index}`;
+  const key = peek
+    ? peek === "right"
+      ? "peekR"
+      : "peekL"
+    : `${ghost ? "g" : "m"}${index}`;
   const fill = WORK_SLIVERS[(fillSlot - 1) % WORK_SLIVERS.length].fill;
   const hostClass = "car-host ring-host rounded-lg";
 
@@ -236,7 +240,7 @@ function Slide({
       data-slot={slot}
       data-ghost={ghost ? "" : undefined}
       data-offscreen={offscreen ? "" : undefined}
-      data-side={peek ? "left" : undefined}
+      data-side={peek ? (peek === "right" ? "right" : "left") : undefined}
       className={peek ? "car-slide car-peek car-peek-edge" : "car-slide"}
     >
       {host}
@@ -346,11 +350,16 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         item,
         el,
         restX: g.slots[slot].x,
-        blur: slot === VISIBLE_SLOTS - 1 ? latest.current.settings.edgeBlur : 0,
+        cut: slot === VISIBLE_SLOTS - 1,
       });
     }
 
-    return { row, strip, cards };
+    return {
+      row,
+      strip,
+      copy: elements.current.get("peekR") ?? null,
+      cards,
+    };
   }
 
   function setPeek(open: boolean) {
@@ -363,7 +372,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     if (!els) return;
 
     const { settings: s, reduce: reduced } = latest.current;
-    const layout = peekLayout(g, s.hoverPeek, s.hoverGap);
+    const layout = peekLayout(g, s.hoverPeek, s.hoverGap, s.hoverBlur);
 
     state.open = open;
     state.els = els;
@@ -524,11 +533,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const drawn = hover.els ? cardXs(hover.els) : null;
     const wasOpen = hover.open;
     const stripAt = hover.layout?.strip.toX ?? 0;
-    const fadeNow = rowRef.current
-      ? Number.parseFloat(
-          getComputedStyle(rowRef.current).getPropertyValue("--car-fade"),
-        ) || 0
-      : 0;
     // An interrupt starts on a card that is already moving, so it takes an
     // ease-out that carries speed instead of the gentle-start default.
     const spec = running
@@ -638,9 +642,9 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       // out before the end.
       animations.push(
         row.animate(
-          EDGE_KEYFRAMES.map((k, index) => ({
+          EDGE_KEYFRAMES.map((k) => ({
             offset: k.offset,
-            "--car-fade": index === 0 ? Math.max(fadeNow, k.fade) : k.fade,
+            "--car-fade": k.fade,
           })),
           { duration: s.duration, easing: "linear", fill: "both" },
         ),
@@ -683,6 +687,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
     geometry.current = measured;
     row.style.setProperty("--car-wide", `${measured.slots[0].w}px`);
+    row.style.setProperty("--car-rw", `${measured.rowWidth}px`);
     row.dataset.ready = "true";
     applyRest(offsetRef.current);
   });
@@ -784,6 +789,8 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     "--car-edge-w": `${settings.edgeWidth}px`,
     "--car-hp-blur": `${settings.hoverBlur}px`,
     "--car-hp-blur-on": `${settings.hoverBlurOn}px`,
+    "--car-hp": `${settings.hoverPeek}px`,
+    "--car-hf": String(settings.hoverFade),
   } as CSSProperties;
 
   return (
@@ -830,6 +837,20 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
               ghost
               peek
               fillSlot={fills[peekOf(n, domOffset)]}
+              register={register}
+              onActivate={onActivate}
+            />
+          ) : null}
+
+          {hoverCapable && n >= VISIBLE_SLOTS ? (
+            <Slide
+              item={items[movedItems(n, domOffset)[VISIBLE_SLOTS - 1]]}
+              index={movedItems(n, domOffset)[VISIBLE_SLOTS - 1]}
+              slot={VISIBLE_SLOTS}
+              total={n}
+              ghost
+              peek="right"
+              fillSlot={fills[movedItems(n, domOffset)[VISIBLE_SLOTS - 1]]}
               register={register}
               onActivate={onActivate}
             />

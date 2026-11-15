@@ -61,7 +61,7 @@ describe("hover zone", () => {
 
 describe("peek layout", () => {
   it("shifts every card by strip + gap and keeps the strip inside the column", () => {
-    const l = peekLayout(G, 20, 12);
+    const l = peekLayout(G, 20, 12, 4);
 
     expect(l.shift).toBe(32);
     expect(l.strip.toX).toBe(0);
