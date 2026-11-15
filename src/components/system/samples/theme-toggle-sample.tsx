@@ -7,7 +7,10 @@ import type {
   PointerEvent as ReactPointerEvent,
   Ref,
 } from "react";
-import { useSystem } from "@/app/design-system/system-shell";
+import {
+  useSystemActions,
+  useSystemSpeed,
+} from "@/app/design-system/system-shell";
 import {
   LEADING_DURATION_MS,
   TRAILING_DELAY_MS,
@@ -441,7 +444,8 @@ export function ThemeToggleSample({
 }: {
   forceState?: ForceState;
 } = {}): JSX.Element {
-  const { params, setParam } = useSystem();
+  const { setParam } = useSystemActions();
+  const speed = useSystemSpeed();
   const [mode, setMode] = useState<Mode>("day");
   const [dayPhase, setDayPhase] = useState<DayPhase>("clock");
   const [rowOpen, setRowOpen] = useState(false);
@@ -516,7 +520,7 @@ export function ThemeToggleSample({
           <StretchHighlight
             width={PHASES.length * SEGMENT_WIDTH + TRACK_INSET}
             targetIndex={phaseIndex}
-            speed={params.speed}
+            speed={speed}
           />
           {PHASES.map((option) => (
             <Segment
@@ -541,7 +545,7 @@ export function ThemeToggleSample({
         <StretchHighlight
           width={MODES.length * SEGMENT_WIDTH + TRACK_INSET}
           targetIndex={modeIndex}
-          speed={params.speed}
+          speed={speed}
         />
         {MODES.map((option) => (
           <Segment

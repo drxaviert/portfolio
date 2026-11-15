@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { JSX } from "react";
-import { useSystem } from "@/app/design-system/system-shell";
+import { useSystemEngine } from "@/app/design-system/system-shell";
 import {
   GLIDE_LEAD_SPRING,
   GLIDE_TRAIL_SPRING,
@@ -44,7 +44,7 @@ function SpringRow({
   label: string;
   spring: GlideSpring;
 }): JSX.Element {
-  const { engine } = useSystem();
+  const engine = useSystemEngine();
   const stiffnessRef = useRef<HTMLSpanElement | null>(null);
   const dampingRef = useRef<HTMLSpanElement | null>(null);
 

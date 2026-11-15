@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SystemParamsContext } from "@/app/design-system/system-shell";
+import { SystemEngineContext, SystemParamsContext } from "@/app/design-system/system-shell";
 import {
   GLIDE_LEAD_SPRING,
   GLIDE_TRAIL_SPRING,
@@ -80,9 +80,13 @@ function rects(): {
 }
 
 function renderDemo() {
+  const system = makeSystem();
+
   return render(
-    <SystemParamsContext value={makeSystem()}>
-      <NavGlideDemo />
+    <SystemParamsContext value={system}>
+      <SystemEngineContext value={system.engine}>
+        <NavGlideDemo />
+      </SystemEngineContext>
     </SystemParamsContext>,
   );
 }

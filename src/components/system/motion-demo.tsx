@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import type { JSX } from "react";
-import { useSystem } from "@/app/design-system/system-shell";
+import { useSystemEngine } from "@/app/design-system/system-shell";
 import type { TokenMap } from "@/lib/system/derive";
 import { DURATIONS, EASES } from "@/lib/system/source.generated";
 
@@ -51,7 +51,7 @@ export function MotionDemo({
   kind: "ease" | "duration";
   token: string;
 }): JSX.Element {
-  const { engine } = useSystem();
+  const engine = useSystemEngine();
   const trackRef = useRef<HTMLDivElement | null>(null);
   const dotRef = useRef<HTMLSpanElement | null>(null);
   const durationLabelRef = useRef<HTMLSpanElement | null>(null);

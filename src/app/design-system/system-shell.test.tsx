@@ -1,9 +1,10 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SECTIONS } from "@/app/design-system/sections";
 import {
   SystemShell,
   useSystem,
+  useSystemEngine,
 } from "@/app/design-system/system-shell";
 
 let frames: FrameRequestCallback[] = [];
@@ -128,6 +129,37 @@ describe("SystemShell", () => {
       "",
     );
     expect(document.documentElement.getAttribute("style")).toBe(baseline);
+  });
+
+  it("keeps engine-only consumers out of the drag render path", () => {
+    let renders = 0;
+
+    function EngineProbe() {
+      useSystemEngine();
+      renders += 1;
+
+      return null;
+    }
+
+    render(
+      <SystemShell>
+        <EngineProbe />
+      </SystemShell>,
+    );
+
+    expect(renders).toBe(1);
+
+    const hue = screen.getAllByRole("slider", { name: "Hue" })[0];
+
+    act(() => {
+      fireEvent.input(hue, { target: { value: "120" } });
+      flushFrames();
+    });
+
+    expect(renders).toBe(1);
+    expect(screen.getAllByRole("slider", { name: "Hue" })[0]).toHaveValue(
+      "120",
+    );
   });
 
   it("throws when a consumer sits outside the shell", () => {

@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SystemParamsContext } from "@/app/design-system/system-shell";
+import { SystemEngineContext, SystemParamsContext } from "@/app/design-system/system-shell";
 import { MotionSection } from "@/app/design-system/sections/motion";
 import { M3_DURATIONS } from "@/lib/system/m3-scale";
 import type { GlideSpring } from "@/components/home/glide-spring";
@@ -31,9 +31,13 @@ function makeSystem(): System {
 }
 
 function renderMotion() {
+  const system = makeSystem();
+
   return render(
-    <SystemParamsContext value={makeSystem()}>
-      <MotionSection />
+    <SystemParamsContext value={system}>
+      <SystemEngineContext value={system.engine}>
+        <MotionSection />
+      </SystemEngineContext>
     </SystemParamsContext>,
   );
 }

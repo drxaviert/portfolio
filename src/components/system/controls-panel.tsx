@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { memo, useEffect, useId, useRef } from "react";
 import type { JSX, ReactNode } from "react";
-import { useSystem } from "@/app/design-system/system-shell";
+import { useSystem, useSystemActions } from "@/app/design-system/system-shell";
 import { PARAM_RANGES } from "@/lib/system/params";
 import type { Params } from "@/lib/system/params";
 
@@ -54,17 +54,21 @@ function nextValue(
   }
 }
 
-function ParamSlider({
+type SetParam = <K extends keyof Params>(key: K, value: Params[K]) => void;
+
+const ParamSlider = memo(function ParamSlider({
   paramKey,
+  value,
+  setParam,
   children,
 }: {
   paramKey: keyof Params;
+  value: number;
+  setParam: SetParam;
   children?: ReactNode;
 }) {
-  const { params, setParam } = useSystem();
   const id = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const value = params[paramKey];
   const { min, max, step } = PARAM_RANGES[paramKey];
 
   // The input stays uncontrolled so a drag never fights React's controlled
@@ -126,10 +130,11 @@ function ParamSlider({
       {children}
     </div>
   );
-}
+});
 
 export function ControlsPanel(): JSX.Element {
-  const { reset } = useSystem();
+  const { params } = useSystem();
+  const { setParam, reset } = useSystemActions();
 
   return (
     <section aria-label="Controls" className="rounded-lg bg-surface-container-low p-4 shadow-card">
@@ -139,17 +144,21 @@ export function ControlsPanel(): JSX.Element {
       </div>
 
       <div className="mt-4 space-y-4">
-        <ParamSlider paramKey="hue" />
-        <ParamSlider paramKey="round" />
-        <ParamSlider paramKey="tod">
+        <ParamSlider paramKey="hue" value={params.hue} setParam={setParam} />
+        <ParamSlider paramKey="round" value={params.round} setParam={setParam} />
+        <ParamSlider paramKey="tod" value={params.tod} setParam={setParam}>
           <div className="mt-1 flex justify-between text-[10px] font-medium uppercase tracking-wide text-on-surface-variant">
             {TOD_TICKS.map((tick) => (
               <span key={tick}>{tick}</span>
             ))}
           </div>
         </ParamSlider>
-        <ParamSlider paramKey="contrast" />
-        <ParamSlider paramKey="speed" />
+        <ParamSlider
+          paramKey="contrast"
+          value={params.contrast}
+          setParam={setParam}
+        />
+        <ParamSlider paramKey="speed" value={params.speed} setParam={setParam} />
       </div>
 
       <button

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SystemParamsContext } from "@/app/design-system/system-shell";
+import { SystemEngineContext, SystemParamsContext } from "@/app/design-system/system-shell";
 import { ComponentDoc } from "@/components/system/component-doc";
 import type { GlideSpring } from "@/components/home/glide-spring";
 import type { useSystemParams } from "@/lib/system/use-system-params";
@@ -42,9 +42,13 @@ function Doc() {
 }
 
 function renderDoc() {
+  const system = makeSystem();
+
   return render(
-    <SystemParamsContext value={makeSystem()}>
-      <Doc />
+    <SystemParamsContext value={system}>
+      <SystemEngineContext value={system.engine}>
+        <Doc />
+      </SystemEngineContext>
     </SystemParamsContext>,
   );
 }

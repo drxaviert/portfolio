@@ -1,6 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SystemParamsContext } from "@/app/design-system/system-shell";
+import {
+  SystemActionsContext,
+  SystemEngineContext,
+  SystemParamsContext,
+} from "@/app/design-system/system-shell";
 import { ComponentsSection } from "@/app/design-system/sections/components";
 import type { GlideSpring } from "@/components/home/glide-spring";
 import type { useSystemParams } from "@/lib/system/use-system-params";
@@ -45,9 +49,16 @@ afterEach(() => {
 
 describe("ComponentsSection", () => {
   it("documents the Card with its states, note and consumed tokens", () => {
+    const system = makeSystem();
     const { container } = render(
-      <SystemParamsContext value={makeSystem()}>
-        <ComponentsSection />
+      <SystemParamsContext value={system}>
+        <SystemActionsContext
+          value={{ setParam: system.setParam, reset: system.reset }}
+        >
+          <SystemEngineContext value={system.engine}>
+            <ComponentsSection />
+          </SystemEngineContext>
+        </SystemActionsContext>
       </SystemParamsContext>,
     );
 

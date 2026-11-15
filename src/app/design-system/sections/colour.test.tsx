@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SystemParamsContext } from "@/app/design-system/system-shell";
+import { SystemEngineContext, SystemParamsContext } from "@/app/design-system/system-shell";
 import { ColourSection } from "@/app/design-system/sections/colour";
 import type { GlideSpring } from "@/components/home/glide-spring";
 import type { useSystemParams } from "@/lib/system/use-system-params";
@@ -46,9 +46,12 @@ afterEach(() => {
 
 describe("ColourSection", () => {
   it("renders one row per palette token, grouped by family", () => {
+    const system = makeSystem();
     const { container } = render(
-      <SystemParamsContext value={makeSystem()}>
-        <ColourSection />
+      <SystemParamsContext value={system}>
+        <SystemEngineContext value={system.engine}>
+          <ColourSection />
+        </SystemEngineContext>
       </SystemParamsContext>,
     );
 
@@ -60,9 +63,12 @@ describe("ColourSection", () => {
   });
 
   it("shows the current role values plus a static defaults table", () => {
+    const system = makeSystem();
     const { container } = render(
-      <SystemParamsContext value={makeSystem()}>
-        <ColourSection />
+      <SystemParamsContext value={system}>
+        <SystemEngineContext value={system.engine}>
+          <ColourSection />
+        </SystemEngineContext>
       </SystemParamsContext>,
     );
 

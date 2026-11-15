@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SystemParamsContext } from "@/app/design-system/system-shell";
+import { SystemEngineContext, SystemParamsContext } from "@/app/design-system/system-shell";
 import type { GlideSpring } from "@/components/home/glide-spring";
 import { MotionDemo } from "@/components/system/motion-demo";
 import type { useSystemParams } from "@/lib/system/use-system-params";
@@ -39,9 +39,13 @@ function makeSystem(): System {
 }
 
 function renderDemo(token = "--duration-medium-5") {
+  const system = makeSystem();
+
   return render(
-    <SystemParamsContext value={makeSystem()}>
-      <MotionDemo kind="duration" token={token} />
+    <SystemParamsContext value={system}>
+      <SystemEngineContext value={system.engine}>
+        <MotionDemo kind="duration" token={token} />
+      </SystemEngineContext>
     </SystemParamsContext>,
   );
 }
@@ -161,9 +165,13 @@ describe("MotionDemo", () => {
   });
 
   it("uses the live ease token when documenting an easing", () => {
+    const system = makeSystem();
+
     render(
-      <SystemParamsContext value={makeSystem()}>
-        <MotionDemo kind="ease" token="--ease-spring" />
+      <SystemParamsContext value={system}>
+        <SystemEngineContext value={system.engine}>
+          <MotionDemo kind="ease" token="--ease-spring" />
+        </SystemEngineContext>
       </SystemParamsContext>,
     );
 

@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SystemParamsContext } from "@/app/design-system/system-shell";
+import {
+  SystemActionsContext,
+  SystemEngineContext,
+  SystemParamsContext,
+} from "@/app/design-system/system-shell";
 import { ThemeToggleSample } from "@/components/system/samples/theme-toggle-sample";
 import type { GlideSpring } from "@/components/home/glide-spring";
 import type { useSystemParams } from "@/lib/system/use-system-params";
@@ -35,7 +39,16 @@ function renderSample(forceState?: "rest" | "focus-visible") {
 
   const view = render(
     <SystemParamsContext value={system}>
-      <ThemeToggleSample forceState={forceState} />
+      <SystemActionsContext
+        value={{
+          setParam: setParam as unknown as System["setParam"],
+          reset: system.reset,
+        }}
+      >
+        <SystemEngineContext value={system.engine}>
+          <ThemeToggleSample forceState={forceState} />
+        </SystemEngineContext>
+      </SystemActionsContext>
     </SystemParamsContext>,
   );
 

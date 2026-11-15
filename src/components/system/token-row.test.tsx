@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SystemParamsContext } from "@/app/design-system/system-shell";
+import { SystemEngineContext, SystemParamsContext } from "@/app/design-system/system-shell";
 import type { GlideSpring } from "@/components/home/glide-spring";
 import { TokenRow } from "@/components/system/token-row";
 import type { useSystemParams } from "@/lib/system/use-system-params";
@@ -10,6 +10,7 @@ type System = ReturnType<typeof useSystemParams>;
 
 let listeners: Array<(tokens: Record<string, string>) => void> = [];
 let values: Record<string, string> = {};
+let styleReads = 0;
 
 function makeSystem(): System {
   return {
@@ -33,24 +34,38 @@ function makeSystem(): System {
   } as unknown as System;
 }
 
-function renderRow() {
+function renderToken(token: string) {
+  const system = makeSystem();
+
   return render(
-    <SystemParamsContext value={makeSystem()}>
-      <TokenRow token="--radius-lg" usage="Use for cards, not for pills." />
+    <SystemParamsContext value={system}>
+      <SystemEngineContext value={system.engine}>
+        <TokenRow token={token} usage="Use for cards, not for pills." />
+      </SystemEngineContext>
     </SystemParamsContext>,
   );
+}
+
+function renderRow() {
+  return renderToken("--radius-lg");
 }
 
 beforeEach(() => {
   listeners = [];
   values = { "--radius-lg": "12px" };
+  styleReads = 0;
   const original = window.getComputedStyle.bind(window);
 
   vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
     if (element === document.documentElement) {
       return {
-        getPropertyValue: (name: string) =>
-          values[name] ?? original(element, pseudo).getPropertyValue(name),
+        getPropertyValue: (name: string) => {
+          styleReads += 1;
+
+          return (
+            values[name] ?? original(element, pseudo).getPropertyValue(name)
+          );
+        },
       } as CSSStyleDeclaration;
     }
 
@@ -74,10 +89,40 @@ describe("TokenRow", () => {
 
     expect(screen.getByText("12px")).toBeInTheDocument();
 
-    values["--radius-lg"] = "18px";
-    act(() => listeners.forEach((listener) => listener({})));
+    act(() =>
+      listeners.forEach((listener) => listener({ "--radius-lg": "18px" })),
+    );
 
     expect(screen.getByText("18px")).toBeInTheDocument();
+  });
+
+  it("reads computed CSS once for a token the engine does not write", () => {
+    values["--text-sm"] = "14px";
+    renderToken("--text-sm");
+
+    expect(screen.getByText("14px")).toBeInTheDocument();
+    expect(styleReads).toBe(1);
+
+    values["--text-sm"] = "16px";
+    act(() => listeners.forEach((listener) => listener({})));
+
+    // Static design tokens do not follow parameter frames, and a reread here
+    // would force a style recalc of the whole document every frame.
+    expect(screen.getByText("14px")).toBeInTheDocument();
+    expect(styleReads).toBe(1);
+  });
+
+  it("does not rewrite a value that did not change", () => {
+    renderRow();
+
+    const value = screen.getByText("12px");
+    const textNode = value.firstChild;
+
+    act(() =>
+      listeners.forEach((listener) => listener({ "--radius-lg": "12px" })),
+    );
+
+    expect(value.firstChild).toBe(textNode);
   });
 
   it("prefers the value the engine just wrote over computed style", () => {

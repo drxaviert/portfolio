@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { JSX, ReactNode } from "react";
-import { useSystem } from "@/app/design-system/system-shell";
+import { useSystemEngine } from "@/app/design-system/system-shell";
 import type { TokenMap } from "@/lib/system/derive";
 import { ChainPopover } from "./chain-popover";
 import { useCopy } from "./use-copy";
@@ -25,29 +25,44 @@ export function TokenRow({
   usage,
   preview,
 }: TokenRowProps): JSX.Element {
-  const { engine } = useSystem();
+  const engine = useSystemEngine();
   const valueRef = useRef<HTMLSpanElement | null>(null);
   const { copied, copy } = useCopy();
   const isCopied = copied === token;
 
   useEffect(() => {
-    let sawEngineValue = false;
+    let rendered: string | null = null;
+    let seeded = false;
 
+    /**
+     * The engine supplies every parameter-derived token. Only static tokens
+     * (the text scale) fall back to CSS, and they cannot change with a
+     * parameter — so read computed style once, not once per engine frame.
+     * A read here would force a synchronous style recalc of the whole document
+     * because the engine has just changed the root custom properties.
+     */
     const apply = (tokens?: TokenMap) => {
       let value = tokens?.[token];
 
-      if (value !== undefined) {
-        sawEngineValue = true;
-      } else if (!sawEngineValue) {
-        // Only tokens the engine does not write (the text scale) are read back
-        // from CSS; the engine already hands us the values it just set.
+      if (value === undefined && !seeded) {
         value = window
           .getComputedStyle(document.documentElement)
           .getPropertyValue(token)
           .trim();
+        seeded = true;
       }
 
-      if (valueRef.current) valueRef.current.textContent = value || "—";
+      // Engine-owned tokens are always present in a frame; a missing one
+      // means "unchanged", never "go read the document again".
+      if (value === undefined) return;
+
+      const next = value || "—";
+
+      if (next === rendered) return;
+
+      rendered = next;
+
+      if (valueRef.current) valueRef.current.textContent = next;
     };
 
     apply();

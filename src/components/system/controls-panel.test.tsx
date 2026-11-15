@@ -2,7 +2,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ControlsPanel } from "@/components/system/controls-panel";
-import { SystemParamsContext } from "@/app/design-system/system-shell";
+import {
+  SystemActionsContext,
+  SystemParamsContext,
+} from "@/app/design-system/system-shell";
 import type { GlideSpring } from "@/components/home/glide-spring";
 import type { useSystemParams } from "@/lib/system/use-system-params";
 import { DEFAULT_PARAMS, PARAM_RANGES } from "@/lib/system/params";
@@ -37,7 +40,11 @@ function makeSystem(params: Params): System {
 function renderPanel(system: System) {
   return render(
     <SystemParamsContext value={system}>
-      <ControlsPanel />
+      <SystemActionsContext
+        value={{ setParam: system.setParam, reset: system.reset }}
+      >
+        <ControlsPanel />
+      </SystemActionsContext>
     </SystemParamsContext>,
   );
 }

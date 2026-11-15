@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { JSX, PointerEvent as ReactPointerEvent } from "react";
-import { useSystem } from "@/app/design-system/system-shell";
+import { useSystemEngine } from "@/app/design-system/system-shell";
 import {
   GLIDE_LEAD_SPRING,
   GLIDE_TRAIL_SPRING,
@@ -112,7 +112,7 @@ export function NavItemSample({
  * capsule instantly.
  */
 export function NavGlideDemo(): JSX.Element {
-  const { engine } = useSystem();
+  const engine = useSystemEngine();
   const runRef = useRef<HTMLDivElement | null>(null);
   const capsuleRef = useRef<HTMLSpanElement | null>(null);
   const itemRefs = useRef<(HTMLElement | null)[]>([]);
