@@ -163,6 +163,52 @@ function isModified(event: MouseEvent<HTMLElement>): boolean {
   );
 }
 
+/** The peek's edge blur layer, drawn above the row so it can smear outward. */
+function PeekEdgeBlur({
+  edge,
+  item,
+  cardWidth,
+  ramp,
+  wide,
+  blur,
+}: {
+  edge: "left" | "right";
+  item: CarouselItem;
+  cardWidth: number;
+  ramp: number;
+  wide: number;
+  blur: number;
+}) {
+  // A placeholder has no picture: nothing to smear.
+  if (item.kind !== "work") return null;
+
+  return (
+    <span
+      aria-hidden="true"
+      data-peek-blur=""
+      data-edge={edge}
+      className="car-peek-blur"
+      style={
+        {
+          "--peek-card-w": `${cardWidth}px`,
+          "--peek-ramp": `${ramp}px`,
+          "--peek-blur": `${blur}px`,
+          "--car-wide": `${wide}px`,
+        } as CSSProperties
+      }
+    >
+      <span className="car-peek-blur-copy">
+        <span className="car-content">
+          <span className="absolute inset-0 overflow-hidden">
+            <Cover scene={item.cover} fit="cover" />
+          </span>
+          <span className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]" />
+        </span>
+      </span>
+    </span>
+  );
+}
+
 type SlideProps = {
   item: CarouselItem;
   index: number;
@@ -193,14 +239,6 @@ function Slide({
   const offscreen = slot >= VISIBLE_SLOTS;
   const key = peek ? "peekL" : `${ghost ? "g" : "m"}${index}`;
   const hostClass = "car-host ring-host rounded-lg";
-  // The peek blurs its own outer edges: the previous card's left one, and the
-  // right-most visible card's right one (slot 2, once the 4th has been pushed
-  // out). The layer is always mounted and stays at rest until the peek fades it.
-  const edgeBlur = peek
-    ? "left"
-    : !ghost && slot === VISIBLE_SLOTS - 2
-      ? "right"
-      : null;
 
   const body = (
     <>
@@ -236,27 +274,6 @@ function Slide({
             {item.title}
           </div>
         </div>
-        {edgeBlur ? (
-          <span
-            aria-hidden="true"
-            data-peek-blur=""
-            data-edge={edgeBlur}
-            className="car-peek-blur"
-          >
-            <span className="car-peek-blur-copy">
-              <span className="car-content">
-                {item.kind === "work" ? (
-                  <>
-                    <span className="absolute inset-0 overflow-hidden">
-                      <Cover scene={item.cover} fit="cover" />
-                    </span>
-                    <span className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]" />
-                  </>
-                ) : null}
-              </span>
-            </span>
-          </span>
-        ) : null}
       </div>
     </>
   );
@@ -333,6 +350,8 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const [ghosts, setGhosts] = useState<number[]>([]);
   const [announcement, setAnnouncement] = useState("");
   const [settled, setSettled] = useState(0);
+  /** Measured slot widths, so the edge-blur layers can size their ramps. */
+  const [slotWidths, setSlotWidths] = useState<number[] | null>(null);
 
   const rowRef = useRef<HTMLDivElement>(null);
   const guideRef = useRef<HTMLDivElement>(null);
@@ -428,7 +447,14 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       cards.push({ item, el, restX: g.slots[slot].x });
     }
 
-    return { row, prev, cards };
+    // The edge-blur layers are the row's siblings (above its mask), not its
+    // children: they have to paint past the column's edge.
+    const blurs = [
+      ...(row.parentElement?.querySelectorAll<HTMLElement>("[data-peek-blur]") ??
+        []),
+    ];
+
+    return { row, prev, cards, blurs };
   }
 
   function setPeek(open: boolean) {
@@ -900,6 +926,14 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     row.style.setProperty("--car-wide", `${measured.slots[0].w}px`);
     row.dataset.ready = "true";
     applyRest(offsetRef.current);
+    setSlotWidths((previous) => {
+      const next = measured.slots.map((slot) => Math.round(slot.w));
+      return previous &&
+        previous.length === next.length &&
+        previous.every((width, index) => width === next[index])
+        ? previous
+        : next;
+    });
   });
 
   useLayoutEffect(() => {
@@ -1125,9 +1159,9 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const domOrder = slotOrder(n, domOffset);
   const rowStyle = {
     "--car-edge-w": `${settings.edgeWidth}px`,
-    "--car-peek-blur": `${settings.peekBlurMax}px`,
-    "--car-peek-ramp": `${settings.peekBlurRamp}`,
   } as CSSProperties;
+  const peekRamp = (cardWidth: number) =>
+    Math.max(1, Math.round((cardWidth * settings.peekBlurRamp) / 100));
 
   return (
     <>
@@ -1135,7 +1169,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         aria-roledescription="carousel"
         aria-label="Selected work"
         onKeyDown={onKeyDown}
-        className="hidden md:block"
+        className="relative hidden md:block"
       >
         <div ref={rowRef} className="car-row" style={rowStyle}>
           <div ref={guideRef} aria-hidden="true" className="car-guide">
@@ -1184,6 +1218,27 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
             />
           ))}
         </div>
+
+        {hoverCapable && n >= VISIBLE_SLOTS && slotWidths ? (
+          <>
+            <PeekEdgeBlur
+              edge="left"
+              item={items[peekOf(n, offset)]}
+              cardWidth={slotWidths[VISIBLE_SLOTS - 1]}
+              ramp={peekRamp(slotWidths[VISIBLE_SLOTS - 1])}
+              wide={slotWidths[0]}
+              blur={settings.peekBlurMax}
+            />
+            <PeekEdgeBlur
+              edge="right"
+              item={items[slotOrder(n, offset)[VISIBLE_SLOTS - 2]]}
+              cardWidth={slotWidths[VISIBLE_SLOTS - 2]}
+              ramp={peekRamp(slotWidths[VISIBLE_SLOTS - 2])}
+              wide={slotWidths[0]}
+              blur={settings.peekBlurMax}
+            />
+          </>
+        ) : null}
 
         <p className="sr-only" aria-live="polite">
           {announcement}

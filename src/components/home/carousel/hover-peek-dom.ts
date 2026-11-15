@@ -23,6 +23,8 @@ export type PeekEls = {
   /** The previous item's plain, aria-hidden copy. */
   prev: HTMLElement;
   cards: PeekCard[];
+  /** The progressive edge-blur layers, above the row (see the css). */
+  blurs: HTMLElement[];
 };
 
 export type PeekTiming = {
@@ -37,9 +39,13 @@ export function read(el: HTMLElement, prop: string): number {
   return Number.parseFloat(getComputedStyle(el).getPropertyValue(prop)) || 0;
 }
 
-/** The progressive edge blur layer a card carries, if it has one. */
-function blurLayer(el: HTMLElement): HTMLElement | null {
-  return el.querySelector<HTMLElement>("[data-peek-blur]");
+/** The x translation of an element's current (animated) transform, in px. */
+function translateXOf(el: HTMLElement): number {
+  const transform = getComputedStyle(el).transform;
+  if (!transform || transform === "none") return 0;
+
+  const values = transform.slice(transform.indexOf("(") + 1, -1).split(",");
+  return Number.parseFloat(values[4]) || 0;
 }
 
 /** Each card's pose as drawn this instant, mid-tween values included. */
@@ -57,7 +63,7 @@ export function cardPoses(els: PeekEls): Map<number, { x: number; w: number }> {
 
 /** Puts everything at rest: cards unshifted, the copy hidden, no mask. */
 export function closeSnap(
-  { row, prev, cards }: PeekEls,
+  { row, prev, cards, blurs }: PeekEls,
   previous: Animation[],
 ) {
   previous.forEach((animation) => animation.cancel());
@@ -66,6 +72,12 @@ export function closeSnap(
   prev.style.visibility = "hidden";
   prev.style.opacity = "";
   delete row.dataset.mask;
+  // A peek held mid-fade (the reader opened over it) would otherwise leave the
+  // edge blur drawn over the row at rest.
+  for (const blur of blurs) {
+    blur.style.opacity = "0";
+    blur.style.removeProperty("transform");
+  }
 }
 
 /**
@@ -80,7 +92,7 @@ export function tweenPeek(
   previous: Animation[],
   done: () => void,
 ): Animation[] {
-  const { row, prev, cards } = els;
+  const { row, prev, cards, blurs } = els;
 
   // A copy that is not shown yet starts beyond the left edge.
   const fresh = prev.style.visibility !== "visible";
@@ -90,14 +102,12 @@ export function tweenPeek(
   };
   const fromCards = cards.map((card) => read(card.el, "--car-x"));
   const fromFade = read(row, "--car-fade");
-  // The edge blur layers: the previous card's left edge and the right-most
-  // visible card's right edge. They fade with the run, never the radius.
-  const blurs = [prev, ...cards.map((card) => card.el)]
-    .map(blurLayer)
-    .filter((el): el is HTMLElement => el !== null);
-  const fromBlur = blurs.map(
-    (el) => Number.parseFloat(getComputedStyle(el).opacity) || 0,
-  );
+  // The edge-blur layers sit at the peek's settled positions, so they ride the
+  // same shift the cards do and fade with the run (never the radius).
+  const fromBlur = blurs.map((el) => ({
+    o: Number.parseFloat(getComputedStyle(el).opacity) || 0,
+    x: translateXOf(el),
+  }));
 
   previous.forEach((animation) => animation.cancel());
   prev.style.width = `${layout.prevW}px`;
@@ -128,7 +138,10 @@ export function tweenPeek(
     );
     prev.style.setProperty("--car-x", `${toPrev.x}px`);
     prev.style.opacity = String(toPrev.o);
-    for (const blur of blurs) blur.style.opacity = open ? "1" : "0";
+    for (const blur of blurs) {
+      blur.style.opacity = open ? "1" : "0";
+      blur.style.transform = `translateX(${open ? 0 : -layout.shift}px)`;
+    }
 
     const prevFade = prev.animate(
       { opacity: [fromPrev.o, toPrev.o] },
@@ -178,12 +191,23 @@ export function tweenPeek(
     })),
     { duration: options.duration, easing: "linear" },
   );
-  const blurRuns = blurs.map((el, index) =>
-    el.animate(
-      { opacity: [fromBlur[index], open ? 1 : 0] },
-      { ...options, fill: open ? ("forwards" as const) : ("none" as const) },
-    ),
-  );
+  const blurRuns = blurs.map((el, index) => {
+    // A layer that is not shown starts where the card does (one shift back);
+    // one that is mid-turn continues from where it is drawn.
+    const fromX =
+      fromBlur[index].o < 0.01 ? -layout.shift : fromBlur[index].x;
+
+    return el.animate(
+      {
+        opacity: [fromBlur[index].o, open ? 1 : 0],
+        transform: [
+          `translateX(${fromX}px)`,
+          `translateX(${open ? 0 : -layout.shift}px)`,
+        ],
+      },
+      options,
+    );
+  });
 
   prevRun.onfinish = finish;
 

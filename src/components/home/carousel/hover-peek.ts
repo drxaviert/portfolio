@@ -33,7 +33,7 @@ export const DEFAULT_HOVER_PEEK: HoverPeekSettings = {
   leaveMs: 120,
   hoverFade: 0.5,
   peekBlurRamp: 50,
-  peekBlurMax: 6,
+  peekBlurMax: 8,
 };
 
 export const PEEK_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
