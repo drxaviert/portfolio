@@ -445,6 +445,15 @@ export function getActiveDayPhase(): DayPhase {
 }
 
 /**
+ * The phase the document's theme is on right now. Reads the in-memory mode
+ * and Day-phase pin (falling back to storage), then resolves the clock, so
+ * callers never duplicate the theme rules.
+ */
+export function getActivePhase(date: Date = new Date()): Phase {
+  return phaseFor(date, getActiveMode(), getActiveDayPhase());
+}
+
+/**
  * Applies a mode to the document: data-mode and data-phase drive the tokens,
  * and `.dark` stays for anything still keyed off the class. Night and Auto
  * resolve from the clock even when a Day-phase pin is stored; Day applies the

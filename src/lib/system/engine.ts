@@ -1,9 +1,5 @@
 import type { GlideSpring } from "@/components/home/glide-spring";
-import {
-  getActiveDayPhase,
-  getActiveMode,
-  phaseFor,
-} from "@/lib/theme";
+import { getActivePhase } from "@/lib/theme";
 import { derive, phaseAtTod } from "@/lib/system/derive";
 import type { TokenMap } from "@/lib/system/derive";
 import { clampParams, DEFAULT_PARAMS } from "@/lib/system/params";
@@ -169,11 +165,7 @@ export function createSystemEngine(
         // now rather than the snapshot captured before the engine existed.
         // theme.ts owns the mode/pin logic; reusing its getters keeps this in
         // step with the clock and any pinned Day phase.
-        const livePhase = phaseFor(
-          new Date(),
-          getActiveMode(),
-          getActiveDayPhase(),
-        );
+        const livePhase = getActivePhase();
 
         root.setAttribute("data-phase", livePhase);
         root.classList.toggle("dark", livePhase === "night");

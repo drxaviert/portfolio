@@ -69,3 +69,75 @@ export function todForPhase(phase: Phase): TodPosition {
       return 1;
   }
 }
+
+const PARAM_KEYS: ReadonlyArray<keyof Params> = [
+  "hue",
+  "round",
+  "tod",
+  "contrast",
+  "speed",
+];
+
+/** The last value for `key` that parses to a finite number, if any. */
+function lastFiniteValue(query: URLSearchParams, key: string): number | null {
+  const values = query.getAll(key);
+
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    const raw = values[index].trim();
+
+    if (raw === "") continue;
+
+    const value = Number(raw);
+
+    if (Number.isFinite(value)) return value;
+  }
+
+  return null;
+}
+
+/**
+ * Reads the five keys from a search string. Unparseable values fall back to
+ * the defaults; numeric out-of-range values clamp. A missing `tod` starts at
+ * the site phase, while an invalid one falls back to the default tod.
+ */
+export function parseQuery(search: string, sitePhase: Phase): Params {
+  const query = new URLSearchParams(search);
+  const read = (key: keyof Params, fallback: number): number =>
+    lastFiniteValue(query, key) ?? fallback;
+
+  return clampParams({
+    hue: read("hue", DEFAULT_PARAMS.hue),
+    round: read("round", DEFAULT_PARAMS.round),
+    tod: query.has("tod")
+      ? read("tod", DEFAULT_PARAMS.tod)
+      : todForPhase(sitePhase),
+    contrast: read("contrast", DEFAULT_PARAMS.contrast),
+    speed: read("speed", DEFAULT_PARAMS.speed),
+  });
+}
+
+function formatParam(value: number): string {
+  // The UI steps are at most three decimals; trim float noise from the maths.
+  return String(Number(value.toFixed(4)));
+}
+
+/**
+ * Writes only the keys that differ from the defaults at the current site
+ * phase, so the unparameterised URL stays clean.
+ */
+export function serializeQuery(params: Params, sitePhase: Phase): string {
+  const clamped = clampParams(params);
+  const defaults: Params = {
+    ...DEFAULT_PARAMS,
+    tod: todForPhase(sitePhase),
+  };
+  const parts: string[] = [];
+
+  for (const key of PARAM_KEYS) {
+    if (clamped[key] === defaults[key]) continue;
+
+    parts.push(`${key}=${formatParam(clamped[key])}`);
+  }
+
+  return parts.length === 0 ? "" : `?${parts.join("&")}`;
+}
