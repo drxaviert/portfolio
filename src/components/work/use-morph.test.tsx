@@ -67,6 +67,20 @@ function placeCard(rect: Box) {
   };
 }
 
+/**
+ * A hard-loaded study's reader. `painted` mirrors a live route: Next parks a
+ * route it left with `display: none`, and jsdom has no layout, so the painted
+ * state comes from `getClientRects`.
+ */
+function placePageReader(painted: boolean) {
+  const page = document.createElement("main");
+  page.className = "wd-reader-panel";
+  page.dataset.mode = "page";
+  page.getClientRects = () =>
+    (painted ? [toDomRect(PANEL)] : []) as unknown as DOMRectList;
+  document.body.append(page);
+}
+
 function ReaderStub() {
   return (
     <div className="wd-reader-panel">
@@ -390,6 +404,57 @@ describe("ExpandShell", () => {
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/"));
     expect(mocks.back).not.toHaveBeenCalled();
+  });
+
+  it("pushes home when a direct load's page reader sits under the overlay", async () => {
+    placeCard(CARD_A);
+
+    // Opening a second study from a hard-loaded one keeps that study's
+    // page-mode reader in the tree; the overlay mounts over it. Back would
+    // reveal that reader instead of the homepage.
+    placePageReader(true);
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
+
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/"));
+    expect(mocks.back).not.toHaveBeenCalled();
+  });
+
+  it("goes back when the page reader left in the tree is parked", async () => {
+    placeCard(CARD_A);
+
+    // Next keeps a route it left in the DOM, hidden: that is not a reader the
+    // user lands on, so the overlay still closes through Back.
+    placePageReader(false);
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
+
+    await waitFor(() => expect(mocks.back).toHaveBeenCalledTimes(1));
+    expect(mocks.push).not.toHaveBeenCalled();
   });
 
   it("stays put when the route already left the reader", async () => {

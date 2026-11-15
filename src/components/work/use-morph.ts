@@ -44,6 +44,22 @@ export function findCard(slug: string): Box | null {
 }
 
 /**
+ * Whether a direct load's reader is still on screen behind the overlay. Opening
+ * a study from a hard-loaded one leaves that study's page-mode reader in the
+ * tree with the overlay on top, so Back from here would reveal a reader instead
+ * of the homepage. Once Next parks a route it keeps the reader in the DOM with
+ * `display: none`, which is not a reader the user could land on, so only a
+ * rendered one counts.
+ */
+function pageReaderBehind(): boolean {
+  const page = document.querySelector<HTMLElement>(
+    '.wd-reader-panel[data-mode="page"]',
+  );
+
+  return page !== null && page.getClientRects().length > 0;
+}
+
+/**
  * The panel's untransformed layout box. `offsetLeft`/`offsetTop` ignore the
  * transform, so a close during the open morph still knows where the panel will
  * settle on screen.
@@ -230,7 +246,8 @@ export function useMorph(
 
       if (window.location.pathname !== `/work/${slug}`) return;
 
-      if (window.history.state?.workOverlay) router.back();
+      if (window.history.state?.workOverlay && !pageReaderBehind())
+        router.back();
       else router.push("/");
     })();
 
