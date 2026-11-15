@@ -843,6 +843,11 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
     const animations: Animation[] = [];
 
+    // One loop, one frame, no per-slot delay: every card's run below (and the
+    // titles') is created in this task, so the whole row shares one start time
+    // and one curve. The wide featured card still covers far more ground than
+    // the narrow slots in the same 900ms, so it reads louder early; that is
+    // travel, not sequencing.
     for (const entity of planned) {
       const element = elements.current.get(entityKey(entity));
       if (!element) continue;

@@ -402,6 +402,25 @@ describe("easing and one timeline", () => {
     }
   });
 
+  it("gives every slot one timing tuple and no delay: the row is not staggered", () => {
+    render(<HomeCarousel items={ITEMS} />);
+
+    // The reported case: a pointer click on a non-first card.
+    fireEvent.click(host("Titles"), { detail: 1 });
+
+    const moves = recorded.filter((r) => hasProp(r, "--car-x"));
+    expect(moves.length).toBeGreaterThanOrEqual(4);
+    const timings = new Set(
+      moves.map(
+        (r) =>
+          `${r.options.duration}|${r.options.easing}|${r.options.delay ?? 0}`,
+      ),
+    );
+    expect(timings).toEqual(
+      new Set(["900|cubic-bezier(0.5, 0, 0.1, 1)|0"]),
+    );
+  });
+
   it("holds a title back until the card is mostly wide", () => {
     render(<HomeCarousel items={ITEMS} />);
 
