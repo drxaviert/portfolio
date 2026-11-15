@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ColourSection } from "./sections/colour";
+import { MotionSection } from "./sections/motion";
+import { OverviewSection } from "./sections/overview";
+import { ParametersSection } from "./sections/parameters";
 import { RadiusSection } from "./sections/radius";
 import { ShadowSection } from "./sections/shadow";
 import { TypeSection } from "./sections/type";
@@ -25,6 +28,10 @@ const SUMMARIES: Record<SectionId, string> = {
 
 function sectionContent(id: SectionId): ReactNode | null {
   switch (id) {
+    case "overview":
+      return <OverviewSection />;
+    case "parameters":
+      return <ParametersSection />;
     case "colour":
       return <ColourSection />;
     case "type":
@@ -33,6 +40,8 @@ function sectionContent(id: SectionId): ReactNode | null {
       return <RadiusSection />;
     case "shadow":
       return <ShadowSection />;
+    case "motion":
+      return <MotionSection />;
     default:
       return null;
   }
