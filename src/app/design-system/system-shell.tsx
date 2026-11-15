@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import type { JSX, ReactNode } from "react";
+import Link from "next/link";
 import { HorizonLive } from "@/components/horizon/horizon-live";
 import { BottomSheet } from "@/components/system/bottom-sheet";
 import { ControlsPanel } from "@/components/system/controls-panel";
@@ -116,9 +117,18 @@ const ShellChrome = memo(function ShellChrome({
 
       <div className="relative mx-auto w-full max-w-[1440px] px-4 py-6 md:px-8 lg:grid lg:grid-cols-[200px_minmax(0,1fr)_280px] lg:items-start lg:gap-10 lg:py-12">
         <header className="mb-8 lg:col-span-3 lg:mb-2">
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-on-surface-variant">
-            Foundations &amp; components
-          </p>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-on-surface-variant">
+              Foundations &amp; components
+            </p>
+            <Link
+              href="/"
+              data-testid="portfolio-home"
+              className="text-xs font-medium text-on-surface-variant underline-offset-2 hover:text-on-surface hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              ← Portfolio
+            </Link>
+          </div>
           <h1 className="mt-2 text-3xl font-medium tracking-tight md:text-4xl">
             Design system
           </h1>

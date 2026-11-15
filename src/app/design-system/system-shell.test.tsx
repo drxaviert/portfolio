@@ -64,7 +64,12 @@ describe("SystemShell", () => {
       </SystemShell>,
     );
 
-    expect(screen.getAllByRole("link")).toHaveLength(SECTIONS.length);
+    const sectionLinks = screen
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("href")?.startsWith("#"));
+
+    expect(sectionLinks).toHaveLength(SECTIONS.length);
+    expect(screen.getByTestId("portfolio-home")).toHaveAttribute("href", "/");
 
     for (const section of SECTIONS) {
       expect(
