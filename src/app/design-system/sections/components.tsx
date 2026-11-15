@@ -7,6 +7,7 @@ import {
   NavGlideDemo,
   NavItemSample,
 } from "@/components/system/samples/nav-item-sample";
+import { ThemeToggleSample } from "@/components/system/samples/theme-toggle-sample";
 
 export function ComponentsSection(): JSX.Element {
   return (
@@ -69,6 +70,31 @@ export function ComponentsSection(): JSX.Element {
           "--duration-medium-5",
         ]}
         notes="The Glide spring is read through the engine, so Motion speed time-scales it. The capsule is a clip-path on a shared layer (paint-only, no layout), the glyph is part of the run, and reduced motion hides the capsule, as on the site."
+      />
+
+      <ComponentDoc
+        name="Theme toggle"
+        description="Day · Night · Auto, plus the Day phase row (Clock/Dawn/Midday/Dusk). Documented as it exists on the site; on this page picking a phase also moves the tod slider."
+        states={["rest", "focus-visible"]}
+        render={(state) =>
+          state === undefined ? (
+            <div className="flex justify-end p-4 pt-20">
+              <ThemeToggleSample />
+            </div>
+          ) : (
+            <ThemeToggleSample forceState={state} />
+          )
+        }
+        use={[
+          "The site header's theme control: Day, Night, Auto, with the Day phase row for Clock or a pinned phase.",
+          "Let the sample drive this page's tod when a phase is picked; it never changes the real site theme.",
+        ]}
+        dont={[
+          "Don’t treat the sample as the site control: it mirrors the markup and writes nothing to storage or the document.",
+          "Don’t add a new icon set; the glyphs are the live toggle’s.",
+        ]}
+        tokens={["--toggle-track", "--toggle-selected", "--primary"]}
+        notes="The toggle’s pointer and open states are driven by JS, so only rest and focus-visible are forced in the matrix; the live sample covers the rest. Picking a phase moves only this page’s time of day — no localStorage writes and no site theme change."
       />
     </div>
   );

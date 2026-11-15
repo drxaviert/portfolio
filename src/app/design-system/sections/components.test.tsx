@@ -55,11 +55,17 @@ describe("ComponentsSection", () => {
     expect(
       screen.getByRole("heading", { name: "Nav item + Glide" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Theme toggle" }),
+    ).toBeInTheDocument();
     expect(container.textContent).toContain("hover-only today");
     expect(container.querySelectorAll(".ring-host").length).toBeGreaterThan(0);
     expect(container.querySelectorAll(".nav-glide").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll("[data-theme-toggle]").length).toBeGreaterThan(
+      0,
+    );
     expect(
       container.querySelectorAll('[data-token^="--"]').length,
-    ).toBe(12);
+    ).toBe(15);
   });
 });
