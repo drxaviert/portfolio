@@ -533,6 +533,79 @@ describe("left hover peek", () => {
   });
 });
 
+describe("hover zone cost", () => {
+  /** Counts the row's box reads, the one layout read the zone could cause. */
+  function countRowReads() {
+    const original = Element.prototype.getBoundingClientRect;
+    const count = { reads: 0 };
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      if (this.classList.contains("car-row")) count.reads++;
+      return original.call(this);
+    };
+    return count;
+  }
+
+  it("reads the row's box once, not once per pointer move", () => {
+    const count = countRowReads();
+    render(<HomeCarousel items={ITEMS} />);
+    const mounted = count.reads;
+
+    for (let i = 0; i < 60; i++) move(100 + 300 + (i % 5));
+    // Far from the zone the whole time: at most the one lazy read.
+    expect(count.reads - mounted).toBeLessThanOrEqual(1);
+
+    const settled = count.reads;
+    for (let i = 0; i < 60; i++) move(100 + 300 + (i % 5));
+    expect(count.reads).toBe(settled);
+  });
+
+  it("refreshes the cached box after a scroll, a resize and a step end, once each", () => {
+    const count = countRowReads();
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    for (let i = 0; i < 5; i++) move(100 + 300);
+    let before = count.reads;
+
+    act(() => {
+      window.dispatchEvent(new Event("scroll"));
+    });
+    for (let i = 0; i < 20; i++) move(100 + 300);
+    expect(count.reads - before).toBe(1);
+
+    before = count.reads;
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    for (let i = 0; i < 20; i++) move(100 + 300);
+    expect(count.reads - before).toBe(1);
+
+    fireEvent.keyDown(card(container, 0).querySelector(".car-host")!, {
+      key: "ArrowRight",
+    });
+    finishStep();
+    before = count.reads;
+    for (let i = 0; i < 20; i++) move(100 + 300);
+    expect(count.reads - before).toBeLessThanOrEqual(1);
+  });
+
+  it("still opens, holds and retracts from the cached box", () => {
+    const count = countRowReads();
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+
+    move(110);
+    expect(row(container)).toHaveAttribute("data-peeking");
+    const opened = count.reads;
+    move(100 + 60);
+    move(100 + 80);
+    // The peek changing state marks the box stale once; nothing more.
+    expect(count.reads - opened).toBeLessThanOrEqual(1);
+    expect(row(container)).toHaveAttribute("data-peeking");
+
+    move(100 + 400);
+    act(() => vi.advanceTimersByTime(121));
+    expect(prevCard(container)!).toBeTruthy();
+  });
+});
+
 describe("peek glitch fixes", () => {
   it("does not flap at the zone boundary: wider only while open, and a retract is not undone", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);

@@ -305,6 +305,13 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const latest = useRef({ settings, mode, blurMode, reduce });
   const peek = useRef<PeekState>(idlePeek());
   const pointer = useRef<{ x: number; y: number } | null>(null);
+  // The row's box for the hover zone. It is read lazily, once, after anything
+  // that can move it (a scroll, a resize, a step ending, a peek changing state),
+  // never once per pointer move.
+  const zone = useRef<{ rect: DOMRect | null; dirty: boolean }>({
+    rect: null,
+    dirty: true,
+  });
   const hoverApi = useRef({
     evaluate: () => {},
     close: () => {},
@@ -346,6 +353,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   }
 
   function cancelTween() {
+    zone.current.dirty = true;
     const current = tween.current;
     if (tween.current) announceStep("end");
     tween.current = null;
@@ -381,6 +389,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const row = rowRef.current;
     const g = geometry.current;
     if (!row || g.rowWidth === 0 || state.open === open) return;
+    zone.current.dirty = true;
 
     const els = open ? peekEls() : state.els;
     if (!els) return;
@@ -416,6 +425,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   /** Puts the hover peek away at once (a step, a resize, a click). */
   function closePeeks() {
     const state = peek.current;
+    zone.current.dirty = true;
 
     if (state.timer !== null) window.clearTimeout(state.timer);
     if (state.els) closeSnap(state.els, state.anims);
@@ -445,8 +455,16 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const { settings: s } = latest.current;
     const state = peek.current;
     if (state.frozen) return;
-    const rect = row.getBoundingClientRect();
     const at = pointer.current;
+
+    // Far from the zone with nothing to retract: nothing to do, and no layout
+    // read at all while the cached box is good.
+    const cached = zone.current;
+    if (cached.dirty || !cached.rect) {
+      cached.rect = row.getBoundingClientRect();
+      cached.dirty = false;
+    }
+    const rect = cached.rect;
     const want =
       !!at &&
       n >= VISIBLE_SLOTS &&
@@ -756,6 +774,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     setDomOffset(offsetRef.current);
 
     geometry.current = measured;
+    zone.current.dirty = true;
     row.style.setProperty("--car-wide", `${measured.slots[0].w}px`);
     row.dataset.ready = "true";
     applyRest(offsetRef.current);
@@ -826,12 +845,20 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const click = (event: globalThis.MouseEvent) =>
       hoverApi.current.click(event);
 
+    const stale = () => {
+      zone.current.dirty = true;
+    };
+
     window.addEventListener("pointermove", move, { passive: true });
+    window.addEventListener("scroll", stale, { passive: true, capture: true });
+    window.addEventListener("resize", stale);
     document.documentElement.addEventListener("mouseleave", leave);
     row?.addEventListener("click", click);
 
     return () => {
       window.removeEventListener("pointermove", move);
+      window.removeEventListener("scroll", stale, true);
+      window.removeEventListener("resize", stale);
       document.documentElement.removeEventListener("mouseleave", leave);
       row?.removeEventListener("click", click);
       hoverApi.current.close();
