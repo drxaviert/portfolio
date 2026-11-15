@@ -8,6 +8,7 @@ import {
   NavItemSample,
 } from "@/components/system/samples/nav-item-sample";
 import { ThemeToggleSample } from "@/components/system/samples/theme-toggle-sample";
+import { TrackerSample } from "@/components/system/samples/tracker-sample";
 
 export function ComponentsSection(): JSX.Element {
   return (
@@ -95,6 +96,44 @@ export function ComponentsSection(): JSX.Element {
         ]}
         tokens={["--toggle-track", "--toggle-selected", "--primary"]}
         notes="The toggle’s pointer and open states are driven by JS, so only rest and focus-visible are forced in the matrix; the live sample covers the rest. Picking a phase moves only this page’s time of day — no localStorage writes and no site theme change."
+      />
+
+      <ComponentDoc
+        name="Tracker"
+        description="The contribution tracker card: a 7×7 mini grid on phones, two 16-week bands from 768 up, the three-dot pager and the tracker ramp."
+        states={["rest", "hover"]}
+        render={(state) => {
+          if (state === undefined) {
+            return <TrackerSample />;
+          }
+
+          if (state !== "rest" && state !== "hover") {
+            return null;
+          }
+
+          return (
+            <div className="origin-top-left scale-80">
+              <TrackerSample forceState={state} />
+            </div>
+          );
+        }}
+        use={[
+          "The top-left contribution card on the home page.",
+          "Let the tracker ramp carry the phase colour; the card fill is surface-container-low.",
+        ]}
+        dont={[
+          "Don’t replace the placeholder data with a live fetch here: the widget owns none.",
+          "Don’t add focusable cells; the live card is a single placeholder image.",
+        ]}
+        tokens={[
+          "--tracker-0",
+          "--tracker-1",
+          "--tracker-2",
+          "--tracker-3",
+          "--tracker-4",
+          "--on-surface-variant",
+        ]}
+        notes="The live widget is a placeholder-data image with three pager dots; it has no caption and no focusable cells, so keyboard focus does not open one here either. The hover caption is this documentation sample’s addition, and the three dots mirror the live pager."
       />
     </div>
   );
