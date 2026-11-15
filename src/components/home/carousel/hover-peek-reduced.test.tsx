@@ -35,10 +35,10 @@ function rect(left: number, top: number, width: number, height: number) {
 }
 
 const SLOTS = [
-  { x: 0, w: 594 },
-  { x: 606, w: 170 },
-  { x: 788, w: 100 },
-  { x: 900, w: 100 },
+  { x: 0, w: 753 },
+  { x: 765, w: 180 },
+  { x: 957, w: 83 },
+  { x: 1052, w: 84 },
 ];
 
 // Motion reads the preference once per module load, so this file runs reduced.
@@ -60,7 +60,7 @@ beforeEach(() => {
     })),
   );
   Element.prototype.getBoundingClientRect = function () {
-    if (this.classList.contains("car-row")) return rect(100, 50, 1000, 416);
+    if (this.classList.contains("car-row")) return rect(100, 50, 1136, 416);
     const parent = this.parentElement;
     if (parent?.classList.contains("car-guide")) {
       const slot = SLOTS[Array.from(parent.children).indexOf(this)];
@@ -104,17 +104,17 @@ describe("hover peek under reduced motion", () => {
       );
     });
 
-    [0, 606, 788, 900].forEach((x, slot) => {
+    [32, 829, 1021, 1116].forEach((x, slot) => {
       const el = container.querySelector<HTMLElement>(
         `.car-slide[data-slot="${slot}"]:not([data-ghost])`,
       )!;
-      expect(el.style.getPropertyValue("--car-x")).toBe(`${x + 32}px`);
+      expect(el.style.getPropertyValue("--car-x")).toBe(`${x}px`);
     });
-    const copy = container.querySelector<HTMLElement>(
-      '.car-peek-edge[data-side="right"]',
+    const last = container.querySelector<HTMLElement>(
+      '.car-slide[data-slot="3"]:not([data-ghost])',
     )!;
-    expect(copy.style.getPropertyValue("--car-x")).toBe("932px");
-    expect(copy.style.filter).toBe("blur(4px)");
+    expect(last.style.filter).toBe("blur(4px)");
+    expect(last.style.getPropertyValue("--car-pe")).toBe("1");
 
     expect(recorded.length).toBeGreaterThan(0);
     for (const r of recorded) {

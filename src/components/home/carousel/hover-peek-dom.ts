@@ -7,13 +7,15 @@ import {
 
 /**
  * Imperative motion for the left hover peek. The whole row moves as one: every
- * visible card's `--car-x` (the registered property a step uses) goes right by
- * the layout's shift and the strip slides in from the column's edge.
+ * visible card goes to its peek pose along the registered `--car-x` and
+ * `--car-r` (position and crop, the same properties a step uses), and the strip
+ * slides in from the column's edge. Widths are never animated: a card that
+ * needs a wider visible box gets that box once, at the start, and the crop
+ * does the rest, so content never reflows.
  *
- * Both ends get the same treatment over the same width: the strip is a blurred
- * slice of the previous item, and the card that slips under the right edge is
- * cut away in the column's last `size` px (`data-edge-cut`) where a blurred copy
- * of it (`copy`) rides along, so blur and fade touch only that slice.
+ * The last card is the right-hand end shape: it slides under the column edge
+ * until only the peek width shows, and gains the same blur and fade as the
+ * left strip (`data-peek-end`, `--car-pe`).
  *
  * Everything starts from where it is drawn now, so a reveal and a retract
  * retarget each other mid-flight.
@@ -22,15 +24,14 @@ export type PeekCard = {
   item: number;
   el: HTMLElement;
   restX: number;
-  /** The card that slips under the right edge. */
-  cut: boolean;
+  restW: number;
+  /** The last card: the right-hand end shape. */
+  end: boolean;
 };
 
 export type PeekEls = {
   row: HTMLElement;
   strip: HTMLElement;
-  /** A plain copy of the cut card; the css clips it to the column's last slice. */
-  copy: HTMLElement | null;
   cards: PeekCard[];
 };
 
@@ -47,41 +48,49 @@ function showStrip(strip: HTMLElement, layout: PeekLayout) {
   strip.style.visibility = "visible";
 }
 
-function showCopy({ copy, cards }: PeekEls) {
-  const cut = cards.find((card) => card.cut);
-  if (!copy || !cut) return;
+/** Gives every card the box its peek pose needs, with a crop that looks like rest. */
+function prepareCards({ cards }: PeekEls, layout: PeekLayout) {
+  cards.forEach((card, index) => {
+    const { box } = layout.cards[index];
 
-  copy.style.width = cut.el.style.width;
-  copy.style.visibility = "visible";
-  copy.style.opacity = "1";
-  cut.el.dataset.edgeCut = "";
+    card.el.style.width = `${box}px`;
+    card.el.style.setProperty("--car-r", `${box - card.restW}px`);
+    card.el.dataset.clipped = "";
+    if (card.end) card.el.dataset.peekEnd = "";
+  });
 }
 
-function hideCopy({ copy, cards }: PeekEls) {
-  if (copy) {
-    copy.style.visibility = "hidden";
-    copy.style.opacity = "";
-    copy.style.filter = "";
-    copy.style.removeProperty("--car-x");
+function restoreCards({ cards }: PeekEls) {
+  for (const card of cards) {
+    card.el.style.width = `${card.restW}px`;
+    card.el.style.setProperty("--car-x", `${card.restX}px`);
+    card.el.style.setProperty("--car-r", "0px");
+    card.el.style.removeProperty("--car-pe");
+    card.el.style.filter = "";
+    delete card.el.dataset.clipped;
+    delete card.el.dataset.peekEnd;
   }
-  for (const card of cards) delete card.el.dataset.edgeCut;
 }
 
-/** Each card's `--car-x` as drawn this instant, mid-tween values included. */
-export function cardXs(els: PeekEls): Map<number, number> {
+/** Each card's pose as drawn this instant, mid-tween values included. */
+export function cardPoses(els: PeekEls): Map<number, { x: number; w: number }> {
   return new Map(
-    els.cards.map((card) => [card.item, read(card.el, "--car-x")]),
+    els.cards.map((card) => [
+      card.item,
+      {
+        x: read(card.el, "--car-x"),
+        w: Number.parseFloat(card.el.style.width) - read(card.el, "--car-r"),
+      },
+    ]),
   );
 }
 
-/** Puts everything at rest: cards unpushed, strip and copy hidden. */
+/** Puts everything at rest: cards unpushed, strip hidden. */
 export function closeSnap(els: PeekEls, previous: Animation[]) {
-  const { strip, cards } = els;
+  const { strip } = els;
 
   previous.forEach((animation) => animation.cancel());
-  for (const card of cards)
-    card.el.style.setProperty("--car-x", `${card.restX}px`);
-  hideCopy(els);
+  restoreCards(els);
   strip.style.visibility = "hidden";
   strip.style.opacity = "";
   delete strip.dataset.clipped;
@@ -99,9 +108,8 @@ export function tweenPeek(
   previous: Animation[],
   done: () => void,
 ): Animation[] {
-  const { row, strip, copy, cards } = els;
-  const { strip: s, shift } = layout;
-  const cutIndex = cards.findIndex((card) => card.cut);
+  const { row, strip, cards } = els;
+  const { strip: s } = layout;
 
   // A strip that is not shown yet starts from its resting place off the edge.
   const fresh = strip.dataset.clipped === undefined;
@@ -109,35 +117,49 @@ export function tweenPeek(
     x: fresh ? s.fromX : read(strip, "--car-x"),
     o: fresh ? 0 : Number.parseFloat(getComputedStyle(strip).opacity) || 0,
   };
-  const fromCards = cards.map((card) => ({ x: read(card.el, "--car-x") }));
-  const copyFresh = !copy || copy.style.visibility !== "visible";
-  const fromCopyFilter =
-    copy && !copyFresh ? getComputedStyle(copy).filter || "none" : "none";
+  const from = cards.map((card, index) => ({
+    x: read(card.el, "--car-x"),
+    // Before the first reveal a card sits at rest, whatever its inline crop.
+    r:
+      card.el.dataset.clipped === undefined
+        ? layout.cards[index].box - card.restW
+        : read(card.el, "--car-r"),
+    pe: read(card.el, "--car-pe"),
+    filter: getComputedStyle(card.el).filter || "none",
+    box: layout.cards[index].box,
+  }));
 
   previous.forEach((animation) => animation.cancel());
   showStrip(strip, layout);
-  showCopy(els);
+  prepareCards(els, layout);
 
   const toStrip = { x: open ? s.toX : s.fromX, o: open ? 1 : 0 };
-  const toX = (card: PeekCard) => card.restX + (open ? shift : 0);
-  const toBlur = open ? `blur(${layout.blur}px)` : "none";
+  const to = cards.map((card, index) => {
+    const pose = layout.cards[index];
+    return open
+      ? { x: pose.x, r: pose.box - pose.w }
+      : { x: card.restX, r: pose.box - card.restW };
+  });
+  const endBlur = open ? `blur(${layout.blur}px)` : "none";
 
   const finish = () => {
     if (open) return;
     strip.style.visibility = "hidden";
     delete strip.dataset.clipped;
-    hideCopy(els);
+    restoreCards(els);
     done();
   };
 
   if (timing.reduce) {
     // No movement: the final state is set at once and a fade carries it.
-    for (const card of cards)
-      card.el.style.setProperty("--car-x", `${toX(card)}px`);
-    if (copy && cutIndex >= 0) {
-      copy.style.setProperty("--car-x", `${toX(cards[cutIndex])}px`);
-      copy.style.filter = open ? toBlur : "";
-    }
+    cards.forEach((card, index) => {
+      card.el.style.setProperty("--car-x", `${to[index].x}px`);
+      card.el.style.setProperty("--car-r", `${to[index].r}px`);
+      if (card.end) {
+        card.el.style.setProperty("--car-pe", open ? "1" : "0");
+        card.el.style.filter = open ? endBlur : "";
+      }
+    });
     strip.style.setProperty("--car-x", `${toStrip.x}px`);
     strip.style.opacity = String(toStrip.o);
 
@@ -163,27 +185,17 @@ export function tweenPeek(
     fill: open ? ("forwards" as const) : ("none" as const),
   };
 
-  const runs = cards.map((card, index) =>
-    card.el.animate(
-      { "--car-x": [`${fromCards[index].x}px`, `${toX(card)}px`] },
-      options,
-    ),
-  );
-  // The copy rides the cut card exactly and gains the strip's blur as it goes.
-  if (copy && cutIndex >= 0) {
-    runs.push(
-      copy.animate(
-        {
-          "--car-x": [
-            `${fromCards[cutIndex].x}px`,
-            `${toX(cards[cutIndex])}px`,
-          ],
-          filter: [fromCopyFilter, toBlur],
-        },
-        options,
-      ),
-    );
-  }
+  const runs = cards.map((card, index) => {
+    const frames: PropertyIndexedKeyframes = {
+      "--car-x": [`${from[index].x}px`, `${to[index].x}px`],
+      "--car-r": [`${from[index].r}px`, `${to[index].r}px`],
+    };
+    if (card.end) {
+      frames["--car-pe"] = [from[index].pe, open ? 1 : 0];
+      frames.filter = [from[index].filter, endBlur];
+    }
+    return card.el.animate(frames, options);
+  });
   const stripRun = strip.animate(
     {
       "--car-x": [`${fromStrip.x}px`, `${toStrip.x}px`],

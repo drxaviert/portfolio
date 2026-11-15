@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from "react";
 import { VISIBLE_SLOTS, mod } from "./carousel-math";
 import type { Geometry } from "./carousel-math";
+import { fitWidths } from "./peek-fit";
+import type { PeekFit } from "./peek-fit";
 
 /**
  * The left hover peek. The pointer near the first card's left edge slides the
@@ -77,31 +79,60 @@ export function onStrip(
   );
 }
 
+export type PeekCardLayout = {
+  /** Where the card's box starts, and how much of it shows. */
+  x: number;
+  w: number;
+  /** The box the card is laid out in while the peek is open: never narrower than rest. */
+  box: number;
+};
+
 export type PeekLayout = {
-  /** How far every card moves right: strip plus gap. */
-  shift: number;
-  /** Blur of the right-edge slice, the same as the left strip's. */
+  /** Blur of the last card's visible slice, the same as the left strip's. */
   blur: number;
+  /** The four visible cards, front to back. */
+  cards: PeekCardLayout[];
   strip: { box: number; fromX: number; toX: number; r: number };
 };
 
 /**
- * Where the strip goes, in row pixels. Every card keeps its width and moves
- * right by `size + gap` along `--car-x`, so the strip and the first card are
- * exactly `gap` apart.
+ * The row with the peek open reads
+ * [strip][gap][A][gap][B][gap][C][gap][last], strip and last both `size` wide,
+ * so A + B + C is the column minus both ends and four gaps. `fit` decides how
+ * the middle cards share what that frees. The last card keeps its box and slides
+ * under the column's edge until `size` of it shows. Every change is a position
+ * and a crop (`--car-x`, `--car-r`), never a width tween.
  */
 export function peekLayout(
   g: Geometry,
   size: number,
   gap: number,
   blur: number,
+  fit: PeekFit,
 ): PeekLayout {
   const first = g.slots[0];
-  const box = Math.max(size, g.slots[VISIBLE_SLOTS - 1].w);
+  const last = g.slots[VISIBLE_SLOTS - 1];
+  const rest = g.slots.slice(0, VISIBLE_SLOTS - 1).map((slot) => slot.w);
+  const extra =
+    g.rowWidth -
+    2 * size -
+    VISIBLE_SLOTS * gap -
+    rest.reduce((a, w) => a + w, 0);
+  const widths = fitWidths(fit, rest, extra);
+
+  const cards: PeekCardLayout[] = [];
+  let x = first.x + size + gap;
+  widths.forEach((w, index) => {
+    cards.push({ x, w, box: Math.max(w, g.slots[index].w) });
+    x += w + gap;
+  });
+  cards.push({ x: g.rowWidth - size, w: last.w, box: last.w });
+
+  const box = Math.max(size, last.w);
 
   return {
-    shift: size + gap,
     blur,
+    cards,
     strip: { box, fromX: first.x - size, toX: first.x, r: box - size },
   };
 }

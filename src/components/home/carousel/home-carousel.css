@@ -206,7 +206,6 @@
  */
 .car-peek-edge {
   --car-hp-edge: rgb(0 0 0 / calc(1 - var(--car-hf, 0.45)));
-  --car-cut: calc(var(--car-rw, 0px) - var(--car-hp, 20px) - var(--car-x));
 
   visibility: hidden;
   opacity: 0;
@@ -216,9 +215,8 @@
 
 /* Both ends get the same treatment over the same width (--car-hp): a blurred
    slice whose outer edge fades. The left is the previous item's strip; the
-   right is a copy of the last card clipped to the column's last --car-hp px,
-   while the card itself is cut away there (data-edge-cut), so blur and fade
-   touch only that slice. */
+   right is the last card itself, slid under the column edge until only that
+   width shows (see data-peek-end below). */
 .car-peek-edge[data-side="left"] {
   -webkit-mask-image: linear-gradient(
     to right,
@@ -232,32 +230,28 @@
   );
 }
 
-.car-peek-edge[data-side="right"] {
-  clip-path: inset(0 0 0 var(--car-cut));
-  -webkit-mask-image: linear-gradient(
-    to right,
-    #000 var(--car-cut),
-    var(--car-hp-edge) calc(var(--car-cut) + var(--car-hp, 20px))
-  );
-  mask-image: linear-gradient(
-    to right,
-    #000 var(--car-cut),
-    var(--car-hp-edge) calc(var(--car-cut) + var(--car-hp, 20px))
-  );
+/* The last card is the right-hand end shape: it slides under the column edge
+   until --car-hp of it shows, then it gets the same blur (animated on the card)
+   and the same fade as the left strip. --car-pe is 0 at rest, 1 when open. */
+@property --car-pe {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
 }
 
-.car-slide[data-edge-cut] {
+.car-slide[data-peek-end] {
+  --car-hp-edge-r: rgb(0 0 0 / calc(1 - var(--car-hf, 0.45) * var(--car-pe)));
+
   -webkit-mask-image: linear-gradient(
     to right,
-    #000 var(--car-cut-at),
-    transparent var(--car-cut-at)
+    #000,
+    var(--car-hp-edge-r) var(--car-hp, 20px)
   );
   mask-image: linear-gradient(
     to right,
-    #000 var(--car-cut-at),
-    transparent var(--car-cut-at)
+    #000,
+    var(--car-hp-edge-r) var(--car-hp, 20px)
   );
-  --car-cut-at: calc(var(--car-rw, 0px) - var(--car-hp, 20px) - var(--car-x));
 }
 
 .car-row[data-peek-hot] .car-peek-edge[data-side="left"] {

@@ -6,16 +6,18 @@ import {
   peekItem,
   peekLayout,
 } from "./hover-peek";
+import { fitWidths, parsePeekFit } from "./peek-fit";
 import type { Geometry } from "./carousel-math";
 
+// The xl row: 753 / 180 / 83 / 84 with 12px gaps, 1136 wide.
 const G: Geometry = {
   slots: [
-    { x: 0, w: 594 },
-    { x: 606, w: 170 },
-    { x: 788, w: 100 },
-    { x: 900, w: 100 },
+    { x: 0, w: 753 },
+    { x: 765, w: 180 },
+    { x: 957, w: 83 },
+    { x: 1052, w: 84 },
   ],
-  rowWidth: 1000,
+  rowWidth: 1136,
   gap: 12,
 };
 
@@ -59,14 +61,60 @@ describe("hover zone", () => {
   });
 });
 
-describe("peek layout", () => {
-  it("shifts every card by strip + gap and keeps the strip inside the column", () => {
-    const l = peekLayout(G, 20, 12, 4);
+describe("peek fit", () => {
+  it("defaults to featured", () => {
+    expect(parsePeekFit("")).toBe("featured");
+    expect(parsePeekFit("?peekFit=proportional")).toBe("proportional");
+    expect(parsePeekFit("?peekFit=wide")).toBe("featured");
+  });
 
-    expect(l.shift).toBe(32);
-    expect(l.strip.toX).toBe(0);
-    expect(l.strip.fromX).toBe(-20);
-    // The first card's new left edge is exactly the gap past the strip.
-    expect(G.slots[0].x + l.shift - (l.strip.toX + 20)).toBe(12);
+  it("featured gives all the extra to the first card", () => {
+    expect(fitWidths("featured", [753, 180, 83], 32)).toEqual([785, 180, 83]);
+  });
+
+  it("proportional shares the extra by rest width and keeps the total", () => {
+    const w = fitWidths("proportional", [753, 180, 83], 32);
+
+    expect(w[0] + w[1] + w[2]).toBeCloseTo(1048, 9);
+    expect(w[0]).toBeCloseTo(753 + (32 * 753) / 1016, 9);
+    expect(w[2] / w[0]).toBeCloseTo(83 / 753, 9);
+  });
+});
+
+describe("peek layout at xl (n = 4, gap 12, W = 1136)", () => {
+  for (const fit of ["featured", "proportional"] as const) {
+    it(`${fit}: both end shapes are 20 and every gap is 12`, () => {
+      const l = peekLayout(G, 20, 12, 4, fit);
+      const [a, b, c, d] = l.cards;
+
+      // Left shape: the strip, 0 to 20. Right shape: what shows of the last card.
+      expect(l.strip.toX).toBe(0);
+      expect(l.strip.box - l.strip.r).toBe(20);
+      expect(G.rowWidth - d.x).toBe(20);
+
+      expect(a.x - 20).toBe(12);
+      expect(b.x - (a.x + a.w)).toBeCloseTo(12, 9);
+      expect(c.x - (b.x + b.w)).toBeCloseTo(12, 9);
+      expect(d.x - (c.x + c.w)).toBeCloseTo(12, 9);
+    });
+  }
+
+  it("featured: A' = A + 32 and B, C keep their rest widths", () => {
+    const [a, b, c, d] = peekLayout(G, 20, 12, 4, "featured").cards;
+
+    expect(a.w).toBe(785);
+    expect(b.w).toBe(180);
+    expect(c.w).toBe(83);
+    expect(d.w).toBe(84);
+    expect([a.x, b.x, c.x, d.x]).toEqual([32, 829, 1021, 1116]);
+    // Cropping less is enough: the box never has to be narrower than rest.
+    expect(a.box).toBe(785);
+    expect(b.box).toBe(180);
+  });
+
+  it("proportional: the three widths add up to the column minus both shapes and four gaps", () => {
+    const [a, b, c] = peekLayout(G, 20, 12, 4, "proportional").cards;
+
+    expect(a.w + b.w + c.w).toBeCloseTo(1136 - 88, 9);
   });
 });
