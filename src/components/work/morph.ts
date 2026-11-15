@@ -22,10 +22,31 @@ export const MORPH_OPEN_S = 0.48;
 export const MORPH_CLOSE_S = 0.3;
 
 /**
- * The card-less close has no card to land on, so the panel leaves with the
- * entrance's own 10px (entrance.css) in reverse, on the close flight.
+ * The card-less close has no card to land on, so the panel leaves in place:
+ * it scales down about what the reader is looking at, on the close flight.
  */
-export const CLOSE_DROP_PX = 10;
+export const CLOSE_SCALE = 0.95;
+
+/**
+ * The centre of the part of `rect` that is actually on screen, in the
+ * element's own coordinates — a transform origin for an exit that must shrink
+ * in place, not from the top of a panel taller than the viewport.
+ */
+export function visibleCentre(
+  rect: DOMRect,
+  viewport: { width: number; height: number },
+): string {
+  const left = Math.max(rect.left, 0);
+  const top = Math.max(rect.top, 0);
+  const right = Math.min(rect.right, viewport.width);
+  const bottom = Math.min(rect.bottom, viewport.height);
+
+  if (right <= left || bottom <= top) return "50% 50%";
+
+  return `${Math.round((left + right) / 2 - rect.left)}px ${Math.round(
+    (top + bottom) / 2 - rect.top,
+  )}px`;
+}
 
 /**
  * The transform that puts the `to` box exactly over the `from` box, with the

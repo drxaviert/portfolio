@@ -494,8 +494,10 @@ describe("ExpandShell", () => {
     await waitFor(() => expect(panel.style.opacity).toBe("0"));
 
     const close = mocks.animate.mock.calls.find(([element]) => element === panel);
-    expect(close?.[1]).toEqual({ opacity: 0, y: 10 });
+    expect(close?.[1]).toEqual({ opacity: 0, scale: 0.95 });
     expect(close?.[2]).toMatchObject({ duration: 0.3, ease: "easeIn" });
+    // Shrinks in place about the middle of the on-screen area.
+    expect(panel.style.transformOrigin).toBe("512px 384px");
     expect(toHome).toHaveBeenCalledWith("flip");
 
     unregister();

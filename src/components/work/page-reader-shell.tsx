@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { moveNav, registerReaderClose } from "@/components/nav/nav-flight";
-import { CLOSE_DROP_PX, landWithin, MORPH_CLOSE_S } from "./morph";
+import { CLOSE_SCALE, landWithin, MORPH_CLOSE_S, visibleCentre } from "./morph";
 import { ReaderCloseProvider } from "./reader-close";
 import { FADE_S } from "./use-morph";
 
@@ -43,11 +43,21 @@ export function PageReaderShell({ children }: { children: ReactNode }) {
       // transparent with no way home.
       const exitSeconds = reduce ? FADE_S : MORPH_CLOSE_S;
       const navHome = moveNav("home", reduce ? "fade" : "flip");
+
+      if (!reduce) {
+        // Shrink in place about the centre of what is actually on screen, so a
+        // panel taller than the viewport does not pull toward its top edge.
+        panel.style.transformOrigin = visibleCentre(
+          panel.getBoundingClientRect(),
+          { width: window.innerWidth, height: window.innerHeight },
+        );
+      }
+
       const exit = reduce
         ? animate(panel, { opacity: 0 }, { duration: FADE_S, ease: "easeOut" })
         : animate(
             panel,
-            { opacity: 0, y: CLOSE_DROP_PX },
+            { opacity: 0, scale: CLOSE_SCALE },
             { duration: MORPH_CLOSE_S, ease: "easeIn" },
           );
 

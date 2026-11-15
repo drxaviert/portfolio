@@ -11,10 +11,11 @@ import {
 } from "react";
 import type { RefObject } from "react";
 import {
-  CLOSE_DROP_PX,
+  CLOSE_SCALE,
   flipFrom,
   landWithin,
   toBox,
+  visibleCentre,
   MORPH_CLOSE_S,
   MORPH_EASE,
   MORPH_OPEN_S,
@@ -263,12 +264,17 @@ export function useMorph(
         ]);
       } else {
         // No card to land on (a study with none, or a direct load behind):
-        // the close flight still runs, with the entrance's 10px in reverse.
+        // the close flight still runs, shrinking in place about the centre of
+        // what is actually on screen.
+        panel.style.transformOrigin = visibleCentre(
+          panel.getBoundingClientRect(),
+          { width: window.innerWidth, height: window.innerHeight },
+        );
         await Promise.all([
           landWithin(
             animate(
               panel,
-              { opacity: 0, y: CLOSE_DROP_PX },
+              { opacity: 0, scale: CLOSE_SCALE },
               { duration: MORPH_CLOSE_S, ease: "easeIn" },
             ).finished,
             exitSeconds,

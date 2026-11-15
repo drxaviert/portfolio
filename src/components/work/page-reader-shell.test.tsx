@@ -43,6 +43,20 @@ function placePageReader() {
   const panel = document.createElement("main");
   panel.className = "wd-reader-panel";
   panel.dataset.mode = "page";
+  // jsdom has no layout: the shell measures the panel's on-screen box for the
+  // exit's transform origin.
+  panel.getBoundingClientRect = () =>
+    ({
+      left: 0,
+      top: 0,
+      right: 1408,
+      bottom: 868,
+      width: 1408,
+      height: 868,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect;
   document.body.append(panel);
 
   return panel;
@@ -88,9 +102,11 @@ describe("PageReaderShell", () => {
 
     expect(mocks.animate).toHaveBeenCalledWith(
       panel,
-      { opacity: 0, y: 10 },
+      { opacity: 0, scale: 0.95 },
       { duration: 0.3, ease: "easeIn" },
     );
+    // Shrinks in place about the middle of the on-screen area.
+    expect(panel.style.transformOrigin).toBe("512px 384px");
     expect(panel.style.opacity).toBe("0");
     expect(panel.style.pointerEvents).toBe("none");
   });
