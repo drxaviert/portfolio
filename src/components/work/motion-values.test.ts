@@ -96,6 +96,38 @@ describe("drawer motion values", () => {
     );
   });
 
+  it("keeps the default cascade un-gated and the blur variant opt-in", () => {
+    const entrance = read("entrance.css");
+
+    // The T13 cascade applies with no attribute; only the blur rules are gated.
+    expect(entrance).toMatch(
+      /\.wd-reader-panel\[data-mode="page"\]\s*:is\(\.wd-intro-title, \.wd-intro-subtitle, \.wd-intro-meta, \.wd-prose > \*\)/,
+    );
+    expect(entrance).toMatch(
+      /@keyframes wd-blur-in \{\s*from \{\s*opacity: 0;\s*filter: blur\(6px\);\s*transform: translateY\(8px\);/,
+    );
+    expect(entrance).toMatch(
+      /--wd-blur-ease: cubic-bezier\(0\.165, 0\.84, 0\.44, 1\);/,
+    );
+    expect(entrance).toMatch(
+      /animation: wd-blur-in 700ms var\(--wd-blur-ease\) backwards;/,
+    );
+    // Reading-order steps: title 100, intro meta chips 145/190, body 300/400/500.
+    expect(entrance).toMatch(
+      /html\[data-entrance="blur"\] \.wd-intro-title \{\s*--wd-blur-delay: 100ms;/,
+    );
+    expect(entrance).toMatch(
+      /html\[data-entrance="blur"\] \.wd-intro-subtitle \{\s*--wd-blur-delay: 145ms;/,
+    );
+    expect(entrance).toMatch(
+      /html\[data-entrance="blur"\] \.wd-prose > \*:nth-child\(n \+ 3\) \{\s*--wd-blur-delay: 500ms;/,
+    );
+    // The cover rises without the filter; ditto below the first viewport.
+    expect(entrance).toMatch(
+      /html\[data-entrance="blur"\] \.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{\s*animation: wd-blur-rise 700ms var\(--wd-blur-ease\) backwards;/,
+    );
+  });
+
   it("opens the reader's nav tooltips inward instead of into the viewport edge", () => {
     const dock = read("../nav/nav-dock.css");
 
