@@ -13,6 +13,7 @@ import type { RefObject } from "react";
 import {
   CLOSE_DROP_PX,
   flipFrom,
+  landWithin,
   toBox,
   MORPH_CLOSE_S,
   MORPH_EASE,
@@ -235,31 +236,43 @@ export function useMorph(
       pageReaderBehind()?.setAttribute("data-behind-exit", "");
 
       // The nav returns on the same timing as whatever the panel does: the
-      // close flight, or the 120ms fade.
-      const navHome = moveNav("home", reduce ? "fade" : "flip");
+      // close flight, or the 120ms fade. Both waits are capped at that timing
+      // (morph.ts) so a stopped frame loop cannot strand the reader over a blank
+      // page: the route change is the promise that matters.
+      const exitSeconds = reduce ? FADE_S : MORPH_CLOSE_S;
+      const navHome = landWithin(moveNav("home", reduce ? "fade" : "flip"), exitSeconds);
 
       if (reduce) {
         await Promise.all([
-          animate(panel, { opacity: 0 }, { duration: FADE_S, ease: "easeOut" })
-            .finished,
+          landWithin(
+            animate(panel, { opacity: 0 }, { duration: FADE_S, ease: "easeOut" })
+              .finished,
+            exitSeconds,
+          ),
           navHome,
         ]);
       } else if (card) {
         const pose = flipFrom(card, layoutBox(panel));
         await Promise.all([
-          animate(panel, pose, { duration: MORPH_CLOSE_S, ease: "easeIn" })
-            .finished,
+          landWithin(
+            animate(panel, pose, { duration: MORPH_CLOSE_S, ease: "easeIn" })
+              .finished,
+            exitSeconds,
+          ),
           navHome,
         ]);
       } else {
         // No card to land on (a study with none, or a direct load behind):
         // the close flight still runs, with the entrance's 10px in reverse.
         await Promise.all([
-          animate(
-            panel,
-            { opacity: 0, y: CLOSE_DROP_PX },
-            { duration: MORPH_CLOSE_S, ease: "easeIn" },
-          ).finished,
+          landWithin(
+            animate(
+              panel,
+              { opacity: 0, y: CLOSE_DROP_PX },
+              { duration: MORPH_CLOSE_S, ease: "easeIn" },
+            ).finished,
+            exitSeconds,
+          ),
           navHome,
         ]);
       }

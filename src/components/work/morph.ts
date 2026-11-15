@@ -50,3 +50,22 @@ export function toBox(rect: DOMRect): Box {
     height: rect.height,
   };
 }
+
+/**
+ * A flight promise that always settles within the flight's own duration. A
+ * paused or throttled frame loop — an occluded window, a background tab, low
+ * power — must not be able to hold a route change hostage and leave the reader
+ * transparent with no way back.
+ */
+export function landWithin(
+  flight: Promise<unknown>,
+  seconds: number,
+): Promise<void> {
+  return Promise.race([
+    flight.then(
+      () => undefined,
+      () => undefined,
+    ),
+    new Promise<void>((resolve) => window.setTimeout(resolve, seconds * 1000)),
+  ]);
+}

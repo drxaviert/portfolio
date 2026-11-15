@@ -190,4 +190,34 @@ describe("PageReaderShell", () => {
 
     await waitFor(() => expect(mocks.prefetch).toHaveBeenCalledWith("/"));
   });
+
+  it("leaves for home even when the exit never finishes", async () => {
+    // A paused frame loop (occluded window, background tab) never resolves the
+    // animation; the route change must not wait on it.
+    placePageReader();
+    mocks.animate.mockReturnValue({
+      finished: new Promise(() => {}),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+    vi.useFakeTimers();
+
+    render(
+      <PageReaderShell>
+        <Probe />
+      </PageReaderShell>,
+    );
+
+    expect(close).toBeTypeOf("function");
+
+    act(() => {
+      void close?.();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(320);
+    });
+
+    expect(mocks.push).toHaveBeenCalledWith("/");
+  });
 });

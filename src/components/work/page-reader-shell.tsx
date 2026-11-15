@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { moveNav, registerReaderClose } from "@/components/nav/nav-flight";
-import { CLOSE_DROP_PX, MORPH_CLOSE_S } from "./morph";
+import { CLOSE_DROP_PX, landWithin, MORPH_CLOSE_S } from "./morph";
 import { ReaderCloseProvider } from "./reader-close";
 import { FADE_S } from "./use-morph";
 
@@ -37,6 +37,11 @@ export function PageReaderShell({ children }: { children: ReactNode }) {
       // The panel is leaving: nothing in it may take a click on the way out.
       panel.style.pointerEvents = "none";
 
+      // The exit is a visual: the route change must not outlive it. Each wait is
+      // capped at the flight's own duration (morph.ts), so a frame loop that has
+      // stopped — an occluded window, a background tab — cannot leave the reader
+      // transparent with no way home.
+      const exitSeconds = reduce ? FADE_S : MORPH_CLOSE_S;
       const navHome = moveNav("home", reduce ? "fade" : "flip");
       const exit = reduce
         ? animate(panel, { opacity: 0 }, { duration: FADE_S, ease: "easeOut" })
@@ -46,7 +51,10 @@ export function PageReaderShell({ children }: { children: ReactNode }) {
             { duration: MORPH_CLOSE_S, ease: "easeIn" },
           );
 
-      await Promise.all([exit.finished.catch(() => undefined), navHome]);
+      await Promise.all([
+        landWithin(exit.finished, exitSeconds),
+        landWithin(navHome, exitSeconds),
+      ]);
 
       panel.style.opacity = "0";
       panel.style.removeProperty("transform");

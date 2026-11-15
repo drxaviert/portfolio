@@ -597,6 +597,36 @@ describe("ExpandShell", () => {
     expect(mocks.prefetch).not.toHaveBeenCalled();
   });
 
+  it("leaves the route even when the close flight never finishes", async () => {
+    // A paused frame loop never resolves the close animation; the route change
+    // must not be held hostage by it.
+    placeCard(CARD_A);
+    mocks.animate.mockReturnValue({
+      finished: new Promise(() => {}),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+    vi.useFakeTimers();
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    act(() => {
+      fireEvent.click(
+        document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+      );
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(320);
+    });
+
+    expect(mocks.back).toHaveBeenCalledTimes(1);
+  });
+
   it("stays put when the route already left the reader", async () => {
     placeCard(CARD_A);
 
