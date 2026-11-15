@@ -3,6 +3,8 @@
 import { createContext, useContext, useSyncExternalStore } from "react";
 import type { JSX, ReactNode } from "react";
 import { HorizonBackground } from "@/components/horizon/horizon-background";
+import { BottomSheet } from "@/components/system/bottom-sheet";
+import { ControlsPanel } from "@/components/system/controls-panel";
 import { useSystemParams } from "@/lib/system/use-system-params";
 import { SECTIONS } from "./sections";
 import type { SectionId } from "./sections";
@@ -106,7 +108,7 @@ export function SystemShell({
               onChange={(event) => {
                 window.location.hash = event.target.value;
               }}
-              className="w-full rounded-md bg-surface-container-low px-3 py-2 text-sm text-on-surface shadow-card"
+              className="w-full rounded-md bg-surface-container-low px-3 py-2 text-base text-on-surface shadow-card"
             >
               {SECTIONS.map((section) => (
                 <option key={section.id} value={section.id}>
@@ -116,12 +118,22 @@ export function SystemShell({
             </select>
           </div>
 
-          <main className="min-w-0 space-y-6">{children}</main>
+          <main className="min-w-0 space-y-6 pb-[22rem] lg:pb-0">
+            {children}
+          </main>
 
           <aside
             aria-label="Controls"
             className="mt-8 lg:sticky lg:top-12 lg:mt-0 lg:self-start"
-          />
+          >
+            <div className="hidden lg:block">
+              <ControlsPanel />
+            </div>
+          </aside>
+
+          <BottomSheet label="Controls">
+            <ControlsPanel />
+          </BottomSheet>
         </div>
       </div>
     </SystemParamsContext>
