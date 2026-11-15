@@ -60,12 +60,14 @@ beforeEach(() => {
   mocks.push.mockReset();
   mocks.prefetch.mockReset();
   close = undefined;
+  delete document.documentElement.dataset.entrancePlayed;
 
   window.history.replaceState({}, "", "/work/systems-in-motion");
 });
 
 afterEach(() => {
   registerReaderClose(null);
+  delete document.documentElement.dataset.entrancePlayed;
 });
 
 describe("PageReaderShell", () => {
@@ -189,6 +191,25 @@ describe("PageReaderShell", () => {
     );
 
     await waitFor(() => expect(mocks.prefetch).toHaveBeenCalledWith("/"));
+  });
+
+  it("marks the document before leaving, so home paints resting", async () => {
+    placePageReader();
+
+    render(
+      <PageReaderShell>
+        <Probe />
+      </PageReaderShell>,
+    );
+
+    await waitFor(() => expect(close).toBeTypeOf("function"));
+
+    act(() => {
+      void close?.();
+    });
+
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/"));
+    expect(document.documentElement.dataset.entrancePlayed).toBe("true");
   });
 
   it("leaves for home even when the exit never finishes", async () => {

@@ -290,9 +290,14 @@ export function useMorph(
         return;
       }
 
-      if (window.history.state?.workOverlay && !pageReaderBehind())
-        router.back();
-      else router.push("/");
+      // Pushing '/' from a direct load means home arrives by client navigation:
+      // mark the document before the route change so the resting page paints
+      // from its first frame, whatever order home's client chunks arrive in.
+      if (window.history.state?.workOverlay && !pageReaderBehind()) router.back();
+      else {
+        document.documentElement.dataset.entrancePlayed = "true";
+        router.push("/");
+      }
     })();
 
     return closingRef.current;

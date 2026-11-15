@@ -62,6 +62,12 @@ export function PageReaderShell({ children }: { children: ReactNode }) {
       // Back (or any other route change) owns the screen now.
       if (window.location.pathname !== route) return;
 
+      // Home arrives by client navigation, so it must render resting. Mark the
+      // document before the route change: home's own gate is a client component
+      // and can land after the content does, which would leave the entrance CSS
+      // holding every card at opacity 0 until it runs.
+      document.documentElement.dataset.entrancePlayed = "true";
+
       router.push("/");
     })();
 

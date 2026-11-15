@@ -88,6 +88,19 @@ describe("shipped home entrance", () => {
     expect(document.documentElement.dataset.entrancePlayed).toBe("true");
   });
 
+  it("stays resting when the document was marked before arrival", () => {
+    // The reader marks the document before it pushes '/', so home must paint
+    // resting even though its server markup is already here.
+    placeServerMarkup();
+    document.documentElement.dataset.entrancePlayed = "true";
+
+    render(<HomeEntrancePlayed />);
+
+    expect(document.documentElement.dataset.entrancePlayed).toBe("true");
+    vi.advanceTimersByTime(SHIPPED_ENTRANCE_TOTAL_MS);
+    expect(document.documentElement.dataset.entrancePlayed).toBe("true");
+  });
+
   it("ships a CSS-only start and a reduced-motion fade", () => {
     // The animation, not JS, carries the start pose: SSR markup + backwards fill.
     expect(css).toContain('[data-entrance="soft"] .entrance-body');

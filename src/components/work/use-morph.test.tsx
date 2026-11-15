@@ -437,6 +437,8 @@ describe("ExpandShell", () => {
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/"));
     expect(mocks.back).not.toHaveBeenCalled();
+    // Home arrives by client navigation: marked before the route change.
+    expect(document.documentElement.dataset.entrancePlayed).toBe("true");
   });
 
   it("goes back when the page reader left in the tree is parked", async () => {
