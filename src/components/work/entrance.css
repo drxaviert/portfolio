@@ -6,9 +6,13 @@
  * at the reveal (75% through the panel's 480ms flight, when the panel is
  * visually settled); nothing starts while the panel is still travelling.
  *
- * Then every block makes the same move - opacity 0 + blur(8px) + 10px rise to
- * nothing, 800ms on easeOutQuint, which keeps a long soft tail - so what the
- * eye reads is the beat, not the gesture:
+ * Then every block makes the same move - opacity 0 + 10px rise to nothing,
+ * 800ms on easeOutQuint - while the text also comes out of a 10px blur on a
+ * gentler curve of its own. One curve for everything front-loaded the blur:
+ * 8px was down to 2.4px by 200ms and 0.4px by 400ms, so the text snapped sharp
+ * while the opacity was barely half way, which read as a cut rather than a
+ * fade. The defocus now runs the full 800ms on CSS ease, so it is still soft
+ * (2px) when the fade is at 96% and settles without a step:
  *
  *   beat     80ms between consecutive blocks, no sub-steps
  *   order    cover, title, subtitle, meta, then the body blocks
@@ -31,6 +35,9 @@
 
 .wd-reader-panel {
   --wd-enter-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Slow out of the gate, soft at the end: the blur stays visible while the
+     fade finishes instead of resolving in its first third. */
+  --wd-enter-blur-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
   --wd-enter-duration: 800ms;
   --wd-fade-reduced: 120ms ease-out;
 }
@@ -48,29 +55,26 @@
   opacity: 1;
 }
 
-@keyframes wd-enter-blur {
+/* The move: opacity and the 10px rise, on the pinned curve. */
+@keyframes wd-enter-fade {
   from {
     opacity: 0;
-    filter: blur(8px);
     transform: translateY(10px);
   }
   to {
     opacity: 1;
-    filter: none;
     transform: none;
   }
 }
 
-/* The cover: the same move without the filter (blur on the large media is the
-   one thing measured to cost frames). */
-@keyframes wd-enter-rise {
+/* The defocus: filter only, so it can run on its own timing. Blur starts at
+   10px and resolves to none (the identity), never a hard stop. */
+@keyframes wd-enter-defocus {
   from {
-    opacity: 0;
-    transform: translateY(10px);
+    filter: blur(10px);
   }
   to {
-    opacity: 1;
-    transform: none;
+    filter: none;
   }
 }
 
@@ -80,16 +84,21 @@
   :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
 .wd-expand-layer[data-reveal="on"]
   :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *) {
-  animation: wd-enter-blur var(--wd-enter-duration) var(--wd-enter-ease)
-    backwards;
-  animation-delay: calc(
-    var(--wd-enter-delay, 0ms) + var(--wd-beat-lead, 0ms)
-  );
+  animation:
+    wd-enter-fade var(--wd-enter-duration) var(--wd-enter-ease) backwards,
+    wd-enter-defocus var(--wd-enter-duration) var(--wd-enter-blur-ease)
+      backwards;
+  /* Both animations ride the block's beat; the list pairs with the one above. */
+  animation-delay:
+    calc(var(--wd-enter-delay, 0ms) + var(--wd-beat-lead, 0ms)),
+    calc(var(--wd-enter-delay, 0ms) + var(--wd-beat-lead, 0ms));
 }
 
+/* The cover has no filter: the large media is the one thing measured to cost
+   frames when blurred. */
 .wd-reader-panel[data-mode="page"] .wd-hero,
 .wd-expand-layer[data-reveal="on"] .wd-hero {
-  animation: wd-enter-rise var(--wd-enter-duration) var(--wd-enter-ease)
+  animation: wd-enter-fade var(--wd-enter-duration) var(--wd-enter-ease)
     backwards;
   animation-delay: calc(0ms + var(--wd-beat-lead, 0ms));
 }

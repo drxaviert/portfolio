@@ -66,16 +66,19 @@ describe("drawer motion values", () => {
   it("runs the blur reveal on one even beat, in reading order", () => {
     const entrance = read("entrance.css");
 
-    // The move and its curve.
+    // The move and its curve; the defocus rides its own, slower curve.
     expect(entrance).toMatch(
       /--wd-enter-ease: cubic-bezier\(0\.22, 1, 0\.36, 1\);/,
     );
+    expect(entrance).toMatch(
+      /--wd-enter-blur-ease: cubic-bezier\(0\.25, 0\.1, 0\.25, 1\);/,
+    );
     expect(entrance).toMatch(/--wd-enter-duration: 800ms;/);
     expect(entrance).toMatch(
-      /@keyframes wd-enter-blur \{\s*from \{\s*opacity: 0;\s*filter: blur\(8px\);\s*transform: translateY\(10px\);/,
+      /@keyframes wd-enter-fade \{\s*from \{\s*opacity: 0;\s*transform: translateY\(10px\);\s*\}\s*to \{\s*opacity: 1;\s*transform: none;/,
     );
     expect(entrance).toMatch(
-      /animation: wd-enter-blur var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards;/,
+      /animation:\s*wd-enter-fade var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards,\s*wd-enter-defocus var\(--wd-enter-duration\) var\(--wd-enter-blur-ease\)\s*backwards;/,
     );
 
     // One 80ms beat: cover 0, title 80, subtitle 160, meta 240, p1 320, p2 400,
@@ -96,7 +99,7 @@ describe("drawer motion values", () => {
     );
     // Cover: the first beat, the same timing, no filter.
     expect(entrance).toMatch(
-      /\.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{\s*animation: wd-enter-rise var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards;\s*animation-delay: calc\(0ms \+ var\(--wd-beat-lead, 0ms\)\);/,
+      /\.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{\s*animation: wd-enter-fade var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards;\s*animation-delay: calc\(0ms \+ var\(--wd-beat-lead, 0ms\)\);/,
     );
   });
 
@@ -112,7 +115,7 @@ describe("drawer motion values", () => {
 
     // The lead rides on top of the beat; the beat itself is untouched.
     expect(entrance).toMatch(
-      /animation-delay: calc\(\s*var\(--wd-enter-delay, 0ms\) \+ var\(--wd-beat-lead, 0ms\)\s*\);/,
+      /animation-delay:\s*calc\(\s*var\(--wd-enter-delay, 0ms\) \+ var\(--wd-beat-lead, 0ms\)\s*\)/,
     );
     expect(entrance).toContain(
       "animation-delay: calc(0ms + var(--wd-beat-lead, 0ms));",
