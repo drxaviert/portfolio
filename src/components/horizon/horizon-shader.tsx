@@ -5,6 +5,9 @@ import type {
   HorizonMotionTuning,
   HorizonMotionVariant,
 } from "./horizon-background";
+import type { SystemEngine } from "@/lib/system/engine";
+import { bindHorizonToEngine } from "./horizon-engine-bridge";
+import type { HorizonUniforms } from "./horizon-engine-bridge";
 import {
   alternateProgress,
   baseStrength,
@@ -576,18 +579,26 @@ export function HorizonShader({
   tuning,
   ditherLsb = 1,
   dprCap = 1.5,
+  engine,
   onFallback,
 }: {
   motion: HorizonMotionVariant;
   tuning?: HorizonMotionTuning;
   ditherLsb?: number;
   dprCap?: number;
+  /**
+   * When present, the colour uniforms come from the engine's derived tokens
+   * instead of computed CSS. The subscription updates a local uniform block on
+   * the shader's own frame — no React render — so a drag or theme change costs
+   * one draw, not a page re-render. Omitted on the live site.
+   */
+  engine?: SystemEngine;
   onFallback?: (reason: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
   const requestFrameRef = useRef<() => void>(() => {});
-  const paramsRef = useRef({ motion, tuning, ditherLsb, dprCap });
+  const paramsRef = useRef({ motion, tuning, ditherLsb, dprCap, engine });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -682,12 +693,14 @@ export function HorizonShader({
     const reduceQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     let tokens = readTokens();
     let nightBlend = readNightBlend(canvas);
+    let engineUniforms: HorizonUniforms | null = null;
     let soft: SoftFocus = IDLE_SOFT;
     let blurTexture: BlurTexture | null = null;
     let textureTimer: number | null = null;
     let dirty = true;
     let frame = 0;
     let disposed = false;
+    let unbindEngine: (() => void) | null = null;
     let clock = readCssMotionOffset();
     let lastTimestamp: number | null = null;
 
@@ -742,9 +755,26 @@ export function HorizonShader({
       if (disposed || !blurTexture) return;
 
       if (dirty) {
-        tokens = readTokens();
-        nightBlend = readNightBlend(canvas);
+        // Once the engine has emitted, it is authoritative for every colour,
+        // and the phase it wrote gives the night blend without a style read.
+        // CSS is re-read only for geometry (rebuildTexture, on resize).
+        if (!engineUniforms) {
+          tokens = readTokens();
+          nightBlend = readNightBlend(canvas);
+        }
+
         dirty = false;
+      }
+
+      if (engineUniforms) {
+        tokens.base = engineUniforms.base;
+        tokens.mid = engineUniforms.mid;
+        tokens.horizon3 = engineUniforms.horizon3;
+        tokens.midAt = engineUniforms.midAt;
+        tokens.color1 = engineUniforms.color1;
+        tokens.color2 = engineUniforms.color2;
+        tokens.alpha1 = engineUniforms.alpha1;
+        tokens.alpha2 = engineUniforms.alpha2;
       }
 
       const width = canvas.width;
@@ -960,6 +990,21 @@ export function HorizonShader({
     draw();
     onFirstFrame();
     requestFrameRef.current = requestFrame;
+
+    if (paramsRef.current.engine) {
+      unbindEngine = bindHorizonToEngine(paramsRef.current.engine, (next) => {
+        engineUniforms = next;
+        nightBlend =
+          document.documentElement.getAttribute("data-phase") === "night"
+            ? 1
+            : 0;
+        // A token update is one uniform change: draw the next frame. The
+        // ambient loop, when it runs, picks the block up without a React
+        // render; under reduced motion this is the one static repaint.
+        requestFrame();
+      });
+    }
+
     requestFrame();
 
     canvas.addEventListener("webglcontextlost", onContextLost);
@@ -970,6 +1015,8 @@ export function HorizonShader({
     return () => {
       disposed = true;
       requestFrameRef.current = () => {};
+      unbindEngine?.();
+      unbindEngine = null;
 
       if (frame) cancelAnimationFrame(frame);
       if (textureTimer !== null) window.clearTimeout(textureTimer);
@@ -1004,9 +1051,9 @@ export function HorizonShader({
 
   // A parameter change needs a frame; motion needs the running loop.
   useEffect(() => {
-    paramsRef.current = { motion, tuning, ditherLsb, dprCap };
+    paramsRef.current = { motion, tuning, ditherLsb, dprCap, engine };
     requestFrameRef.current();
-  }, [motion, tuning, ditherLsb, dprCap]);
+  }, [motion, tuning, ditherLsb, dprCap, engine]);
 
   return (
     <div

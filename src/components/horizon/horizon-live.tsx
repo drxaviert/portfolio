@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { SystemEngine } from "@/lib/system/engine";
 import { HorizonBackground } from "./horizon-background";
 import { HorizonShader } from "./horizon-shader";
 import {
@@ -24,7 +25,7 @@ import {
  * CSS layer never stopped animating, so the fallback is seamless and already in
  * phase.
  */
-export function HorizonLive() {
+export function HorizonLive({ engine }: { engine?: SystemEngine } = {}) {
   const [webglFailed, setWebglFailed] = useState(false);
 
   return (
@@ -43,6 +44,7 @@ export function HorizonLive() {
           tuning={HORIZON_HOME_MOTION}
           ditherLsb={HORIZON_HOME_DITHER_LSB}
           dprCap={HORIZON_HOME_DPR_CAP}
+          engine={engine}
           onFallback={() => setWebglFailed(true)}
         />
       )}

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useSyncExternalStore } from "react";
 import type { JSX, ReactNode } from "react";
-import { HorizonBackground } from "@/components/horizon/horizon-background";
+import { HorizonLive } from "@/components/horizon/horizon-live";
 import { BottomSheet } from "@/components/system/bottom-sheet";
 import { ControlsPanel } from "@/components/system/controls-panel";
 import { useSystemParams } from "@/lib/system/use-system-params";
@@ -64,7 +64,7 @@ export function SystemShell({
   return (
     <SystemParamsContext value={system}>
       <div className="relative min-h-dvh text-on-surface">
-        <HorizonBackground position="fixed" />
+        <HorizonLive engine={system.engine} />
 
         <div className="relative mx-auto w-full max-w-[1440px] px-4 py-6 md:px-8 lg:grid lg:grid-cols-[200px_minmax(0,1fr)_280px] lg:items-start lg:gap-10 lg:py-12">
           <header className="mb-8 lg:col-span-3 lg:mb-2">
