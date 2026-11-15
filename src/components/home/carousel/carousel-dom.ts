@@ -146,6 +146,15 @@ export function playEntity(
     else if (outside(e.from.x)) keyframes.filter = [blur(b.edgeBlur), "none"];
   }
 
+  if (e.peekFrom) {
+    // The previous card leaves the peek looking different (blurred, its left
+    // end faded) and loses both as it grows into the wide slot: no pop.
+    el.dataset.peekFade = "";
+    el.style.setProperty("--car-lf", String(e.peekFrom.fade));
+    keyframes.filter = [blur(e.peekFrom.blur), "none"];
+    keyframes["--car-lf"] = [e.peekFrom.fade, 0];
+  }
+
   const animations: Animation[] = [el.animate(keyframes, timeline)];
 
   const { cover, grey, title } = parts(el);

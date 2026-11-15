@@ -39,7 +39,13 @@ import {
 } from "./carousel-math";
 import type { Ease, Entity, Geometry, TitleTiming } from "./carousel-math";
 import { CarouselTuner, DEFAULT_SETTINGS } from "./carousel-tuner";
-import { cardPoses, closeSnap, tweenPeek } from "./hover-peek-dom";
+import {
+  blurNow,
+  cardPoses,
+  closeSnap,
+  read,
+  tweenPeek,
+} from "./hover-peek-dom";
 import type { PeekCard, PeekEls } from "./hover-peek-dom";
 import {
   inZone,
@@ -326,6 +332,10 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const current = tween.current;
     tween.current = null;
     delete rowRef.current?.dataset.stepping;
+    delete rowRef.current?.dataset.mask;
+    // A copy that slid out with the step is finished with.
+    const copy = elements.current.get("peekL");
+    if (copy && !peek.current.els) copy.style.visibility = "hidden";
     current?.animations.forEach((animation) => animation.cancel());
   }
 
@@ -367,7 +377,12 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       els,
       layout,
       open,
-      { reveal: s.revealMs, retract: s.retractMs, reduce: reduced },
+      {
+        reveal: s.revealMs,
+        retract: s.retractMs,
+        reduce: reduced,
+        fade: s.hoverFade,
+      },
       state.anims,
       () => {
         if (state.open) return;
@@ -394,6 +409,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const row = rowRef.current;
     if (row) {
       delete row.dataset.peeking;
+      delete row.dataset.mask;
     }
   }
 
@@ -413,7 +429,15 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       !!at &&
       n >= VISIBLE_SLOTS &&
       !tween.current &&
-      inZone(at.x, at.y, rect, state.layout?.shift ?? s.hoverZone);
+      inZone(
+        at.x,
+        at.y,
+        rect,
+        // Wider only while open (and not while retracting), so the pointer can
+        // reach the previous card; a retract is not undone by a pointer that
+        // is outside the rest zone.
+        state.open ? (state.layout?.shift ?? s.hoverZone) : s.hoverZone,
+      );
 
     if (want) {
       if (state.timer !== null) window.clearTimeout(state.timer);
@@ -512,9 +536,18 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const hover = peek.current;
     const drawn = hover.els ? cardPoses(hover.els) : null;
     const wasOpen = hover.open;
-    const prevAt = hover.layout
-      ? { x: hover.layout.prev.toX, w: hover.layout.prevW }
-      : null;
+    const prevEl = hover.els?.prev ?? null;
+    const prevDrawn =
+      prevEl && hover.layout
+        ? {
+            x: read(prevEl, "--car-x"),
+            w: hover.layout.prevW,
+            outX: hover.layout.prev.fromX,
+            blur: blurNow(prevEl),
+          }
+        : null;
+    const rowNow = rowRef.current;
+    const fadeNow = rowNow ? read(rowNow, "--car-fade") : 0;
     // An interrupt starts on a card that is already moving, so it takes an
     // ease-out that carries speed instead of the gentle-start default.
     const spec = running
@@ -553,11 +586,15 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       : current;
     let planned = retarget(g, n, prev, k, withPush);
 
-    if (wasOpen && k < 0 && prevAt) {
+    if (wasOpen && k < 0 && prevDrawn) {
       const item = peekOf(n, prev);
       planned = planned.map((e) =>
         e.item === item && e.to.x < g.rowWidth && e.to.x + e.to.w > 0
-          ? { ...e, from: prevAt }
+          ? {
+              ...e,
+              from: { x: prevDrawn.x, w: prevDrawn.w },
+              peekFrom: { blur: prevDrawn.blur, fade: s.hoverFade },
+            }
           : e,
       );
     }
@@ -615,15 +652,40 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     row.dataset.stepping = "";
 
     if (bm === "edge") {
-      // Same duration and start as the cards, linear in time: in fast, hold,
-      // out before the end.
+      // Same duration and start as the cards: eases in, holds, eases out. From
+      // a peek it carries on from the mask's strength then, so it never pops.
       animations.push(
         row.animate(
-          EDGE_KEYFRAMES.map((k) => ({
+          EDGE_KEYFRAMES.map((k, index) => ({
             offset: k.offset,
-            "--car-fade": k.fade,
+            easing: k.easing,
+            "--car-fade": index === 0 ? Math.max(fadeNow, k.fade) : k.fade,
           })),
           { duration: s.duration, easing: "linear", fill: "both" },
+        ),
+      );
+    } else if (fadeNow > 0.01) {
+      // The peek's mask eases out instead of vanishing when the step starts.
+      row.dataset.mask = "";
+      const out = row.animate(
+        { "--car-fade": [fadeNow, 0] },
+        { duration: 220, easing: "ease-out" },
+      );
+      out.onfinish = () => {
+        if (tween.current === started) delete row.dataset.mask;
+      };
+      animations.push(out);
+    }
+
+    // Stepping forward with the peek open: the previous card slides back out to
+    // the left with the row instead of vanishing.
+    if (wasOpen && k > 0 && prevEl && prevDrawn) {
+      prevEl.style.visibility = "visible";
+      prevEl.style.setProperty("--car-x", `${prevDrawn.x}px`);
+      animations.push(
+        prevEl.animate(
+          { "--car-x": [`${prevDrawn.x}px`, `${prevDrawn.outX}px`] },
+          { duration: s.duration, easing, fill: "both" },
         ),
       );
     }
@@ -763,6 +825,8 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const domOrder = slotOrder(n, domOffset);
   const rowStyle = {
     "--car-edge-w": `${settings.edgeWidth}px`,
+    "--car-hp-blur": `${settings.hoverBlur}px`,
+    "--car-hp-blur-on": `${settings.hoverBlurOn}px`,
   } as CSSProperties;
 
   return (

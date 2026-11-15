@@ -1,21 +1,20 @@
 import { EDGE_KEYFRAMES } from "./blur-mode";
-import {
-  PEEK_FADE_MS,
-  RETRACT_EASING,
-  REVEAL_EASING,
-  type PeekLayout,
-} from "./hover-peek";
+import { PEEK_EASING, PEEK_FADE_MS, TURN_EASING } from "./hover-peek";
+import type { PeekLayout } from "./hover-peek";
 
 /**
  * Imperative motion for the left hover peek. The whole row moves as one: every
  * visible card's `--car-x` (the registered property a step uses) goes right by
  * the layout's shift, widths untouched, while the previous item's copy slides in
  * from beyond the left edge into the new first slot. The row's edge mask
- * (`--car-fade`, the step's technique: an alpha mask, no painted colour) is on
- * only while the shift moves, so at the open rest state nothing is faded.
+ * (`--car-fade`, the step's technique: an alpha mask, no painted colour) is
+ * present for the whole peek and its strength is animated, in and out, so it
+ * never switches on or off.
  *
- * Everything starts from where it is drawn now, so a reveal and a retract
- * retarget each other mid-flight.
+ * Everything starts from where it is drawn now. An interrupt (a reveal that is
+ * retracted half-way, or the reverse) turns round with a shorter, ease-in-out
+ * run sized to the distance left, so speed never jumps and nothing restarts
+ * from rest.
  */
 export type PeekCard = { item: number; el: HTMLElement; restX: number };
 
@@ -26,10 +25,22 @@ export type PeekEls = {
   cards: PeekCard[];
 };
 
-export type PeekTiming = { reveal: number; retract: number; reduce: boolean };
+export type PeekTiming = {
+  reveal: number;
+  retract: number;
+  reduce: boolean;
+  /** Strength of the soft fade on the copy's left end (0 none, 1 full). */
+  fade: number;
+};
 
-function read(el: HTMLElement, prop: string): number {
+export function read(el: HTMLElement, prop: string): number {
   return Number.parseFloat(getComputedStyle(el).getPropertyValue(prop)) || 0;
+}
+
+/** The blur (px) an element is drawn with right now. */
+export function blurNow(el: HTMLElement): number {
+  const match = /blur\(([\d.]+)px\)/.exec(getComputedStyle(el).filter);
+  return match ? Number.parseFloat(match[1]) : 0;
 }
 
 /** Each card's pose as drawn this instant, mid-tween values included. */
@@ -55,7 +66,7 @@ export function closeSnap(
     card.el.style.setProperty("--car-x", `${card.restX}px`);
   prev.style.visibility = "hidden";
   prev.style.opacity = "";
-  delete row.dataset.peekMoving;
+  delete row.dataset.mask;
 }
 
 /**
@@ -83,7 +94,9 @@ export function tweenPeek(
 
   previous.forEach((animation) => animation.cancel());
   prev.style.width = `${layout.prevW}px`;
+  prev.style.setProperty("--car-lf", String(timing.fade));
   prev.style.visibility = "visible";
+  row.dataset.mask = "";
 
   const toPrev = {
     x: open ? layout.prev.toX : layout.prev.fromX,
@@ -96,7 +109,7 @@ export function tweenPeek(
     if (open) return;
     prev.style.visibility = "hidden";
     prev.style.opacity = "";
-    delete row.dataset.peekMoving;
+    delete row.dataset.mask;
     done();
   };
 
@@ -123,11 +136,16 @@ export function tweenPeek(
 
   prev.style.setProperty("--car-x", `${layout.prev.fromX}px`);
   prev.style.opacity = "1";
-  row.dataset.peekMoving = "";
 
+  // How much of the shift is left from where the first card is drawn: an
+  // interrupt turns round part-way, so the run is shorter and eases in and out
+  // instead of restarting with a full-speed kick.
+  const left = Math.abs(toX(0) - fromCards[0]) / layout.shift;
+  const turning = left > 0.02 && left < 0.98;
+  const base = open ? timing.reveal : timing.retract;
   const options = {
-    duration: open ? timing.reveal : timing.retract,
-    easing: open ? REVEAL_EASING : RETRACT_EASING,
+    duration: turning ? Math.max(base * left, base * 0.35) : base,
+    easing: turning ? TURN_EASING : PEEK_EASING,
     fill: open ? ("forwards" as const) : ("none" as const),
   };
 
@@ -141,18 +159,18 @@ export function tweenPeek(
     { "--car-x": [`${fromPrev.x}px`, `${toPrev.x}px`] },
     options,
   );
-  // The edge mask shows only while the row moves: in fast, hold, out before the
-  // end, the same shape a step uses.
+  // The edge mask's strength rises and falls smoothly over the run, from
+  // whatever it is now: never a switch.
   const maskRun = row.animate(
     EDGE_KEYFRAMES.map((k, index) => ({
       offset: k.offset,
+      easing: k.easing,
       "--car-fade": index === 0 ? fromFade : k.fade,
     })),
     { duration: options.duration, easing: "linear" },
   );
 
   prevRun.onfinish = finish;
-  maskRun.onfinish = () => delete row.dataset.peekMoving;
 
   return [...runs, prevRun, maskRun];
 }

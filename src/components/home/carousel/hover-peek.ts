@@ -18,17 +18,26 @@ export type HoverPeekSettings = {
   retractMs: number;
   /** Delay before the peek retracts once the pointer leaves, ms. */
   leaveMs: number;
+  /** The previous card's blur while open, and while the pointer is on it, px. */
+  hoverBlur: number;
+  hoverBlurOn: number;
+  /** Strength of the soft fade on the previous card's left end. */
+  hoverFade: number;
 };
 
 export const DEFAULT_HOVER_PEEK: HoverPeekSettings = {
   hoverZone: 40,
-  revealMs: 250,
-  retractMs: 200,
+  revealMs: 450,
+  retractMs: 350,
   leaveMs: 120,
+  hoverBlur: 4,
+  hoverBlurOn: 1.5,
+  hoverFade: 0.5,
 };
 
-export const REVEAL_EASING = "cubic-bezier(0.23, 1, 0.32, 1)";
-export const RETRACT_EASING = "ease-out";
+export const PEEK_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
+/** A reveal and a retract that interrupt each other turn round on this. */
+export const TURN_EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
 export const PEEK_FADE_MS = 120;
 
 /** The item that peeks in on the left: order[(first - 1 + n) % n]. */

@@ -41,10 +41,17 @@ export function motionBlurAt(peak: number, p: number): number {
   return p < 0.5 ? peak * (p / 0.5) : peak * (1 - (p - 0.5) / 0.5);
 }
 
-/** The edge mask's strength over a run's time: in fast, out near the end. */
-export const EDGE_KEYFRAMES: { offset: number; fade: number }[] = [
-  { offset: 0, fade: 0 },
-  { offset: 0.08, fade: 1 },
-  { offset: 0.7, fade: 1 },
+/**
+ * The edge mask's strength over a run's time: eases in, holds, eases out, so
+ * the mask never switches on or off. Used by steps and by the hover peek.
+ */
+export const EDGE_KEYFRAMES: {
+  offset: number;
+  fade: number;
+  easing?: string;
+}[] = [
+  { offset: 0, fade: 0, easing: "ease-in-out" },
+  { offset: 0.35, fade: 1, easing: "linear" },
+  { offset: 0.65, fade: 1, easing: "ease-in-out" },
   { offset: 1, fade: 0 },
 ];

@@ -322,7 +322,7 @@ describe("carousel CSS", () => {
   it("clips exactly to the column edges while stepping, outset only at rest", () => {
     expect(css).toMatch(/\.car-row\s*\{[^}]*clip-path:\s*inset\(-12px -6px\)/);
     expect(css).toMatch(
-      /\.car-row\[data-stepping\],\s*\.car-row\[data-peeking\]\s*\{\s*clip-path:\s*inset\(-12px 0\)/,
+      /\.car-row\[data-stepping\]\s*\{\s*clip-path:\s*inset\(-12px 0\)/,
     );
   });
 

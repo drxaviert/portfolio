@@ -181,8 +181,8 @@ describe("left hover peek", () => {
       expect("--car-r" in run.keyframes).toBe(false);
       expect("width" in run.keyframes).toBe(false);
       expect(card(container, slot).style.width).toBe(`${REST_W[slot]}px`);
-      expect(run.options.duration).toBe(250);
-      expect(run.options.easing).toBe("cubic-bezier(0.23, 1, 0.32, 1)");
+      expect(run.options.duration).toBe(450);
+      expect(run.options.easing).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
     }
     // [prev 84][12][featured 753][12][180][12][83] fills the column exactly,
     // and the last card is out past its right edge.
@@ -194,7 +194,7 @@ describe("left hover peek", () => {
     expect(OPEN_X[3]).toBeGreaterThanOrEqual(1136);
   });
 
-  it("brings the previous item in from beyond the left edge into a 84px first slot, unblurred", () => {
+  it("brings the previous item in from beyond the left edge into a 84px first slot", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
     move(110);
@@ -202,9 +202,12 @@ describe("left hover peek", () => {
     const copy = prevCard(container)!;
     const slide = slides(copy)[0];
     expect(slide.keyframes["--car-x"]).toEqual(["-96px", "0px"]);
-    expect(slide.options.duration).toBe(250);
+    expect(slide.options.duration).toBe(450);
     expect(copy.style.width).toBe("84px");
     expect(copy.style.visibility).toBe("visible");
+    // Blur and the left fade are css on the copy (so hover can lessen them),
+    // not an animation: it is different from the first frame.
+    expect(copy.style.getPropertyValue("--car-lf")).toBe("0.5");
     expect(
       recorded.some(
         (r) => !Array.isArray(r.keyframes) && "filter" in r.keyframes,
@@ -224,24 +227,31 @@ describe("left hover peek", () => {
     expect(container.querySelectorAll(".car-peek-edge")).toHaveLength(1);
   });
 
-  it("masks the edges only while the row moves, not at the open rest state", () => {
+  it("animates the mask strength smoothly instead of toggling it", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
     move(110);
 
-    expect(row(container)).toHaveAttribute("data-peek-moving");
     const mask = recorded.find(
       (r) => r.target === row(container) && Array.isArray(r.keyframes),
     )!;
-    const frames = mask.keyframes as unknown as { "--car-fade": number }[];
-    expect(frames[0]["--car-fade"]).toBe(0);
-    expect(frames.at(-1)!["--car-fade"]).toBe(0);
-    expect(Math.max(...frames.map((f) => f["--car-fade"]))).toBe(1);
-    expect(mask.options.duration).toBe(250);
+    const frames = mask.keyframes as unknown as {
+      offset: number;
+      easing?: string;
+      "--car-fade": number;
+    }[];
+    // Eases in, holds, eases out: never a step from 0 to 1.
+    expect(frames.map((f) => f["--car-fade"])).toEqual([0, 1, 1, 0]);
+    expect(frames[0].easing).toBe("ease-in-out");
+    expect(frames[0].offset).toBe(0);
+    expect(frames[1].offset).toBeGreaterThan(0.25);
+    expect(mask.options.duration).toBe(450);
 
-    act(() => mask.onfinish?.());
-    expect(row(container)).not.toHaveAttribute("data-peek-moving");
-    expect(row(container)).toHaveAttribute("data-peeking");
+    // The mask is on for the whole peek (fully opaque at rest), so it never
+    // switches on or off with the motion.
+    expect(row(container)).toHaveAttribute("data-mask");
+    act(() => slides(prevCard(container)!)[0].onfinish?.());
+    expect(row(container)).toHaveAttribute("data-mask");
   });
 
   it("reveals from the gutter, not only from inside the column", () => {
@@ -297,14 +307,15 @@ describe("left hover peek", () => {
     for (let slot = 0; slot < 4; slot++) {
       const back = slides(card(container, slot)).at(-1)!;
       expect(back.keyframes["--car-x"].at(-1)).toBe(`${REST_X[slot]}px`);
-      expect(back.options.duration).toBe(200);
-      expect(back.options.easing).toBe("ease-out");
+      expect(back.options.duration).toBe(350);
+      expect(back.options.easing).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
     }
     const copy = slides(prevCard(container)!).at(-1)!;
     expect(copy.keyframes["--car-x"].at(-1)).toBe("-96px");
 
     act(() => copy.onfinish?.());
     expect(row(container)).not.toHaveAttribute("data-peeking");
+    expect(row(container)).not.toHaveAttribute("data-mask");
     expect(prevCard(container)!.style.visibility).toBe("hidden");
   });
 
@@ -321,6 +332,9 @@ describe("left hover peek", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     move(110);
     drawShifted(container);
+    // What the css draws on the open copy (jsdom has no stylesheet).
+    prevCard(container)!.style.filter = "blur(4px)";
+    prevCard(container)!.style.setProperty("--car-x", "0px");
     const cards = [0, 1, 2, 3].map((slot) => card(container, slot));
     const before = recorded.length;
 
@@ -347,6 +361,11 @@ describe("left hover peek", () => {
     )!;
     expect(entering.keyframes["--car-x"][0]).toBe("0px");
     expect(entering.keyframes["--car-r"][0]).toBe(`${753 - 84}px`);
+    // It leaves the peek blurred with its left end faded, and loses both as it
+    // grows: no pop.
+    expect(entering.keyframes.filter).toEqual(["blur(4.00px)", "none"]);
+    expect(entering.keyframes["--car-lf"]).toEqual([0.5, 0]);
+    expect(entering.target).toHaveAttribute("data-peek-fade");
 
     const afterStep = recorded.length;
     finishStep();
@@ -402,20 +421,169 @@ describe("left hover peek", () => {
   });
 });
 
+describe("peek glitch fixes", () => {
+  it("does not flap at the zone boundary: wider only while open, and a retract is not undone", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+
+    // At rest the zone is the first 40px: 60px in does not open it.
+    move(100 + 60);
+    expect(row(container)).not.toHaveAttribute("data-peeking");
+
+    // Open, then the open zone (96px) holds the pointer at 60px.
+    move(110);
+    const opened = recorded.length;
+    move(100 + 60);
+    act(() => vi.advanceTimersByTime(500));
+    expect(recorded).toHaveLength(opened);
+
+    // Leave, let the retract start, come back to 60px: that is outside the
+    // rest zone, so it stays retracting instead of reopening.
+    move(100 + 400);
+    act(() => vi.advanceTimersByTime(121));
+    const retracting = recorded.length;
+    move(100 + 60);
+    act(() => vi.advanceTimersByTime(500));
+    expect(recorded).toHaveLength(retracting);
+  });
+
+  it("retargets a reveal that is turned round from the pose it is at, not from rest", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    const copy = prevCard(container)!;
+    // Half way through the reveal (jsdom does not run it): stand in for it.
+    card(container, 0).style.setProperty("--car-x", "48px");
+    copy.style.setProperty("--car-x", "-48px");
+    row(container).style.setProperty("--car-fade", "0.6");
+    const before = recorded.length;
+
+    move(100 + 400);
+    act(() => vi.advanceTimersByTime(121));
+
+    const back = recorded.slice(before);
+    const first = back.find(
+      (r) => r.target === card(container, 0) && "--car-x" in r.keyframes,
+    )!;
+    expect(first.keyframes["--car-x"]).toEqual(["48px", "0px"]);
+    // A turn round is shorter (half the distance is left) and eases in and out
+    // instead of kicking off at full speed.
+    expect(first.options.duration).toBe(175);
+    expect(first.options.easing).toBe("cubic-bezier(0.4, 0, 0.2, 1)");
+    expect(slides(copy).at(-1)!.keyframes["--car-x"]).toEqual([
+      "-48px",
+      "-96px",
+    ]);
+    // The mask strength carries on from where it is: no pop.
+    const mask = back.find(
+      (r) => r.target === row(container) && Array.isArray(r.keyframes),
+    )!;
+    expect(
+      (mask.keyframes as unknown as { "--car-fade": number }[])[0][
+        "--car-fade"
+      ],
+    ).toBe(0.6);
+  });
+
+  it("steps back from a reveal in progress from the copy's drawn pose, not its end", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    const copy = prevCard(container)!;
+    copy.style.setProperty("--car-x", "-40px");
+    copy.style.filter = "blur(4px)";
+    drawShifted(container);
+    const before = recorded.length;
+
+    fireEvent.click(copy);
+
+    const entering = recorded
+      .slice(before)
+      .find(
+        (r) =>
+          r.target instanceof HTMLElement &&
+          r.target.hasAttribute("data-ghost") &&
+          "--car-x" in r.keyframes,
+      )!;
+    expect(entering.keyframes["--car-x"][0]).toBe("-40px");
+  });
+
+  it("slides the copy back out when a step goes the other way, instead of vanishing", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    prevCard(container)!.style.setProperty("--car-x", "0px");
+    const before = recorded.length;
+
+    fireEvent.keyDown(card(container, 0).querySelector(".car-host")!, {
+      key: "ArrowRight",
+    });
+
+    const out = recorded
+      .slice(before)
+      .find(
+        (r) => r.target === prevCard(container) && "--car-x" in r.keyframes,
+      )!;
+    expect(out.keyframes["--car-x"]).toEqual(["0px", "-96px"]);
+    expect(prevCard(container)!.style.visibility).toBe("visible");
+
+    move(600);
+    finishStep();
+    expect(prevCard(container)!.style.visibility).toBe("hidden");
+  });
+
+  it("eases the mask out when a step starts from a peek without the edge mode", () => {
+    window.history.pushState({}, "", "/?blur=none");
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    row(container).style.setProperty("--car-fade", "0.8");
+    const before = recorded.length;
+
+    fireEvent.keyDown(card(container, 0).querySelector(".car-host")!, {
+      key: "ArrowRight",
+    });
+
+    const out = recorded
+      .slice(before)
+      .find(
+        (r) =>
+          r.target === row(container) &&
+          !Array.isArray(r.keyframes) &&
+          "--car-fade" in r.keyframes,
+      )!;
+    expect(out.keyframes["--car-fade"]).toEqual([0.8, 0]);
+    expect(row(container)).toHaveAttribute("data-mask");
+  });
+});
+
 describe("peek css", () => {
   const css = readFileSync(
     resolve(process.cwd(), "src/components/home/carousel/home-carousel.css"),
     "utf8",
   );
 
-  it("masks only while moving, with no painted colour, and clips to the column", () => {
+  it("masks by alpha only, with no painted colour, and clips to the column", () => {
     expect(css).toMatch(
-      /\.car-row\[data-stepping\]\[data-blur="edge"\],\s*\.car-row\[data-peek-moving\]\s*\{\s*--car-mask/,
+      /\.car-row\[data-stepping\]\[data-blur="edge"\],\s*\.car-row\[data-mask\]\s*\{\s*--car-mask/,
     );
     expect(css).toMatch(
-      /\.car-row\[data-stepping\],\s*\.car-row\[data-peeking\]\s*\{\s*clip-path:\s*inset\(-12px 0\)/,
+      /\.car-row\[data-stepping\]\s*\{\s*clip-path:\s*inset\(-12px 0\)/,
+    );
+    // While peeking only the left outset stays, so the previous card's ring is
+    // not cut and the card pushed out never shows past the right edge.
+    expect(css).toMatch(
+      /\.car-row\[data-peeking\]\s*\{\s*clip-path:\s*inset\(-12px 0 -12px -6px\)/,
     );
     expect(css).not.toMatch(/color-mix|backdrop-filter/);
+  });
+
+  it("blurs the previous card, lessens it on hover, and fades its left end by mask", () => {
+    expect(css).toMatch(
+      /\.car-peek-edge\s*\{[^}]*filter:\s*blur\(var\(--car-hp-blur, 4px\)\)/,
+    );
+    expect(css).toMatch(
+      /\.car-peek-edge:hover\s*\{\s*filter:\s*blur\(var\(--car-hp-blur-on, 1\.5px\)\)/,
+    );
+    expect(css).toMatch(
+      /\.car-peek-edge\s*\{[^}]*mask-image|\.car-peek-edge\s*\{[^}]*\}[\s\S]*\.car-peek-edge\s*\{[^}]*mask-image/,
+    );
+    expect(css).toMatch(/@property --car-lf/);
   });
 
   it("lets the previous card take the pointer for its ring and cursor", () => {

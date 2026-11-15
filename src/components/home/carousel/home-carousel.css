@@ -177,7 +177,7 @@
 }
 
 .car-row[data-stepping][data-blur="edge"],
-.car-row[data-peek-moving] {
+.car-row[data-mask] {
   --car-mask: linear-gradient(
     to right,
     rgb(0 0 0 / calc(1 - var(--car-fade))),
@@ -196,9 +196,14 @@
 
 /* During a step the clip is exactly the column's edges, so a leaving or
    entering card never shows outside it. At rest the outset above returns. */
-.car-row[data-stepping],
-.car-row[data-peeking] {
+.car-row[data-stepping] {
   clip-path: inset(-12px 0);
+}
+
+/* The peek keeps the left outset so the previous card's hover ring is not cut;
+   the right stays closed, so the card pushed out never shows past the column. */
+.car-row[data-peeking] {
+  clip-path: inset(-12px 0 -12px -6px);
 }
 
 /*
@@ -209,6 +214,35 @@
 .car-peek-edge {
   visibility: hidden;
   cursor: pointer;
+  filter: blur(var(--car-hp-blur, 4px));
+  transition: filter 180ms ease-out;
+}
+
+.car-peek-edge:hover {
+  filter: blur(var(--car-hp-blur-on, 1.5px));
+}
+
+/* The previous card's left end fades with an alpha mask (no painted colour), so
+   it reads as a different card. The strength is a number so it can animate to
+   0 as the card grows into the wide slot. */
+@property --car-lf {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+.car-slide[data-peek-fade],
+.car-peek-edge {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    rgb(0 0 0 / calc(1 - var(--car-lf))),
+    #000 var(--car-edge-w, 28px)
+  );
+  mask-image: linear-gradient(
+    to right,
+    rgb(0 0 0 / calc(1 - var(--car-lf))),
+    #000 var(--car-edge-w, 28px)
+  );
 }
 
 .car-slide.car-peek-edge {
