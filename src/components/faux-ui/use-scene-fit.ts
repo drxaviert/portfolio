@@ -5,43 +5,31 @@ import type { RefObject } from "react";
 
 /** The Figma canvas every scene is drawn on. */
 const SCENE_WIDTH = 753;
-const SCENE_HEIGHT = 416;
 
 export type SceneFit = "contain" | "cover";
 
 /**
- * Scales the fixed 753 x 416 canvas to the stage.
+ * Scales the fixed 753 x 416 canvas to the stage's width.
  *
- * `contain` scales by width alone: the stage reserves the canvas's aspect, so
- * width is the whole story and the full composition stays visible (the reader
- * hero). `cover` fills a stage of any aspect with the larger of the two ratios;
- * the cover CSS anchors the canvas (top-right for the featured card) and the
- * cover root crops the overflow.
+ * The shipped cover does this in CSS (`faux-ui.css`, from the stage's container
+ * size), so it is already right on the first paint. This hook is for the dev
+ * page, whose stage is not inside a sized container and which predates the
+ * container query bases.
  */
-export function useSceneFit(
-  stageRef: RefObject<HTMLElement | null>,
-  fit: SceneFit = "contain",
-) {
+export function useSceneFit(stageRef: RefObject<HTMLElement | null>) {
   useEffect(() => {
     const stage = stageRef.current;
 
     if (!stage) return;
 
     const resize = () => {
-      // offsetWidth/offsetHeight are the layout box, so a parent that is
-      // mid-transform (the reader panel during the expand morph) cannot shrink
-      // the scene.
+      // offsetWidth is the layout box, so a parent that is mid-transform (the
+      // reader panel during the expand morph) cannot shrink the scene.
       const width = stage.offsetWidth;
-      const height = stage.offsetHeight;
 
       if (width === 0) return;
 
-      const scale =
-        fit === "cover"
-          ? Math.max(width / SCENE_WIDTH, height / SCENE_HEIGHT)
-          : width / SCENE_WIDTH;
-
-      stage.style.setProperty("--fu-scale", String(scale));
+      stage.style.setProperty("--fu-scale", String(width / SCENE_WIDTH));
     };
 
     resize();
@@ -49,5 +37,5 @@ export function useSceneFit(
     observer.observe(stage);
 
     return () => observer.disconnect();
-  }, [stageRef, fit]);
+  }, [stageRef]);
 }

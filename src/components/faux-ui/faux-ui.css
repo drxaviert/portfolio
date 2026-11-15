@@ -17,10 +17,36 @@
 
 /* ------------------------------------------------------------------ stage */
 
+/*
+ * The scene root is the stage's container, so the scale is pure CSS: the ratio
+ * of the box to the 753 x 416 canvas, taken on the first paint. Measuring in JS
+ * ran after the browser had painted, so the card showed the canvas at 1:1 for
+ * two frames and then jumped (measured at t 16-65ms, settled at 82ms).
+ * `atan2` divides the two lengths into an angle and `tan` turns it back into a
+ * number, which is the only way CSS can divide a length by a length.
+ */
+[data-scene] {
+  container-type: size;
+}
+
 .fu-stage {
   position: relative;
   width: 100%;
   aspect-ratio: 753 / 416;
+}
+
+/* The scene's own stage scales from its container; a stage without one (the
+   dev page) is measured by `useSceneFit` instead. */
+[data-scene] .fu-stage {
+  --fu-scale: calc(tan(atan2(100cqw, 753px)));
+}
+
+/* Cover fills the box: the larger of the two ratios, so no edge is exposed. */
+[data-scene] .fu-stage[data-fit="cover"] {
+  --fu-scale: max(
+    calc(tan(atan2(100cqw, 753px))),
+    calc(tan(atan2(100cqh, 416px)))
+  );
 }
 
 /* The Figma card: 753 x 416 with a 32px inset, scaled as one image. */
