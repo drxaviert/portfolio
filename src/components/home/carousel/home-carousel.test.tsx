@@ -456,6 +456,25 @@ describe("easing and one timeline", () => {
     window.removeEventListener(CAROUSEL_STEP_END, end);
   });
 
+  it("tells the page a step ended when the row unmounts mid-step", () => {
+    const events: string[] = [];
+    const start = () => events.push("start");
+    const end = () => events.push("end");
+    window.addEventListener(CAROUSEL_STEP_START, start);
+    window.addEventListener(CAROUSEL_STEP_END, end);
+    const { unmount } = render(<HomeCarousel items={ITEMS} />);
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+    expect(events).toEqual(["start"]);
+
+    unmount();
+
+    expect(events).toEqual(["start", "end"]);
+
+    window.removeEventListener(CAROUSEL_STEP_START, start);
+    window.removeEventListener(CAROUSEL_STEP_END, end);
+  });
+
   it("retargets a running step on an ease-out", () => {
     render(<HomeCarousel items={ITEMS} />);
     const first = host("Systems");

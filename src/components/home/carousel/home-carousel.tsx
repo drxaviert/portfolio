@@ -921,6 +921,15 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     };
   }, []);
 
+  // A step still running when the row goes away must tell the page it is over:
+  // the ring glow follows START/END and would otherwise schedule frames forever.
+  useEffect(
+    () => () => {
+      if (tween.current) announceStep("end");
+    },
+    [],
+  );
+
   const hoverOn = hoverCapable && n >= VISIBLE_SLOTS;
 
   useEffect(() => {
