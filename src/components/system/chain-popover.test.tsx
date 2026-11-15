@@ -33,6 +33,7 @@ describe("ChainPopover", () => {
     render(<ChainPopover token="--radius-lg" />);
 
     expect(trigger()).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     fireEvent.focus(trigger());
 

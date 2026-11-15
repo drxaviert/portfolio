@@ -19,6 +19,7 @@ function coarsePointer(): boolean {
  */
 export function ChainPopover({ token }: { token: string }): JSX.Element {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [placement, setPlacement] = useState({
     top: 0,
     left: 0,
@@ -57,6 +58,22 @@ export function ChainPopover({ token }: { token: string }): JSX.Element {
     triggerRef.current?.focus();
     refocusing.current = false;
   }, []);
+
+  /** Mount the panel immediately; closing unmounts it after the transition. */
+  const show = useCallback(() => {
+    setMounted(true);
+    setOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (open) return;
+
+    // Keep the panel through its 150ms close transition, then unmount it: 240
+    // closed popovers are a large part of this page's DOM and style recalc.
+    const timer = window.setTimeout(() => setMounted(false), 150);
+
+    return () => window.clearTimeout(timer);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -110,19 +127,19 @@ export function ChainPopover({ token }: { token: string }): JSX.Element {
         ref={triggerRef}
         type="button"
         aria-expanded={open}
-        aria-controls={panelId}
+        aria-controls={mounted ? panelId : undefined}
         aria-haspopup="dialog"
         className="inline-flex h-7 items-center rounded-sm px-2 text-[11px] font-medium text-on-surface-variant underline-offset-2 hover:text-on-surface hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         onClick={() => {
-          if (coarsePointer()) setOpen(true);
+          if (coarsePointer()) show();
         }}
         onFocus={() => {
           if (refocusing.current) return;
 
-          setOpen(true);
+          show();
         }}
         onPointerEnter={(event) => {
-          if (event.pointerType === "mouse") setOpen(true);
+          if (event.pointerType === "mouse") show();
         }}
         onPointerLeave={(event) => {
           if (event.pointerType === "mouse") setOpen(false);
@@ -131,58 +148,60 @@ export function ChainPopover({ token }: { token: string }): JSX.Element {
         Chain
       </button>
 
-      <div
-        id={panelId}
-        role="dialog"
-        aria-label={`Chain for ${token}`}
-        aria-hidden={open ? undefined : true}
-        style={{
-          top: placement.top,
-          left: placement.left,
-          transformOrigin: `${placement.originX}px 0px`,
-        }}
-        className={`fixed z-50 w-72 max-w-[calc(100vw-2rem)] rounded-lg bg-surface-container-high p-3 text-left shadow-card transition-[transform,opacity] duration-150 ease-out motion-reduce:transition-none ${
-          open
-            ? "scale-100 opacity-100"
-            : "pointer-events-none scale-[0.96] opacity-0"
-        }`}
-      >
-        <p className="text-[10px] font-medium uppercase tracking-wide text-on-surface-variant">
-          Derived from
-        </p>
-        <ol className="mt-2 space-y-1">
-          {chain.map((node) => (
-            <li key={node.id} className="flex min-w-0 items-baseline gap-2">
-              <code className="min-w-0 truncate font-mono text-xs">
-                {node.id}
-              </code>
-              <span className="truncate text-[11px] text-on-surface-variant">
-                {node.label}
-              </span>
-            </li>
-          ))}
-        </ol>
-
-        <p className="mt-3 text-[10px] font-medium uppercase tracking-wide text-on-surface-variant">
-          Used by
-        </p>
-        {consumers.length > 0 ? (
-          <ul className="mt-1 flex flex-wrap gap-1">
-            {consumers.map((consumer) => (
-              <li
-                key={consumer}
-                className="rounded-sm bg-surface-container px-2 py-0.5 text-[11px]"
-              >
-                {consumer}
+      {mounted ? (
+        <div
+          id={panelId}
+          role="dialog"
+          aria-label={`Chain for ${token}`}
+          aria-hidden={open ? undefined : true}
+          style={{
+            top: placement.top,
+            left: placement.left,
+            transformOrigin: `${placement.originX}px 0px`,
+          }}
+          className={`fixed z-50 w-72 max-w-[calc(100vw-2rem)] rounded-lg bg-surface-container-high p-3 text-left shadow-card transition-[transform,opacity] duration-150 ease-out motion-reduce:transition-none ${
+            open
+              ? "scale-100 opacity-100"
+              : "pointer-events-none scale-[0.96] opacity-0"
+          }`}
+        >
+          <p className="text-[10px] font-medium uppercase tracking-wide text-on-surface-variant">
+            Derived from
+          </p>
+          <ol className="mt-2 space-y-1">
+            {chain.map((node) => (
+              <li key={node.id} className="flex min-w-0 items-baseline gap-2">
+                <code className="min-w-0 truncate font-mono text-xs">
+                  {node.id}
+                </code>
+                <span className="truncate text-[11px] text-on-surface-variant">
+                  {node.label}
+                </span>
               </li>
             ))}
-          </ul>
-        ) : (
-          <p className="mt-1 text-[11px] text-on-surface-variant">
-            No documented component yet.
+          </ol>
+
+          <p className="mt-3 text-[10px] font-medium uppercase tracking-wide text-on-surface-variant">
+            Used by
           </p>
-        )}
-      </div>
+          {consumers.length > 0 ? (
+            <ul className="mt-1 flex flex-wrap gap-1">
+              {consumers.map((consumer) => (
+                <li
+                  key={consumer}
+                  className="rounded-sm bg-surface-container px-2 py-0.5 text-[11px]"
+                >
+                  {consumer}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-[11px] text-on-surface-variant">
+              No documented component yet.
+            </p>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
