@@ -23,7 +23,12 @@ type NavDockControls = {
 };
 
 let dock: NavDockControls | null = null;
-let closeReader: (() => void) | null = null;
+/**
+ * Whoever owns the close right now, newest first. The overlay registers over a
+ * direct load's page reader and, when it lets go, the page reader's own close
+ * has to be reachable again.
+ */
+const closeReaders: (() => void)[] = [];
 
 export function registerNavDock(controls: NavDockControls): () => void {
   dock = controls;
@@ -33,21 +38,29 @@ export function registerNavDock(controls: NavDockControls): () => void {
   };
 }
 
-/** The overlay's close gesture, for the dock that sits outside the panel. */
-export function registerReaderClose(close: (() => void) | null): () => void {
-  closeReader = close;
+/** The reader's close gesture, for the dock that sits outside the panel. */
+export function registerReaderClose(
+  close: (() => void) | null,
+): () => void {
+  if (!close) {
+    closeReaders.length = 0;
+    return () => undefined;
+  }
+
+  closeReaders.push(close);
 
   return () => {
-    if (closeReader === close) closeReader = null;
+    const index = closeReaders.lastIndexOf(close);
+    if (index !== -1) closeReaders.splice(index, 1);
   };
 }
 
 export function hasReaderClose(): boolean {
-  return closeReader !== null;
+  return closeReaders.length > 0;
 }
 
 export function requestReaderClose(): void {
-  closeReader?.();
+  closeReaders[closeReaders.length - 1]?.();
 }
 
 export function moveNav(to: NavDockState, mode: NavFlightMode): Promise<void> {

@@ -11,6 +11,7 @@ import {
 } from "react";
 import type { RefObject } from "react";
 import {
+  CLOSE_DROP_PX,
   flipFrom,
   toBox,
   MORPH_CLOSE_S,
@@ -28,7 +29,7 @@ export type RevealState = "pending" | "on";
 
 type Morph = ReturnType<typeof animate>;
 
-const FADE_S = 0.12;
+export const FADE_S = 0.12;
 /** The entrance starts this long before the morph lands, so reading does not wait for it. */
 const REVEAL_LEAD_S = 0.12;
 
@@ -44,19 +45,19 @@ export function findCard(slug: string): Box | null {
 }
 
 /**
- * Whether a direct load's reader is still on screen behind the overlay. Opening
+ * The direct load's reader, if it is still on screen behind the overlay. Opening
  * a study from a hard-loaded one leaves that study's page-mode reader in the
  * tree with the overlay on top, so Back from here would reveal a reader instead
  * of the homepage. Once Next parks a route it keeps the reader in the DOM with
  * `display: none`, which is not a reader the user could land on, so only a
  * rendered one counts.
  */
-function pageReaderBehind(): boolean {
+function pageReaderBehind(): HTMLElement | null {
   const page = document.querySelector<HTMLElement>(
     '.wd-reader-panel[data-mode="page"]',
   );
 
-  return page !== null && page.getClientRects().length > 0;
+  return page && page.getClientRects().length > 0 ? page : null;
 }
 
 /**
@@ -220,21 +221,38 @@ export function useMorph(
       if (!panel) return;
 
       const card = findCard(slug);
-      // The nav returns on the same timing as whatever the panel does: the
-      // 300ms reverse morph, or the 120ms fade.
-      const navHome = moveNav("home", card && !reduce ? "flip" : "fade");
+      // A study opened from a direct load leaves that study's page reader under
+      // the overlay; the exit must not dissolve into it, nor flash it between the
+      // exit and the route change. The shell's unmount (or the early return
+      // below) is what lets it show again, so an interrupted close cannot hide it.
+      pageReaderBehind()?.setAttribute("data-behind-exit", "");
 
-      if (!card || reduce) {
+      // The nav returns on the same timing as whatever the panel does: the
+      // close flight, or the 120ms fade.
+      const navHome = moveNav("home", reduce ? "fade" : "flip");
+
+      if (reduce) {
         await Promise.all([
           animate(panel, { opacity: 0 }, { duration: FADE_S, ease: "easeOut" })
             .finished,
           navHome,
         ]);
-      } else {
+      } else if (card) {
         const pose = flipFrom(card, layoutBox(panel));
         await Promise.all([
           animate(panel, pose, { duration: MORPH_CLOSE_S, ease: "easeIn" })
             .finished,
+          navHome,
+        ]);
+      } else {
+        // No card to land on (a study with none, or a direct load behind):
+        // the close flight still runs, with the entrance's 10px in reverse.
+        await Promise.all([
+          animate(
+            panel,
+            { opacity: 0, y: CLOSE_DROP_PX },
+            { duration: MORPH_CLOSE_S, ease: "easeIn" },
+          ).finished,
           navHome,
         ]);
       }
@@ -244,7 +262,13 @@ export function useMorph(
       panel.style.opacity = "0";
       announceOverlayExit();
 
-      if (window.location.pathname !== `/work/${slug}`) return;
+      if (window.location.pathname !== `/work/${slug}`) {
+        // Back (or another route change) already owns the screen.
+        document
+          .querySelector(".wd-reader-panel[data-behind-exit]")
+          ?.removeAttribute("data-behind-exit");
+        return;
+      }
 
       if (window.history.state?.workOverlay && !pageReaderBehind())
         router.back();

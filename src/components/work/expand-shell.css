@@ -61,6 +61,15 @@
   pointer-events: none;
 }
 
+/* A study opened from a direct load leaves that study's page reader under the
+   overlay; the exit must not dissolve into it. The shell tags it for the length
+   of the close only (use-morph.ts), so an interrupted close or Back cannot
+   leave it hidden. */
+.wd-reader-panel[data-behind-exit] {
+  opacity: 0;
+  visibility: hidden;
+}
+
 /* Content leaves over the first 140ms of the close. Its entrance is the reveal
    state, not the phase, so it can start before the morph lands (entrance.css). */
 .wd-expand-layer[data-phase="closing"] .wd-reader-scroll {

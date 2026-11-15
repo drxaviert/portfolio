@@ -43,6 +43,18 @@ export function ExpandShell({
 
   useOverlayBehaviour(panelRef, slug);
 
+  // A page reader left behind by a direct load stays hidden for the whole exit,
+  // route change included: the unmount that ends this overlay is what lets it
+  // show again, so Back or an interrupted close cannot leave it hidden.
+  useEffect(
+    () => () => {
+      document
+        .querySelector(".wd-reader-panel[data-behind-exit]")
+        ?.removeAttribute("data-behind-exit");
+    },
+    [],
+  );
+
   // The inert boundary comes off with the same commit that sets the phase, so
   // the title can only take focus after React has rendered the open state.
   useEffect(() => {

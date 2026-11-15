@@ -22,6 +22,12 @@ export const MORPH_OPEN_S = 0.48;
 export const MORPH_CLOSE_S = 0.3;
 
 /**
+ * The card-less close has no card to land on, so the panel leaves with the
+ * entrance's own 10px (entrance.css) in reverse, on the close flight.
+ */
+export const CLOSE_DROP_PX = 10;
+
+/**
  * The transform that puts the `to` box exactly over the `from` box, with the
  * origin at the top-left corner. The panel keeps its final layout box the whole
  * time, so only `transform` ever animates.

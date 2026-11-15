@@ -127,6 +127,30 @@ describe("ReaderRail", () => {
     expect(link).toHaveAttribute("href", "/");
   });
 
+  it("leaves a modified click to the browser", () => {
+    const close = vi.fn();
+    render(<ReaderRail onClose={close} />);
+
+    const link = screen.getByRole("link", { name: "Work" });
+    const modified = createEvent.click(link, { metaKey: true });
+    fireEvent(link, modified);
+
+    expect(modified.defaultPrevented).toBe(false);
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it("leaves a middle click to the browser", () => {
+    const close = vi.fn();
+    render(<ReaderRail onClose={close} />);
+
+    const link = screen.getByRole("link", { name: "Work" });
+    const middle = createEvent.click(link, { button: 1 });
+    fireEvent(link, middle);
+
+    expect(middle.defaultPrevented).toBe(false);
+    expect(close).not.toHaveBeenCalled();
+  });
+
   it("hides Back to top until the reader is a screen down", async () => {
     render(<ReaderRail />);
 

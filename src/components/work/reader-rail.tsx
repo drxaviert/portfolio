@@ -78,6 +78,7 @@ function scrollToTop(scrollEl: HTMLElement | null) {
 function closeOnClick(close: (() => void) | undefined) {
   return (event: MouseEvent<HTMLAnchorElement>) => {
     if (!close) return;
+    if (event.button !== 0) return;
 
     const modified =
       event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;

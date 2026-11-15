@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { mdxComponents } from "@/components/work/mdx-components";
+import { PageReaderShell } from "@/components/work/page-reader-shell";
 import { Reader } from "@/components/work/reader";
 import { WORK_BODIES } from "@/lib/work-bodies";
 import { getWork, listWork } from "@/lib/work";
@@ -25,8 +26,10 @@ export default async function WorkPage({
   const { default: Body } = await WORK_BODIES[meta.slug]();
 
   return (
-    <Reader meta={meta} mode="page">
-      <Body components={mdxComponents} />
-    </Reader>
+    <PageReaderShell>
+      <Reader meta={meta} mode="page">
+        <Body components={mdxComponents} />
+      </Reader>
+    </PageReaderShell>
   );
 }

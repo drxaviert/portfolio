@@ -5,6 +5,7 @@ import type { Box } from "./morph";
 import { flipFrom } from "./morph";
 import { ExpandShell } from "./expand-shell";
 import { findCard } from "./use-morph";
+import { registerNavDock } from "@/components/nav/nav-flight";
 
 const mocks = vi.hoisted(() => ({
   animate: vi.fn(),
@@ -455,6 +456,110 @@ describe("ExpandShell", () => {
 
     await waitFor(() => expect(mocks.back).toHaveBeenCalledTimes(1));
     expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it("closes a card-less overlay on the close flight", async () => {
+    document.body.innerHTML = "";
+    const toHome = vi.fn(() => Promise.resolve());
+    const unregister = registerNavDock({
+      toReader: vi.fn(() => Promise.resolve()),
+      toHome,
+    });
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    const panel = document.querySelector<HTMLElement>(
+      ".wd-expand-layer .wd-reader-panel",
+    )!;
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
+
+    await waitFor(() => expect(panel.style.opacity).toBe("0"));
+
+    const close = mocks.animate.mock.calls.find(([element]) => element === panel);
+    expect(close?.[1]).toEqual({ opacity: 0, y: 10 });
+    expect(close?.[2]).toMatchObject({ duration: 0.3, ease: "easeIn" });
+    expect(toHome).toHaveBeenCalledWith("flip");
+
+    unregister();
+  });
+
+  it("keeps the 120ms fade for a card-less close under reduced motion", async () => {
+    document.body.innerHTML = "";
+    mocks.reduce = true;
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    const panel = document.querySelector<HTMLElement>(
+      ".wd-expand-layer .wd-reader-panel",
+    )!;
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
+
+    await waitFor(() => expect(panel.style.opacity).toBe("0"));
+
+    const calls = mocks.animate.mock.calls.filter(
+      ([element]) => element === panel,
+    );
+    const close = calls[calls.length - 1];
+    expect(close[1]).toEqual({ opacity: 0 });
+    expect(close[2]).toMatchObject({ duration: 0.12, ease: "easeOut" });
+  });
+
+  it("keeps the page reader behind hidden through the exit, until it lands", async () => {
+    document.body.innerHTML = "";
+    placePageReader(true);
+    const page = document.querySelector<HTMLElement>('[data-mode="page"]')!;
+
+    let finish!: () => void;
+    mocks.animate.mockReturnValue({
+      finished: new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+
+    const view = render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
+
+    await waitFor(() => expect(page).toHaveAttribute("data-behind-exit"));
+
+    await act(async () => finish());
+    expect(page).toHaveAttribute("data-behind-exit");
+
+    view.unmount();
+
+    expect(page).not.toHaveAttribute("data-behind-exit");
   });
 
   it("stays put when the route already left the reader", async () => {
