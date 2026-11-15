@@ -830,11 +830,10 @@ export function ThemeToggle() {
   const currentMode =
     OPTIONS.find((option) => option.mode === mode) ?? OPTIONS[2];
   const dayActive = mode === "day";
-  const nightActive = mode === "night";
-  // Night offers the row too, so Dat can pick a phase without switching first;
-  // the pick itself lands in Day. Auto has no row. A mode that loses the row
-  // hides it without a state effect.
-  const phaseRowActive = dayActive || nightActive;
+  // Every mode offers the row, so Dat can pick a phase without switching
+  // first; the pick itself lands in Day at that phase. A mode that loses the
+  // row hides it without a state effect.
+  const phaseRowActive = dayActive || mode === "night" || mode === "auto";
   const rowVisible = rowOpen && phaseRowActive;
   const modeIndex = Math.max(
     0,
@@ -969,7 +968,8 @@ export function ThemeToggle() {
     };
   }, []);
 
-  // A pinned row belongs to Day and Night; any other mode closes it at once.
+  // The row belongs to every mode; a closed row must not keep a pending
+  // timer that could fire against the next mode.
   useEffect(() => {
     if (!rowVisible && closeTimer.current !== null) {
       window.clearTimeout(closeTimer.current);
@@ -1139,9 +1139,10 @@ export function ThemeToggle() {
      * A forward Tab from Day has to reach the phase group even when the row
      * was closed while Day kept focus (Escape, or the pointer leaving after a
      * click). Opening during keydown runs before the browser picks the next
-     * focusable, so in Day this same Tab lands inside the row. Night offers
-     * the row the same way, but its checked Night segment sits between Day and
-     * the row, so there the row is focused directly once it is no longer inert.
+     * focusable, so in Day this same Tab lands inside the row. Night and Auto
+     * offer the row the same way, but their checked segment sits between Day
+     * and the row, so there the row is focused directly once it is no longer
+     * inert.
      */
     if (
       event.key === "Tab" &&
@@ -1165,8 +1166,8 @@ export function ThemeToggle() {
 
     /*
      * Up from Day reaches the phase group above it, matching where the row
-     * sits on screen. Night offers the same row, so it takes the same key
-     * instead of walking the mode selection back to Auto.
+     * sits on screen. Night and Auto offer the same row, so Day takes the same
+     * key instead of stepping the mode selection.
      */
     if (event.key === "ArrowUp" && option.mode === "day" && phaseRowActive) {
       event.preventDefault();
@@ -1215,10 +1216,10 @@ export function ThemeToggle() {
   }
 
   /**
-   * Picking a phase lands in Day at that phase. In Night the pin is stored
-   * first while Night still ignores it, then Day applies it, so the document
-   * fades once from night straight to the chosen phase instead of detouring
-   * through the previously pinned one.
+   * Picking a phase lands in Day at that phase. In Night or Auto the pin is
+   * stored first while that mode still ignores it, then Day applies it, so the
+   * document fades once from the current phase straight to the chosen one
+   * instead of detouring through the previously pinned one.
    */
   function chooseDayPhase(phase: DayPhase) {
     setDayPhase(phase);
@@ -1446,7 +1447,7 @@ export function ThemeToggle() {
         ) : null}
 
         {/*
-         * Phase row, shared by Day and Night. It opens above the toggle in the
+         * Phase row, shared by every mode. It opens above the toggle in the
          * gap below the cards; absolute positioning keeps the page from moving.
          */}
         <SegmentTrack
