@@ -5,6 +5,7 @@ import type { JSX } from "react";
 import { useSystemEngine } from "@/app/design-system/system-shell";
 import type { TokenMap } from "@/lib/system/derive";
 import { DURATIONS, EASES } from "@/lib/system/source.generated";
+import { useContentVisibility } from "./use-content-visibility";
 
 const EASE_FOR_DURATION = "--ease-emphasized-standard";
 const DURATION_FOR_EASE = "--duration-long-2";
@@ -52,6 +53,7 @@ export function MotionDemo({
   token: string;
 }): JSX.Element {
   const engine = useSystemEngine();
+  const cardRef = useContentVisibility<HTMLDivElement>("row");
   const trackRef = useRef<HTMLDivElement | null>(null);
   const dotRef = useRef<HTMLSpanElement | null>(null);
   const durationLabelRef = useRef<HTMLSpanElement | null>(null);
@@ -124,7 +126,10 @@ export function MotionDemo({
   }, []);
 
   return (
-    <div className="rounded-md bg-surface-container-low p-3 shadow-card">
+    <div
+      ref={cardRef}
+      className="rounded-md bg-surface-container-low p-3 shadow-card"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <code className="min-w-0 break-all font-mono text-[11px]">
           {token}

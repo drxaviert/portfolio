@@ -5,6 +5,7 @@ import type { JSX, ReactNode } from "react";
 import { useSystemEngine } from "@/app/design-system/system-shell";
 import type { TokenMap } from "@/lib/system/derive";
 import { ChainPopover } from "./chain-popover";
+import { useContentVisibility } from "./use-content-visibility";
 import { useCopy } from "./use-copy";
 
 export type TokenRowProps = {
@@ -26,6 +27,7 @@ export function TokenRow({
   preview,
 }: TokenRowProps): JSX.Element {
   const engine = useSystemEngine();
+  const rowRef = useContentVisibility<HTMLDivElement>("row");
   const valueRef = useRef<HTMLSpanElement | null>(null);
   const { copied, copy } = useCopy();
   const isCopied = copied === token;
@@ -72,6 +74,7 @@ export function TokenRow({
 
   return (
     <div
+      ref={rowRef}
       data-token={token}
       className="flex min-w-0 items-start gap-3 rounded-md bg-surface-container-low p-3 shadow-card"
     >

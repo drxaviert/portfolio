@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { TokenRow } from "./token-row";
+import { useContentVisibility } from "./use-content-visibility";
 
 export type ForceState =
   | "rest"
@@ -49,9 +50,10 @@ export function ComponentDoc({
   notes,
 }: ComponentDocProps): JSX.Element {
   const [forced, setForced] = useState<ForceState | undefined>(undefined);
+  const docRef = useContentVisibility<HTMLDivElement>("section");
 
   return (
-    <div className="space-y-6">
+    <div ref={docRef} className="space-y-6">
       <header>
         <h3 className="text-lg font-medium tracking-tight">{name}</h3>
         <p className="mt-1 max-w-2xl text-xs leading-relaxed text-on-surface-variant">

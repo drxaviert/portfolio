@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { VisibleSection } from "@/components/system/visible-section";
 import { ColourSection } from "./sections/colour";
 import { ComponentsSection } from "./sections/components";
 import { MotionSection } from "./sections/motion";
@@ -57,10 +58,9 @@ export default function DesignSystemPage() {
         const content = sectionContent(section.id);
 
         return (
-          <section
+          <VisibleSection
             key={section.id}
             id={section.id}
-            aria-labelledby={`${section.id}-title`}
             className="scroll-mt-8 rounded-lg bg-surface-container-low p-6 shadow-card"
           >
             <h2
@@ -79,7 +79,7 @@ export default function DesignSystemPage() {
                 </p>
               </>
             )}
-          </section>
+          </VisibleSection>
         );
       })}
     </SystemShell>
