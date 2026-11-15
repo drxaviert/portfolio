@@ -207,7 +207,7 @@ describe("NavGlideDemo", () => {
     expect(trailCall).toBeDefined();
   });
 
-  it("jumps instantly under reduced motion", () => {
+  it("still places the capsule, while the site CSS hides it under reduced motion", () => {
     reducedMotion = true;
 
     const { container } = renderDemo();
@@ -220,6 +220,9 @@ describe("NavGlideDemo", () => {
     expect(capsule.style.clipPath).toContain(
       "0 calc(100% - 160px) 0 110px",
     );
-    expect(capsule.style.display).toBe("block");
+    // No inline display override: the live CSS decides, so reduced motion
+    // hides the capsule exactly as it does on the site.
+    expect(capsule.style.display).toBe("");
+    expect(capsule.className).toContain("nav-glide");
   });
 });

@@ -81,7 +81,6 @@ export function NavItemSample({
         className="nav-glide"
         data-visible={showCapsule ? "" : undefined}
         style={{
-          display: "block",
           clipPath: "inset(0 round var(--radius-md, 6px))",
           opacity: showCapsule ? 0.55 : 0,
         }}
@@ -324,7 +323,6 @@ export function NavGlideDemo(): JSX.Element {
         ref={capsuleRef}
         aria-hidden="true"
         className="nav-glide"
-        style={{ display: "block" }}
       />
 
       {LINKS.map((label, index) => (

@@ -68,7 +68,7 @@ export function ComponentsSection(): JSX.Element {
           "--duration-short-3",
           "--duration-medium-5",
         ]}
-        notes="The Glide spring is read through the engine, so Motion speed time-scales it. The capsule is a clip-path on a shared layer (paint-only, no layout), the glyph is part of the run, and reduced motion moves it instantly."
+        notes="The Glide spring is read through the engine, so Motion speed time-scales it. The capsule is a clip-path on a shared layer (paint-only, no layout), the glyph is part of the run, and reduced motion hides the capsule, as on the site."
       />
     </div>
   );
