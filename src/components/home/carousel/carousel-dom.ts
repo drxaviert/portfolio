@@ -64,6 +64,7 @@ export function restStyle(
   el.style.setProperty("--car-x", `${pose.x}px`);
   el.style.setProperty("--car-r", "0px");
   delete el.dataset.clipped;
+  delete el.dataset.edgeBlur;
   el.style.visibility = visible ? "" : "hidden";
 
   applyLook(el, lookFor(mode, wide));
@@ -144,6 +145,8 @@ export function playEntity(
 
     if (outside(e.to.x)) keyframes.filter = ["none", blur(b.edgeBlur)];
     else if (outside(e.from.x)) keyframes.filter = [blur(b.edgeBlur), "none"];
+    // Promoted only for the step, only for the cards that blur (see the css).
+    if (keyframes.filter) el.dataset.edgeBlur = "";
   }
 
   if (e.peekFrom) {

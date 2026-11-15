@@ -200,6 +200,12 @@
   clip-path: inset(-12px 0);
 }
 
+/* The blurred leaving and entering cards get their own layer for the step only,
+   never at rest (a promoted ~750x416 layer costs memory). */
+.car-row[data-stepping] .car-slide[data-edge-blur] {
+  will-change: filter;
+}
+
 /* The peek keeps the left outset so the previous card's hover ring is not cut;
    the right stays closed, so the card pushed out never shows past the column. */
 .car-row[data-peeking] {

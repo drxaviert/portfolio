@@ -451,6 +451,33 @@ describe("blur modes", () => {
     for (const r of blurred) expect(r.target.classList).toContain("car-slide");
   });
 
+  it("caps the edge blur at 2.5px and promotes only the blurred cards, only during the step", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    const css = readFileSync(
+      resolve(process.cwd(), "src/components/home/carousel/home-carousel.css"),
+      "utf8",
+    );
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+
+    const blurred = recorded.filter((r) => hasProp(r, "filter"));
+    for (const r of blurred) {
+      expect(r.keyframes.filter?.some((f) => f === "blur(2.50px)")).toBe(true);
+      expect(r.target).toHaveAttribute("data-edge-blur");
+    }
+    expect(container.querySelectorAll("[data-edge-blur]")).toHaveLength(
+      blurred.length,
+    );
+    // The css hints will-change only under [data-stepping], never at rest.
+    expect(css).toMatch(
+      /\.car-row\[data-stepping\] \.car-slide\[data-edge-blur\]\s*\{\s*will-change:\s*filter/,
+    );
+    expect(css).not.toMatch(/\.car-slide\s*\{[^}]*will-change/);
+
+    finishStep();
+    expect(container.querySelectorAll("[data-edge-blur]")).toHaveLength(0);
+  });
+
   it("none adds nothing", () => {
     window.history.pushState({}, "", "/?blur=none");
     const { container } = render(<HomeCarousel items={ITEMS} />);

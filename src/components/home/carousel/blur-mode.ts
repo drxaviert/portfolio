@@ -28,7 +28,7 @@ export type BlurSettings = {
 
 export const DEFAULT_BLUR: BlurSettings = {
   edgeWidth: 28,
-  edgeBlur: 5,
+  edgeBlur: 2.5,
   motionPeak: 2.5,
 };
 
