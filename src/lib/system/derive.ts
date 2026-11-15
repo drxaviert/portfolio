@@ -1,6 +1,15 @@
 import type { Phase } from "@/lib/theme";
-import { blendOklch, fromOklch, parseColor, toCss, toOklch } from "@/lib/system/color";
+import {
+  blendOklch,
+  contrastRatio,
+  fromOklch,
+  parseColor,
+  rotateHue,
+  toCss,
+  toOklch,
+} from "@/lib/system/color";
 import type { Rgba } from "@/lib/system/color";
+import { clampParams } from "@/lib/system/params";
 import type { Params } from "@/lib/system/params";
 import {
   DURATIONS,
@@ -28,6 +37,40 @@ const VAR_PATTERN = /var\(\s*(--[\w-]+)\s*\)/g;
 const COLOUR_PATTERN =
   /#[0-9a-f]{6}\b|#[0-9a-f]{3}\b|(?:rgb|rgba|oklch)\([^)]*\)/gi;
 const NUMBER_PATTERN = /^(-?\d*\.?\d+)(%|px|ms|s)?$/;
+const PILL_RADIUS = 9999;
+// Search slightly above the floor so 8-bit output rounding cannot land under it.
+const AA_SEARCH_RATIO = 4.55;
+
+/**
+ * The pairs that pass in the shipped CSS. Between phase stops an OKLCH blend
+ * crosses light→dark through mid-grey, where even on-surface cannot reach
+ * 4.5:1 against every surface at once. Derive therefore picks the lightness
+ * that maximises the worst of these backgrounds. The brand pairs (`--primary`
+ * as text and `--on-primary` on `--primary`) cannot reach AA without changing
+ * primary's colour, so they are left as shipped and tracked in tests.
+ */
+const AA_GROUPS: ReadonlyArray<readonly [string, readonly string[]]> = [
+  [
+    "--on-surface",
+    ["--surface", "--surface-container-low", "--surface-container-high"],
+  ],
+  ["--on-surface-variant", ["--surface", "--surface-container-low"]],
+];
+
+/**
+ * Which role each on-* role and surface* role is measured against for the
+ * contrast parameter. On-surface variants sit on the plain surface.
+ */
+const SURFACE_PARTNERS = new Map<string, string>();
+
+for (const token of Object.keys(ROLES.day)) {
+  if (token === "--surface") continue;
+  if (token.startsWith("--surface")) SURFACE_PARTNERS.set(token, "--surface");
+}
+
+SURFACE_PARTNERS.set("--on-surface", "--surface");
+SURFACE_PARTNERS.set("--on-surface-variant", "--surface");
+SURFACE_PARTNERS.set("--on-primary", "--primary");
 
 /** Night only once the Dusk→Night segment has passed its midpoint. */
 export function phaseAtTod(tod: TodPosition): Phase {
@@ -48,6 +91,48 @@ function colourOf(value: string): Rgba | null {
 
 function serialiseColours(value: string): string {
   return value.replace(COLOUR_PATTERN, (match) => toCss(parseColor(match)));
+}
+
+/**
+ * Rotates every colour literal in a token value, weighted by the OKLCH chroma
+ * smoothstep from Task 1. Near-neutrals are returned untouched so a hue change
+ * cannot nudge a neutral partner by a rounding step.
+ */
+export function rotateTokenColour(value: string, deg: number): string {
+  return value.replace(COLOUR_PATTERN, (match) => {
+    const oklch = toOklch(parseColor(match));
+
+    if (oklch.c <= 0.01) return match;
+
+    return toCss(fromOklch(rotateHue(oklch, deg)));
+  });
+}
+
+function formatNumber(value: number): string {
+  return `${Number(value.toFixed(3))}`;
+}
+
+export function scaleRadius(value: string, round: number): string {
+  const match = value.match(/^(-?\d*\.?\d+)px$/);
+
+  if (!match) return value;
+
+  const px = Number(match[1]);
+
+  // Zero and pill keep their geometry; roundness only multiplies finite radii.
+  if (!Number.isFinite(px) || px === 0 || px === PILL_RADIUS) return value;
+
+  return `${formatNumber(px * round)}px`;
+}
+
+export function scaleDuration(value: string, speed: number): string {
+  if (!Number.isFinite(speed) || speed <= 0) return value;
+
+  const match = value.match(/^(-?\d*\.?\d+)(ms|s)$/);
+
+  if (!match) return value;
+
+  return `${formatNumber(Number(match[1]) / speed)}${match[2]}`;
 }
 
 function resolveReferences(
@@ -100,7 +185,8 @@ function blendValue(a: string, b: string, t: number): string {
   const numberB = b.match(NUMBER_PATTERN);
 
   if (numberA && numberB && (numberA[2] ?? "") === (numberB[2] ?? "")) {
-    const value = Number(numberA[1]) + (Number(numberB[1]) - Number(numberA[1])) * t;
+    const value =
+      Number(numberA[1]) + (Number(numberB[1]) - Number(numberA[1])) * t;
 
     return `${Number(value.toFixed(4))}${numberA[2] ?? ""}`;
   }
@@ -156,8 +242,8 @@ function resolveDuration(value: string): string {
   return result;
 }
 
-export function derive(params: Params, siteBlend: TodPosition): TokenMap {
-  const tod = Math.min(1, Math.max(0, siteBlend));
+/** The defaults-only token map (Task 2's output) for a tod position. */
+function buildBase(tod: number): TokenMap {
   const roles = rolesAt(tod);
   const tokens: TokenMap = {};
 
@@ -192,8 +278,114 @@ export function derive(params: Params, siteBlend: TodPosition): TokenMap {
     `${serialisedRoles["--orb-2"]} ${serialisedRoles["--orb-2-at"]}, ` +
     `${serialisedRoles["--orb-3"]} 100%)`;
 
-  // Task 3 applies hue, contrast, roundness and speed; Task 2 is defaults-only.
-  void params;
+  return tokens;
+}
+
+/**
+ * Contrast scales the default OKLCH L distance of each surface* role from
+ * `--surface`, and of each on-* role from its surface partner. The reference
+ * is always the shipped distance (`base`), so hue rotation cannot compound it.
+ */
+function applyContrast(
+  tokens: TokenMap,
+  base: TokenMap,
+  contrast: number,
+): void {
+  for (const [token, partner] of SURFACE_PARTNERS) {
+    const role = colourOf(base[token]);
+    const partnerColour = colourOf(base[partner]);
+
+    if (!role || !partnerColour) continue;
+
+    const oklch = toOklch(role);
+    const partnerL = toOklch(partnerColour).l;
+    const l = Math.min(
+      1,
+      Math.max(0, partnerL + (oklch.l - partnerL) * contrast),
+    );
+
+    tokens[token] = toCss(fromOklch({ ...oklch, l }));
+  }
+}
+
+/** Lifts a text/icon role to the most legible lightness its surfaces allow. */
+function enforceAa(tokens: TokenMap): void {
+  for (const [foreground, backgrounds] of AA_GROUPS) {
+    const fgColour = colourOf(tokens[foreground]);
+
+    if (!fgColour) continue;
+
+    const bgColours = backgrounds
+      .map((background) => colourOf(tokens[background]))
+      .filter((colour): colour is Rgba => colour !== null);
+
+    if (bgColours.length === 0) continue;
+
+    const worstOf = (colour: Rgba) =>
+      Math.min(...bgColours.map((bg) => contrastRatio(colour, bg)));
+
+    if (worstOf(fgColour) >= AA_SEARCH_RATIO) continue;
+
+    const oklch = toOklch(fgColour);
+    let bestL = oklch.l;
+    let bestWorst = worstOf(fgColour);
+
+    // A single foreground serves several surfaces; choose the L that lifts
+    // the worst of them, so no background is sacrificed for another.
+    for (let step = 0; step <= 100; step += 1) {
+      const candidate = fromOklch({ ...oklch, l: step / 100 });
+      const worst = worstOf(candidate);
+
+      if (worst > bestWorst + 1e-6) {
+        bestL = step / 100;
+        bestWorst = worst;
+      }
+    }
+
+    if (bestL !== oklch.l) {
+      tokens[foreground] = toCss(fromOklch({ ...oklch, l: bestL }));
+    }
+  }
+}
+
+export function derive(params: Params, siteBlend: TodPosition): TokenMap {
+  const safe = clampParams(params);
+  const tod = Math.min(1, Math.max(0, siteBlend));
+  const base = buildBase(tod);
+  const atStop = STOPS.some((entry) => Math.abs(tod - entry.tod) < STOP_EPSILON);
+
+  const defaultOtherParams =
+    safe.hue === 0 &&
+    safe.round === 1 &&
+    safe.contrast === 1 &&
+    safe.speed === 1;
+
+  // Defaults stay byte-exact: no OKLCH round trip anywhere on the stop path.
+  if (defaultOtherParams && atStop) return base;
+
+  const tokens: TokenMap = { ...base };
+
+  if (safe.contrast !== 1) applyContrast(tokens, base, safe.contrast);
+
+  if (safe.hue !== 0) {
+    for (const [name, value] of Object.entries(tokens)) {
+      tokens[name] = rotateTokenColour(value, safe.hue);
+    }
+  }
+
+  enforceAa(tokens);
+
+  if (safe.round !== 1) {
+    for (const name of Object.keys(RADII)) {
+      tokens[name] = scaleRadius(base[name], safe.round);
+    }
+  }
+
+  if (safe.speed !== 1) {
+    for (const name of Object.keys(DURATIONS)) {
+      tokens[name] = scaleDuration(base[name], safe.speed);
+    }
+  }
 
   return tokens;
 }
