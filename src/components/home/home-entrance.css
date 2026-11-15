@@ -54,7 +54,9 @@
 }
 
 .entrance-scope,
-[data-entrance="soft"] {
+[data-entrance="soft"],
+:root:has([data-entrance="soft"][data-entrance-shipped])
+  .wd-nav-dock[data-nav-state="home"] {
   --entrance-ease: var(--ease-emphasized-decelerate);
 
   --scale-from: 0.96;
@@ -151,7 +153,9 @@
  * The shipped entrance runs on the Calm curve. Scoped to the shipped attribute
  * so the prototype's curve picker keeps working on its own variants.
  */
-[data-entrance-shipped] {
+[data-entrance-shipped],
+:root:has([data-entrance="soft"][data-entrance-shipped])
+  .wd-nav-dock[data-nav-state="home"] {
   --entrance-ease: var(--ease-calm);
 }
 
@@ -219,6 +223,21 @@
   animation-delay: calc(
     var(--soft-card-delay) + var(--entrance-h) * var(--soft-stagger)
   );
+}
+
+/*
+ * The nav is item 7, the closest to the horizon (h 0), but it is not inside
+ * <main>: the one HomeNav lives in the root layout's dock (nav-dock.tsx), over
+ * the slot the home layout reserves. So the shipped page reaches it with :has()
+ * while the dock sits at its home position. The animation runs on the <nav>,
+ * not the dock, whose transform belongs to the drawer FLIP.
+ */
+:root:has([data-entrance="soft"][data-entrance-shipped])
+  .wd-nav-dock[data-nav-state="home"]
+  > nav {
+  animation: entrance-soft-card-split var(--soft-card-duration)
+    var(--entrance-ease) backwards;
+  animation-delay: var(--soft-card-delay);
 }
 
 @keyframes entrance-soft-clear {
@@ -304,7 +323,10 @@
 
 /* Reduced motion: one 120ms opacity fade, no blur, no rise, no softness. */
 @media (prefers-reduced-motion: reduce) {
-  [data-entrance="soft"] .entrance-body {
+  [data-entrance="soft"] .entrance-body,
+  :root:has([data-entrance="soft"][data-entrance-shipped])
+    .wd-nav-dock[data-nav-state="home"]
+    > nav {
     animation: entrance-fade-in var(--entrance-reduced-duration)
       var(--ease-decelerate) backwards !important;
     animation-delay: 0ms !important;
@@ -329,6 +351,7 @@
  * visible ones).
  */
 :root[data-entrance-played] [data-entrance-shipped] .entrance-body,
+:root[data-entrance-played] .wd-nav-dock > nav,
 :root[data-entrance-played] [data-entrance-shipped] .entrance-soft,
 :root[data-entrance-played] [data-entrance-shipped] .horizon-canvas-layer,
 :root[data-entrance-played]

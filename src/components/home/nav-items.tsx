@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -15,7 +16,7 @@ import { NavGlyphIcon } from "./nav-glyph-icon";
 import "./nav-items.css";
 
 const LINKS = [
-  { label: "Work", current: true },
+  { label: "Work", current: true, href: "/" },
   { label: "Play", current: false },
   { label: "About", current: false },
 ];
@@ -405,26 +406,44 @@ export function NavItems() {
         visible={hoverIndex !== null}
       />
 
-      {LINKS.map((link, index) => (
-        <a
-          key={link.label}
-          href="#"
-          ref={(node) => {
-            itemRefs.current[index] = node;
-          }}
-          aria-current={link.current ? "page" : undefined}
-          onClick={(event) => event.preventDefault()}
-          onPointerEnter={(event) => enter(index, event)}
-          className={[
-            ITEM_CLASS,
-            link.current
-              ? "bg-surface-container text-on-surface"
-              : "text-on-surface-variant",
-          ].join(" ")}
-        >
-          {link.label}
-        </a>
-      ))}
+      {LINKS.map((link, index) => {
+        const classes = [
+          ITEM_CLASS,
+          link.current
+            ? "bg-surface-container text-on-surface"
+            : "text-on-surface-variant",
+        ].join(" ");
+        const ref = (node: HTMLAnchorElement | null) => {
+          itemRefs.current[index] = node;
+        };
+
+        // "Work" is a real link home. In the reader, the nav's click capture
+        // consumes it and plays the reverse morph; the placeholders keep
+        // holding the page.
+        return link.href ? (
+          <Link
+            key={link.label}
+            href={link.href}
+            ref={ref}
+            aria-current={link.current ? "page" : undefined}
+            onPointerEnter={(event) => enter(index, event)}
+            className={`no-underline ${classes}`}
+          >
+            {link.label}
+          </Link>
+        ) : (
+          <a
+            key={link.label}
+            href="#"
+            ref={ref}
+            onClick={(event) => event.preventDefault()}
+            onPointerEnter={(event) => enter(index, event)}
+            className={classes}
+          >
+            {link.label}
+          </a>
+        );
+      })}
 
       <span
         aria-hidden="true"

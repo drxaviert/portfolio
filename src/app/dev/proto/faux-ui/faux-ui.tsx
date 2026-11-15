@@ -3,11 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { RingLayers } from "@/components/home/ring-hover";
-import { PhoneScene, TilesScene, WindowScene } from "./scenes";
-import type { Mode } from "./scenes";
-import "./faux-ui.css";
+import {
+  PhoneScene,
+  TilesScene,
+  WindowScene,
+} from "@/components/faux-ui/scenes";
+import type { Mode } from "@/components/faux-ui/scenes";
+import { useSceneFit } from "@/components/faux-ui/use-scene-fit";
+import { useScenePause } from "@/components/faux-ui/use-scene-pause";
+import "@/components/faux-ui/faux-ui.css";
 
-export type { Mode } from "./scenes";
+export type { Mode } from "@/components/faux-ui/scenes";
 
 export type Scene = "window" | "phone" | "tiles";
 export type Phase = "day" | "night";
@@ -33,9 +39,6 @@ const CAPTION: Record<Scene, string> = {
   phone: "Phone: a list screen with the selection walking down.",
   tiles: "Bento: chart, notification toggle and team fragments.",
 };
-
-/** The Figma card size the scenes are drawn at. */
-const STAGE_WIDTH = 753;
 
 function Segmented<T extends string>({
   label,
@@ -150,62 +153,8 @@ export function FauxUiProto({
 
   const playing: Mode = reduceMotion ? "still" : mode;
 
-  // The scenes are drawn on a fixed 753 x 416 canvas so their type never
-  // reflows. Scale that canvas to the width the card actually gets; the stage
-  // reserves the same 753:416 box, so the scaled card fits it exactly.
-  useEffect(() => {
-    const stage = stageRef.current;
-
-    if (!stage) return;
-
-    const fit = () => {
-      const width = stage.getBoundingClientRect().width;
-
-      if (width > 0) {
-        stage.style.setProperty("--fu-scale", String(width / STAGE_WIDTH));
-      }
-    };
-
-    fit();
-    const observer = new ResizeObserver(fit);
-    observer.observe(stage);
-
-    return () => observer.disconnect();
-  }, []);
-
-  // Loops are decoration. Hold every animated frame while the card is
-  // offscreen or the tab is hidden, then resume from the same frame.
-  useEffect(() => {
-    const root = shotRef.current;
-
-    if (!root) return;
-
-    let onScreen = true;
-    let visible = !document.hidden;
-
-    const sync = () => {
-      root.toggleAttribute("data-paused", !onScreen || !visible);
-    };
-
-    const observer = new IntersectionObserver(([entry]) => {
-      onScreen = entry.isIntersecting;
-      sync();
-    });
-
-    observer.observe(root);
-
-    const onVisibilityChange = () => {
-      visible = !document.hidden;
-      sync();
-    };
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
-    return () => {
-      observer.disconnect();
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, []);
+  useSceneFit(stageRef);
+  useScenePause(shotRef);
 
   // Keep the URL pointing at the frame on screen, the same contract as the
   // phase picker in /dev/prototype.

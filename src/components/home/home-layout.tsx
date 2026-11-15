@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import type { WorkMeta } from "@/lib/work";
 import { HorizonLive } from "@/components/horizon/horizon-live";
 import { EntranceCell } from "./entrance-cell";
 import type { EntranceVariant } from "./entrance-cell";
@@ -6,7 +7,6 @@ import { HomeEntrancePlayed } from "./home-entrance";
 import { EntranceGrain } from "./entrance-grain";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
-import { HomeNav } from "./home-nav";
 import { RingHoverPointer } from "./ring-pointer";
 import { TrackerWidget } from "./tracker-widget";
 import "./ring-hover.css";
@@ -34,7 +34,8 @@ const frameGapStyle = {
  * is one ring surface that grows into its own box and is lit by a glow in the
  * phase's horizon palette (see ring-hover.css).
  *
- * `entrance` wraps each card and the nav bar in an animation cell and puts
+ * `entrance` wraps each card in an animation cell (the nav, which lives in the
+ * root layout's dock, is reached from home-entrance.css) and puts
  * data-entrance on <main> for the variant CSS. `/` passes `entrance="soft"
  * shipped`, which adds the veil layer and the one-play-per-document gate; the
  * dev route passes a variant only and keeps its own overlay in the harness.
@@ -42,13 +43,35 @@ const frameGapStyle = {
  * `shipped` marks <main> so the entrance CSS can tell the production entrance
  * from the prototype's replays.
  */
-export function HomeLayout({
-  entrance,
-  shipped = false,
-}: {
+export type HomeWorkSource = {
+  title: string;
+  onOpen: (element: HTMLElement) => void;
+  slivers?: { title: string; onOpen: (element: HTMLElement) => void }[];
+};
+
+type HomeLayoutProps = {
+  /**
+   * Dev-prototype hook only (work-drawer): makes the work cards clickable and
+   * labels the slivers. Omitted on /, where every card keeps its shipped,
+   * non-interactive behaviour.
+   */
+  work?: HomeWorkSource;
+  /**
+   * The homepage's featured study. The card becomes the link into the
+   * intercepted reader; the title is read on the server so the client graph
+   * never touches the content loader.
+   */
+  featured?: { slug: string; title: string; cover: WorkMeta["cover"] };
   entrance?: EntranceVariant;
   shipped?: boolean;
-}) {
+};
+
+export function HomeLayout({
+  work,
+  featured,
+  entrance,
+  shipped = false,
+}: HomeLayoutProps = {}) {
   return (
     <main
       data-entrance={entrance}
@@ -117,13 +140,26 @@ export function HomeLayout({
 
           <div className="grid gap-3 md:h-[560px] md:grid-cols-[444fr_120fr_52fr_52fr] lg:h-[360px] lg:grid-cols-[656fr_140fr_64fr_64fr] xl:h-[416px] xl:grid-cols-[753fr_180fr_83fr_84fr]">
             <EntranceCell variant={entrance} item={3} row={2}>
-              <ProjectCard />
+              {work ? (
+                <ProjectCard title={work.title} onOpen={work.onOpen} />
+              ) : (
+                <ProjectCard
+                  title={featured?.title}
+                  slug={featured?.slug}
+                  scene={featured?.cover}
+                />
+              )}
             </EntranceCell>
-            <WorkSlivers entrance={entrance} />
+            <WorkSlivers items={work?.slivers} entrance={entrance} />
           </div>
 
+          {/* The nav itself lives in the root layout, so one element carries
+              from the homepage into the drawer. This slot reserves its box and
+              gives the dock its home position. The slot keeps item 7 so the
+              reading order stays whole; the nav's own entrance is applied to
+              the dock in home-entrance.css. */}
           <EntranceCell variant={entrance} item={7} row={3}>
-            <HomeNav />
+            <div className="h-16" aria-hidden="true" data-nav-slot="" />
           </EntranceCell>
         </div>
 

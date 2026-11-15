@@ -1,0 +1,116 @@
+/*
+ * Progressive blur over the reader's nav (spec 2). Six static `backdrop-filter`
+ * bands share the stack's box, weakest at the bottom. Each band is masked to
+ * the part of the zone it owns and fades into the band below it, so the blur
+ * builds up over the content as it scrolls toward the top edge. The bands are
+ * painted weakest first, which means each one blurs the result of the band
+ * under it as well as the content.
+ *
+ * The stack's height is the nav's bottom edge, set inline from reader.tsx. It
+ * is a CSS length, and every stop below is a percentage of it, so the zone
+ * tracks the nav's insets on resize with nothing measured. Nothing in here
+ * animates: the layers are static and only the content moves under them.
+ */
+
+.wd-blur-stack {
+  --wd-blur-surface: color-mix(
+    in oklch,
+    var(--surface-container-low) 60%,
+    transparent
+  );
+
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  /* Under the nav (z-index 2), over the scroll content. */
+  z-index: 1;
+  pointer-events: none;
+  /* The nav's labels now sit on content rather than an opaque bar, so the top
+     edge carries a tint of the panel surface. It lives on the stack instead of
+     a band: a band's mask would confine it to that band's slice. */
+  background-image: linear-gradient(
+    to bottom,
+    var(--wd-blur-surface),
+    transparent
+  );
+}
+
+.wd-blur-band {
+  position: absolute;
+  inset: 0;
+  -webkit-backdrop-filter: blur(var(--wd-band-blur));
+  backdrop-filter: blur(var(--wd-band-blur));
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 var(--wd-band-solid),
+    transparent var(--wd-band-fade)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 var(--wd-band-solid),
+    transparent var(--wd-band-fade)
+  );
+}
+
+/* Weakest first: each band is opaque from the top down to its solid stop, then
+   fades out over one sixth of the zone, which is the band below it. */
+.wd-blur-band:nth-child(1) {
+  --wd-band-blur: 1px;
+  --wd-band-solid: 83.33%;
+  --wd-band-fade: 100%;
+}
+
+.wd-blur-band:nth-child(2) {
+  --wd-band-blur: 2px;
+  --wd-band-solid: 66.67%;
+  --wd-band-fade: 83.33%;
+}
+
+.wd-blur-band:nth-child(3) {
+  --wd-band-blur: 4px;
+  --wd-band-solid: 50%;
+  --wd-band-fade: 66.67%;
+}
+
+.wd-blur-band:nth-child(4) {
+  --wd-band-blur: 8px;
+  --wd-band-solid: 33.33%;
+  --wd-band-fade: 50%;
+}
+
+.wd-blur-band:nth-child(5) {
+  --wd-band-blur: 16px;
+  --wd-band-solid: 16.67%;
+  --wd-band-fade: 33.33%;
+}
+
+/* The heaviest band sits at the top. */
+.wd-blur-band:nth-child(6) {
+  --wd-band-blur: 32px;
+  --wd-band-solid: 0%;
+  --wd-band-fade: 16.67%;
+}
+
+/* Without transparency, or without backdrop-filter, the bands would do nothing:
+   one solid gradient from the panel surface to transparent replaces them. */
+@media (prefers-reduced-transparency: reduce) {
+  .wd-blur-stack {
+    --wd-blur-surface: var(--surface-container-low);
+  }
+
+  .wd-blur-band {
+    display: none;
+  }
+}
+
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .wd-blur-stack {
+    --wd-blur-surface: var(--surface-container-low);
+  }
+
+  .wd-blur-band {
+    display: none;
+  }
+}

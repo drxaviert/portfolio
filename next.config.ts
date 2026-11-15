@@ -12,7 +12,8 @@ const nextConfig: NextConfig = {
 
 const withMDX = createMDX({
   options: {
-    remarkPlugins: [],
+    // Plugin names must stay strings for Turbopack: it cannot receive functions.
+    remarkPlugins: ["remark-frontmatter"],
     rehypePlugins: [],
   },
 });

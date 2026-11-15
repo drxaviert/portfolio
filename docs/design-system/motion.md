@@ -1,12 +1,13 @@
 # Design system motion — 2026-11-13
 
-The shipped motion of the theme toggle, the Day phase row and the home nav's Glide capsule, recorded from the merged code (PR #12, `5bbfba9`; nav at `d574d89`). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
+The shipped motion of the theme toggle, the Day phase row, the home nav's Glide capsule and the Work drawer, recorded from the code (toggle and nav from PR #12, `5bbfba9` / `d574d89`; drawer at `98b6429`). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
 
 ## Principles
 
 - One curve family per job: `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) for entrances, `ease-in` (`--ease-accelerate`) for exits, `cubic-bezier(0.34, 1.3, 0.64, 1)` (`--ease-spring`) for the icon settle.
 - Calm and ambient entrances use `cubic-bezier(0.4, 0, 0.2, 1)` (`--ease-calm`): it leaves at zero velocity and settles on a long tail, so light and content arrive without anything launching.
 - A theme change is one crossfade of the whole page, not a colour transition per element: everything changes on the same frame because it is the same image pair.
+- The drawer flies on `cubic-bezier(0.32, 0.72, 0, 1)` (panel and nav together), its content cascades on `cubic-bezier(0.22, 1, 0.36, 1)`, and the blur resolving on top of that fade runs slower, on `cubic-bezier(0.25, 0.1, 0.25, 1)`.
 - Entrances stagger left to right; exits leave together. Nothing waits on the pointer.
 - Hover never restarts the entrance: it replays the icon settle once from its resting pose and ends at rest.
 - Reduced motion keeps the state change and drops the movement: one opacity fade, no icon motion.
@@ -129,6 +130,7 @@ Selection is painted by the stretch highlight (next section); the segment itself
 | Segment focused | tooltip `opacity` | 150ms (`--duration-short-3`) | 0 | `ease-out` (`--ease-decelerate`) | 0 → 1 |
 | Segment blurred | tooltip `opacity` | 0 | 0 | — | 1 → 0 |
 | Pointer enters a segment | tooltip `opacity` | 150ms (`--duration-short-3`) | 300ms (`--duration-medium-5`) | `ease-out` (`--ease-decelerate`) | 0 → 1 |
+| Pointer enters a label in a warm group | tooltip `opacity` | 0 | 0 | — | 0 → 1, no fade |
 | Pointer leaves a segment | tooltip `opacity` | 0 | 0 | — | 1 → 0 |
 
 The fill row is the reduced-motion path only; the default highlight hides its layer and crossfades that fill in 120ms (`--duration-short-2`). The label fade is declared on `:focus-visible`/`:hover`, so losing the state removes the transition instead of starting the reverse one. The phase-row entrance stagger delays only `opacity`/`translate`; colour and scale are never delayed.
@@ -138,6 +140,13 @@ The fill row is the reduced-motion path only; the default highlight hides its la
 - `src/components/theme/theme-toggle.css:310` — focused label fade-in
 - `src/components/theme/theme-toggle.css:316` — hovered label, 300ms (`--duration-medium-5`)
 - `src/components/theme/theme-toggle.css:323` — released label, no transition
+
+Once a label in the nav has opened, the group is warm: the next label opens on the frame the pointer reaches it, with no delay and no fade, and the group goes cold 300ms after the pointer leaves the nav. The first label still pays the 300ms, which is what keeps incidental travel from flashing labels across the bar.
+
+- `src/components/nav/use-tooltip-warm.ts:6` — `TOOLTIP_WARM_MS = 300`
+- `src/components/nav/use-tooltip-warm.ts:18` — the group's warm state
+- `src/components/theme/theme-toggle.css:331` — warm segment labels drop the transition
+- `src/components/home/nav-items.css:80` — warm glyph label drops the transition
 
 ## Selection highlight — stretch & snap
 
@@ -220,12 +229,12 @@ A frame writes one property: the capsule keeps the run's width and carries the p
 
 ## Day phase row entrance — "Stagger + icons"
 
-The row is a 4-segment track (Clock · Dawn · Midday · Dusk) above the toggle. It scales out of the toggle, then the segments fade and rise left to right, then each icon settles 60ms after its own segment.
+The row is a 4-segment track (Clock · Dawn · Midday · Dusk) above the toggle on the homepage and below it in the drawer. It scales out of the toggle's nearest corner (bottom right when it sits above, top right when it hangs below), then the segments fade and rise left to right, then each icon settles 60ms after its own segment.
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
 | Row opens | `opacity` | 400ms (`--duration-long-1`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) | 0 → 1 |
-| Row opens | `transform` | 400ms (`--duration-long-1`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) | `scale(0.96)` → `none`, origin bottom right |
+| Row opens | `transform` | 400ms (`--duration-long-1`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) | `scale(0.96)` → `none`, origin bottom right (top right in the drawer) |
 | Row opens | `visibility` | 0 | 0 | — | hidden → visible |
 | Row closes | `opacity` | 240ms (`--duration-medium-1`) | 0 | `ease-in` (`--ease-accelerate`) | 1 → 0 |
 | Row closes | `transform` | 240ms (`--duration-medium-1`) | 0 | `ease-in` (`--ease-accelerate`) | `none` → `scale(0.96)` |
@@ -240,6 +249,7 @@ The enter/exit durations are read from `--phase-row-exit-ms` so the component an
 
 - `src/components/theme/theme-toggle.css:25` — registered `--phase-row-exit-ms` (240)
 - `src/components/theme/theme-toggle.css:36` — closed rest pose `scale(0.96)`, origin bottom right
+- `src/components/nav/nav-dock.css:111` — the drawer's row hangs below, so it grows from its top corner
 - `src/components/theme/theme-toggle.css:41` — `--phase-enter-delay`, raised to the crossfade duration during a theme change
 - `src/components/theme/theme-toggle.css:55` — 400ms (`--duration-long-1`) enter transition, delayed by `--phase-enter-delay`
 - `src/components/theme/theme-toggle.css:62` — 240ms (`--duration-medium-1`) `ease-in` (`--ease-accelerate`) exit, visibility delayed by the exit
@@ -308,6 +318,144 @@ The row belongs to Day. It closes 100ms (`--duration-short-1`) after the pointer
 - `src/components/theme/theme-toggle.tsx:600` — keyboard focus holds the row open
 - `src/components/theme/theme-toggle.tsx:890` — hover region enter/leave
 - `src/components/theme/theme-toggle.tsx:1004` — the gap bridge that keeps the region continuous
+
+## Work drawer — panel and backdrop
+
+The intercepted reader is one fixed panel over the live homepage. On open it FLIPs out of the featured card, on close back into the card's live rect. Only `transform` and `opacity` animate; the panel keeps its final layout box the whole time, and the card → panel pose is measured once, before the first paint. A close that interrupts the open retargets from the current pose instead of restarting.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Card opened | panel `transform` | 480ms | 0 | `cubic-bezier(0.32, 0.72, 0, 1)` | card rect → panel box (`translate` + `scale`, origin top left) |
+| Study → study (no card) | panel | 0 | 0 | — | settles in place, no move |
+| Reverse morph | panel `transform` | 300ms | 0 | `ease-in` | current pose → the card's live rect |
+| Reverse morph, or no card | panel `opacity` | 120ms | 0 | `ease-out` | 1 → 0 |
+| Opened, reduced motion | panel `opacity` | 120ms | 0 | `ease-out` | 0 → 1, `transform: none` |
+| Close interrupts the open | panel `transform` | 300ms | 0 | `ease-in` | retargeted from the live pose, never from zero |
+| Resize mid-open | panel | — | — | — | completes the flight |
+| Backdrop in | `opacity` | 320ms | 0 | `ease-out` | 0 → 1 (0.4 black; 0.62 in Night) |
+| Backdrop out | `opacity` | 240ms | 0 | `ease-in` | 1 → 0 |
+| Content out on close | scroll column `opacity` | 140ms | 0 | `ease-in` | 1 → 0 |
+| Backdrop / content, reduced motion | `opacity` | 120ms | 0 | `ease-out` | 0 → 1 / 1 → 0 |
+
+- `src/components/work/morph.ts:20` — `MORPH_EASE` `cubic-bezier(0.32, 0.72, 0, 1)`
+- `src/components/work/morph.ts:21` — `MORPH_OPEN_S = 0.48`
+- `src/components/work/morph.ts:22` — `MORPH_CLOSE_S = 0.3`
+- `src/components/work/use-morph.ts:159` — the open flight, transform only
+- `src/components/work/use-morph.ts:218` — the reverse pose into the card's live rect
+- `src/components/work/use-morph.ts:31` — 120ms opacity path (`FADE_S`)
+- `src/components/work/expand-shell.css:18` — backdrop in 320ms `ease-out`
+- `src/components/work/expand-shell.css:19` — backdrop out 240ms `ease-in`
+- `src/components/work/expand-shell.css:20` — content out 140ms `ease-in`
+- `src/components/work/expand-shell.css:21` — reduced-motion 120ms `ease-out`
+
+## Work drawer — nav dock
+
+The one nav lives in the root layout and never remounts, so opening a study FLIPs it from the home slot to the panel's top row on the panel's own curve. Home is CSS geometry (1200px frame, 1136px bar, `max(pad + offset, 50dvh + offset/2 - 2rem)` with offsets 716px at 1280, 604 at 1024, 804 at 768 and 824 below), corrected at runtime against `[data-nav-slot]` when it drifts by more than 0.5px. The reader position is `--wd-panel-inset + --wd-nav-inset`: 44px from the viewport top at 768 and up, 16px below.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Study opened | dock `transform` | 480ms | 0 | `cubic-bezier(0.32, 0.72, 0, 1)` | home top → reader top (`translateY` of the measured delta) |
+| Study closed | dock `transform` | 300ms | 0 | `ease-in` | reader top → home top |
+| Reduced motion, or no card | dock `opacity` | 60ms out + 60ms in | 0 | `ease-out` | 1 → 0 → 1, no transform |
+| Study → study | dock | 0 | 0 | — | stays at the reader position |
+| Resize mid-flight | dock | — | — | — | lands the move |
+| Home rest, drifted | dock `top` | 0 | — | — | slot top when the CSS is off by > 0.5px |
+
+- `src/components/nav/nav-dock.tsx:111` — open 480 / close 300 on the panel's constants
+- `src/components/nav/nav-dock.tsx:29` — 60ms half of the reduced-motion crossfade
+- `src/components/nav/nav-dock.tsx:109` — the `translateY` flight, measured from the live rect
+- `src/components/nav/nav-dock.tsx:119` — resize lands the flight
+- `src/components/nav/nav-dock.tsx:163` — 0.5px slot-drift correction
+- `src/components/nav/nav-dock.css:15` — home geometry
+- `src/components/nav/nav-dock.css:59` — reader top `panel inset + nav inset`
+
+## Work drawer — content cascade
+
+The cascade is a handoff from the panel, not a second entrance: it is released at the reveal, 360ms into the 480ms open (120ms before the panel lands). Cover first, then the header, then the body, on one even 80ms beat.
+
+| Block | Starts at | Opacity + 10px rise | Defocus |
+| --- | --- | --- | --- |
+| Cover | 0ms | 800ms `cubic-bezier(0.22, 1, 0.36, 1)` | none |
+| Title | 80ms | same | 800ms `cubic-bezier(0.25, 0.1, 0.25, 1)`, `blur(10px)` → none |
+| Subtitle | 160ms | same | same |
+| Meta | 240ms | same | same |
+| p1 | 320ms | same | same |
+| p2 | 400ms | same | same |
+| p3 and below | 480ms | same | same |
+
+Every block holds its start state (`backwards` fill), so nothing paints at its end state before its beat. The blur has its own longer curve: the fade is at 92% by 400ms while the defocus still measures 3.2px there, so the text resolves instead of snapping sharp. The cover carries no filter (blur on the large media was the one measured cost). The window ends 1280ms after the reveal, 1640ms after the click.
+
+- `src/components/work/entrance.css:37` — fade curve `cubic-bezier(0.22, 1, 0.36, 1)`
+- `src/components/work/entrance.css:40` — defocus curve `cubic-bezier(0.25, 0.1, 0.25, 1)`
+- `src/components/work/entrance.css:41` — 800ms for both
+- `src/components/work/entrance.css:74` — `blur(10px)` start
+- `src/components/work/entrance.css:88` — two animations, fade then defocus
+- `src/components/work/entrance.css:93` — both ride the block's beat and the hand-off lead
+- `src/components/work/entrance.css:110` — 80ms beat, title
+- `src/components/work/entrance.css:130` — 480ms, p3 and below
+- `src/components/work/use-morph.ts:177` — reveal at open − 120ms
+- `src/components/work/parts.tsx:415` — `--wd-beat-lead` on the incoming panel
+
+## Work drawer — study hand-off
+
+"Next project" is not a route swap with an empty beat: the outgoing article leaves on the reader's own 140ms close fade, the route is pushed 49ms into it, and the incoming entrance mounts 120ms in.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Next project | outgoing scroll column `opacity` | 140ms | 0 | `ease-in` | 1 → 0, held to the last frame |
+| Next project | route commit | — | 49ms (35% of 140) | — | push / replace lands inside the fade |
+| Incoming study | cascade | — | −120ms lead | — | the entrance's first paint is already ~55% in |
+| Reduced motion | — | 0 | 0 | — | one commit, no fade, no lead |
+
+The lead is a module-level timestamp read once by the incoming mount and cleared: it expires after 900ms so a slow route can never leak it into a normal card open.
+
+- `src/components/work/progression.ts:19` — `PROGRESSION_EXIT_MS = 140`
+- `src/components/work/progression.ts:21` — `PROGRESSION_LEAD_MS = 120`
+- `src/components/work/progression.ts:27` — `PUSH_RATIO = 0.35`
+- `src/components/work/progression.ts:29` — `LEAD_TTL_MS = 900`
+- `src/components/work/progression.ts:72` — the 140ms `ease-in` fade, `fill: forwards`
+- `src/components/work/parts.tsx:415` — the incoming panel's `--wd-beat-lead`
+
+## Work drawer — geometry and popover sides
+
+One set of root tokens positions the drawer, so the nav, the blur zone, the reading column and the rail cannot drift apart. The drawer's nav sits 44px from the viewport top at 768 and up (16px below) and the study starts 32px under it (24px below 768).
+
+| Token | Below 768 | 768 and up | Read by |
+| --- | --- | --- | --- |
+| `--wd-panel-inset` | 0px | 16px | panel inset, nav top |
+| `--wd-nav-inset` | 16px | 28px | nav top, blur height, column clearance, rail |
+| `--wd-nav-height` | 4rem | 4rem | nav box, blur height, column clearance |
+| `--wd-nav-content-gap` | 24px | 32px | column top padding, rail sticky top |
+| `--wd-phase-row-gap` | 4px | 4px | the picker row's side offset |
+
+The Day phase row opens above the toggle on the homepage and below it in the drawer, always at `--wd-phase-row-gap`. Each track's labels point away from the other track: home has the row above, so the toggle's labels go below and the row's go above; the reader has the row below, so the toggle's labels go above and the row's go below. The glyph's label keeps the reader's downward side.
+
+- `src/app/globals.css:258` — the token block
+- `src/app/globals.css:267` — the 768 overrides
+- `src/components/work/reader.css:48` — column top padding
+- `src/components/work/reader.css:104` — rail sticky top
+- `src/components/nav/nav-dock.css:72` — home label side
+- `src/components/nav/nav-dock.css:77` — reader label side
+- `src/components/nav/nav-dock.css:103` — the reader's picker row, 4px below the toggle
+
+## Work drawer — blur stack and reduced motion
+
+The progressive blur over the reader's top edge is six static `backdrop-filter` bands (1, 2, 4, 8, 16, 32px) sharing the nav's box; nothing in it animates, only the content moves under it. `prefers-reduced-transparency` or no `backdrop-filter` support replaces the bands with one solid gradient from the panel surface.
+
+| Path | Behaviour |
+| --- | --- |
+| Open | panel opacity 120ms `ease-out`, no transform; nav crossfades over 2 × 60ms; backdrop 120ms |
+| Cascade | `animation: none` on the cover and every text block; the scroll column is one 120ms opacity pass |
+| Hand-off | no fade and no wait; the incoming column skips its own fade (`data-progression="lead"`) |
+| Content out | 140ms `ease-in` on close, 120ms `ease-out` reduced |
+| Thumb pair, rail | 120ms `ease-out`, visibility steps with the fade |
+| Picker row | existing rows: opacity only 120ms, no scale, no icon settle |
+
+- `src/components/work/blur-stack.tsx:4` — six bands
+- `src/components/work/blur-stack.css:96` — reduced-transparency / no-support fallback
+- `src/components/work/entrance.css:136` — reduced-motion `animation: none`
+- `src/components/work/entrance.css:157` — the hand-off column keeps `opacity: 1`
+- `src/components/work/reader.css:253` — thumb-pair reduced path
 
 ## Reduced motion
 

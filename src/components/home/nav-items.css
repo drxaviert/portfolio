@@ -85,9 +85,38 @@
   }
 }
 
+/* Warm group: the first label paid the delay, the next one is instant. */
+[data-tooltip-warm="true"] .nav-glyph:hover .nav-tooltip {
+  transition: none;
+}
+
 /* Released state keeps no transition, so a theme fade cannot stretch it. */
 .nav-glyph:not(:focus-visible):not(:hover) .nav-tooltip {
   transition-property: none;
+}
+
+/* ---------- Touch targets ---------- */
+
+/*
+ * The labels are 32px tall and the orb is 36, under the 44px floor. Fingers get
+ * the extra height out of the bar's own 16px padding, without moving anything;
+ * a fine pointer keeps the tighter area, so the capsule still appears on the
+ * label itself. The glyph and the orb have free space beside them, so they grow
+ * both ways.
+ */
+@media (pointer: coarse) {
+  .nav-item::before {
+    position: absolute;
+    inset: -6px 0;
+    content: "";
+  }
+
+  .nav-logo::before,
+  .nav-glyph::before {
+    position: absolute;
+    inset: -6px;
+    content: "";
+  }
 }
 
 /* ---------- Reduced motion: colour and opacity only ---------- */

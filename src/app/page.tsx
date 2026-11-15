@@ -1,4 +1,5 @@
 import { HomeLayout } from "@/components/home/home-layout";
+import { FEATURED_SLUG, getWork } from "@/lib/work";
 import "@/components/home/home-entrance.css";
 
 /**
@@ -9,5 +10,21 @@ import "@/components/home/home-entrance.css";
  * inside the same tab does not.
  */
 export default function Home() {
-  return <HomeLayout entrance="soft" shipped />;
+  const featured = getWork(FEATURED_SLUG);
+
+  return (
+    <HomeLayout
+      entrance="soft"
+      shipped
+      featured={
+        featured
+          ? {
+              slug: featured.slug,
+              title: featured.title,
+              cover: featured.cover,
+            }
+          : undefined
+      }
+    />
+  );
 }

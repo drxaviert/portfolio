@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Work_Sans } from "next/font/google";
 import type { ReactNode } from "react";
+import { NavDock } from "@/components/nav/nav-dock";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 import "./globals.css";
@@ -16,14 +17,26 @@ export const metadata: Metadata = {
   description: "Design engineer portfolio.",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({
+  children,
+  modal,
+}: {
+  children: ReactNode;
+  modal: ReactNode;
+}) {
   return (
     <html lang="en" className={workSans.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {children}
+          {/* One nav for the whole site, between the page and the modal so it
+              comes before the reader in tab order. */}
+          <NavDock />
+          {modal}
+        </ThemeProvider>
       </body>
     </html>
   );

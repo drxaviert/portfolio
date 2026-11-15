@@ -42,6 +42,8 @@
   visibility: hidden;
   transform: scale(0.96);
   transform-origin: bottom right;
+  /* The shared toggle-to-row gap; the reader flips the side, not the value. */
+  margin-bottom: var(--wd-phase-row-gap);
   pointer-events: none;
 }
 
@@ -316,9 +318,12 @@
  * Tooltip: the documented 150ms fade on the way in (300ms after hover, so
  * travel across the track does not flash labels), released at once on the way
  * out. Two labels can never be visible together, and the outgoing one cannot
- * cover the neighbouring icons.
+ * cover the neighbouring icons. Above the segment by default; the dock puts the
+ * mode track's labels on the far side of the Day row (nav-dock.css).
  */
 .segment-tooltip {
+  top: auto;
+  bottom: calc(100% + 8px);
   opacity: 0;
 }
 
@@ -333,6 +338,14 @@
     transition: opacity var(--duration-short-3) var(--ease-decelerate)
       var(--duration-medium-5);
   }
+}
+
+/*
+ * A warm group shows the next label on the frame the pointer reaches it: the
+ * first one paid the delay, so the rest skip both the wait and the fade.
+ */
+[data-tooltip-warm="true"] .segment:hover .segment-tooltip {
+  transition: none;
 }
 
 /* No transition in the released state, so a theme fade cannot stretch it. */

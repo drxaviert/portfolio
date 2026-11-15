@@ -32,11 +32,17 @@ describe("home page", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Project name" }),
+      screen.getByRole("heading", { name: "Systems in motion" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("navigation", { name: "Primary" }),
-    ).toBeInTheDocument();
+      screen.getByRole("link", { name: "Systems in motion" }),
+    ).toHaveAttribute("href", "/work/systems-in-motion");
+    // The nav itself is one element in the root layout; the page reserves its
+    // slot and nothing else.
+    expect(document.querySelector("[data-nav-slot]")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("navigation", { name: "Primary" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("img", { name: /contribution tracker/i }),
     ).toBeInTheDocument();

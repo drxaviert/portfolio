@@ -1,0 +1,763 @@
+/*
+ * The Margin reader: one fixed panel, one scroll container, a 550px measure
+ * with notes and captions in the right margin from 1024px up, and 880px
+ * figure breakouts from 768px up.
+ *
+ * Geometry is CSS only. Container query units on the scroll container size the
+ * breakouts, so they account for the panel inset and the scrollbar gutter
+ * without any JavaScript measurement.
+ */
+
+/* The panel's inset and the nav's insets are root tokens (globals.css): the nav
+   dock in the root layout reads the same values. */
+.wd-reader-panel {
+  position: fixed;
+  inset: var(--wd-panel-inset);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+}
+
+@media (min-width: 768px) {
+  .wd-reader-panel {
+    border-radius: 12px;
+    box-shadow:
+      var(--shadow-card),
+      0 30px 70px -30px rgb(0 0 0 / 0.45);
+  }
+}
+
+.wd-reader-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  container-type: inline-size;
+}
+
+.wd-reader-column {
+  position: relative;
+  width: 100%;
+  max-width: 582px; /* 550px measure + 2 × 16px gutters */
+  margin-inline: auto;
+  /* Clears the header nav: its top inset, its bar and the shared gap. */
+  padding: calc(
+      var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
+    )
+    16px 64px;
+}
+
+/* Anchors the margin notes and the wide breakouts without pixel geometry. */
+.wd-reader-main {
+  position: relative;
+}
+
+/* ------------------------------------------------------------ ways back ---- */
+
+/*
+ * The left margin rail from 1024px: "← Work" pinned under the nav for the whole
+ * scroll, "↑ Top" near the foot of the panel. Both use the margin notes' type
+ * and neither has a surface, so the rail reads as a note beside the article
+ * rather than as chrome.
+ *
+ * The rail is the column's own box, so its sticky child starts at the top of
+ * the scroll area (not at the article below the cover, where "← Work" used to
+ * scroll away with the title) and holds there until the article ends.
+ */
+.wd-rail {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .wd-rail {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: absolute;
+    /* Above the 880px breakouts, which are positioned later in the DOM and
+       would otherwise paint over the rail's label and its click target. */
+    z-index: 1;
+    inset-block: 0;
+    /* 20px left of the 550px measure; the column's box adds its 16px gutter. */
+    right: calc(100% + 4px);
+    width: 170px;
+  }
+}
+
+.wd-rail-work,
+.wd-rail-top {
+  align-self: flex-start;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.42;
+  text-decoration: none;
+}
+
+.wd-rail-work {
+  position: sticky;
+  /* The nav's bottom edge, which is the blur zone's edge, plus the reading
+     column's own clearance. */
+  top: calc(
+    var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
+  );
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-block: 2px;
+}
+
+.wd-rail-top {
+  position: sticky;
+  bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.42;
+  cursor: pointer;
+}
+
+.wd-rail-work:hover,
+.wd-rail-top:hover {
+  color: var(--on-surface);
+}
+
+.wd-rail-work:focus-visible,
+.wd-rail-top:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/*
+ * The thumb targets keep their own shape: a focus rule that also set a radius
+ * would outrank the 999px circle above and turn the button into a rounded
+ * square the moment it takes keyboard focus. Only the ring is added here.
+ */
+.wd-reader-action:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/*
+ * The 150ms fade the design system uses for pointer chrome: the entrance curve
+ * on the way in, ease-in on the way out. `visibility` steps at the end of the
+ * fade out and immediately on the way in, so the hidden item leaves the tab
+ * order and the accessibility tree with it.
+ */
+.wd-rail-top,
+.wd-reader-action {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 150ms cubic-bezier(0.23, 1, 0.32, 1),
+    visibility 0s linear 0s;
+}
+
+.wd-rail-top[data-visible="false"],
+.wd-reader-action[data-visible="false"] {
+  opacity: 0;
+  visibility: hidden;
+  /* An invisible control is not a control: no click target either. */
+  pointer-events: none;
+  transition:
+    opacity 150ms ease-in,
+    visibility 0s linear 150ms;
+}
+
+/* Below 1024px: two 44px thumb targets on the panel's foot. They are absolute
+   inside the fixed panel rather than fixed to the viewport, so at 768-1023
+   they keep the panel's own 16px inset, and they sit outside the scroll
+   container, whose containment would trap a fixed child. */
+.wd-reader-actions {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .wd-reader-actions {
+    display: flex;
+    position: absolute;
+    z-index: 1;
+    inset-inline: 16px;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .wd-reader-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-container-low);
+    color: var(--on-surface);
+    font-size: 16px;
+    line-height: 1;
+    text-decoration: none;
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  /* The foot of the article clears both buttons. */
+  .wd-reader-column {
+    padding-bottom: 88px;
+  }
+}
+
+/* In the overlay the thumb buttons are part of the content, so they fade with
+   the scroll column instead of floating over the open and close morphs. Until
+   the fade has played they are present but invisible, so they take no clicks.
+   Pinned values (F5), the scroll column's own law: the entrance curve in at
+   240ms, ease-in out at 140ms, 120ms ease-out under reduced motion. */
+.wd-reader-actions {
+  --wd-actions-in: 240ms cubic-bezier(0.23, 1, 0.32, 1);
+  --wd-actions-out: 140ms ease-in;
+  --wd-actions-reduced: 120ms ease-out;
+}
+
+.wd-expand-layer[data-phase="opening"] .wd-reader-actions {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wd-expand-layer[data-phase="open"] .wd-reader-actions {
+  opacity: 1;
+  transition: opacity var(--wd-actions-in);
+}
+
+.wd-expand-layer[data-phase="closing"] .wd-reader-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--wd-actions-out);
+}
+
+/* The container's `pointer-events: none` cannot beat the buttons' own `auto`. */
+.wd-expand-layer[data-phase="opening"] .wd-reader-action,
+.wd-expand-layer[data-phase="closing"] .wd-reader-action {
+  pointer-events: none;
+}
+
+/* Reduced motion keeps the fade and drops it to the 120ms the design system
+   uses for state changes. */
+@media (prefers-reduced-motion: reduce) {
+  .wd-rail-top,
+  .wd-reader-action {
+    transition:
+      opacity 120ms ease-out,
+      visibility 0s linear 0s;
+  }
+
+  .wd-rail-top[data-visible="false"],
+  .wd-reader-action[data-visible="false"] {
+    transition:
+      opacity 120ms ease-out,
+      visibility 0s linear 120ms;
+  }
+
+  /*
+   * The thumb pair restates the whole transition, not just its duration: the
+   * base close keeps `ease-in` for normal motion, and a duration-only override
+   * would inherit it (T8 F1). Reduced close is 120ms ease-out.
+   */
+  .wd-expand-layer[data-phase="open"] .wd-reader-actions,
+  .wd-expand-layer[data-phase="closing"] .wd-reader-actions {
+    transition: opacity var(--wd-actions-reduced);
+  }
+}
+
+/* ----------------------------------------------------------------- hero ---- */
+
+.wd-hero {
+  /* The faux-UI canvas is 753 x 416 with a 32px inset, so the shot Dat reads as
+     "the cover" is the 689 x 352 panel inside it. The hero is the shot, not the
+     canvas: it takes the shot's aspect and the stage below bleeds the inset, so
+     the cover's own edges are the reading column's edges. Without the bleed the
+     hero box aligned with the text while the picture sat 32 * scale (23px at
+     550) right of it and as far below the nav. */
+  aspect-ratio: 689 / 352;
+  border-radius: 12px;
+  /* Holds the 753px canvas (scale 1) until the fit hook measures the box. */
+  overflow: hidden;
+}
+
+/* Re-scale the canvas so the shot, not the padded frame, is the hero's width,
+   then shift the frame by the same inset. 689 = 753 - 2 x 32px. */
+.wd-hero .fu-stage > .fu-card {
+  top: calc(var(--fu-scale) * -32px * 753 / 689);
+  left: calc(var(--fu-scale) * -32px * 753 / 689);
+  transform: scale(calc(var(--fu-scale) * 753 / 689));
+}
+
+/* The MDX `<Hero />` without a scene keeps the neutral media surface. */
+.wd-hero-neutral {
+  background: var(--surface-container);
+}
+
+/* ---------------------------------------------------------------- intro ---- */
+
+.wd-intro {
+  margin-top: 28px;
+}
+
+.wd-kicker {
+  margin: 0;
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.wd-intro-title {
+  margin: 0;
+}
+
+/*
+ * The reader focuses its title on open so the panel is announced. WebKit
+ * treats that programmatic focus as `:focus-visible` and paints a UA ring
+ * around a heading nobody tabbed to, so `:not(:focus-visible)` cannot gate it
+ * here. The title is `tabindex="-1"`: Tab cannot reach it, so suppressing its
+ * ring costs no keyboard affordance. Every interactive control keeps its ring.
+ */
+.wd-expand-layer .wd-intro-title:focus {
+  outline: none;
+}
+
+.wd-intro-subtitle {
+  margin: 14px 0 0;
+  color: var(--on-surface);
+  font-size: 16px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.wd-intro-meta {
+  margin: 14px 0 0;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ----------------------------------------------------------------- text ---- */
+
+.wd-prose {
+  display: flow-root;
+}
+
+.wd-p {
+  margin: 14px 0 0;
+  /* Long-form body: keep the measure inside the reading band even if the
+     column ever widens. Headings and the meta row keep the full column. */
+  max-width: 68ch;
+  color: var(--on-surface-variant);
+  font-size: 14px;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.wd-h2 {
+  margin: 44px 0 0;
+  color: var(--on-surface);
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+.wd-h2 + .wd-p {
+  margin-top: 10px;
+}
+
+.wd-link {
+  color: var(--on-surface);
+  text-decoration: underline;
+  text-decoration-color: var(--outline);
+  text-decoration-thickness: from-font;
+  text-underline-offset: 2px;
+}
+
+.wd-link:hover {
+  text-decoration-color: var(--on-surface);
+}
+
+/* ---------------------------------------------------------------- media ---- */
+
+.wd-media {
+  background: var(--surface-container-highest);
+  border-radius: 12px;
+}
+
+.wd-fig {
+  position: relative;
+  margin: 24px 0 0;
+}
+
+.wd-fig > .wd-media {
+  width: 100%;
+}
+
+.wd-caption {
+  margin: 8px 0 0;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* Captions become sidenotes at 1024px and up. */
+@media (min-width: 1024px) {
+  .wd-caption-margin {
+    position: absolute;
+    top: 4px;
+    left: calc(100% + 20px);
+    width: 170px;
+    margin: 0;
+  }
+}
+
+/* Two figures break the column out to 880px on a wide enough panel. */
+@media (min-width: 768px) {
+  .wd-fig-wide {
+    left: 50%;
+    width: min(880px, 100cqi - 96px);
+    translate: -50% 0;
+  }
+}
+
+/* --------------------------------------------------------- margin notes ---- */
+
+/* `<Note>` in the body: an anchor that takes no height once the note sits in
+   the margin, so the note lands beside the paragraph it belongs to. */
+.wd-note {
+  margin-top: 12px;
+}
+
+.wd-note-block {
+  position: relative;
+  margin-top: 14px;
+}
+
+.wd-note-block .wd-p {
+  margin: 0;
+}
+
+.wd-margin-note {
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.42;
+  text-wrap: pretty;
+}
+
+.wd-note-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.wd-margin-note:focus-visible,
+.wd-notes li:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (min-width: 1024px) {
+  .wd-note {
+    position: relative;
+    height: 0;
+    margin: 0;
+  }
+
+  .wd-margin-note {
+    position: absolute;
+    top: 2px;
+    left: calc(100% + 20px);
+    width: 170px;
+    margin: 0;
+  }
+}
+
+/* ------------------------------------------------------------ footnotes ---- */
+
+.wd-fnref {
+  margin-left: 1px;
+  font-size: 9px;
+  line-height: 0;
+  vertical-align: super;
+}
+
+.wd-fnref a {
+  color: var(--on-surface);
+  text-decoration: underline;
+  text-decoration-color: var(--outline);
+  text-underline-offset: 2px;
+  scroll-margin-top: 24px;
+}
+
+.wd-fnref a:hover {
+  text-decoration-color: var(--on-surface);
+}
+
+.wd-fnref a:focus-visible,
+.wd-backlink:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.wd-backlink {
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  text-decoration: underline;
+  text-decoration-color: var(--outline);
+  text-underline-offset: 2px;
+}
+
+.wd-backlink:hover {
+  color: var(--on-surface);
+  text-decoration-color: var(--on-surface);
+}
+
+.wd-notes {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--outline-variant);
+}
+
+.wd-notes ol {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wd-notes li {
+  margin: 8px 0 0;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.42;
+  scroll-margin-top: 24px;
+}
+
+/* ---------------------------------------------------------------- brief ---- */
+
+.wd-brief {
+  margin: 28px 0 0;
+}
+
+.wd-brief figcaption {
+  margin: 0 0 8px;
+}
+
+.wd-brief pre {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  border-radius: 12px;
+  background: var(--surface-container);
+  color: var(--on-surface);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* ---------------------------------------------------------------- table ---- */
+
+.wd-table-fig {
+  margin: 28px 0 0;
+}
+
+.wd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.46;
+}
+
+.wd-table caption {
+  margin: 0 0 8px;
+  text-align: left;
+}
+
+.wd-table th,
+.wd-table td {
+  padding: 10px 0;
+  text-align: left;
+  vertical-align: top;
+  border-top: 1px solid var(--outline-variant);
+}
+
+.wd-table thead th {
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wd-table tbody th {
+  width: 42%;
+  padding-right: 16px;
+  color: var(--on-surface);
+  font-weight: 500;
+}
+
+.wd-table td {
+  color: var(--on-surface-variant);
+}
+
+.wd-table tbody tr:last-child th,
+.wd-table tbody tr:last-child td {
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+/* ---------------------------------------------------------- step figure ---- */
+
+.wd-step {
+  margin: 32px 0 0;
+}
+
+.wd-step-panel {
+  position: relative;
+}
+
+.wd-step-media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.wd-step-bar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.wd-step-tabs {
+  display: flex;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.wd-step-tab {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+}
+
+.wd-step-tab[aria-selected="true"] {
+  background: var(--on-surface);
+  color: var(--surface-container-low);
+}
+
+.wd-step-tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.wd-step-replay {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-size: 11px;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.wd-step-replay:hover {
+  color: var(--on-surface);
+}
+
+.wd-step-replay:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.wd-step-panel .wd-caption {
+  margin-top: 8px;
+}
+
+/* -------------------------------------------------------- contact sheet ---- */
+
+.wd-contact {
+  margin: 32px 0 0;
+}
+
+.wd-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.wd-contact-grid .wd-media {
+  aspect-ratio: 4 / 3;
+}
+
+@media (max-width: 559px) {
+  .wd-contact-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ----------------------------------------------------------- next link ---- */
+
+.wd-nextlink {
+  margin-top: 56px;
+  padding-top: 20px;
+  border-top: 1px solid var(--outline-variant);
+}
+
+.wd-nextlink-link {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+  color: var(--on-surface);
+  font-size: 16px;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.wd-nextlink-link span:last-child {
+  flex-shrink: 0;
+  color: var(--on-surface-variant);
+}
+
+.wd-nextlink-link:hover span:first-child {
+  text-decoration: underline;
+  text-decoration-thickness: from-font;
+  text-underline-offset: 3px;
+}
+
+.wd-nextlink-link:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}

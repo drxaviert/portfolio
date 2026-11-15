@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type {
   ComponentPropsWithoutRef,
   FocusEvent,
@@ -52,7 +46,11 @@ type PhaseOption = {
 };
 
 const PHASE_OPTIONS: PhaseOption[] = [
-  { phase: "clock", label: "Clock", tooltip: "Clock · follows the time of day" },
+  {
+    phase: "clock",
+    label: "Clock",
+    tooltip: "Clock · follows the time of day",
+  },
   { phase: "dawn", label: "Dawn", tooltip: "Dawn" },
   { phase: "day", label: "Midday", tooltip: "Midday" },
   { phase: "dusk", label: "Dusk", tooltip: "Dusk" },
@@ -265,10 +263,7 @@ function readRowExitMs(row: HTMLElement | null): number {
   }
 
   const value = Number.parseFloat(
-    window
-      .getComputedStyle(row)
-      .getPropertyValue("--phase-row-exit-ms")
-      .trim(),
+    window.getComputedStyle(row).getPropertyValue("--phase-row-exit-ms").trim(),
   );
 
   return Number.isFinite(value) ? value : PHASE_ROW_EXIT_MS;
@@ -736,7 +731,6 @@ type SegmentProps = {
   onPointerLeave?: () => void;
   onFocus?: () => void;
   hitArea?: "track" | "finger";
-  tooltipBelow?: boolean;
 };
 
 /** Shared segment button: same classes, icon size and tooltip everywhere. */
@@ -752,7 +746,6 @@ function Segment({
   onPointerLeave,
   onFocus,
   hitArea,
-  tooltipBelow = false,
 }: SegmentProps) {
   return (
     <button
@@ -775,25 +768,21 @@ function Segment({
         .join(" ")}
     >
       <GlyphIcon glyph={glyph} />
-      <Tooltip below={tooltipBelow}>{tooltip}</Tooltip>
+      <Tooltip>{tooltip}</Tooltip>
     </button>
   );
 }
 
-function Tooltip({
-  children,
-  below = false,
-}: {
-  children: ReactNode;
-  below?: boolean;
-}) {
+/**
+ * The label's side is the dock's business, not the button's: whichever dock the
+ * toggle is in puts the label away from the phase row (nav-dock.css), so a
+ * tooltip never lands under a popover.
+ */
+function Tooltip({ children }: { children: ReactNode }) {
   return (
     <span
       aria-hidden="true"
-      className={[
-        "segment-tooltip pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface",
-        below ? "top-full mt-2" : "-top-9",
-      ].join(" ")}
+      className="segment-tooltip pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface"
     >
       {children}
     </span>
@@ -1004,7 +993,8 @@ export function ThemeToggle() {
     };
   }, []);
 
-  // Escape closes the row from anywhere and hands focus back to Day.
+  // Escape closes the row from anywhere in the toggle and hands focus back to
+  // Day.
   useEffect(() => {
     if (!rowOpen) {
       return;
@@ -1024,6 +1014,18 @@ export function ThemeToggle() {
         return;
       }
 
+      // Only the row's own interaction owns the key. A row still open while
+      // focus and pointer are elsewhere (a keyboard user already tabbed on into
+      // the reader) must not swallow the drawer's Escape and pull focus back to
+      // Day.
+      if (!focusInside.current && !hoverRegion.current) {
+        return;
+      }
+
+      // The row consumed this Escape. Marking the event keeps a reader-level
+      // Esc (which closes the whole work drawer) from firing on the same
+      // keypress, so one Esc dismisses the row and the next one leaves.
+      event.preventDefault();
       closeRow();
 
       // Restoring focus to Day must not count as "focus entered Day" and
@@ -1076,6 +1078,9 @@ export function ThemeToggle() {
 
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
+        // Same contract as the Day row: dismiss the menu, and let anything
+        // above it (the reader) know the keypress was already used.
+        event.preventDefault();
         setMenuOpen(false);
         triggerRef.current?.focus();
       }
@@ -1380,7 +1385,6 @@ export function ThemeToggle() {
                 label={option.label}
                 tooltip={option.tooltip}
                 glyph={option.mode}
-                tooltipBelow={dayActive || rowOpen}
                 hitArea="finger"
                 buttonRef={option.mode === "day" ? dayRef : undefined}
                 onClick={() => {
@@ -1459,7 +1463,7 @@ export function ThemeToggle() {
               clearExit();
             }
           }}
-          className="phase-row absolute right-0 bottom-full mb-1 shadow-card"
+          className="phase-row absolute right-0 bottom-full shadow-card"
         >
           {PHASE_OPTIONS.map((option, index) => {
             const selected = option.phase === dayPhase;
@@ -1518,7 +1522,10 @@ export function ThemeToggle() {
                       triggerRef.current?.focus();
                     }}
                     className={[
-                      "flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-base leading-5 font-medium outline-hidden",
+                      // 44px rows, the same as the phase options below: the
+                      // menu is a touch surface, and a 40px row sat under the
+                      // tap-target floor.
+                      "flex h-11 w-full items-center gap-2 rounded-md px-3 text-left text-base leading-5 font-medium outline-hidden",
                       "focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary",
                       selected
                         ? "bg-surface-container-high text-on-surface"
@@ -1533,8 +1540,7 @@ export function ThemeToggle() {
                   {option.mode === "day" ? (
                     <div role="group" aria-label="Day phase">
                       {PHASE_OPTIONS.map((phaseOption) => {
-                        const phaseSelected =
-                          phaseOption.phase === dayPhase;
+                        const phaseSelected = phaseOption.phase === dayPhase;
 
                         return (
                           <button
@@ -1558,9 +1564,7 @@ export function ThemeToggle() {
                             <GlyphIcon
                               glyph={dayPhaseGlyph(phaseOption.phase)}
                             />
-                            <span className="flex-1">
-                              {phaseOption.label}
-                            </span>
+                            <span className="flex-1">{phaseOption.label}</span>
                             {phaseSelected ? <CheckIcon /> : null}
                           </button>
                         );
