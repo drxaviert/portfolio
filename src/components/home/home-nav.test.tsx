@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -83,5 +83,43 @@ describe("HomeNav", () => {
       /\.nav-logo::before,\s*\.nav-glyph::before \{[^}]*inset: -6px;/,
     );
     expect(screen.getByRole("link", { name: "Home" })).toHaveClass("nav-logo");
+  });
+
+  it("warms the tooltip group only after the first label has opened", () => {
+    vi.useFakeTimers();
+    renderNav();
+
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+    expect(nav).toHaveAttribute("data-tooltip-warm", "false");
+
+    fireEvent.pointerEnter(nav);
+    act(() => vi.advanceTimersByTime(299));
+    expect(nav).toHaveAttribute("data-tooltip-warm", "false");
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(nav).toHaveAttribute("data-tooltip-warm", "true");
+
+    fireEvent.pointerLeave(nav);
+    act(() => vi.advanceTimersByTime(300));
+    expect(nav).toHaveAttribute("data-tooltip-warm", "false");
+    vi.useRealTimers();
+  });
+
+  it("drops the tooltip's delay and fade while the group is warm", () => {
+    const toggleCss = readFileSync(
+      join(process.cwd(), "src", "components", "theme", "theme-toggle.css"),
+      "utf8",
+    );
+    const itemsCss = readFileSync(
+      join(process.cwd(), "src", "components", "home", "nav-items.css"),
+      "utf8",
+    );
+
+    expect(toggleCss).toMatch(
+      /\[data-tooltip-warm="true"\] \.segment:hover \.segment-tooltip \{\s*transition: none;/,
+    );
+    expect(itemsCss).toMatch(
+      /\[data-tooltip-warm="true"\] \.nav-glyph:hover \.nav-tooltip \{\s*transition: none;/,
+    );
   });
 });

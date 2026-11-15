@@ -76,6 +76,11 @@
   }
 }
 
+/* Warm group: the first label paid the delay, the next one is instant. */
+[data-tooltip-warm="true"] .nav-glyph:hover .nav-tooltip {
+  transition: none;
+}
+
 /* Released state keeps no transition, so a theme fade cannot stretch it. */
 .nav-glyph:not(:focus-visible):not(:hover) .nav-tooltip {
   transition-property: none;

@@ -105,8 +105,7 @@
   --segment-delay: 270ms;
 }
 .phase-row[data-visible="true"] [role="radio"] {
-  transition-delay:
-    var(--segment-delay), var(--segment-delay), 0ms, 0ms, 0ms;
+  transition-delay: var(--segment-delay), var(--segment-delay), 0ms, 0ms, 0ms;
 }
 .phase-row[data-visible="true"] [role="radio"][aria-checked="true"] {
   transition-delay:
@@ -322,6 +321,14 @@
     opacity: 1;
     transition: opacity 150ms ease-out 300ms;
   }
+}
+
+/*
+ * A warm group shows the next label on the frame the pointer reaches it: the
+ * first one paid the delay, so the rest skip both the wait and the fade.
+ */
+[data-tooltip-warm="true"] .segment:hover .segment-tooltip {
+  transition: none;
 }
 
 /* No transition in the released state, so a theme fade cannot stretch it. */

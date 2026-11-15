@@ -99,12 +99,16 @@
   translate: none;
 }
 
-/* The Day row flips below the toggle here, on the homepage's own gap. */
+/*
+ * The Day row flips below the toggle here, on the homepage's own gap, and
+ * scales out of the corner nearest the toggle rather than its far one.
+ */
 .wd-nav-dock[data-nav-state="reader"] .phase-row {
   top: calc(100% + var(--wd-phase-row-gap));
   bottom: auto;
   margin-top: 0;
   margin-bottom: 0;
+  transform-origin: top right;
 }
 
 /* The under-768 menu is a different popover; it keeps its own clearance. */

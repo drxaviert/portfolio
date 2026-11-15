@@ -241,6 +241,24 @@ describe("NavDock", () => {
     expect(readerCss).not.toMatch(/--wd-nav-height\) \+ 12px/);
   });
 
+  it("scales the Day row out of the corner nearest the toggle", () => {
+    const read = (...parts: string[]) =>
+      readFileSync(join(process.cwd(), ...parts), "utf8");
+    const dockCss = read("src", "components", "nav", "nav-dock.css");
+    const toggleCss = read("src", "components", "theme", "theme-toggle.css");
+
+    // Home: the row is above the toggle, so it grows from its bottom corner.
+    expect(toggleCss).toMatch(/transform-origin: bottom right;/);
+
+    // Reader: the row hangs below, keyed off the same attribute that flips it,
+    // so it grows from the top corner instead.
+    const readerRow = dockCss.match(
+      /\.wd-nav-dock\[data-nav-state="reader"\] \.phase-row \{[^}]*\}/,
+    )?.[0];
+
+    expect(readerRow).toMatch(/transform-origin: top right;/);
+  });
+
   it("reaches the overlay's close from anywhere in the app", () => {
     const close = vi.fn();
     registerReaderClose(close);

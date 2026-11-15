@@ -42,6 +42,7 @@ Selection is painted by the stretch highlight (next section); the segment itself
 | Segment focused | tooltip `opacity` | 150ms | 0 | `ease-out` | 0 → 1 |
 | Segment blurred | tooltip `opacity` | 0 | 0 | — | 1 → 0 |
 | Pointer enters a segment | tooltip `opacity` | 150ms | 300ms | `ease-out` | 0 → 1 |
+| Pointer enters a label in a warm group | tooltip `opacity` | 0 | 0 | — | 0 → 1, no fade |
 | Pointer leaves a segment | tooltip `opacity` | 0 | 0 | — | 1 → 0 |
 
 The fill row is the reduced-motion path only; the default highlight hides its layer and crossfades that fill in 120ms. The label fade is declared on `:focus-visible`/`:hover`, so losing the state removes the transition instead of starting the reverse one. The phase-row entrance stagger delays only `opacity`/`translate`; colour and scale are never delayed.
@@ -51,6 +52,13 @@ The fill row is the reduced-motion path only; the default highlight hides its la
 - `src/components/theme/theme-toggle.css:310` — focused label fade-in
 - `src/components/theme/theme-toggle.css:316` — hovered label, 300ms
 - `src/components/theme/theme-toggle.css:323` — released label, no transition
+
+Once a label in the nav has opened, the group is warm: the next label opens on the frame the pointer reaches it, with no delay and no fade, and the group goes cold 300ms after the pointer leaves the nav. The first label still pays the 300ms, which is what keeps incidental travel from flashing labels across the bar.
+
+- `src/components/nav/use-tooltip-warm.ts:6` — `TOOLTIP_WARM_MS = 300`
+- `src/components/nav/use-tooltip-warm.ts:18` — the group's warm state
+- `src/components/theme/theme-toggle.css:331` — warm segment labels drop the transition
+- `src/components/home/nav-items.css:80` — warm glyph label drops the transition
 
 ## Selection highlight — stretch & snap
 
@@ -113,12 +121,12 @@ A frame writes one property: the capsule keeps the run's width and carries the p
 
 ## Day phase row entrance — "Stagger + icons"
 
-The row is a 4-segment track (Clock · Dawn · Midday · Dusk) above the toggle. It scales out of the toggle, then the segments fade and rise left to right, then each icon settles 60ms after its own segment.
+The row is a 4-segment track (Clock · Dawn · Midday · Dusk) above the toggle on the homepage and below it in the drawer. It scales out of the toggle's nearest corner (bottom right when it sits above, top right when it hangs below), then the segments fade and rise left to right, then each icon settles 60ms after its own segment.
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
 | Row opens | `opacity` | 400ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 0 → 1 |
-| Row opens | `transform` | 400ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | `scale(0.96)` → `none`, origin bottom right |
+| Row opens | `transform` | 400ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | `scale(0.96)` → `none`, origin bottom right (top right in the drawer) |
 | Row opens | `visibility` | 0 | 0 | — | hidden → visible |
 | Row closes | `opacity` | 240ms | 0 | `ease-in` | 1 → 0 |
 | Row closes | `transform` | 240ms | 0 | `ease-in` | `none` → `scale(0.96)` |
@@ -133,6 +141,7 @@ The enter/exit durations are read from `--phase-row-exit-ms` so the component an
 
 - `src/components/theme/theme-toggle.css:25` — registered `--phase-row-exit-ms` (240)
 - `src/components/theme/theme-toggle.css:36` — closed rest pose `scale(0.96)`, origin bottom right
+- `src/components/nav/nav-dock.css:111` — the drawer's row hangs below, so it grows from its top corner
 - `src/components/theme/theme-toggle.css:46` — 400ms enter transition, 0s visibility
 - `src/components/theme/theme-toggle.css:52` — 240ms `ease-in` exit, visibility delayed by the exit
 - `src/components/theme/theme-toggle.css:61` — 360ms segment fade/rise
