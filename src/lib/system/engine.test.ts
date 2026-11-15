@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GLIDE_LEAD_SPRING } from "@/components/home/glide-spring";
+import { applyDayPhase, applyMode } from "@/lib/theme";
 import { derive, phaseAtTod } from "@/lib/system/derive";
 import type { TokenMap } from "@/lib/system/derive";
 import { createSystemEngine, SYSTEM_OWNED_ATTR } from "@/lib/system/engine";
@@ -90,6 +91,14 @@ beforeEach(() => {
 
 afterEach(() => {
   root.remove();
+  // Reset the module's live theme state so one test cannot pin the next.
+  applyMode("auto", new Date(2026, 0, 1, 12));
+  window.localStorage.clear();
+  delete document.documentElement.dataset.phase;
+  delete document.documentElement.dataset.mode;
+  delete document.documentElement.dataset.dayPhase;
+  delete document.documentElement.dataset.phasePreview;
+  document.documentElement.classList.remove("dark");
   Reflect.deleteProperty(window, "matchMedia");
   vi.restoreAllMocks();
 });
@@ -215,9 +224,17 @@ describe("engine disposal", () => {
   it("leaves <html> inline style exactly as it was across StrictMode-style remounts", () => {
     const frames = stubFrames();
     const html = document.documentElement;
+
+    // Pin a deterministic live site phase (Day · Dawn) so dispose can restore
+    // it without depending on the wall clock.
+    applyMode("day", new Date(2026, 0, 1, 12));
+    applyDayPhase("dawn");
+
     const baselineStyle = html.getAttribute("style");
     const baselinePhase = html.getAttribute("data-phase");
     const baselineDark = html.classList.contains("dark");
+
+    expect(baselinePhase).toBe("dawn");
 
     for (let mount = 0; mount < 2; mount += 1) {
       const engine = createSystemEngine(html);
@@ -234,6 +251,35 @@ describe("engine disposal", () => {
       expect(html.getAttribute("data-phase")).toBe(baselinePhase);
       expect(html.classList.contains("dark")).toBe(baselineDark);
     }
+  });
+
+  it("restores the live site phase when the theme changes while mounted", () => {
+    const frames = stubFrames();
+    const html = document.documentElement;
+
+    applyMode("day", new Date(2026, 0, 1, 12));
+
+    const engine = createSystemEngine(html);
+
+    engine.set(params({ tod: 0 }));
+    frames.frame();
+
+    expect(html.dataset.phase).toBe("dawn");
+
+    // The visitor flips the site theme to Night; the engine keeps overriding
+    // data-phase from its own tod until it unmounts.
+    applyMode("night");
+    engine.set(params({ tod: 0 }));
+    frames.frame();
+
+    expect(html.dataset.phase).toBe("dawn");
+    expect(html.classList.contains("dark")).toBe(false);
+
+    engine.dispose();
+
+    expect(html.dataset.phase).toBe("night");
+    expect(html.classList.contains("dark")).toBe(true);
+    expect(html.style.getPropertyValue("color-scheme")).toBe("");
   });
 
   it("cancels a pending frame and never writes after dispose", () => {
@@ -301,35 +347,52 @@ describe("reduced motion", () => {
 });
 
 describe("spring scaling", () => {
-  it("scales stiffness by 1/s^2 and keeps the damping ratio", () => {
-    setReducedMotion(false);
-
-    const engine = createSystemEngine(root);
-
-    engine.set(params({ speed: 0.25 }));
-
-    const scaled = engine.spring(GLIDE_LEAD_SPRING);
-
-    expect(scaled.dampingRatio).toBe(GLIDE_LEAD_SPRING.dampingRatio);
-    expect(scaled.stiffness).toBe(
-      GLIDE_LEAD_SPRING.stiffness / (0.25 * 0.25),
-    );
-    expect(Number.isFinite(scaled.stiffness)).toBe(true);
-    expect(scaled.stiffness).toBeGreaterThan(0);
-
-    engine.dispose();
-  });
-
-  it("time-scales at 2x as stiffness / 4", () => {
+  it("speeds the spring up by speed squared and keeps the damping ratio", () => {
     setReducedMotion(false);
 
     const engine = createSystemEngine(root);
 
     engine.set(params({ speed: 2 }));
 
+    const scaled = engine.spring(GLIDE_LEAD_SPRING);
+
+    expect(scaled.stiffness).toBe(GLIDE_LEAD_SPRING.stiffness * 4);
+    expect(scaled.dampingRatio).toBe(GLIDE_LEAD_SPRING.dampingRatio);
+    expect(Number.isFinite(scaled.stiffness)).toBe(true);
+
+    engine.dispose();
+  });
+
+  it("slows the spring to a quarter stiffness at 0.5x", () => {
+    setReducedMotion(false);
+
+    const engine = createSystemEngine(root);
+
+    engine.set(params({ speed: 0.5 }));
+
     expect(engine.spring(GLIDE_LEAD_SPRING).stiffness).toBe(
-      GLIDE_LEAD_SPRING.stiffness / 4,
+      GLIDE_LEAD_SPRING.stiffness * 0.25,
     );
+
+    engine.dispose();
+  });
+
+  it("stays finite at the speed floor", () => {
+    setReducedMotion(false);
+
+    const engine = createSystemEngine(root);
+
+    // Below the floor clamps to 0.25, so stiffness is base × 0.0625, never 0
+    // or Infinity.
+    engine.set(params({ speed: 0 }));
+
+    const scaled = engine.spring(GLIDE_LEAD_SPRING);
+
+    expect(scaled.stiffness).toBe(
+      GLIDE_LEAD_SPRING.stiffness * 0.25 * 0.25,
+    );
+    expect(Number.isFinite(scaled.stiffness)).toBe(true);
+    expect(scaled.stiffness).toBeGreaterThan(0);
 
     engine.dispose();
   });

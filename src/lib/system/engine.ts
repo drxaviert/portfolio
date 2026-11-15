@@ -1,4 +1,9 @@
 import type { GlideSpring } from "@/components/home/glide-spring";
+import {
+  getActiveDayPhase,
+  getActiveMode,
+  phaseFor,
+} from "@/lib/theme";
 import { derive, phaseAtTod } from "@/lib/system/derive";
 import type { TokenMap } from "@/lib/system/derive";
 import { clampParams, DEFAULT_PARAMS } from "@/lib/system/params";
@@ -113,13 +118,13 @@ export function createSystemEngine(
     spring(base) {
       if (prefersReducedMotion()) return base;
 
-      // Time-scaling by 1/s means stiffness scales by 1/s². The stored model
-      // keeps `dampingRatio` (a ratio), which is already scale-invariant, so
-      // the physical damping ×1/s needs no separate term here.
+      // Speed multiplies how fast motion runs, so time-scaling by 1/s means
+      // stiffness scales by s². The stored model keeps `dampingRatio` (a
+      // ratio), which is already scale-invariant, so it stays put.
       const speed = clampParams(current).speed;
 
       return {
-        stiffness: base.stiffness / (speed * speed),
+        stiffness: base.stiffness * speed * speed,
         dampingRatio: base.dampingRatio,
       };
     },
@@ -158,10 +163,26 @@ export function createSystemEngine(
 
       root.removeAttribute(SYSTEM_OWNED_ATTR);
 
-      if (originalPhase === null) root.removeAttribute("data-phase");
-      else root.setAttribute("data-phase", originalPhase);
+      if (root === document.documentElement) {
+        // The site theme can move while the page is mounted (the toggle writes
+        // data-mode and its own phase), so restore the phase the site is on
+        // now rather than the snapshot captured before the engine existed.
+        // theme.ts owns the mode/pin logic; reusing its getters keeps this in
+        // step with the clock and any pinned Day phase.
+        const livePhase = phaseFor(
+          new Date(),
+          getActiveMode(),
+          getActiveDayPhase(),
+        );
 
-      root.classList.toggle("dark", originalHadDark);
+        root.setAttribute("data-phase", livePhase);
+        root.classList.toggle("dark", livePhase === "night");
+      } else {
+        if (originalPhase === null) root.removeAttribute("data-phase");
+        else root.setAttribute("data-phase", originalPhase);
+
+        root.classList.toggle("dark", originalHadDark);
+      }
     },
   };
 }
