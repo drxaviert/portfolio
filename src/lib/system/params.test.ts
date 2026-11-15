@@ -41,9 +41,9 @@ describe("parseQuery", () => {
     expect(parseQuery("?tod=0.1", "dusk").tod).toBe(0.1);
   });
 
-  it("falls back to the default tod when a tod is present but unparseable", () => {
-    expect(parseQuery("?tod=abc", "dusk").tod).toBe(DEFAULT_PARAMS.tod);
-    expect(parseQuery("?tod=", "dusk").tod).toBe(DEFAULT_PARAMS.tod);
+  it("starts tod at the site phase when a tod is present but unparseable", () => {
+    expect(parseQuery("?tod=abc", "dusk").tod).toBe(todForPhase("dusk"));
+    expect(parseQuery("?tod=", "dusk").tod).toBe(todForPhase("dusk"));
   });
 
   it("never returns NaN or throws for hostile input", () => {

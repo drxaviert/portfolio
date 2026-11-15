@@ -97,8 +97,9 @@ function lastFiniteValue(query: URLSearchParams, key: string): number | null {
 
 /**
  * Reads the five keys from a search string. Unparseable values fall back to
- * the defaults; numeric out-of-range values clamp. A missing `tod` starts at
- * the site phase, while an invalid one falls back to the default tod.
+ * the defaults; numeric out-of-range values clamp. `tod` is special: both a
+ * missing and an invalid value start at the site phase, so a broken shared
+ * link never throws the visitor into a different time of day.
  */
 export function parseQuery(search: string, sitePhase: Phase): Params {
   const query = new URLSearchParams(search);
@@ -108,9 +109,7 @@ export function parseQuery(search: string, sitePhase: Phase): Params {
   return clampParams({
     hue: read("hue", DEFAULT_PARAMS.hue),
     round: read("round", DEFAULT_PARAMS.round),
-    tod: query.has("tod")
-      ? read("tod", DEFAULT_PARAMS.tod)
-      : todForPhase(sitePhase),
+    tod: read("tod", todForPhase(sitePhase)),
     contrast: read("contrast", DEFAULT_PARAMS.contrast),
     speed: read("speed", DEFAULT_PARAMS.speed),
   });
