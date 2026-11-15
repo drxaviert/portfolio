@@ -179,9 +179,6 @@ function PeekEdgeBlur({
   wide: number;
   blur: number;
 }) {
-  // A placeholder has no picture: nothing to smear.
-  if (item.kind !== "work") return null;
-
   return (
     <span
       aria-hidden="true"
@@ -199,10 +196,21 @@ function PeekEdgeBlur({
     >
       <span className="car-peek-blur-copy">
         <span className="car-content">
-          <span className="absolute inset-0 overflow-hidden">
-            <Cover scene={item.cover} fit="cover" />
-          </span>
-          <span className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]" />
+          {item.kind === "work" ? (
+            <>
+              <span className="absolute inset-0 overflow-hidden">
+                <Cover scene={item.cover} fit="cover" />
+              </span>
+              <span className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]" />
+            </>
+          ) : (
+            // A placeholder has no picture, but it still has a card face: blur
+            // the surface itself so its edge smears like the others.
+            <span
+              data-peek-surface=""
+              className="bg-surface-container-low absolute inset-0"
+            />
+          )}
         </span>
       </span>
     </span>

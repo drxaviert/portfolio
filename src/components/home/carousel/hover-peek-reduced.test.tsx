@@ -114,12 +114,15 @@ describe("hover peek under reduced motion", () => {
     expect(prev.style.getPropertyValue("--car-x")).toBe("0px");
     expect(prev.style.opacity).toBe("1");
 
-    // The edge blur appears with the copy, without a fade of its own. The
-    // previous item is a placeholder here, so only the right edge has a layer.
+    // The edge blur appears with the copy, without a fade of its own. Both
+    // edges have a layer, placeholder or not.
     const layers = [
       ...container.querySelectorAll<HTMLElement>("[data-peek-blur]"),
     ];
-    expect(layers.map((layer) => layer.dataset.edge)).toEqual(["right"]);
+    expect(layers.map((layer) => layer.dataset.edge)).toEqual([
+      "left",
+      "right",
+    ]);
     for (const layer of layers) {
       expect(layer.style.opacity).toBe("1");
       expect(layer.style.transform).toBe("translateX(0px)");

@@ -123,7 +123,21 @@ export function tweenPeek(
     open ? layout.cardX[index] : cards[index].restX;
 
   const finish = () => {
-    if (open) return;
+    if (open) {
+      // Pin the edge blur at full strength once revealed, so its hold never
+      // depends on the reveal animations staying alive.
+      for (const blur of blurs) {
+        blur.style.opacity = "1";
+        blur.style.transform = "translateX(0px)";
+      }
+      return;
+    }
+    // Clear the pin: with the fade-out animation gone, the layer must stay at
+    // the opacity it faded to, not snap back to the pinned one.
+    for (const blur of blurs) {
+      blur.style.opacity = "0";
+      blur.style.removeProperty("transform");
+    }
     prev.style.visibility = "hidden";
     prev.style.opacity = "";
     delete row.dataset.mask;

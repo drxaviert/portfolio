@@ -43,7 +43,7 @@ type Frames = Record<string, unknown[]> & { length?: number };
 type Recorded = {
   target: Element;
   keyframes: Frames;
-  options: { duration?: number; easing?: string };
+  options: { duration?: number; easing?: string; fill?: string };
   onfinish: (() => void) | null;
 };
 
@@ -214,6 +214,56 @@ describe("left hover peek", () => {
     expect(OPEN_X[1] + 180 + 12).toBe(OPEN_X[2]);
     expect(OPEN_X[2] + 83).toBe(1136);
     expect(OPEN_X[3]).toBeGreaterThanOrEqual(1136);
+  });
+
+  it("blurs a placeholder's card edge too, and holds it once revealed", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    const left = container.querySelector<HTMLElement>(
+      '[data-peek-blur][data-edge="left"]',
+    )!;
+
+    // The previous item is the placeholder: no picture, but still a card face.
+    expect(left).toBeTruthy();
+    expect(left.querySelector("[data-peek-surface]")).toBeTruthy();
+    expect(left.querySelector("a, button")).toBeNull();
+    // What the css draws at rest (jsdom has no stylesheet).
+    left.style.opacity = "0";
+
+    move(110);
+
+    const run = recorded.find((r) => r.target === left)!;
+    expect(run.keyframes.opacity).toEqual([0, 1]);
+    expect(run.options.fill).toBe("forwards");
+
+    // When the reveal lands it is pinned at full strength, and a steady
+    // pointer leaves it alone: no later animation, no fade back out.
+    const prevRun = recorded.find(
+      (r) => r.target === prevCard(container) && "--car-x" in r.keyframes,
+    )!;
+    act(() => prevRun.onfinish?.());
+    expect(left.style.opacity).toBe("1");
+
+    const before = recorded.length;
+    act(() => vi.advanceTimersByTime(2000));
+    move(110);
+    expect(recorded).toHaveLength(before);
+    expect(left.style.opacity).toBe("1");
+
+    // Leaving fades it out with the retract, and the pin is cleared with it.
+    move(100 + 400);
+    act(() => vi.advanceTimersByTime(121));
+    const fadeOut = recorded
+      .filter((r) => r.target === left && !Array.isArray(r.keyframes))
+      .at(-1)!;
+    expect(fadeOut.keyframes.opacity).toEqual([1, 0]);
+    expect(fadeOut.options.duration).toBe(350);
+    act(() =>
+      recorded
+        .filter((r) => r.target === prevCard(container) && "--car-x" in r.keyframes)
+        .at(-1)!
+        .onfinish?.(),
+    );
+    expect(left.style.opacity).toBe("0");
   });
 
   it("draws the edge blur above the row, so it can smear past the column", () => {
