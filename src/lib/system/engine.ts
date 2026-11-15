@@ -38,6 +38,7 @@ export function createSystemEngine(
   const originalColorScheme = root.style.getPropertyValue("color-scheme");
   const originalColorSchemePriority =
     root.style.getPropertyPriority("color-scheme");
+  const originalPhasePreview = root.getAttribute("data-phase-preview");
 
   let current: Params = { ...DEFAULT_PARAMS };
   let frame: number | null = null;
@@ -110,6 +111,10 @@ export function createSystemEngine(
   };
 
   root.setAttribute(SYSTEM_OWNED_ATTR, "true");
+  // ThemeProvider.refresh re-applies the site's clock phase on focus and
+  // visibilitychange. The preview flag is its existing "someone else owns the
+  // phase" guard; while this engine owns the root, the engine's tod wins.
+  root.setAttribute("data-phase-preview", "true");
 
   return {
     set(params) {
@@ -178,6 +183,12 @@ export function createSystemEngine(
       }
 
       root.removeAttribute(SYSTEM_OWNED_ATTR);
+
+      if (originalPhasePreview === null) {
+        root.removeAttribute("data-phase-preview");
+      } else {
+        root.setAttribute("data-phase-preview", originalPhasePreview);
+      }
 
       if (root === document.documentElement) {
         // The site theme can move while the page is mounted (the toggle writes

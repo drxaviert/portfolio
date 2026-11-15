@@ -310,8 +310,32 @@ describe("engine disposal", () => {
     expect(html.style.getPropertyValue("color-scheme")).toBe("");
   });
 
-  it("cancels a pending frame and never writes after dispose", () => {
+  it("owns the phase-preview marker and restores a previous one", () => {
     const frames = stubFrames();
+
+    root.setAttribute("data-phase-preview", "dev-preview");
+
+    const engine = createSystemEngine(root);
+
+    expect(root.getAttribute("data-phase-preview")).toBe("true");
+
+    engine.dispose();
+
+    expect(root.getAttribute("data-phase-preview")).toBe("dev-preview");
+
+    root.removeAttribute("data-phase-preview");
+
+    const second = createSystemEngine(root);
+
+    expect(root.getAttribute("data-phase-preview")).toBe("true");
+
+    second.dispose();
+
+    expect(root.hasAttribute("data-phase-preview")).toBe(false);
+    expect(frames.pending).toBe(0);
+  });
+
+  it("cancels a pending frame and never writes after dispose", () => {    const frames = stubFrames();
     const engine = createSystemEngine(root);
     const setProperty = vi.spyOn(root.style, "setProperty");
 

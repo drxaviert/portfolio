@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { createSystemEngine } from "@/lib/system/engine";
+import { DEFAULT_PARAMS } from "@/lib/system/params";
 import {
   applyDayPhase,
   DAY_PHASE_STORAGE_KEY,
@@ -1203,6 +1205,66 @@ describe("ThemeToggle", () => {
     fireEvent.keyDown(day, { key: "Tab" });
 
     expect(phaseRow()).toHaveAttribute("data-visible", "true");
+  });
+});
+
+describe("ThemeProvider phase ownership", () => {
+  it("keeps the engine's phase through focus/visibility until dispose", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+
+    const frames: FrameRequestCallback[] = [];
+
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+
+      return frames.length;
+    });
+
+    const flushFrames = () => {
+      const queued = frames.splice(0);
+
+      act(() => queued.forEach((callback) => callback(0)));
+    };
+
+    renderToggle();
+    expect(root().dataset.phase).toBe("day");
+
+    const engine = createSystemEngine(root());
+
+    try {
+      engine.set({ ...DEFAULT_PARAMS, tod: 1 });
+      flushFrames();
+
+      expect(root().dataset.phase).toBe("night");
+      expect(root()).toHaveClass("dark");
+      expect(root().dataset.phasePreview).toBe("true");
+
+      act(() => {
+        window.dispatchEvent(new Event("focus"));
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+
+      expect(root().dataset.phase).toBe("night");
+      expect(root()).toHaveClass("dark");
+
+      engine.dispose();
+
+      expect(root().dataset.phasePreview).toBeUndefined();
+      expect(root().dataset.phase).toBe("day");
+
+      vi.setSystemTime(new Date(2026, 0, 1, 18, 0));
+
+      act(() => {
+        window.dispatchEvent(new Event("focus"));
+      });
+
+      expect(root().dataset.phase).toBe("dusk");
+      expect(root()).not.toHaveClass("dark");
+    } finally {
+      engine.dispose();
+    }
   });
 });
 
