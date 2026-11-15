@@ -6,7 +6,12 @@ import { DEFAULT_BLUR } from "./blur-mode";
 import { DEFAULT_HOVER_PEEK } from "./hover-peek";
 import type { HoverPeekSettings } from "./hover-peek";
 import type { BlurMode, BlurSettings } from "./blur-mode";
-import { EASE_OPTIONS, easeSpec, parseBezier } from "./carousel-math";
+import {
+  EASE_OPTIONS,
+  STEP_PRESETS,
+  easeSpec,
+  parseBezier,
+} from "./carousel-math";
 import type { Bezier, EaseKey } from "./carousel-math";
 
 export type CarouselSettings = BlurSettings &
@@ -21,9 +26,7 @@ export type CarouselSettings = BlurSettings &
   };
 
 export const DEFAULT_SETTINGS: CarouselSettings = {
-  duration: 900,
-  ease: "smooth",
-  custom: [0.5, 0, 0.1, 1],
+  ...STEP_PRESETS.default,
   titleStart: 0.75,
   titleSpan: 0.2,
   ...DEFAULT_BLUR,
@@ -90,9 +93,25 @@ export function CarouselTuner({
     [],
   );
 
+  const preset =
+    (Object.keys(STEP_PRESETS) as (keyof typeof STEP_PRESETS)[]).find(
+      (key) =>
+        STEP_PRESETS[key].duration === settings.duration &&
+        STEP_PRESETS[key].ease === settings.ease &&
+        STEP_PRESETS[key].custom.join() === settings.custom.join(),
+    ) ?? "custom";
+
+  function choosePreset(key: string) {
+    if (key !== "default" && key !== "responsive") return;
+
+    const next = STEP_PRESETS[key];
+    setBezierText(next.custom.join(", "));
+    onChange({ ...next });
+  }
+
   function copy() {
     const resolved = easeSpec(settings.ease, settings.custom).css;
-    const values = { ...settings, easing: resolved, blur: blurMode };
+    const values = { ...settings, easing: resolved, blur: blurMode, preset };
 
     void navigator.clipboard?.writeText(JSON.stringify(values, null, 2));
     setCopied(true);
@@ -127,6 +146,19 @@ export function CarouselTuner({
   return (
     <div role="group" aria-label="Carousel tuner" style={PANEL}>
       <strong style={{ color: "#fff", fontSize: 13 }}>Carousel tuner</strong>
+      <label style={FIELD}>
+        <span>Step preset (sets duration and curve)</span>
+        <select
+          value={preset}
+          onChange={(event) => choosePreset(event.target.value)}
+        >
+          <option value="default">default (900ms, 0.5 0 0.1 1)</option>
+          <option value="responsive">responsive (800ms, 0.3 0 0.1 1)</option>
+          <option value="custom" disabled>
+            custom
+          </option>
+        </select>
+      </label>
       {slider("duration", "Duration", "ms", 200, 2500, 50)}
       <label style={FIELD}>
         <span>Easing</span>

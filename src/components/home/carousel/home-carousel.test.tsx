@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { STEP_PRESETS } from "./carousel-math";
 import { HomeCarousel } from "./home-carousel";
 import type { CarouselItem } from "./home-carousel";
 
@@ -396,6 +397,43 @@ describe("easing and one timeline", () => {
         r.keyframes.some((k) => k.offset === 0.75),
     );
     expect(arriving).toBeDefined();
+  });
+
+  it("the responsive preset sets both the duration and the curve, and the retarget curve stays", () => {
+    window.history.pushState({}, "", "/?tune=1");
+    render(<HomeCarousel items={ITEMS} />);
+
+    // Default first: 900ms smooth.
+    expect(STEP_PRESETS.default).toMatchObject({
+      duration: 900,
+      ease: "smooth",
+    });
+
+    fireEvent.change(screen.getByLabelText(/Step preset/), {
+      target: { value: "responsive" },
+    });
+    const first = host("Systems");
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+
+    const move = recorded.find((r) => hasProp(r, "--car-x"))!;
+    expect(move.options.duration).toBe(800);
+    expect(move.options.easing).toBe("cubic-bezier(0.3, 0, 0.1, 1)");
+
+    // An interrupt still takes the ease-out that carries speed.
+    const before = recorded.length;
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    const retargeted = recorded
+      .slice(before)
+      .find((r) => hasProp(r, "--car-x"))!;
+    expect(retargeted.options.easing).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
+    expect(retargeted.options.duration).toBe(800);
+
+    // The preset shows in the select and goes back to default.
+    expect(screen.getByLabelText(/Step preset/)).toHaveValue("responsive");
+    fireEvent.change(screen.getByLabelText(/Step preset/), {
+      target: { value: "default" },
+    });
+    expect(screen.getByLabelText(/Step preset/)).toHaveValue("default");
   });
 
   it("retargets a running step on an ease-out", () => {

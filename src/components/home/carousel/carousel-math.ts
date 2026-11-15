@@ -95,6 +95,21 @@ const BEZIERS: Record<"smooth" | "glide" | "quint-out" | "sheet", Bezier> = {
  */
 export const RETARGET_BEZIER: Bezier = BEZIERS["quint-out"];
 
+/**
+ * Step presets for the tuner. A preset sets the duration and the curve
+ * together; an interrupted run still takes RETARGET_BEZIER whichever is picked.
+ */
+export type StepPreset = {
+  duration: number;
+  ease: EaseKey;
+  custom: Bezier;
+};
+
+export const STEP_PRESETS: Record<"default" | "responsive", StepPreset> = {
+  default: { duration: 900, ease: "smooth", custom: [0.5, 0, 0.1, 1] },
+  responsive: { duration: 800, ease: "custom", custom: [0.3, 0, 0.1, 1] },
+};
+
 /** "0.5, 0, 0.1, 1" -> the four numbers, or null if not a valid curve. */
 export function parseBezier(text: string): Bezier | null {
   const parts = text
