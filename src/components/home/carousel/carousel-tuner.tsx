@@ -3,19 +3,22 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { DEFAULT_BLUR } from "./blur-mode";
+import { DEFAULT_HOVER_PEEK } from "./hover-peek";
+import type { HoverPeekSettings, PeekRight } from "./hover-peek";
 import type { BlurMode, BlurSettings } from "./blur-mode";
 import { EASE_OPTIONS, easeSpec, parseBezier } from "./carousel-math";
 import type { Bezier, EaseKey } from "./carousel-math";
 
-export type CarouselSettings = BlurSettings & {
-  duration: number;
-  ease: EaseKey;
-  /** Free cubic-bezier, used when `ease` is "custom". */
-  custom: Bezier;
-  /** Eased progress at which the title starts fading in, and how long it takes. */
-  titleStart: number;
-  titleSpan: number;
-};
+export type CarouselSettings = BlurSettings &
+  HoverPeekSettings & {
+    duration: number;
+    ease: EaseKey;
+    /** Free cubic-bezier, used when `ease` is "custom". */
+    custom: Bezier;
+    /** Eased progress at which the title starts fading in, and how long it takes. */
+    titleStart: number;
+    titleSpan: number;
+  };
 
 export const DEFAULT_SETTINGS: CarouselSettings = {
   duration: 900,
@@ -24,6 +27,7 @@ export const DEFAULT_SETTINGS: CarouselSettings = {
   titleStart: 0.75,
   titleSpan: 0.2,
   ...DEFAULT_BLUR,
+  ...DEFAULT_HOVER_PEEK,
 };
 
 const PANEL: CSSProperties = {
@@ -59,7 +63,8 @@ type NumberKey =
   | "edgeWidth"
   | "edgeBlur"
   | "peekBlur"
-  | "motionPeak";
+  | "motionPeak"
+  | keyof HoverPeekSettings;
 
 /**
  * Dev tuner, mounted only at `/?tune=1`. Values apply to the next step; Copy
@@ -68,10 +73,12 @@ type NumberKey =
 export function CarouselTuner({
   settings,
   blurMode,
+  peekRight,
   onChange,
 }: {
   settings: CarouselSettings;
   blurMode: BlurMode;
+  peekRight: PeekRight;
   onChange: (patch: Partial<CarouselSettings>) => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -88,7 +95,7 @@ export function CarouselTuner({
 
   function copy() {
     const resolved = easeSpec(settings.ease, settings.custom).css;
-    const values = { ...settings, easing: resolved, blur: blurMode };
+    const values = { ...settings, easing: resolved, blur: blurMode, peekRight };
 
     void navigator.clipboard?.writeText(JSON.stringify(values, null, 2));
     setCopied(true);
@@ -160,6 +167,19 @@ export function CarouselTuner({
       {slider("edgeBlur", "Edge blur", "px", 0, 12, 0.5)}
       {slider("peekBlur", "Peek blur", "px", 0, 12, 0.5)}
       {slider("motionPeak", "Motion blur peak", "px", 0, 8, 0.5)}
+      <strong style={{ color: "#fff" }}>
+        Hover peek (left{peekRight === "hover" ? " and right" : ""}):
+        ?peekRight=
+        {peekRight}
+      </strong>
+      {slider("hoverPeek", "Peek width", "px", 8, 40, 1)}
+      {slider("hoverGap", "Peek gap", "px", 4, 24, 1)}
+      {slider("hoverZone", "Hover zone", "px", 20, 120, 2)}
+      {slider("revealMs", "Reveal", "ms", 100, 600, 10)}
+      {slider("retractMs", "Retract", "ms", 100, 600, 10)}
+      {slider("leaveMs", "Leave delay", "ms", 0, 400, 10)}
+      {slider("hoverBlur", "Peek blur", "px", 0, 12, 0.5)}
+      {slider("hoverBlurOn", "Peek blur on hover", "px", 0, 12, 0.5)}
       <button type="button" onClick={copy}>
         {copied ? "Copied" : "Copy values"}
       </button>

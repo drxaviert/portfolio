@@ -46,6 +46,18 @@ import {
 } from "./carousel-math";
 import type { Ease, Entity, Geometry, TitleTiming } from "./carousel-math";
 import { CarouselTuner, DEFAULT_SETTINGS } from "./carousel-tuner";
+import { closeSnap, pushedPose, tweenPeek } from "./hover-peek-dom";
+import type { PeekEls } from "./hover-peek-dom";
+import {
+  inZone,
+  onStrip,
+  peekItem as peekOf,
+  peekLayout,
+  pushedItem,
+  resolveRightEdge,
+  useHoverCapable,
+} from "./hover-peek";
+import type { PeekLayout, PeekSide } from "./hover-peek";
 import { parseSliverMode, useLocationSearch } from "./sliver-mode";
 import "../home-cards.css";
 import "./home-carousel.css";
@@ -64,6 +76,20 @@ type Tween = {
   motionPeak: number;
   animations: Animation[];
 };
+
+type PeekState = {
+  open: boolean;
+  anims: Animation[];
+  timer: number | null;
+  els: PeekEls | null;
+  layout: PeekLayout | null;
+};
+
+const SIDES: PeekSide[] = ["left", "right"];
+
+function idlePeek(): PeekState {
+  return { open: false, anims: [], timer: null, els: null, layout: null };
+}
 
 const FALLBACK_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
 const CROSSFADE_MS = 120;
@@ -114,7 +140,7 @@ type SlideProps = {
   total: number;
   ghost: boolean;
   /** The static strip of the next card at the right edge (blur=peek). */
-  peek?: boolean;
+  peek?: boolean | PeekSide;
   fillSlot: number;
   register: (key: string, element: HTMLElement | null) => void;
   onActivate: (event: MouseEvent<HTMLElement>, index: number) => void;
@@ -137,7 +163,14 @@ function Slide({
 }: SlideProps) {
   const first = slot === 0 && !ghost;
   const offscreen = slot >= VISIBLE_SLOTS;
-  const key = peek ? "peek" : `${ghost ? "g" : "m"}${index}`;
+  const key =
+    peek === true
+      ? "peek"
+      : peek
+        ? peek === "left"
+          ? "peekL"
+          : "peekR"
+        : `${ghost ? "g" : "m"}${index}`;
   const fill = WORK_SLIVERS[(fillSlot - 1) % WORK_SLIVERS.length].fill;
   const hostClass = "car-host ring-host rounded-lg";
 
@@ -223,7 +256,14 @@ function Slide({
       data-slot={slot}
       data-ghost={ghost ? "" : undefined}
       data-offscreen={offscreen ? "" : undefined}
-      className={peek ? "car-slide car-peek" : "car-slide"}
+      data-side={typeof peek === "string" ? peek : undefined}
+      className={
+        peek === true
+          ? "car-slide car-peek"
+          : peek
+            ? "car-slide car-peek car-peek-edge"
+            : "car-slide"
+      }
     >
       {host}
     </div>
@@ -244,7 +284,11 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const reduce = useReducedMotion() ?? false;
   const search = useLocationSearch();
   const mode = parseSliverMode(search);
-  const blurMode = parseBlurMode(search);
+  const { right: rightEdge, blur: blurMode } = resolveRightEdge(
+    search,
+    parseBlurMode(search),
+  );
+  const hoverCapable = useHoverCapable();
   const tune = new URLSearchParams(search).get("tune") === "1";
 
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -268,10 +312,25 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const tween = useRef<Tween | null>(null);
   const focusFirst = useRef(false);
   const stripFade = useRef<Animation | null>(null);
-  const latest = useRef({ settings, mode, blurMode, reduce });
+  const latest = useRef({ settings, mode, blurMode, reduce, rightEdge });
+  const peeks = useRef<Record<PeekSide, PeekState>>({
+    left: idlePeek(),
+    right: idlePeek(),
+  });
+  const pointer = useRef<{ x: number; y: number } | null>(null);
+  const hoverApi = useRef({
+    evaluate: () => {},
+    close: () => {},
+    click: (() => {}) as (event: globalThis.MouseEvent) => void,
+  });
 
   useEffect(() => {
-    latest.current = { settings, mode, blurMode, reduce };
+    latest.current = { settings, mode, blurMode, reduce, rightEdge };
+    hoverApi.current = {
+      evaluate: evaluateHover,
+      close: closePeeks,
+      click: onRowClick,
+    };
   });
 
   function register(key: string, element: HTMLElement | null) {
@@ -308,6 +367,132 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     tween.current = null;
     delete rowRef.current?.dataset.stepping;
     current?.animations.forEach((animation) => animation.cancel());
+  }
+
+  function peekEls(side: PeekSide): PeekEls | null {
+    const card = elements.current.get(
+      `m${pushedItem(side, n, offsetRef.current)}`,
+    );
+    const strip = elements.current.get(side === "left" ? "peekL" : "peekR");
+
+    return card && strip ? { card, strip } : null;
+  }
+
+  function setPeek(side: PeekSide, open: boolean) {
+    const state = peeks.current[side];
+    const row = rowRef.current;
+    const g = geometry.current;
+    if (!row || g.rowWidth === 0 || state.open === open) return;
+
+    const els = open ? peekEls(side) : state.els;
+    if (!els) return;
+
+    const { settings: s, reduce: reduced } = latest.current;
+    const layout = peekLayout(side, g, s.hoverPeek, s.hoverGap);
+
+    state.open = open;
+    state.els = els;
+    state.layout = layout;
+    row.dataset.peeking = "";
+    state.anims = tweenPeek(
+      els,
+      layout,
+      open,
+      { reveal: s.revealMs, retract: s.retractMs, reduce: reduced },
+      state.anims,
+      () => {
+        if (state.open) return;
+        state.anims = [];
+        state.els = null;
+        state.layout = null;
+        if (!SIDES.some((other) => peeks.current[other].els))
+          delete row.dataset.peeking;
+      },
+    );
+  }
+
+  /** Puts every hover peek away at once (a step, a resize, a click). */
+  function closePeeks() {
+    for (const state of Object.values(peeks.current)) {
+      if (state.timer !== null) window.clearTimeout(state.timer);
+      if (state.els && state.layout)
+        closeSnap(state.els, state.layout, state.anims);
+      state.timer = null;
+      state.open = false;
+      state.anims = [];
+      state.els = null;
+      state.layout = null;
+    }
+
+    const row = rowRef.current;
+    if (row) {
+      delete row.dataset.peeking;
+      delete row.dataset.peekHot;
+    }
+  }
+
+  /**
+   * Opens or retracts each peek from where the pointer is. Nothing runs while
+   * a step does; the end of the step calls this again.
+   */
+  function evaluateHover() {
+    const row = rowRef.current;
+    if (!row || geometry.current.rowWidth === 0) return;
+
+    const { settings: s, rightEdge: right } = latest.current;
+    const enabled: Record<PeekSide, boolean> = {
+      left: n >= 2,
+      right: n >= 2 && right === "hover",
+    };
+    const rect = row.getBoundingClientRect();
+    const at = pointer.current;
+    let hot: PeekSide | null = null;
+
+    for (const side of SIDES) {
+      const state = peeks.current[side];
+      const want =
+        !!at &&
+        enabled[side] &&
+        !tween.current &&
+        inZone(side, at.x, at.y, rect, s.hoverZone);
+
+      if (want) {
+        if (state.timer !== null) window.clearTimeout(state.timer);
+        state.timer = null;
+        setPeek(side, true);
+      } else if (state.open && state.timer === null) {
+        state.timer = window.setTimeout(() => {
+          state.timer = null;
+          setPeek(side, false);
+        }, s.leaveMs);
+      }
+
+      if (at && state.open && onStrip(side, at.x, at.y, rect, s.hoverPeek))
+        hot = side;
+    }
+
+    if (hot) row.dataset.peekHot = hot;
+    else delete row.dataset.peekHot;
+  }
+
+  /** The strip is inert, so the row takes the click and finds the strip. */
+  function onRowClick(event: globalThis.MouseEvent) {
+    const row = rowRef.current;
+    if (!row || event.target !== row || tween.current) return;
+
+    const rect = row.getBoundingClientRect();
+    const size = latest.current.settings.hoverPeek;
+
+    for (const side of SIDES) {
+      if (
+        peeks.current[side].open &&
+        onStrip(side, event.clientX, event.clientY, rect, size)
+      ) {
+        event.preventDefault();
+        step(side === "left" ? -1 : 1, false);
+        return;
+      }
+    }
   }
 
   /** Ends the running step now: every card at rest, the seam copy dropped. */
@@ -353,6 +538,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
     if (stepMode(reduced) === "crossfade") {
       cancelTween();
+      closePeeks();
       flushSync(() => {
         setOffset(next);
         setDomOffset(next);
@@ -370,10 +556,29 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         );
       }
       if (viaKeyboard) firstCard(next)?.focus({ preventScroll: true });
+      evaluateHover();
       return;
     }
 
     const running = tween.current;
+
+    // A hover peek is hidden while a step runs. Cards leave it from the pose
+    // they are drawn at now, and a step toward the peek brings that item in
+    // from the strip.
+    const pushes = SIDES.flatMap((side) => {
+      const state = peeks.current[side];
+      if (!state.els || !state.layout) return [];
+
+      return [
+        {
+          side,
+          open: state.open,
+          layout: state.layout,
+          item: pushedItem(side, n, prev),
+          pose: pushedPose(state.els.card, state.layout),
+        },
+      ];
+    });
     // An interrupt starts on a card that is already moving, so it takes an
     // ease-out that carries speed instead of the gentle-start default.
     const spec = running
@@ -402,7 +607,29 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
           running.timing,
         )
       : restEntities(g, n, prev);
-    const planned = retarget(g, n, prev, k, current);
+    const withPush = current.map((e) => {
+      const push = pushes.find((p) => p.item === e.item && !e.ghost);
+      return push ? { ...e, from: push.pose, to: push.pose } : e;
+    });
+    let planned = retarget(g, n, prev, k, withPush);
+
+    for (const push of pushes) {
+      if (!push.open || (push.side === "left") !== k < 0) continue;
+
+      const item = peekOf(push.side, n, prev);
+      const size = latest.current.settings.hoverPeek;
+      planned = planned.map((e) =>
+        e.item === item && e.to.x < g.rowWidth && e.to.x + e.to.w > 0
+          ? {
+              ...e,
+              from: { x: push.layout.strip.toX, w: size },
+              blurFrom: latest.current.settings.hoverBlur,
+            }
+          : e,
+      );
+    }
+
+    closePeeks();
 
     cancelTween();
     flushSync(() => {
@@ -515,6 +742,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     if (!measured) return;
 
     cancelTween();
+    closePeeks();
     setGhosts([]);
     setDomOffset(offsetRef.current);
 
@@ -544,6 +772,8 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   useLayoutEffect(() => {
     if (settled === 0) return;
 
+    hoverApi.current.evaluate();
+
     const strip = elements.current.get("peek");
     if (!strip || typeof strip.animate !== "function") return;
 
@@ -564,11 +794,42 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       firstCard(offsetRef.current)?.focus({ preventScroll: true });
   }, [domOffset]);
 
+  const hoverOn = hoverCapable && n >= 2;
+
+  useEffect(() => {
+    if (!hoverOn) return;
+
+    const row = rowRef.current;
+    const move = (event: PointerEvent) => {
+      pointer.current = { x: event.clientX, y: event.clientY };
+      hoverApi.current.evaluate();
+    };
+    const leave = () => {
+      pointer.current = null;
+      hoverApi.current.evaluate();
+    };
+    const click = (event: globalThis.MouseEvent) =>
+      hoverApi.current.click(event);
+
+    window.addEventListener("pointermove", move, { passive: true });
+    document.documentElement.addEventListener("mouseleave", leave);
+    row?.addEventListener("click", click);
+
+    return () => {
+      window.removeEventListener("pointermove", move);
+      document.documentElement.removeEventListener("mouseleave", leave);
+      row?.removeEventListener("click", click);
+      hoverApi.current.close();
+    };
+  }, [hoverOn]);
+
   function onActivate(event: MouseEvent<HTMLElement>, index: number) {
     const slot = slotOf(index, offsetRef.current, n);
     const action = clickAction(slot, items[index].kind);
 
     if (action.type === "open") {
+      // The morph measures the card at rest, so a pushed card goes back first.
+      closePeeks();
       // Finish a running step first so the morph measures the card at rest.
       if (!isModified(event)) settle();
       return;
@@ -595,6 +856,8 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const peekItem = domOrder[VISIBLE_SLOTS % n];
   const rowStyle = {
     "--car-edge-w": `${settings.edgeWidth}px`,
+    "--car-hp-blur": `${settings.hoverBlur}px`,
+    "--car-hp-blur-on": `${settings.hoverBlurOn}px`,
   } as CSSProperties;
 
   return (
@@ -646,6 +909,34 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
             />
           ) : null}
 
+          {hoverCapable && n >= 2 ? (
+            <Slide
+              item={items[peekOf("left", n, domOffset)]}
+              index={peekOf("left", n, domOffset)}
+              slot={VISIBLE_SLOTS}
+              total={n}
+              ghost
+              peek="left"
+              fillSlot={fills[peekOf("left", n, domOffset)]}
+              register={register}
+              onActivate={onActivate}
+            />
+          ) : null}
+
+          {hoverCapable && rightEdge === "hover" && n >= 2 ? (
+            <Slide
+              item={items[peekOf("right", n, domOffset)]}
+              index={peekOf("right", n, domOffset)}
+              slot={VISIBLE_SLOTS}
+              total={n}
+              ghost
+              peek="right"
+              fillSlot={fills[peekOf("right", n, domOffset)]}
+              register={register}
+              onActivate={onActivate}
+            />
+          ) : null}
+
           {ghosts.map((index) => (
             <Slide
               key={`g${index}`}
@@ -670,6 +961,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         <CarouselTuner
           settings={settings}
           blurMode={blurMode}
+          peekRight={rightEdge}
           onChange={(patch) =>
             setSettings((previous) => ({ ...previous, ...patch }))
           }
