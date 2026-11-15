@@ -225,16 +225,33 @@ describe("keys", () => {
     expect(recorded).toHaveLength(0);
   });
 
-  it("announces the new front card politely", () => {
+  it("announces a pointer step politely", () => {
     render(<HomeCarousel items={ITEMS} />);
 
-    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+    // A click has a detail of 1; a keyboard activation has 0.
+    fireEvent.click(host("Titles"), { detail: 1 });
 
     const region = screen.getByRole("region", { name: "Selected work" });
     expect(within(region).getByText("Showing Titles")).toHaveAttribute(
       "aria-live",
       "polite",
     );
+  });
+
+  it("does not announce a keyboard step: focus moves to the first card, which reads itself", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    const live = container.querySelector("[aria-live]")!;
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+    expect(live.textContent).toBe("");
+
+    // Enter on a card is a click with no pointer: the same.
+    fireEvent.click(host("Type"), { detail: 0 });
+    expect(live.textContent).toBe("");
+
+    // A pointer step afterwards still announces.
+    fireEvent.click(host("More work soon"), { detail: 1 });
+    expect(live.textContent).toContain("Showing");
   });
 });
 

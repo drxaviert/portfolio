@@ -531,7 +531,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         setDomOffset(next);
         setGhosts([]);
         setFills(nextFills);
-        setAnnouncement(`Showing ${items[next].title}`);
+        if (!viaKeyboard) setAnnouncement(`Showing ${items[next].title}`);
       });
       applyRest(next);
 
@@ -625,7 +625,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       setOffset(next);
       setGhosts(planned.filter((e) => e.ghost).map((e) => e.item));
       setFills(nextFills);
-      setAnnouncement(`Showing ${items[next].title}`);
+      if (!viaKeyboard) setAnnouncement(`Showing ${items[next].title}`);
     });
 
     const row = rowRef.current;
