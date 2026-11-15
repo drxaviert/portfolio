@@ -1527,7 +1527,10 @@ export function ThemeToggle() {
                       triggerRef.current?.focus();
                     }}
                     className={[
-                      "flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-base leading-5 font-medium outline-hidden",
+                      // 44px rows, the same as the phase options below: the
+                      // menu is a touch surface, and a 40px row sat under the
+                      // tap-target floor.
+                      "flex h-11 w-full items-center gap-2 rounded-md px-3 text-left text-base leading-5 font-medium outline-hidden",
                       "focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary",
                       selected
                         ? "bg-surface-container-high text-on-surface"

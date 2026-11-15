@@ -145,6 +145,27 @@ describe("ThemeToggle", () => {
     expect(screen.getByRole("menuitemradio", { name: "Auto" })).toBeChecked();
   });
 
+  it("gives every phone-menu row the same 44px height", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem(MODE_STORAGE_KEY, "day");
+    renderToggle();
+
+    await user.click(
+      screen.getByRole("button", { name: "Choose theme, currently Day" }),
+    );
+
+    // The three modes plus, under Day, the four phases: the mode rows were
+    // 40px while the phase rows were already 44.
+    const rows = screen.getAllByRole("menuitemradio");
+
+    expect(rows).toHaveLength(7);
+
+    for (const row of rows) {
+      expect(row).toHaveClass("h-11");
+      expect(row).not.toHaveClass("h-10");
+    }
+  });
+
   it("chooses a mode from the phone menu and closes it", async () => {
     const user = userEvent.setup();
     renderToggle();
