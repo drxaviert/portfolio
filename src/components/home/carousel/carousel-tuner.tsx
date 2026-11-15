@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { DEFAULT_BLUR } from "./blur-mode";
 import { DEFAULT_HOVER_PEEK } from "./hover-peek";
-import type { HoverPeekSettings, PeekRight } from "./hover-peek";
+import type { HoverPeekSettings } from "./hover-peek";
 import type { BlurMode, BlurSettings } from "./blur-mode";
 import { EASE_OPTIONS, easeSpec, parseBezier } from "./carousel-math";
 import type { Bezier, EaseKey } from "./carousel-math";
@@ -62,7 +62,6 @@ type NumberKey =
   | "titleSpan"
   | "edgeWidth"
   | "edgeBlur"
-  | "peekBlur"
   | "motionPeak"
   | keyof HoverPeekSettings;
 
@@ -73,12 +72,10 @@ type NumberKey =
 export function CarouselTuner({
   settings,
   blurMode,
-  peekRight,
   onChange,
 }: {
   settings: CarouselSettings;
   blurMode: BlurMode;
-  peekRight: PeekRight;
   onChange: (patch: Partial<CarouselSettings>) => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -95,7 +92,7 @@ export function CarouselTuner({
 
   function copy() {
     const resolved = easeSpec(settings.ease, settings.custom).css;
-    const values = { ...settings, easing: resolved, blur: blurMode, peekRight };
+    const values = { ...settings, easing: resolved, blur: blurMode };
 
     void navigator.clipboard?.writeText(JSON.stringify(values, null, 2));
     setCopied(true);
@@ -165,13 +162,8 @@ export function CarouselTuner({
       <strong style={{ color: "#fff" }}>Blur: ?blur={blurMode}</strong>
       {slider("edgeWidth", "Edge width", "px", 8, 64, 2)}
       {slider("edgeBlur", "Edge blur", "px", 0, 12, 0.5)}
-      {slider("peekBlur", "Peek blur", "px", 0, 12, 0.5)}
       {slider("motionPeak", "Motion blur peak", "px", 0, 8, 0.5)}
-      <strong style={{ color: "#fff" }}>
-        Hover peek (left{peekRight === "hover" ? " and right" : ""}):
-        ?peekRight=
-        {peekRight}
-      </strong>
+      <strong style={{ color: "#fff" }}>Hover peek (whole row)</strong>
       {slider("hoverPeek", "Peek width", "px", 8, 40, 1)}
       {slider("hoverGap", "Peek gap", "px", 4, 24, 1)}
       {slider("hoverZone", "Hover zone", "px", 20, 120, 2)}

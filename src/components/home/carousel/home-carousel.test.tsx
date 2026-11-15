@@ -328,7 +328,7 @@ describe("carousel CSS", () => {
 
   it("edge mode paints no colour: a mask only", () => {
     const start = css.indexOf("@property --car-fade");
-    const end = css.indexOf('.car-row[data-blur="peek"]', start);
+    const end = css.indexOf(".car-row[data-stepping],", start);
     const edge = css.slice(start, end);
 
     expect(edge).toMatch(/mask-image/);
@@ -481,33 +481,15 @@ describe("blur modes", () => {
     }
   });
 
-  it("peek shows an inert, blurred strip of the next card and hides it as a step starts", () => {
+  it("treats ?blur=peek as gone: no strip at the right edge", () => {
     window.history.pushState({}, "", "/?blur=peek");
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
-    const strip = container.querySelector<HTMLElement>(".car-peek")!;
-    expect(strip).toHaveAttribute("aria-hidden", "true");
-    expect(strip).toHaveAttribute("inert");
-    expect(strip.querySelector("a, button, [data-work-card]")).toBeNull();
+    expect(container.querySelector(".car-peek")).toBeNull();
     expect(container.querySelector(".car-row")).toHaveAttribute(
       "data-blur",
-      "peek",
+      "edge",
     );
-    // Four items: the strip is the copy of the first one.
-    expect(strip.querySelector("[data-car-title]")).toHaveTextContent(
-      "Systems",
-    );
-
-    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
-
-    const fade = recorded.find((r) => r.target === strip);
-    expect(fade?.keyframes).toMatchObject({ opacity: [1, 0] });
-
-    // The card entering the last slot starts blurred and sharpens.
-    const entering = recorded.find(
-      (r) => hasProp(r, "filter") && r.target !== strip,
-    );
-    expect(entering?.keyframes.filter).toEqual(["blur(4.00px)", "none"]);
   });
 });
 

@@ -5,14 +5,12 @@
  *   edge    an alpha mask on the row's card layer fades both ends while a step
  *           runs, and only the leaving and entering cards blur. Nothing paints
  *           a colour. Resting cards, rings and shadows are untouched.
- *   peek    an 8px strip of the next card past the last slot, blurred, that
- *           slides into the last slot on a step
  *   motion  cards blur slightly while they move: 0 at rest, peak mid-step
  *   none    nothing
  */
-export type BlurMode = "edge" | "peek" | "motion" | "none";
+export type BlurMode = "edge" | "motion" | "none";
 
-const MODES: readonly BlurMode[] = ["edge", "peek", "motion", "none"];
+const MODES: readonly BlurMode[] = ["edge", "motion", "none"];
 
 export function parseBlurMode(search: string): BlurMode {
   const value = new URLSearchParams(search).get("blur");
@@ -24,8 +22,6 @@ export type BlurSettings = {
   edgeWidth: number;
   /** Blur of a leaving or entering card in edge mode, px. */
   edgeBlur: number;
-  /** Peek strip blur, px. */
-  peekBlur: number;
   /** Peak blur of a moving card, px. */
   motionPeak: number;
 };
@@ -33,13 +29,8 @@ export type BlurSettings = {
 export const DEFAULT_BLUR: BlurSettings = {
   edgeWidth: 28,
   edgeBlur: 5,
-  peekBlur: 4,
   motionPeak: 2.5,
 };
-
-/** Gap before the peek strip, and how much of it shows. */
-export const PEEK_GAP = 8;
-export const PEEK_SHOW = 8;
 
 export function blur(px: number): string {
   return px > 0.01 ? `blur(${px.toFixed(2)}px)` : "none";

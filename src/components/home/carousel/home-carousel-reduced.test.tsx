@@ -54,21 +54,6 @@ afterEach(() => {
 });
 
 describe("HomeCarousel with reduced motion", () => {
-  it("keeps only a static peek: no blur or edge animation", () => {
-    window.history.pushState({}, "", "/?blur=peek");
-    const { container } = render(<HomeCarousel items={ITEMS} />);
-    const first = container.querySelector("[data-work-card]")!;
-
-    fireEvent.keyDown(first, { key: "ArrowRight" });
-
-    expect(container.querySelector(".car-peek")).not.toBeNull();
-    expect(recorded.some((r) => hasProp(r, "filter"))).toBe(false);
-    expect(
-      recorded.every((r) => r.target === container.querySelector(".car-row")),
-    ).toBe(true);
-    window.history.pushState({}, "", "/");
-  });
-
   it("crossfades the row and never tweens a transform", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     const first = container.querySelector("[data-work-card]")!;

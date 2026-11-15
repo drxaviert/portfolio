@@ -176,10 +176,11 @@
   initial-value: 0;
 }
 
-.car-row[data-stepping][data-blur="edge"] {
+.car-row[data-stepping][data-blur="edge"],
+.car-row[data-peeking] {
   --car-mask: linear-gradient(
     to right,
-    rgb(0 0 0 / calc(1 - var(--car-fade))),
+    rgb(0 0 0 / calc(1 - var(--car-fade) * var(--car-fade-left, 1))),
     #000 var(--car-edge-w, 28px),
     #000 calc(100% - var(--car-edge-w, 28px)),
     rgb(0 0 0 / calc(1 - var(--car-fade)))
@@ -193,22 +194,16 @@
   mask-clip: no-clip;
 }
 
+/* The peek softens the left end less, so the strip it reveals stays readable. */
+.car-row[data-peeking] {
+  --car-fade-left: 0.45;
+}
+
 /* During a step the clip is exactly the column's edges, so a leaving or
    entering card never shows outside it. At rest the outset above returns. */
 .car-row[data-stepping],
 .car-row[data-peeking] {
   clip-path: inset(-12px 0);
-}
-
-/* peek: the row clip opens 16px on the right; the strip sits 8px out, so 8px
-   of it shows. */
-.car-row[data-blur="peek"] {
-  clip-path: inset(-12px -16px -12px -6px);
-}
-
-.car-row[data-blur="peek"][data-stepping],
-.car-row[data-blur="peek"][data-peeking] {
-  clip-path: inset(-12px -16px -12px 0);
 }
 
 /*
@@ -222,8 +217,7 @@
   transition: filter 150ms ease-out;
 }
 
-.car-row[data-peek-hot="left"] .car-peek-edge[data-side="left"],
-.car-row[data-peek-hot="right"] .car-peek-edge[data-side="right"] {
+.car-row[data-peek-hot] .car-peek-edge {
   filter: blur(var(--car-hp-blur-on, 2px));
 }
 

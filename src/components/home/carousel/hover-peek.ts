@@ -1,45 +1,18 @@
 import { useSyncExternalStore } from "react";
 import { VISIBLE_SLOTS, mod } from "./carousel-math";
 import type { Geometry } from "./carousel-math";
-import type { BlurMode } from "./blur-mode";
 
 /**
- * Edge peeks (dev comparison, removed once Dat picks).
- *
- * The left edge has a hover peek: the pointer near the first card's left edge
- * pushes that card right and shows a blurred strip of the previous item in the
- * freed space, inside the column. `?peekRight=` picks what the right edge does:
- *
- *   static  the always-shown strip that `?blur=peek` draws
- *   hover   the left behaviour mirrored: last card pushed in, next item peeks
- *   none    nothing
- *
- * When `peekRight` is absent the right edge follows `?blur=` (a strip only with
- * `?blur=peek`), so existing links behave as before. When it is present it
- * governs the right edge, and `?blur=peek` is only honoured with `static`.
+ * The left hover peek. The pointer near the first card's left edge slides the
+ * whole row right by `size + gap`, like scrolling a strip, and shows a blurred
+ * strip of the previous item in the freed space, inside the column. The last
+ * card slips under the column's right edge, cut by the row clip, and both
+ * edges fade with an alpha mask while the peek is active.
  */
-export type PeekRight = "static" | "hover" | "none";
-export type PeekSide = "left" | "right";
-
-const RIGHT: readonly PeekRight[] = ["static", "hover", "none"];
-
-export function resolveRightEdge(
-  search: string,
-  blur: BlurMode,
-): { right: PeekRight; blur: BlurMode } {
-  const value = new URLSearchParams(search).get("peekRight");
-  const right =
-    RIGHT.find((mode) => mode === value) ??
-    (blur === "peek" ? "static" : "none");
-
-  if (right === "static") return { right, blur: "peek" };
-  return { right, blur: blur === "peek" ? "none" : blur };
-}
-
 export type HoverPeekSettings = {
   /** Width of the peeking strip, px. */
   hoverPeek: number;
-  /** Gap between the pushed card and the strip, px. */
+  /** Gap between the first card and the strip, px. */
   hoverGap: number;
   /** How far in from the column edge the hover zone reaches, px. */
   hoverZone: number;
@@ -67,88 +40,58 @@ export const REVEAL_EASING = "cubic-bezier(0.23, 1, 0.32, 1)";
 export const RETRACT_EASING = "ease-out";
 export const PEEK_FADE_MS = 120;
 
-/** The item whose card peeks at this edge. */
-export function peekItem(side: PeekSide, n: number, offset: number): number {
-  return side === "left" ? mod(offset - 1, n) : mod(offset + VISIBLE_SLOTS, n);
+/** The item whose card peeks: order[(first - 1 + n) % n]. */
+export function peekItem(n: number, offset: number): number {
+  return mod(offset - 1, n);
 }
 
-/** The item whose card is pushed to make room (first or last visible). */
-export function pushedItem(side: PeekSide, n: number, offset: number): number {
-  return side === "left" ? mod(offset, n) : mod(offset + VISIBLE_SLOTS - 1, n);
+/** The items in the visible slots, front to back, that the peek moves. */
+export function movedItems(n: number, offset: number): number[] {
+  return Array.from({ length: Math.min(VISIBLE_SLOTS, n) }, (_, slot) =>
+    mod(offset + slot, n),
+  );
 }
 
 type Rect = { left: number; right: number; top: number; bottom: number };
 
 /**
  * The hover zone: the page gutter beside the column plus `zone` px inside it,
- * over the row's height. One region per edge, tested against the pointer.
+ * over the row's height.
  */
-export function inZone(
-  side: PeekSide,
-  x: number,
-  y: number,
-  row: Rect,
-  zone: number,
-): boolean {
-  if (y < row.top || y > row.bottom) return false;
-  return side === "left" ? x < row.left + zone : x > row.right - zone;
+export function inZone(x: number, y: number, row: Rect, zone: number): boolean {
+  return y >= row.top && y <= row.bottom && x < row.left + zone;
 }
 
 /** Whether the pointer is on the strip itself. */
 export function onStrip(
-  side: PeekSide,
   x: number,
   y: number,
   row: Rect,
   size: number,
 ): boolean {
-  if (y < row.top || y > row.bottom) return false;
-  return side === "left"
-    ? x >= row.left && x <= row.left + size
-    : x <= row.right && x >= row.right - size;
+  return (
+    y >= row.top && y <= row.bottom && x >= row.left && x <= row.left + size
+  );
 }
 
 export type PeekLayout = {
-  card: { restX: number; pushX: number; pushR: number; restW: number };
+  /** How far every card moves right: strip plus gap. */
+  shift: number;
   strip: { box: number; fromX: number; toX: number; r: number };
 };
 
 /**
- * Where the pushed card and the strip go, in row pixels. The card keeps its
- * width and is cropped on the right by `size + gap` (the registered `--car-x`
- * and `--car-r`), so the visible gap to the strip is exactly `gap`.
+ * Where the strip goes, in row pixels. Every card keeps its width and moves
+ * right by `size + gap` along `--car-x`, so the strip and the first card are
+ * exactly `gap` apart.
  */
-export function peekLayout(
-  side: PeekSide,
-  g: Geometry,
-  size: number,
-  gap: number,
-): PeekLayout {
+export function peekLayout(g: Geometry, size: number, gap: number): PeekLayout {
   const first = g.slots[0];
-  const last = g.slots[VISIBLE_SLOTS - 1];
-  const box = Math.max(size, last.w);
-  const push = size + gap;
-
-  if (side === "left") {
-    return {
-      card: {
-        restX: first.x,
-        pushX: first.x + push,
-        pushR: push,
-        restW: first.w,
-      },
-      strip: { box, fromX: first.x - size, toX: first.x, r: box - size },
-    };
-  }
+  const box = Math.max(size, g.slots[VISIBLE_SLOTS - 1].w);
 
   return {
-    card: { restX: last.x, pushX: last.x, pushR: push, restW: last.w },
-    strip: {
-      box,
-      fromX: g.rowWidth,
-      toX: last.x + last.w - size,
-      r: box - size,
-    },
+    shift: size + gap,
+    strip: { box, fromX: first.x - size, toX: first.x, r: box - size },
   };
 }
 

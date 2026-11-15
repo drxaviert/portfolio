@@ -82,7 +82,6 @@ export type PlayBlur = {
   motionPeak: number;
   /** Blur a moving card already has (an interrupt), px. */
   motionFrom: number;
-  peekBlur: number;
   edgeBlur: number;
   rowWidth: number;
 };
@@ -116,7 +115,6 @@ export function playEntity(
   el.style.setProperty("--car-r", crop(e.from.w, box));
 
   const moves = e.from.x !== e.to.x || e.from.w !== e.to.w;
-  const enters = e.from.x >= b.rowWidth;
   const keyframes: PropertyIndexedKeyframes = {
     "--car-x": [`${e.from.x}px`, `${e.to.x}px`],
     "--car-r": [crop(e.from.w, box), crop(e.to.w, box)],
@@ -141,8 +139,6 @@ export function playEntity(
       "none",
     ];
     keyframes.offset = [0, 0.5, 1];
-  } else if (b.mode === "peek" && enters) {
-    keyframes.filter = [blur(b.peekBlur), "none"];
   } else if (b.mode === "edge") {
     const outside = (x: number) => x < 0 || x >= b.rowWidth;
 

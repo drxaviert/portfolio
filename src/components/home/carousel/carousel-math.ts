@@ -198,8 +198,6 @@ export type Geometry = {
   slots: Pose[];
   rowWidth: number;
   gap: number;
-  /** Gap before the card waiting at the right edge; the peek uses 8px. */
-  rightGap?: number;
 };
 
 export const EMPTY_GEOMETRY: Geometry = {
@@ -211,7 +209,7 @@ export const EMPTY_GEOMETRY: Geometry = {
 /** Waiting place for items beyond the visible slots, and the seam's origin. */
 export function offRight(g: Geometry): Pose {
   return {
-    x: g.rowWidth + (g.rightGap ?? g.gap),
+    x: g.rowWidth + g.gap,
     w: g.slots[VISIBLE_SLOTS - 1].w,
   };
 }
