@@ -510,6 +510,28 @@ describe("left hover peek", () => {
     expect(copyRun.keyframes["--car-x"]).toEqual(["-96px", "0px"]);
     expect(copyRun.options.duration).toBe(900);
     expect(copyRun.options.easing).toBe("cubic-bezier(0.25, 0.8, 0.25, 1)");
+    // The right edge changes hands on that same run: the card that becomes
+    // right-most ramps its fade in from nothing (item 1 is the new slot 2), and
+    // the card that stops being the right edge keeps the treatment while it
+    // leaves, fading it out with the blur copy that stood in for it.
+    const arriving = steps.find(
+      (r) => r.target === cards[1] && "--car-rf" in r.keyframes,
+    )!;
+    expect(arriving.keyframes["--car-rf"]).toEqual([0, 1]);
+    expect(arriving.options.duration).toBe(900);
+    expect(arriving.options.easing).toBe("cubic-bezier(0.25, 0.8, 0.25, 1)");
+    expect(cards[2]).toHaveAttribute("data-peek-out");
+    const leaving = steps.find(
+      (r) => r.target === cards[2] && "--car-rf" in r.keyframes,
+    )!;
+    expect(leaving.keyframes["--car-rf"]).toEqual([1, 0]);
+    const leavingBlur = steps.find(
+      (r) =>
+        r.target === cards[2].querySelector("[data-peek-blur]") &&
+        "opacity" in r.keyframes,
+    )!;
+    expect(leavingBlur.keyframes.opacity).toEqual([1, 0]);
+    expect(leavingBlur.options.duration).toBe(900);
     // No seam copy runs on its own.
     expect(
       steps.some(
@@ -611,7 +633,25 @@ describe("left hover peek", () => {
     move(110);
 
     expect(row(container)).toHaveAttribute("data-peeking");
-    expect(row(container)).not.toHaveAttribute("data-stepping");
+    // The row keeps its own edge mask for this glide and fades it out as the
+    // cards' masks take over, so the ends never switch in one frame.
+    expect(row(container)).toHaveAttribute("data-stepping");
+    const rowRuns = recorded.filter(
+      (r) =>
+        r.target === row(container) &&
+        !Array.isArray(r.keyframes) &&
+        "--car-rm" in r.keyframes,
+    );
+    expect(rowRuns).toHaveLength(1);
+    expect(rowRuns[0].keyframes["--car-rm"]).toEqual([0, 0]);
+    expect(rowRuns[0].options.duration).toBe(350);
+    // The right edge ramps in on the same glide rather than appearing when the
+    // step lands (item 3 is the new slot 2 here).
+    const rf = recorded.find(
+      (r) => r.target === cards[3] && "--car-rf" in r.keyframes,
+    )!;
+    expect(rf.keyframes["--car-rf"]).toEqual([0, 1]);
+    expect(rf.options.duration).toBe(350);
     // The running step's cards turn onto the peek arrangement: the feature that
     // was already leaving keeps going out left, the rest land in the peek slots.
     const glideFor = [-96, OPEN_X[0], OPEN_X[1], OPEN_X[2]];
@@ -635,6 +675,8 @@ describe("left hover peek", () => {
     finishStep();
 
     expect(row(container)).toHaveAttribute("data-peeking");
+    // The row's mask is identity by then, so dropping it changes nothing.
+    expect(row(container)).not.toHaveAttribute("data-stepping");
     for (let index = 0; index < 4; index++) {
       expect(cards[index].style.getPropertyValue("--car-x")).toBe(
         `${peekFor[index]}px`,
@@ -642,6 +684,35 @@ describe("left hover peek", () => {
     }
     expect(copy.style.visibility).toBe("visible");
     expect(copy.style.getPropertyValue("--car-lf")).toBe("0.5");
+  });
+
+  it("hands the peek's right edge over on the run instead of switching it at the landing", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    drawShifted(container);
+    prevCard(container)!.style.setProperty("--car-x", "0px");
+    fireEvent.click(prevCard(container)!);
+
+    // The card that was the right edge of the old peek (item 2, now the 4th)
+    // keeps the edge treatment, and keeps its blur copy, while it leaves.
+    const leaving = card(container, 3);
+    expect(leaving).toHaveAttribute("data-peek-out");
+    const leavingBlur = leaving.querySelector("[data-peek-blur]");
+    expect(leavingBlur).toHaveAttribute("data-edge", "right");
+    // The card that becomes right-most (item 1, the new slot 2) is the only
+    // other edge, and its blur layer is inside it.
+    expect(card(container, 2).querySelector("[data-peek-blur]")).toBeTruthy();
+    // The reveal's own blur list leaves the leaving card's copy out, so it is
+    // faded by the step, not by the peek.
+    const before = recorded.length;
+    finishStep();
+
+    expect(recorded).toHaveLength(before);
+    // One right edge again, on the new slot 2, and no leftover out card.
+    expect(container.querySelectorAll("[data-peek-out]")).toHaveLength(0);
+    expect(
+      container.querySelectorAll('.car-slide[data-slot="2"] [data-peek-blur]'),
+    ).toHaveLength(1);
   });
 
   it("gives every slot one run and one timing on a peek click, so they start together", () => {
@@ -1298,8 +1369,11 @@ describe("peek css", () => {
       /\.car-row\[data-peeking\] \.car-peek-edge \.car-frame\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*transparent var\(--car-shadow-pad\),\s*rgb\(0 0 0 \/ calc\(1 - var\(--car-fade\)\)\) var\(--car-shadow-pad\),\s*#000 calc\(var\(--car-shadow-pad\) \+ var\(--peek-fade-left, 34px\)\)/;
     expect(css).toMatch(peekFrame);
 
+    // The right edge is the same ramp, and it takes its strength from the card's
+    // own `--car-rf` too, so the edge can change hands during a step without
+    // waiting for the landing.
     const lastFrame =
-      /\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] \.car-frame\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to left,\s*transparent var\(--car-shadow-pad\),\s*rgb\(0 0 0 \/ calc\(1 - var\(--car-fade\)\)\) var\(--car-shadow-pad\),\s*#000 calc\(var\(--car-shadow-pad\) \+ var\(--peek-fade-right, 33px\)\)/;
+      /\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] \.car-frame,\s*\.car-row\[data-peeking\] \.car-slide\[data-peek-out\] \.car-frame\s*\{[^}]*right:\s*var\(--car-r\)[^}]*mask-image:\s*linear-gradient\(\s*to left,\s*rgb\(0 0 0 \/ calc\(1 - var\(--car-fade\) \* var\(--car-rf\)\)\)\s*var\(--car-shadow-pad\),\s*#000 calc\(var\(--car-shadow-pad\) \+ var\(--peek-fade-right, 33px\)\)/;
     expect(css).toMatch(lastFrame);
 
     // The box that grows carries the pad and its negative margin, and the host
@@ -1309,10 +1383,10 @@ describe("peek css", () => {
       /\.car-row\s*\{[^}]*--car-shadow-pad:\s*8px/,
     );
     expect(css).toMatch(
-      /\.car-row\[data-peeking\] \.car-peek-edge \.car-frame,\s*\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] \.car-frame\s*\{\s*margin:\s*calc\(-1 \* var\(--car-shadow-pad\)\);\s*padding:\s*var\(--car-shadow-pad\)/,
+      /\.car-row\[data-peeking\] \.car-peek-edge \.car-frame,\s*\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] \.car-frame,\s*\.car-row\[data-peeking\] \.car-slide\[data-peek-out\] \.car-frame\s*\{\s*margin:\s*calc\(-1 \* var\(--car-shadow-pad\)\);\s*padding:\s*var\(--car-shadow-pad\)/,
     );
     expect(css).toMatch(
-      /\.car-row\[data-peeking\] \.car-peek-edge \.car-host,\s*\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] \.car-host\s*\{[^}]*position:\s*absolute;\s*inset:\s*var\(--car-shadow-pad\)/,
+      /\.car-row\[data-peeking\] \.car-peek-edge \.car-host,\s*\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] \.car-host,\s*\.car-row\[data-peeking\] \.car-slide\[data-peek-out\] \.car-host\s*\{[^}]*position:\s*absolute;\s*inset:\s*var\(--car-shadow-pad\)/,
     );
     // The shadow stays: the token is untouched and nothing drops it.
     expect(css).not.toMatch(/box-shadow:\s*none/);

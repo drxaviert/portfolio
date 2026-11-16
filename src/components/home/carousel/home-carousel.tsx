@@ -174,6 +174,11 @@ type SlideProps = {
   ghost: boolean;
   /** The hover peek's strip: the previous item, as a plain inert copy. */
   peek?: boolean;
+  /**
+   * The card that was the peek's right edge before this step and is leaving:
+   * it keeps the edge treatment for the run, fading out with it.
+   */
+  peekOut?: boolean;
   register: (key: string, element: HTMLElement | null) => void;
   onActivate: (event: MouseEvent<HTMLElement>, index: number) => void;
 };
@@ -189,6 +194,7 @@ function Slide({
   total,
   ghost,
   peek = false,
+  peekOut = false,
   register,
   onActivate,
 }: SlideProps) {
@@ -199,12 +205,11 @@ function Slide({
   // The peek's outer edges carry the blur: the copy's left edge, and the
   // right-most visible card's right edge (slot 2, once the 4th has been pushed
   // out). The layer rides the card, so the row's hold mask fades it with the
-  // card, its ring and its shadow.
-  const edgeBlur = peek
-    ? "left"
-    : !ghost && slot === VISIBLE_SLOTS - 2
-      ? "right"
-      : null;
+  // card, its ring and its shadow. The card that held the right edge before a
+  // step keeps it while it leaves, so the two hand it over on one run.
+  const rightEdge =
+    !ghost && (slot === VISIBLE_SLOTS - 2 || peekOut);
+  const edgeBlur = peek ? "left" : rightEdge ? "right" : null;
 
   const body = (
     <>
@@ -312,6 +317,7 @@ function Slide({
       data-ghost={ghost ? "" : undefined}
       data-offscreen={offscreen ? "" : undefined}
       data-side={peek ? "left" : undefined}
+      data-peek-out={peekOut ? "" : undefined}
       className={peek ? "car-slide car-peek car-peek-edge" : "car-slide"}
     >
       {/* The masked box for the peek's edge fade: at rest it is the card's box,
@@ -423,6 +429,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     delete rowRef.current?.dataset.stepping;
     delete rowRef.current?.dataset.mask;
     rowRef.current?.style.removeProperty("--car-fade");
+    rowRef.current?.style.removeProperty("--car-rm");
     // A copy that slid out with the step is finished with.
     const copy = elements.current.get("peekL");
     if (copy && !peek.current.els) copy.style.visibility = "hidden";
@@ -445,10 +452,11 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     }
 
     // The edge-blur layers live inside the edge cards, so the row's hold mask
-    // fades them with the cards themselves.
+    // fades them with the cards themselves. The card that is leaving the right
+    // edge keeps its layer for the step and is faded out by the step itself.
     const blurs = [
       ...row.querySelectorAll<HTMLElement>("[data-peek-blur]"),
-    ];
+    ].filter((layer) => !layer.closest("[data-peek-out]"));
 
     return { row, prev, cards, blurs };
   }
@@ -509,6 +517,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const row = rowRef.current;
     if (row) {
       row.style.removeProperty("--car-fade");
+      row.style.removeProperty("--car-rm");
       delete row.dataset.peeking;
       delete row.dataset.mask;
     }
@@ -635,6 +644,12 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         ? FALLBACK_EASING
         : spec.css;
     const fadeNow = read(row, "--car-fade");
+    const maskNow = read(row, "--car-rm");
+    // The right edge's own strength as it is drawn now: a run that turns back
+    // to rest carries this on to zero instead of dropping back to full.
+    const rightItem = slotOrder(n, at)[VISIBLE_SLOTS - 2];
+    const rightEl = elements.current.get(`m${rightItem}`);
+    const rfNow = rightEl && !peekAfter ? read(rightEl, "--car-rf") : 0;
 
     // Start from the poses drawn this instant, read off the cards themselves,
     // not from the clock: the animation's timeline can lag the wall clock by a
@@ -690,6 +705,9 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     cancelTween();
 
     const animations: Animation[] = [];
+    // Seam copies are played too: a ghost carries its item in from the far end
+    // and the real card takes the same pose when the run lands, so hiding it
+    // early would leave that slot empty for the rest of the glide.
     for (const entity of planned) {
       const element = elements.current.get(entityKey(entity));
       if (!element) continue;
@@ -710,15 +728,37 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         }),
       );
     }
-    // Seam copies are stand-ins: the cards they copy glide to their ends.
-    for (const [key, element] of elements.current) {
-      if (key.startsWith("g")) element.style.visibility = "hidden";
-    }
 
     if (keepPeek) {
+      // Turning onto the peek keeps the row's own edge mask for the glide and
+      // fades it out as the cards' masks take over, so the ends never switch
+      // treatment in one frame; turning back to rest leaves it off and lets the
+      // cards' masks fade out with `--car-fade`.
       row.dataset.peeking = "";
       row.dataset.mask = "";
       row.style.setProperty("--car-fade", String(fadeNow));
+      if (peekAfter) {
+        row.dataset.stepping = "";
+        row.style.setProperty("--car-rm", String(maskNow));
+        animations.push(
+          row.animate(
+            { "--car-rm": [maskNow, 0] },
+            { duration: SETTLE_MS, easing, fill: "both" },
+          ),
+        );
+      }
+    }
+
+    // The right edge follows the pointer too: a run turned onto the peek ramps
+    // the arriving card's edge in from nothing, one turned back to rest takes it
+    // out from where it is drawn.
+    if (rightEl && keepPeek) {
+      animations.push(
+        rightEl.animate(
+          { "--car-rf": [rfNow, peekAfter ? 1 : 0] },
+          { duration: SETTLE_MS, easing, fill: "both" },
+        ),
+      );
     }
 
     if (peekAfter !== peek.current.open || (peekAfter && !peek.current.els)) {
@@ -1011,6 +1051,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         : null;
     const rowNow = rowRef.current;
     const fadeNow = rowNow ? read(rowNow, "--car-fade") : 0;
+    const maskNow = rowNow ? read(rowNow, "--car-rm") : 0;
     // The pointer decides where this step lands. If it is in the hover area the
     // run goes straight to the new arrangement's peek poses, so the peek is
     // part of the glide instead of a second animation after it.
@@ -1132,17 +1173,57 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       row.dataset.mask = "";
       row.style.setProperty("--car-fade", String(fadeNow));
       drivePeek(true, s.duration, easing);
+
+      // The right edge changes hands on this same run: the arriving card ramps
+      // its fade and blur in from nothing, the leaving one ramps its own out
+      // (with the blur copy that stood in for it), so neither edge appears or
+      // disappears at the landing.
+      const inItem = slotOrder(n, next)[VISIBLE_SLOTS - 2];
+      const inEl = elements.current.get(`m${inItem}`);
+      if (inEl) {
+        animations.push(
+          inEl.animate(
+            { "--car-rf": [0, 1] },
+            { duration: s.duration, easing, fill: "both" },
+          ),
+        );
+      }
+
+      const outItem = slotOrder(n, prev)[VISIBLE_SLOTS - 2];
+      const outEl =
+        wasOpen && outItem !== inItem
+          ? elements.current.get(`m${outItem}`)
+          : null;
+      if (outEl) {
+        animations.push(
+          outEl.animate(
+            { "--car-rf": [1, 0] },
+            { duration: s.duration, easing, fill: "both" },
+          ),
+        );
+        const layer = outEl.querySelector<HTMLElement>("[data-peek-blur]");
+        if (layer) {
+          animations.push(
+            layer.animate(
+              { opacity: [1, 0] },
+              { duration: s.duration, easing, fill: "both" },
+            ),
+          );
+        }
+      }
     } else {
       row.dataset.stepping = "";
 
       // Same duration and start as the cards: eases in, holds, eases out. From
-      // a peek it carries on from the mask's strength then, so it never pops.
+      // a peek it carries on from the peek's own strength then (the row's ends
+      // were faded by the cards' masks), so it never pops.
       animations.push(
         row.animate(
           EDGE_KEYFRAMES.map((k, index) => ({
             offset: k.offset,
             easing: k.easing,
-            "--car-fade": index === 0 ? Math.max(fadeNow, k.fade) : k.fade,
+            "--car-rm":
+              index === 0 ? Math.max(maskNow, fadeNow, k.fade) : k.fade,
           })),
           { duration: s.duration, easing: "linear", fill: "both" },
         ),
@@ -1353,6 +1434,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       r: read(el, "--car-r"),
     }));
     const fade = row ? read(row, "--car-fade") : 0;
+    const mask = row ? read(row, "--car-rm") : 0;
     const running = [...hover.anims, ...(tween.current?.animations ?? [])];
 
     if (running.length === 0 && !hover.els) return;
@@ -1363,6 +1445,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       el.style.setProperty("--car-r", `${r}px`);
     }
     row?.style.setProperty("--car-fade", String(fade));
+    row?.style.setProperty("--car-rm", String(mask));
 
     hover.anims = [];
     if (hover.els) {
@@ -1433,6 +1516,11 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   }
 
   const domOrder = slotOrder(n, domOffset);
+  // While a step runs, the DOM order is still the old one: the card that held
+  // the peek's right edge keeps the treatment for the run and hands it over.
+  const peekOutItem = hoverOn
+    ? slotOrder(n, domOffset)[VISIBLE_SLOTS - 2]
+    : -1;
   const peekFadeWidth = (cardWidth: number) =>
     Math.max(8, Math.round((cardWidth * settings.peekFade) / 100));
   // The peek's outer fade widths are a share of those two cards, so they need
@@ -1465,18 +1553,23 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
             <div />
           </div>
 
-          {domOrder.map((index) => (
-            <Slide
-              key={`m${index}`}
-              item={items[index]}
-              index={index}
-              slot={slotOf(index, offset, n)}
-              total={n}
-              ghost={false}
-              register={register}
-              onActivate={onActivate}
-            />
-          ))}
+          {domOrder.map((index) => {
+            const slot = slotOf(index, offset, n);
+
+            return (
+              <Slide
+                key={`m${index}`}
+                item={items[index]}
+                index={index}
+                slot={slot}
+                total={n}
+                ghost={false}
+                peekOut={index === peekOutItem && slot !== VISIBLE_SLOTS - 2}
+                register={register}
+                onActivate={onActivate}
+              />
+            );
+          })}
 
           {hoverCapable && n >= VISIBLE_SLOTS ? (
             <Slide

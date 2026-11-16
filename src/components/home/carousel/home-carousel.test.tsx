@@ -533,8 +533,8 @@ describe("edge blur", () => {
     expect(fades[0].target).toBe(row);
     expect(fades[0].options.duration).toBe(900);
     expect(
-      (fades[0].keyframes as unknown as { "--car-fade": number }[]).at(-1),
-    ).toMatchObject({ "--car-fade": 0 });
+      (fades[0].keyframes as unknown as { "--car-rm": number }[]).at(-1),
+    ).toMatchObject({ "--car-rm": 0 });
 
     finishStep();
     expect(row).not.toHaveAttribute("data-stepping");
