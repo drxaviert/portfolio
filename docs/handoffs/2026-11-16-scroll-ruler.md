@@ -35,3 +35,19 @@
 - Dat: the ruler is **section navigation you can hover and click**.
 - Approaches put to Dat: A = one tick per `##` section, placed by where the section sits in the text. B = a dense, evenly spaced ruler like his image, with section ticks marked, the current position as the long bright tick, hover for the section name, and click to jump (lead's pick). DAT PICKED B. Short design doc: docs/superpowers/specs/2026-11-16-reader-scroll-ruler-design.md (Dat added: must adapt automatically to any new study — spec has a "Works for any study" section; awaiting approval; new branch from main e512a5a when building). Then → writing-plans → worker.
 - Lead's default calls: hidden on touch/phone widths (no hover there); smooth scroll, instant under reduced motion; label tooltip to the left of the tick; keyboard reachable (each section tick is a link to #heading-id).
+
+## Shipped (5552b74, branch `drxaviert/reader-scroll-ruler`)
+
+Built from the three approved turns (spec B, the Orca-style preview, the gutter and snap): a dense 17-tick ruler that grows one tick per section past 17.
+
+- **Where:** centred in the gutter between the text column's right edge and the panel's right edge, 40px minimum; measured from the column on every resize, reflow and morph, so the gaps match at every width (97.3px each side at 1024, 321.3 at 1920). It holds the panel's vertical centre.
+- **Sections:** read from the rendered `##` headings of whatever study is open, ids slugified and de-duplicated at measure time. No per-study config.
+- **Every tick previews:** the section as a bold title, the text at that tick clamped to three lines (a figure speaks through its caption); one card that slides between ticks instead of reopening.
+- **Click** any tick to jump to it; sections stay the only tab stops and focus shows the card.
+- **The bright mark** is not a progress bar: it holds a section's tick until that heading crosses the 124px line, then snaps with the theme toggle's stretch and snap (180ms leading, 120ms lag + 220ms trailing, retargeting mid-flight).
+- **Hide rules:** touch (`hover: none`) and any width where the panel leaves less than 40 + 18 + 16px — 715px today.
+- **Reduced motion:** every move lands in one write, no flight.
+- Checks at ship: 356 tests, typecheck, lint and build green.
+
+**Parked — design pass:** the Night preview card sits on `--surface-container-highest` (#404040); Dat's Orca reference is near-black. He will come back for a design pass on the card's surface and shadow; nothing else is open on the ruler.
+
