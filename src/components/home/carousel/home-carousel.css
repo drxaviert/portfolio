@@ -288,8 +288,10 @@
 }
 
 /* The blurred leaving and entering cards get their own layer for the step only,
-   never at rest (a promoted ~750x416 layer costs memory). */
-.car-row[data-stepping] .car-slide[data-edge-blur] {
+   never at rest (a promoted ~750x416 layer costs memory). A step that lands in
+   the peek arrangement skips the row mask, so it keeps the promotion here. */
+.car-row[data-stepping] .car-slide[data-edge-blur],
+.car-row[data-peeking] .car-slide[data-edge-blur] {
   will-change: filter;
 }
 

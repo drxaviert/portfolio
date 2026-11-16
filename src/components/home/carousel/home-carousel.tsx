@@ -41,6 +41,7 @@ import { CarouselTuner, DEFAULT_SETTINGS } from "./carousel-tuner";
 import {
   cardPoses,
   closeSnap,
+  openSnap,
   read,
   tweenPeek,
 } from "./hover-peek-dom";
@@ -74,6 +75,8 @@ type Tween = {
   animations: Animation[];
   /** True for a released run gliding to rest (see settle). */
   settling?: boolean;
+  /** True when this run lands in the hover peek's arrangement, not at rest. */
+  peek?: boolean;
 };
 
 type PeekState = {
@@ -511,6 +514,235 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     }
   }
 
+  /** Whether the pointer, where it is now, asks for the peek. */
+  function hoverWant(): boolean {
+    const row = rowRef.current;
+    const at = pointer.current;
+    if (!row || !at || n < VISIBLE_SLOTS) return false;
+    if (geometry.current.rowWidth === 0) return false;
+
+    const { settings: s } = latest.current;
+    const state = peek.current;
+    const cached = zone.current;
+    if (cached.dirty || !cached.rect) {
+      cached.rect = row.getBoundingClientRect();
+      cached.dirty = false;
+    }
+
+    // Wider only while open (and not while retracting), so the pointer can
+    // reach the previous card; a retract is not undone by a pointer that is
+    // outside the rest zone.
+    return inZone(
+      at.x,
+      at.y,
+      cached.rect,
+      state.open ? (state.layout?.shift ?? s.hoverZone) : s.hoverZone,
+    );
+  }
+
+  /**
+   * Drives only the copy, the edge fade and the blur on a run the step owns:
+   * the same reveal or retract as `setPeek`, but on the step's duration and
+   * curve, and never touching the cards.
+   */
+  function drivePeek(open: boolean, duration: number, easing: string) {
+    const state = peek.current;
+    const row = rowRef.current;
+    const g = geometry.current;
+    if (!row || g.rowWidth === 0) return;
+
+    const els = open ? (state.els ?? peekEls()) : state.els;
+    if (!els) return;
+
+    const layout = peekLayout(g);
+    const { settings: s } = latest.current;
+
+    state.open = open;
+    state.els = els;
+    state.layout = layout;
+    state.timer = null;
+    zone.current.dirty = true;
+    row.dataset.peeking = "";
+    state.anims = tweenPeek(
+      els,
+      layout,
+      open,
+      {
+        reveal: s.revealMs,
+        retract: s.retractMs,
+        reduce: false,
+        fade: s.hoverFade,
+        run: { duration, easing },
+        cards: false,
+      },
+      state.anims,
+      () => {
+        if (state.open) return;
+        state.anims = [];
+        state.els = null;
+        state.layout = null;
+        delete row.dataset.peeking;
+      },
+    );
+  }
+
+  /**
+   * Lands a step in the peek arrangement it was aimed at, with no animation of
+   * its own: the run's last frame already shows exactly this.
+   */
+  function landPeeked() {
+    const state = peek.current;
+    const row = rowRef.current;
+    const g = geometry.current;
+    if (!row || g.rowWidth === 0) return;
+
+    const els = state.els ?? peekEls();
+    if (!els) return;
+
+    const layout = peekLayout(g);
+    const { settings: s } = latest.current;
+
+    state.open = true;
+    state.els = els;
+    state.layout = layout;
+    state.timer = null;
+    zone.current.dirty = true;
+    row.dataset.peeking = "";
+    openSnap(els, layout, s.hoverFade);
+  }
+
+  /**
+   * Re-aims the step that is running at the rest arrangement or at the peek
+   * arrangement, from the poses it is drawn at this instant. A pointer that
+   * changes its mind mid-glide turns the one run round on the retarget curve
+   * instead of waiting to replay a peek after it lands.
+   */
+  function glideTo(peekAfter: boolean) {
+    const running = tween.current;
+    const row = rowRef.current;
+    if (!running || running.settling || !row) return;
+    if (typeof row.animate !== "function") return;
+
+    const at = offsetRef.current;
+    const g = geometry.current;
+    if (g.rowWidth === 0) return;
+
+    const layout = peekLayout(g);
+    const shift = peekAfter ? layout.shift : 0;
+    const spec = bezierSpec(RETARGET_BEZIER);
+    const easing =
+      spec.css.startsWith("linear(") && !supportsLinearEasing()
+        ? FALLBACK_EASING
+        : spec.css;
+    const fadeNow = read(row, "--car-fade");
+
+    // Start from the poses drawn this instant, read off the cards themselves,
+    // not from the clock: the animation's timeline can lag the wall clock by a
+    // frame or more under load, and a clock-based start would jump.
+    const drawnPoses = new Map<
+      string,
+      { x: number; w: number; title: number }
+    >();
+    for (const entity of running.entities) {
+      const element = elements.current.get(entityKey(entity));
+      if (!element) continue;
+
+      const box = Number.parseFloat(element.style.width);
+      const crop = read(element, "--car-r");
+      const title = element.querySelector<HTMLElement>("[data-car-title]");
+
+      drawnPoses.set(entityKey(entity), {
+        x: read(element, "--car-x"),
+        w: Number.isFinite(box) ? Math.max(box - crop, 1) : entity.from.w,
+        title: title ? Number.parseFloat(getComputedStyle(title).opacity) : NaN,
+      });
+    }
+
+    const planned = running.entities.map((entity) => {
+      const pose = drawnPoses.get(entityKey(entity));
+      const slot = slotOf(entity.item, at, n);
+      const dest = slotPose(g, slot);
+      const visible = slot < VISIBLE_SLOTS;
+      const wide = !entity.ghost && slot === 0;
+      // A card that is already on its way out through an end stays on that
+      // course: the row's shift moves the ones on screen, it does not send a
+      // card back across the row to a slot it was leaving. Only a wrap has a
+      // seam copy, so the pair identifies it.
+      const leaving =
+        !entity.ghost &&
+        running.entities.some((other) => other.ghost && other.item === entity.item);
+      const to = leaving
+        ? entity.to
+        : { x: dest.x + (visible ? shift : 0), w: dest.w };
+
+      return {
+        ...entity,
+        from: pose ? { x: pose.x, w: pose.w } : entity.from,
+        fromTitle:
+          pose && Number.isFinite(pose.title) ? pose.title : entity.fromTitle,
+        to,
+        toWide: wide ? 1 : 0,
+        toTitle: wide ? 1 : 0,
+      };
+    });
+
+    const keepPeek = peekAfter || peek.current.open;
+    cancelTween();
+
+    const animations: Animation[] = [];
+    for (const entity of planned) {
+      const element = elements.current.get(entityKey(entity));
+      if (!element) continue;
+      if (
+        entity.from.x === entity.to.x &&
+        entity.from.w === entity.to.w &&
+        entity.fromTitle === entity.toTitle
+      ) {
+        continue;
+      }
+
+      animations.push(
+        ...playEntity(element, entity, {
+          duration: SETTLE_MS,
+          easing,
+          timing: running.timing,
+          blur: { edgeBlur: 0, rowWidth: g.rowWidth },
+        }),
+      );
+    }
+    // Seam copies are stand-ins: the cards they copy glide to their ends.
+    for (const [key, element] of elements.current) {
+      if (key.startsWith("g")) element.style.visibility = "hidden";
+    }
+
+    if (keepPeek) {
+      row.dataset.peeking = "";
+      row.dataset.mask = "";
+      row.style.setProperty("--car-fade", String(fadeNow));
+    }
+
+    if (peekAfter !== peek.current.open || (peekAfter && !peek.current.els)) {
+      drivePeek(peekAfter, SETTLE_MS, easing);
+    }
+
+    const clock = row.animate({ opacity: [1, 1] }, { duration: SETTLE_MS });
+    const started: Tween = {
+      entities: planned,
+      t0: performance.now(),
+      duration: SETTLE_MS,
+      ease: spec.fn,
+      timing: running.timing,
+      animations: [...animations, clock],
+      settling: true,
+      peek: peekAfter,
+    };
+
+    tween.current = started;
+    clock.onfinish = () => {
+      if (tween.current === started) settle(true);
+    };
+  }
+
   /**
    * Opens or retracts the peek from where the pointer is. Nothing runs while a
    * step does; the end of the step calls this again.
@@ -531,29 +763,17 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       }
     }
     if (state.frozen) return;
-    const at = pointer.current;
 
-    // Far from the zone with nothing to retract: nothing to do, and no layout
-    // read at all while the cached box is good.
-    const cached = zone.current;
-    if (cached.dirty || !cached.rect) {
-      cached.rect = row.getBoundingClientRect();
-      cached.dirty = false;
+    // A step is in flight: it decides where the row lands, so a pointer that
+    // changes its mind mid-glide re-aims that one run instead of starting a
+    // peek of its own (see glideTo).
+    if (tween.current) {
+      const want = hoverWant();
+      if (!tween.current.settling && want !== !!tween.current.peek) glideTo(want);
+      return;
     }
-    const rect = cached.rect;
-    const want =
-      !!at &&
-      n >= VISIBLE_SLOTS &&
-      !tween.current &&
-      inZone(
-        at.x,
-        at.y,
-        rect,
-        // Wider only while open (and not while retracting), so the pointer can
-        // reach the previous card; a retract is not undone by a pointer that
-        // is outside the rest zone.
-        state.open ? (state.layout?.shift ?? s.hoverZone) : s.hoverZone,
-      );
+
+    const want = hoverWant();
 
     if (want) {
       if (state.timer !== null) window.clearTimeout(state.timer);
@@ -588,7 +808,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
    * jumping, and further soft releases while it glides are ignored. Reduced
    * motion lands at once, since it never moves anything.
    */
-  function settle(instant = false) {
+  function settle(instant = false, peekTo?: boolean) {
     const running = tween.current;
     if (!running) return;
     if (running.settling && !instant) return;
@@ -597,9 +817,15 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const at = offsetRef.current;
     const g = geometry.current;
     const { reduce: reduced } = latest.current;
+    // A run aimed at the peek arrangement lands there, so the peek is already
+    // showing when the step ends and nothing replays it.
+    const peekAfter = peekTo ?? !!running.peek;
+    const shift = peekAfter ? peekLayout(g).shift : 0;
 
     const land = () => {
       applyRest(at);
+      if (peekAfter) landPeeked();
+      else if (peek.current.open || peek.current.els) closePeeks();
       setGhosts([]);
       setDomOffset(at);
       setSettled((count) => count + 1);
@@ -627,9 +853,14 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       const opacity = title
         ? Number.parseFloat(getComputedStyle(title).opacity)
         : Number.NaN;
+      const slot = slotOf(entity.item, at, n);
 
       return {
         ...entity,
+        to:
+          peekAfter && slot < VISIBLE_SLOTS
+            ? { x: entity.to.x + shift, w: entity.to.w }
+            : entity.to,
         from: {
           x: read(element, "--car-x"),
           w: Number.parseFloat(element.style.width) || entity.to.w,
@@ -638,6 +869,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       };
     });
 
+    const fadeNow = read(row, "--car-fade");
     cancelTween();
     // The seam copies are stand-ins: the cards they copy glide to rest.
     for (const [key, element] of elements.current) {
@@ -672,7 +904,21 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       );
     }
 
-    row.dataset.stepping = "";
+    const keepPeek = peekAfter || peek.current.open;
+    if (keepPeek) {
+      // It lands peeking, or the peek is still on while the row glides to rest:
+      // keep the peek's own edge treatment and let the copy finish its move on
+      // this glide instead of a step mask that would have to be swapped for it.
+      row.dataset.peeking = "";
+      row.style.setProperty("--car-fade", String(fadeNow));
+      if (peekAfter) {
+        drivePeek(true, SETTLE_MS, easing);
+      } else if (peek.current.els) {
+        drivePeek(false, SETTLE_MS, easing);
+      }
+    } else {
+      row.dataset.stepping = "";
+    }
     const clock = row.animate(
       { opacity: [1, 1] },
       { duration: SETTLE_MS },
@@ -685,6 +931,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       timing: running.timing,
       animations: [...animations, clock],
       settling: true,
+      peek: peekAfter,
     };
 
     tween.current = started;
@@ -764,6 +1011,10 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         : null;
     const rowNow = rowRef.current;
     const fadeNow = rowNow ? read(rowNow, "--car-fade") : 0;
+    // The pointer decides where this step lands. If it is in the hover area the
+    // run goes straight to the new arrangement's peek poses, so the peek is
+    // part of the glide instead of a second animation after it.
+    const peekAfter = hoverWant();
     // An interrupt starts on a card that is already moving, so it takes an
     // ease-out that carries speed instead of the gentle-start default.
     const spec = running
@@ -820,6 +1071,18 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       });
     }
 
+    if (peekAfter) {
+      // Every card lands where the peek's own shift would have put it, so the
+      // step's end frame is the peek state itself (the copy is part of the same
+      // run, see drivePeek below).
+      const shift = peekLayout(g).shift;
+      planned = planned.map((e) =>
+        slotOf(e.item, next, n) < VISIBLE_SLOTS
+          ? { ...e, to: { x: e.to.x + shift, w: e.to.w } }
+          : e,
+      );
+    }
+
     closePeeks();
 
     cancelTween();
@@ -862,24 +1125,34 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       );
     }
 
-    row.dataset.stepping = "";
+    if (peekAfter) {
+      // The peek stays on through the step: its own edge masks stand in for the
+      // step's row mask, so nothing has to be swapped when the run lands.
+      row.dataset.peeking = "";
+      row.dataset.mask = "";
+      row.style.setProperty("--car-fade", String(fadeNow));
+      drivePeek(true, s.duration, easing);
+    } else {
+      row.dataset.stepping = "";
 
-    // Same duration and start as the cards: eases in, holds, eases out. From a
-    // peek it carries on from the mask's strength then, so it never pops.
-    animations.push(
-      row.animate(
-        EDGE_KEYFRAMES.map((k, index) => ({
-          offset: k.offset,
-          easing: k.easing,
-          "--car-fade": index === 0 ? Math.max(fadeNow, k.fade) : k.fade,
-        })),
-        { duration: s.duration, easing: "linear", fill: "both" },
-      ),
-    );
+      // Same duration and start as the cards: eases in, holds, eases out. From
+      // a peek it carries on from the mask's strength then, so it never pops.
+      animations.push(
+        row.animate(
+          EDGE_KEYFRAMES.map((k, index) => ({
+            offset: k.offset,
+            easing: k.easing,
+            "--car-fade": index === 0 ? Math.max(fadeNow, k.fade) : k.fade,
+          })),
+          { duration: s.duration, easing: "linear", fill: "both" },
+        ),
+      );
+    }
 
     // Stepping forward with the peek open: the previous card slides back out to
-    // the left with the row instead of vanishing.
-    if (wasOpen && k > 0 && prevEl && prevDrawn) {
+    // the left with the row instead of vanishing. (A step that lands peeking
+    // gives the copy to drivePeek, which brings in the new previous card.)
+    if (!peekAfter && wasOpen && k > 0 && prevEl && prevDrawn) {
       prevEl.style.visibility = "visible";
       prevEl.style.setProperty("--car-x", `${prevDrawn.x}px`);
       animations.push(
@@ -899,6 +1172,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       ease,
       timing,
       animations: [...animations, clock],
+      peek: peekAfter,
     };
 
     tween.current = started;
@@ -1111,7 +1385,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       state.open = true;
       setPeek(false);
     }
-    if (tween.current) settle();
+    if (tween.current) settle(false, false);
   }
 
   /** The reader has landed. Whoever held motion can let go. */
@@ -1119,7 +1393,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     // Under the reader this is unseen, so it can land at once. If the reader is
     // not there (its opened event can arrive after a hard back took it away),
     // the row is in view and glides to rest instead.
-    if (tween.current) settle(overlayPresent());
+    if (tween.current) settle(overlayPresent(), false);
     closePeeks();
   }
 
@@ -1127,7 +1401,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   function releaseMotion() {
     // Instant: the close morph measures the card right after this, so it has to
     // already be at its rest box.
-    if (tween.current) settle(true);
+    if (tween.current) settle(true, false);
     closePeeks();
   }
 
@@ -1206,8 +1480,8 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
           {hoverCapable && n >= VISIBLE_SLOTS ? (
             <Slide
-              item={items[peekOf(n, domOffset)]}
-              index={peekOf(n, domOffset)}
+              item={items[peekOf(n, offset)]}
+              index={peekOf(n, offset)}
               slot={VISIBLE_SLOTS}
               total={n}
               ghost

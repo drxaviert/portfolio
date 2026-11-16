@@ -32,6 +32,13 @@ export type PeekTiming = {
   reduce: boolean;
   /** Strength of the soft fade on the copy's left end (0 none, 1 full). */
   fade: number;
+  /**
+   * A step's run supplies its own duration and curve, so the copy arrives with
+   * the cards instead of on the peek's own timing (see home-carousel.tsx).
+   */
+  run?: { duration: number; easing: string };
+  /** The caller drives the cards (a step): only the copy, fade and blur move. */
+  cards?: boolean;
 };
 
 export function read(el: HTMLElement, prop: string): number {
@@ -66,6 +73,30 @@ export function closeSnap(
   // A peek held mid-fade (the reader opened over it) would otherwise leave the
   // edge blur and fade drawn over the row at rest.
   for (const blur of blurs) blur.style.opacity = "0";
+}
+
+/**
+ * Puts everything in the peek arrangement at once: cards shifted, the copy in
+ * its first slot with the left fade, the edge blur and the fade at full
+ * strength. A step that lands already peeking uses this, so the end frame of
+ * the run and the settled state are the same pixels.
+ */
+export function openSnap(
+  { row, prev, cards, blurs }: PeekEls,
+  layout: PeekLayout,
+  fade: number,
+) {
+  cards.forEach((card, index) =>
+    card.el.style.setProperty("--car-x", `${layout.cardX[index]}px`),
+  );
+  prev.style.width = `${layout.prevW}px`;
+  prev.style.setProperty("--car-lf", String(fade));
+  prev.style.setProperty("--car-x", `${layout.prev.toX}px`);
+  prev.style.opacity = "1";
+  prev.style.visibility = "visible";
+  for (const blur of blurs) blur.style.opacity = "1";
+  row.dataset.mask = "";
+  row.style.setProperty("--car-fade", "1");
 }
 
 /**
@@ -161,17 +192,22 @@ export function tweenPeek(
   const turning = left > 0.02 && left < 0.98;
   const base = open ? timing.reveal : timing.retract;
   const options = {
-    duration: turning ? Math.max(base * left, base * 0.35) : base,
-    easing: turning ? TURN_EASING : PEEK_EASING,
+    duration:
+      timing.run?.duration ??
+      (turning ? Math.max(base * left, base * 0.35) : base),
+    easing:
+      timing.run?.easing ?? (turning ? TURN_EASING : PEEK_EASING),
     fill: open ? ("forwards" as const) : ("none" as const),
   };
 
-  const runs = cards.map((card, index) =>
-    card.el.animate(
-      { "--car-x": [`${fromCards[index]}px`, `${toX(index)}px`] },
-      options,
-    ),
-  );
+  const runs = timing.cards === false
+    ? []
+    : cards.map((card, index) =>
+        card.el.animate(
+          { "--car-x": [`${fromCards[index]}px`, `${toX(index)}px`] },
+          options,
+        ),
+      );
   const prevRun = prev.animate(
     { "--car-x": [`${fromPrev.x}px`, `${toPrev.x}px`] },
     options,

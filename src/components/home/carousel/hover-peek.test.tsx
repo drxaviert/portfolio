@@ -460,7 +460,7 @@ describe("left hover peek", () => {
     expect(prevCard(six.container)!.textContent).toContain("Six");
   });
 
-  it("steps back one from the shifted pose when the previous card is clicked, no snap", () => {
+  it("steps back one from the shifted pose when the previous card is clicked, and lands peeked", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     move(110);
     drawShifted(container);
@@ -472,16 +472,22 @@ describe("left hover peek", () => {
     fireEvent.click(prevCard(container)!);
 
     expect(frontTitle()).toBe("More work soon");
-    expect(prevCard(container)!.style.visibility).toBe("hidden");
-    expect(row(container)).not.toHaveAttribute("data-peeking");
+    // The peek never goes away: it is part of this one run.
+    expect(row(container)).toHaveAttribute("data-peeking");
+    expect(row(container)).not.toHaveAttribute("data-stepping");
+    expect(prevCard(container)!.style.visibility).toBe("visible");
 
     const steps = recorded.slice(before);
     for (let slot = 0; slot < 3; slot++) {
       const run = steps.find(
         (r) => r.target === cards[slot] && "--car-x" in r.keyframes,
       );
-      // Each card starts where the shift left it, not at its rest slot.
-      expect(run?.keyframes["--car-x"][0]).toBe(`${OPEN_X[slot]}px`);
+      // Each card starts where the shift left it and ends in the next
+      // arrangement's peek slot, 96px further on: one journey, no replay.
+      expect(run?.keyframes["--car-x"]).toEqual([
+        `${OPEN_X[slot]}px`,
+        `${OPEN_X[slot + 1]}px`,
+      ]);
     }
     // The previous card takes over the copy's pose in this same frame and grows
     // out of its 84px first slot into the wide one - the card itself, not a
@@ -489,18 +495,28 @@ describe("left hover peek", () => {
     const entering = steps.find(
       (r) => r.target === cards[3] && "--car-x" in r.keyframes,
     )!;
-    expect(entering.keyframes["--car-x"][0]).toBe("0px");
+    expect(entering.keyframes["--car-x"]).toEqual(["0px", `${OPEN_X[0]}px`]);
     expect(entering.keyframes["--car-r"][0]).toBe(`${753 - 84}px`);
     // It leaves the peek with its left end faded, and loses that as it grows
     // into the wide slot: no pop.
     expect("filter" in entering.keyframes).toBe(false);
     expect(entering.keyframes["--car-lf"]).toEqual([0.5, 0]);
     expect(entering.target).toHaveAttribute("data-peek-fade");
+    // The next previous card slides in on the step's own run and curve, so the
+    // peek arrives as the row moves instead of after it.
+    const copyRun = steps.find(
+      (r) => r.target === prevCard(container) && "--car-x" in r.keyframes,
+    )!;
+    expect(copyRun.keyframes["--car-x"]).toEqual(["-96px", "0px"]);
+    expect(copyRun.options.duration).toBe(900);
+    expect(copyRun.options.easing).toBe("cubic-bezier(0.25, 0.8, 0.25, 1)");
+    // No seam copy runs on its own.
     expect(
       steps.some(
         (r) =>
           r.target instanceof HTMLElement &&
           r.target.hasAttribute("data-ghost") &&
+          !r.target.classList.contains("car-peek-edge") &&
           "--car-x" in r.keyframes,
       ),
     ).toBe(false);
@@ -508,9 +524,124 @@ describe("left hover peek", () => {
     const afterStep = recorded.length;
     finishStep();
 
-    expect(recorded.length).toBeGreaterThan(afterStep);
+    // It was already there: nothing started after the glide.
+    expect(recorded).toHaveLength(afterStep);
     expect(row(container)).toHaveAttribute("data-peeking");
     expect(prevCard(container)!.textContent).toContain("Type");
+    expect(prevCard(container)!.style.getPropertyValue("--car-lf")).toBe("0.5");
+    // cards[] are the elements captured before the step: item 0 is slot 1 now.
+    const endX = [OPEN_X[1], OPEN_X[2], OPEN_X[3], OPEN_X[0]];
+    for (let index = 0; index < 4; index++) {
+      expect(cards[index].style.getPropertyValue("--car-x")).toBe(
+        `${endX[index]}px`,
+      );
+      expect(cards[index].style.getPropertyValue("--car-r")).toBe("0px");
+    }
+  });
+
+  it("retargets to rest when the pointer leaves mid-glide, without a jump", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    drawShifted(container);
+    prevCard(container)!.style.setProperty("--car-x", "0px");
+    const cards = [0, 1, 2, 3].map((slot) => card(container, slot));
+
+    fireEvent.click(prevCard(container)!);
+    expect(row(container)).toHaveAttribute("data-peeking");
+    const reveal = slides(prevCard(container)!).at(-1)!;
+    expect(reveal.keyframes["--car-x"]).toEqual(["-96px", "0px"]);
+    expect(reveal.options.duration).toBe(900);
+
+    // The pointer leaves while the run is still going (jsdom does not run it:
+    // stand in for the copy's drawn position).
+    prevCard(container)!.style.setProperty("--car-x", "0px");
+    const mark = recorded.length;
+    move(600);
+
+    expect(row(container)).toHaveAttribute("data-peeking");
+    expect(row(container)).not.toHaveAttribute("data-stepping");
+    const glide = recorded
+      .slice(mark)
+      .filter((r) => "--car-x" in r.keyframes && r.target !== prevCard(container));
+    // Every card carries on from where it is drawn to its rest slot, on the
+    // retarget curve: the run is turned round, not restarted.
+    const restFor = [REST_X[1], REST_X[2], REST_X[3], REST_X[0]];
+    for (let index = 0; index < 4; index++) {
+      const run = glide.find((r) => r.target === cards[index])!;
+      expect(run.keyframes["--car-x"][1]).toBe(`${restFor[index]}px`);
+      expect(run.options.duration).toBe(350);
+      expect(run.options.easing).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
+    }
+    // The copy goes back out to the gutter on the same glide instead of
+    // vanishing where it stood.
+    const copyBack = recorded
+      .filter(
+        (r) =>
+          r.target === prevCard(container) &&
+          !Array.isArray(r.keyframes) &&
+          "--car-x" in r.keyframes,
+      )
+      .at(-1)!;
+    expect(copyBack.keyframes["--car-x"]).toEqual(["0px", "-96px"]);
+    expect(copyBack.options.duration).toBe(350);
+
+    finishStep();
+
+    expect(row(container)).not.toHaveAttribute("data-peeking");
+    expect(row(container)).not.toHaveAttribute("data-mask");
+    expect(prevCard(container)!.style.visibility).toBe("hidden");
+    for (let index = 0; index < 4; index++) {
+      expect(cards[index].style.getPropertyValue("--car-x")).toBe(
+        `${restFor[index]}px`,
+      );
+    }
+  });
+
+  it("retargets to the peek when the pointer enters mid-glide", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(600);
+
+    const cards = [0, 1, 2, 3].map((slot) => card(container, slot));
+    fireEvent.keyDown(cards[0].querySelector(".car-host")!, {
+      key: "ArrowRight",
+    });
+    expect(row(container)).toHaveAttribute("data-stepping");
+    expect(row(container)).not.toHaveAttribute("data-peeking");
+
+    move(110);
+
+    expect(row(container)).toHaveAttribute("data-peeking");
+    expect(row(container)).not.toHaveAttribute("data-stepping");
+    // The running step's cards turn onto the peek arrangement: the feature that
+    // was already leaving keeps going out left, the rest land in the peek slots.
+    const glideFor = [-96, OPEN_X[0], OPEN_X[1], OPEN_X[2]];
+    for (let index = 0; index < 4; index++) {
+      const run = slides(cards[index]).at(-1)!;
+      expect(run.keyframes["--car-x"][1]).toBe(`${glideFor[index]}px`);
+      expect(run.options.duration).toBe(350);
+      expect(run.options.easing).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
+    }
+    // The peek's own arrangement at the end of the run (the leaving card is
+    // pushed out of the column, so it is not one of the four).
+    const peekFor = [OPEN_X[3], OPEN_X[0], OPEN_X[1], OPEN_X[2]];
+    // The copy is the new previous item (item 0, "Systems") and arrives on the
+    // same glide.
+    const copy = prevCard(container)!;
+    expect(copy.textContent).toContain("Systems");
+    const copyRun = slides(copy).at(-1)!;
+    expect(copyRun.keyframes["--car-x"]).toEqual(["-96px", "0px"]);
+    expect(copyRun.options.duration).toBe(350);
+
+    finishStep();
+
+    expect(row(container)).toHaveAttribute("data-peeking");
+    for (let index = 0; index < 4; index++) {
+      expect(cards[index].style.getPropertyValue("--car-x")).toBe(
+        `${peekFor[index]}px`,
+      );
+    }
+    expect(copy.style.visibility).toBe("visible");
+    expect(copy.style.getPropertyValue("--car-lf")).toBe("0.5");
   });
 
   it("gives every slot one run and one timing on a peek click, so they start together", () => {
@@ -539,10 +670,13 @@ describe("left hover peek", () => {
     );
     expect(timings.size).toBe(1);
     // No seam copy runs on its own: the peeked card itself carries the motion.
+    // (The peek's own copy does slide in, on the same one timing.)
     expect(
       runs.some(
         (r) =>
-          r.target instanceof HTMLElement && r.target.hasAttribute("data-ghost"),
+          r.target instanceof HTMLElement &&
+          r.target.hasAttribute("data-ghost") &&
+          !r.target.classList.contains("car-peek-edge"),
       ),
     ).toBe(false);
     // Every card starts where it is drawn this instant: the three shifted cards
@@ -1055,7 +1189,7 @@ describe("peek glitch fixes", () => {
     expect(entering.keyframes["--car-x"][0]).toBe("-40px");
   });
 
-  it("slides the copy back out when a step goes the other way, instead of vanishing", () => {
+  it("brings the next previous card in with a forward step instead of vanishing", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     move(110);
     prevCard(container)!.style.setProperty("--car-x", "0px");
@@ -1070,15 +1204,22 @@ describe("peek glitch fixes", () => {
       .find(
         (r) => r.target === prevCard(container) && "--car-x" in r.keyframes,
       )!;
-    expect(out.keyframes["--car-x"]).toEqual(["0px", "-96px"]);
+    // The copy now carries the *new* previous card (the old feature), so it
+    // comes in from the gutter on the step's own run rather than sliding out.
+    expect(out.keyframes["--car-x"]).toEqual(["-96px", "0px"]);
+    expect(out.options.duration).toBe(900);
     expect(prevCard(container)!.style.visibility).toBe("visible");
 
-    move(600);
     finishStep();
+    // The step landed peeked; the pointer then leaves and the copy retracts.
+    expect(row(container)).toHaveAttribute("data-peeking");
+    move(600);
+    act(() => vi.advanceTimersByTime(121));
+    act(() => slides(prevCard(container)!).at(-1)!.onfinish?.());
     expect(prevCard(container)!.style.visibility).toBe("hidden");
   });
 
-  it("carries the peek's mask strength into the step instead of popping", () => {
+  it("holds the peek's mask strength through the step instead of popping", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     move(110);
     row(container).style.setProperty("--car-fade", "0.8");
@@ -1088,13 +1229,19 @@ describe("peek glitch fixes", () => {
       key: "ArrowRight",
     });
 
+    // The row does not swap its mask for a step mask: it holds the peek's mask
+    // at the strength it was drawn at, and the peek's own run carries it on.
+    expect(row(container).style.getPropertyValue("--car-fade")).toBe("0.8");
     const mask = recorded
       .slice(before)
       .find(
-        (r) => r.target === row(container) && Array.isArray(r.keyframes),
+        (r) =>
+          r.target === row(container) &&
+          !Array.isArray(r.keyframes) &&
+          "--car-fade" in r.keyframes,
       )!;
-    const first = (mask.keyframes as unknown as { "--car-fade": number }[])[0];
-    expect(first["--car-fade"]).toBe(0.8);
+    expect(mask.keyframes["--car-fade"][0]).toBe(0.8);
+    expect(mask.options.duration).toBe(900);
   });
 });
 

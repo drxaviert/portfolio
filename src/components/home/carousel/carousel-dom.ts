@@ -37,6 +37,10 @@ export function restStyle(
   el.style.setProperty("--car-r", "0px");
   delete el.dataset.clipped;
   delete el.dataset.edgeBlur;
+  // A card that stepped out of the peek's left fade has no fade at rest; the
+  // mask and the strength both belong to that move only.
+  delete el.dataset.peekFade;
+  el.style.removeProperty("--car-lf");
   el.style.visibility = visible ? "" : "hidden";
 
   const title = titleOf(el);

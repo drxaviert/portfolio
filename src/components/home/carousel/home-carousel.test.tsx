@@ -567,9 +567,11 @@ describe("edge blur", () => {
     expect(container.querySelectorAll("[data-edge-blur]")).toHaveLength(
       blurred.length,
     );
-    // The css hints will-change only under [data-stepping], never at rest.
+    // The css hints will-change only while a step or a peek is on, never at
+    // rest. (A step that lands in the peek arrangement runs without the row
+    // mask, so it needs the promotion under [data-peeking] too.)
     expect(css).toMatch(
-      /\.car-row\[data-stepping\] \.car-slide\[data-edge-blur\]\s*\{\s*will-change:\s*filter/,
+      /\.car-row\[data-stepping\] \.car-slide\[data-edge-blur\],\s*\.car-row\[data-peeking\] \.car-slide\[data-edge-blur\]\s*\{\s*will-change:\s*filter/,
     );
     expect(css).not.toMatch(/\.car-slide\s*\{[^}]*will-change/);
 
