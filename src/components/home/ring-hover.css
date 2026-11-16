@@ -53,6 +53,13 @@
   z-index: -2;
   border-radius: var(--ring-radius);
   background-color: var(--ring-line);
+  /* The glow is a 614px layer inside the frame. Its paint is already cut to
+     this box by the frame's own clip-path, but its layout box still counted
+     toward the page's scrollable overflow: the nav sits outside the home
+     main's `overflow: hidden`, so hovering a toggle near the right edge moved
+     the glow's box past the viewport and added a scrollbar. Containing it here
+     clips at the same box the clip-path does, so nothing visible changes. */
+  overflow: clip;
   /* Always one pixel outside the surface; transparent at rest so no stroke
      shows. Fades in immediately on hover, and out only after the clip closes. */
   clip-path: inset(
