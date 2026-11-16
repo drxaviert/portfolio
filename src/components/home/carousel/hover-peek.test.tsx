@@ -476,19 +476,18 @@ describe("left hover peek", () => {
     expect(row(container)).not.toHaveAttribute("data-peeking");
 
     const steps = recorded.slice(before);
-    for (let slot = 0; slot < 4; slot++) {
+    for (let slot = 0; slot < 3; slot++) {
       const run = steps.find(
         (r) => r.target === cards[slot] && "--car-x" in r.keyframes,
       );
       // Each card starts where the shift left it, not at its rest slot.
       expect(run?.keyframes["--car-x"][0]).toBe(`${OPEN_X[slot]}px`);
     }
-    // The previous item grows out of its 84px first slot into the wide one.
+    // The previous card takes over the copy's pose in this same frame and grows
+    // out of its 84px first slot into the wide one - the card itself, not a
+    // seam copy, so it never also leaves through the right-hand slot.
     const entering = steps.find(
-      (r) =>
-        r.target instanceof HTMLElement &&
-        r.target.hasAttribute("data-ghost") &&
-        "--car-x" in r.keyframes,
+      (r) => r.target === cards[3] && "--car-x" in r.keyframes,
     )!;
     expect(entering.keyframes["--car-x"][0]).toBe("0px");
     expect(entering.keyframes["--car-r"][0]).toBe(`${753 - 84}px`);
@@ -497,6 +496,14 @@ describe("left hover peek", () => {
     expect("filter" in entering.keyframes).toBe(false);
     expect(entering.keyframes["--car-lf"]).toEqual([0.5, 0]);
     expect(entering.target).toHaveAttribute("data-peek-fade");
+    expect(
+      steps.some(
+        (r) =>
+          r.target instanceof HTMLElement &&
+          r.target.hasAttribute("data-ghost") &&
+          "--car-x" in r.keyframes,
+      ),
+    ).toBe(false);
 
     const afterStep = recorded.length;
     finishStep();
@@ -504,6 +511,48 @@ describe("left hover peek", () => {
     expect(recorded.length).toBeGreaterThan(afterStep);
     expect(row(container)).toHaveAttribute("data-peeking");
     expect(prevCard(container)!.textContent).toContain("Type");
+  });
+
+  it("gives every slot one run and one timing on a peek click, so they start together", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    drawShifted(container);
+    prevCard(container)!.style.setProperty("--car-x", "0px");
+    const cards = [0, 1, 2, 3].map((slot) => card(container, slot));
+    const before = recorded.length;
+
+    // The reported case: a pointer click on the peeked card.
+    fireEvent.click(prevCard(container)!, { detail: 1 });
+
+    const runs = recorded
+      .slice(before)
+      .filter((r) => "--car-x" in r.keyframes);
+    // One run per card, all created in this one task: the row cannot stagger.
+    for (const el of cards) {
+      expect(runs.filter((r) => r.target === el)).toHaveLength(1);
+    }
+    const timings = new Set(
+      runs.map(
+        (r) =>
+          `${r.options.duration}|${r.options.easing}|${r.options.delay ?? 0}`,
+      ),
+    );
+    expect(timings.size).toBe(1);
+    // No seam copy runs on its own: the peeked card itself carries the motion.
+    expect(
+      runs.some(
+        (r) =>
+          r.target instanceof HTMLElement && r.target.hasAttribute("data-ghost"),
+      ),
+    ).toBe(false);
+    // Every card starts where it is drawn this instant: the three shifted cards
+    // at the shift, the peeked card where the copy was.
+    for (let slot = 0; slot < 3; slot++) {
+      expect(slides(cards[slot]).at(-1)!.keyframes["--car-x"][0]).toBe(
+        `${OPEN_X[slot]}px`,
+      );
+    }
+    expect(slides(cards[3]).at(-1)!.keyframes["--car-x"][0]).toBe("0px");
   });
 
   it("does not step when the click is not on the previous card", () => {
@@ -999,8 +1048,9 @@ describe("peek glitch fixes", () => {
       .find(
         (r) =>
           r.target instanceof HTMLElement &&
-          r.target.hasAttribute("data-ghost") &&
-          "--car-x" in r.keyframes,
+          !r.target.hasAttribute("data-ghost") &&
+          "--car-x" in r.keyframes &&
+          r.keyframes["--car-x"][0] === "-40px",
       )!;
     expect(entering.keyframes["--car-x"][0]).toBe("-40px");
   });

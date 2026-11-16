@@ -803,16 +803,21 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     let planned = retarget(g, n, prev, k, withPush);
 
     if (wasOpen && k < 0 && prevDrawn) {
+      // Stepping back off the peek: the peeked card is already drawn at the
+      // left, so it must not wrap round (the plan would send the card off the
+      // right and animate a seam copy in from the left, leaving the real card
+      // sitting in the right-hand slot). The card itself takes over the copy's
+      // pose in this same frame - the copy hides as the card appears there -
+      // and runs to the wide slot with every other card.
       const item = peekOf(n, prev);
-      planned = planned.map((e) =>
-        e.item === item && e.to.x < g.rowWidth && e.to.x + e.to.w > 0
-          ? {
-              ...e,
-              from: { x: prevDrawn.x, w: prevDrawn.w },
-              peekFrom: { fade: s.hoverFade },
-            }
-          : e,
-      );
+      const pose = { x: prevDrawn.x, w: prevDrawn.w };
+      planned = planned.flatMap((e) => {
+        if (e.item !== item) return [e];
+        if (!e.ghost) return [];
+        return [
+          { ...e, ghost: false, from: pose, peekFrom: { fade: s.hoverFade } },
+        ];
+      });
     }
 
     closePeeks();
