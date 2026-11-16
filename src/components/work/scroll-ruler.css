@@ -91,7 +91,7 @@
 }
 
 .wd-ruler-tick-section[data-active="true"]::after {
-  transform: scaleX(1.55);
+  transform: scaleX(1.3);
   background: var(--on-surface);
 }
 
