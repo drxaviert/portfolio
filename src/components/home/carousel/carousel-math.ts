@@ -254,6 +254,8 @@ export type Entity = {
   toTitle: number;
   /** A card stepping in from the hover peek: the left fade it had. */
   peekFrom?: { fade: number };
+  /** A card already blurred by the previous run: the filter it is drawn at. */
+  edgeBlurFrom?: string;
 };
 
 export function entityKey(e: Pick<Entity, "item" | "ghost">): string {

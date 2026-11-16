@@ -707,6 +707,80 @@ describe("left hover peek", () => {
     expect(copy.style.getPropertyValue("--car-lf")).toBe("0.5");
   });
 
+  it("chains three peek clicks within 300ms into three steps, no click dropped", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    drawShifted(container);
+    prevCard(container)!.style.setProperty("--car-x", "0px");
+    const before = recorded.length;
+
+    // Each click is one more step back even while the previous one is still
+    // gliding: the running plan is re-aimed from the cards' drawn poses, the
+    // same path an arrow pressed mid-run takes.
+    fireEvent.click(prevCard(container)!);
+    act(() => vi.advanceTimersByTime(150));
+    expect(frontTitle()).toBe("More work soon");
+
+    fireEvent.click(prevCard(container)!);
+    act(() => vi.advanceTimersByTime(150));
+    expect(frontTitle()).toBe("Type");
+
+    fireEvent.click(prevCard(container)!);
+    expect(frontTitle()).toBe("Titles");
+
+    // Every click started a run of its own; none was swallowed by the guard.
+    const clocks = recorded
+      .slice(before)
+      .filter(
+        (r) =>
+          r.target.classList.contains("car-row") &&
+          !Array.isArray(r.keyframes) &&
+          "opacity" in r.keyframes,
+      );
+    expect(clocks).toHaveLength(3);
+    // The later runs are interrupts, so they carry speed instead of restarting
+    // on the gentle step curve.
+    const cardRuns = recorded
+      .slice(before)
+      .filter((r) => "--car-x" in r.keyframes)
+      .slice(-4);
+    for (const run of cardRuns)
+      expect(run.options.easing).toBe("cubic-bezier(0.22, 1, 0.36, 1)");
+
+    finishStep();
+
+    // It lands in the peeking arrangement for offset 1, then nothing runs.
+    expect(row(container)).toHaveAttribute("data-peeking");
+    expect(prevCard(container)!.textContent).toContain("Systems");
+    const after = recorded.length;
+    act(() => vi.advanceTimersByTime(1000));
+    expect(recorded).toHaveLength(after);
+  });
+
+  it("returns to rest after three chained peek clicks and a leave", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    drawShifted(container);
+    prevCard(container)!.style.setProperty("--car-x", "0px");
+
+    fireEvent.click(prevCard(container)!);
+    act(() => vi.advanceTimersByTime(150));
+    fireEvent.click(prevCard(container)!);
+    act(() => vi.advanceTimersByTime(150));
+    fireEvent.click(prevCard(container)!);
+    finishStep();
+    expect(row(container)).toHaveAttribute("data-peeking");
+
+    leavePeek(container);
+
+    expect(row(container)).not.toHaveAttribute("data-peeking");
+    for (let slot = 0; slot < 4; slot++) {
+      expect(card(container, slot).style.getPropertyValue("--car-x")).toBe(
+        `${REST_X[slot]}px`,
+      );
+    }
+  });
+
   it("returns to rest after leaving the peek a peek click landed in", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     move(110);

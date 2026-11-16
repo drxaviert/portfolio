@@ -351,6 +351,13 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   const [offset, setOffset] = useState(0);
   const [domOffset, setDomOffset] = useState(0);
   const [ghosts, setGhosts] = useState<number[]>([]);
+  /**
+   * The item that was the peek's right edge when the running step started: it
+   * keeps the edge treatment while it leaves. It has to be state rather than a
+   * function of `domOffset`, because a click during a glide re-aims the run at
+   * another arrangement before the DOM order has caught up.
+   */
+  const [peekOut, setPeekOut] = useState<number | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [settled, setSettled] = useState(0);
   /** Measured slot widths, so the edge-blur layers can size their ramps. */
@@ -521,6 +528,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       delete row.dataset.peeking;
       delete row.dataset.mask;
     }
+    setPeekOut(null);
   }
 
   /** Whether the pointer, where it is now, asks for the peek. */
@@ -832,10 +840,13 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   function onRowClick(event: globalThis.MouseEvent) {
     const row = rowRef.current;
     const target = event.target;
-    if (!row || tween.current || !peek.current.open) return;
+    if (!row || !peek.current.open) return;
     if (!(target instanceof Element) || !target.closest(".car-peek-edge"))
       return;
 
+    // A click while a step is still gliding is another step, not a dropped one:
+    // `step` retargets the running plan from the cards' drawn poses, the same
+    // path an arrow pressed mid-run takes.
     event.preventDefault();
     step(-1, false);
   }
@@ -868,6 +879,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       if (peekAfter) landPeeked();
       else if (peek.current.open || peek.current.els) closePeeks();
       setGhosts([]);
+      setPeekOut(null);
       setDomOffset(at);
       setSettled((count) => count + 1);
     };
@@ -1040,6 +1052,16 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     // from the strip.
     const hover = peek.current;
     const drawn = hover.els ? cardPoses(hover.els) : null;
+    // A card that stepped out of the peek on an earlier run is still losing its
+    // left fade; a click mid-glide re-plans it, so its drawn strength is carried
+    // on rather than restarted from the pin.
+    const drawnFades = new Map<number, number>();
+    if (hover.els) {
+      for (const card of hover.els.cards) {
+        if (!card.el.hasAttribute("data-peek-fade")) continue;
+        drawnFades.set(card.item, read(card.el, "--car-lf"));
+      }
+    }
     const wasOpen = hover.open;
     const prevEl = hover.els?.prev ?? null;
     const prevDrawn =
@@ -1053,6 +1075,27 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const rowNow = rowRef.current;
     const fadeNow = rowNow ? read(rowNow, "--car-fade") : 0;
     const maskNow = rowNow ? read(rowNow, "--car-rm") : 0;
+    // The card that holds the right edge now (this arrangement's slot 2) is the
+    // one that has to hand it over; while a run is in flight its fade and blur
+    // are part-way, so their drawn values carry on from there.
+    const outItem = slotOrder(n, prev)[VISIBLE_SLOTS - 2];
+    const outDrawn = (() => {
+      const el = elements.current.get(`m${outItem}`);
+      if (!el) return null;
+      const layer = el.querySelector<HTMLElement>("[data-peek-blur]");
+      const rf = Number.parseFloat(
+        getComputedStyle(el).getPropertyValue("--car-rf"),
+      );
+      const blur = layer
+        ? Number.parseFloat(getComputedStyle(layer).opacity)
+        : Number.NaN;
+      // A settled peek's right edge is at full strength (and a run in flight is
+      // part-way, so its drawn value carries on from there).
+      return {
+        rf: Number.isFinite(rf) ? rf : 1,
+        blur: Number.isFinite(blur) ? blur : 1,
+      };
+    })();
     // The pointer decides where this step lands. If it is in the hover area the
     // run goes straight to the new arrangement's peek poses, so the peek is
     // part of the glide instead of a second animation after it.
@@ -1088,9 +1131,27 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const withPush = drawn
       ? current.map((e) => {
           const pose = drawn.get(e.item);
-          return pose === undefined || e.ghost
-            ? e
-            : { ...e, from: pose, to: pose };
+          if (pose === undefined || e.ghost) return e;
+
+          // The title it is drawn at, too: a click mid-glide interrupts a
+          // running fade, and the clock can be a frame behind the drawing.
+          const el = elements.current.get(entityKey(e));
+          const title = el?.querySelector<HTMLElement>("[data-car-title]");
+          const opacity = title
+            ? Number.parseFloat(getComputedStyle(title).opacity)
+            : Number.NaN;
+          // A card already blurred by the previous run (leaving past an end)
+          // keeps its blur and ramps from there.
+          const filterNow = el ? getComputedStyle(el).filter : "none";
+
+          return {
+            ...e,
+            from: pose,
+            to: pose,
+            fromTitle: Number.isFinite(opacity) ? opacity : e.fromTitle,
+            edgeBlurFrom:
+              filterNow && filterNow !== "none" ? filterNow : undefined,
+          };
         })
       : current;
     let planned = retarget(g, n, prev, k, withPush);
@@ -1113,6 +1174,19 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       });
     }
 
+    // A card that was already leaving the peek keeps losing its left fade on
+    // this run, from the strength it is drawn at (planned entities arrive with
+    // the fade of the run they came from, which may be stale).
+    const handoff = wasOpen && k < 0 && prevDrawn ? peekOf(n, prev) : -1;
+    planned = planned.map((e) => {
+      if (e.ghost) return e;
+      const fade = drawnFades.get(e.item);
+      if (fade !== undefined) return { ...e, peekFrom: { fade } };
+      // The card taking the copy's pose keeps the copy's own fade.
+      if (e.item === handoff) return e;
+      return e.peekFrom ? { ...e, peekFrom: undefined } : e;
+    });
+
     if (peekAfter) {
       // Every card lands where the peek's own shift would have put it, so the
       // step's end frame is the peek state itself (the copy is part of the same
@@ -1131,6 +1205,9 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     flushSync(() => {
       setOffset(next);
       setGhosts(planned.filter((e) => e.ghost).map((e) => e.item));
+      // The right edge of the arrangement the run is leaving keeps the treatment
+      // for the length of the run, fading out with it (see the peek block below).
+      setPeekOut(peekAfter && wasOpen ? outItem : null);
       if (!viaKeyboard) setAnnouncement(`Showing ${items[next].title}`);
     });
 
@@ -1177,8 +1254,8 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
       // The right edge changes hands on this same run: the arriving card ramps
       // its fade and blur in from nothing, the leaving one ramps its own out
-      // (with the blur copy that stood in for it), so neither edge appears or
-      // disappears at the landing.
+      // from where it is drawn (a click mid-glide hands over a fade that is
+      // already part-way), with the blur copy that stood in for it.
       const inItem = slotOrder(n, next)[VISIBLE_SLOTS - 2];
       const inEl = elements.current.get(`m${inItem}`);
       if (inEl) {
@@ -1190,7 +1267,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         );
       }
 
-      const outItem = slotOrder(n, prev)[VISIBLE_SLOTS - 2];
       const outEl =
         wasOpen && outItem !== inItem
           ? elements.current.get(`m${outItem}`)
@@ -1198,7 +1274,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       if (outEl) {
         animations.push(
           outEl.animate(
-            { "--car-rf": [1, 0] },
+            { "--car-rf": [outDrawn?.rf ?? 1, 0] },
             { duration: s.duration, easing, fill: "both" },
           ),
         );
@@ -1206,7 +1282,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         if (layer) {
           animations.push(
             layer.animate(
-              { opacity: [1, 0] },
+              { opacity: [outDrawn?.blur ?? 1, 0] },
               { duration: s.duration, easing, fill: "both" },
             ),
           );
@@ -1517,11 +1593,9 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   }
 
   const domOrder = slotOrder(n, domOffset);
-  // While a step runs, the DOM order is still the old one: the card that held
-  // the peek's right edge keeps the treatment for the run and hands it over.
-  const peekOutItem = hoverOn
-    ? slotOrder(n, domOffset)[VISIBLE_SLOTS - 2]
-    : -1;
+  // The card that held the peek's right edge when the running step started
+  // keeps the treatment for the run and hands it over (set per step).
+  const peekOutItem = peekOut ?? -1;
   const peekFadeWidth = (cardWidth: number) =>
     Math.max(8, Math.round((cardWidth * settings.peekFade) / 100));
   // The peek's outer fade widths are a share of those two cards, so they need

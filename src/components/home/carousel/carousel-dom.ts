@@ -90,11 +90,17 @@ export function playEntity(
     "--car-r": [crop(e.from.w, box), crop(e.to.w, box)],
   };
 
-  if (moves && b.edgeBlur > 0.01) {
+  if (moves && b.edgeBlur > 0.01 && !e.peekFrom) {
+    // A card leaving or entering past the row's ends melts with the edge. A card
+    // taking over the peek's copy does not: it starts at the copy's drawn pose,
+    // which can sit left of the row while the copy is still sliding in, and the
+    // peek's own edge treatment is what fades that end.
     const outside = (x: number) => x < 0 || x >= b.rowWidth;
 
-    if (outside(e.to.x)) keyframes.filter = ["none", blur(b.edgeBlur)];
-    else if (outside(e.from.x)) keyframes.filter = [blur(b.edgeBlur), "none"];
+    if (outside(e.to.x))
+      keyframes.filter = [e.edgeBlurFrom ?? "none", blur(b.edgeBlur)];
+    else if (outside(e.from.x))
+      keyframes.filter = [e.edgeBlurFrom ?? blur(b.edgeBlur), "none"];
     // Promoted only for the step, only for the cards that blur (see the css).
     if (keyframes.filter) el.dataset.edgeBlur = "";
   }

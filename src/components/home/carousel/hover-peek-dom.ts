@@ -52,7 +52,14 @@ export function cardPoses(els: PeekEls): Map<number, { x: number; w: number }> {
       card.item,
       {
         x: read(card.el, "--car-x"),
-        w: Number.parseFloat(card.el.style.width),
+        // The width it is drawn at, not the element's box: while a step runs the
+        // box is as wide as the wider end and the crop (`--car-r`) holds the
+        // rest, so a click mid-glide has to start from the drawn width.
+        w: Math.max(
+          (Number.parseFloat(card.el.style.width) || 0) -
+            read(card.el, "--car-r"),
+          1,
+        ),
       },
     ]),
   );
