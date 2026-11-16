@@ -341,14 +341,7 @@ export function ContactSheet({ caption }: { caption: string }) {
   );
 }
 
-export function NextLink({
-  next,
-  replace = false,
-}: {
-  next: WorkMeta;
-  /** The overlay replaces the entry so one Back always returns home. */
-  replace?: boolean;
-}) {
+export function NextLink({ next }: { next: WorkMeta }) {
   const router = useRouter();
   const committed = useRef(false);
 
@@ -372,8 +365,7 @@ export function NextLink({
     announceProgressionEntry();
     await leaveForNextStudy();
 
-    if (replace) router.replace(`/work/${next.slug}`);
-    else router.push(`/work/${next.slug}`);
+    router.replace(`/work/${next.slug}`);
   }
 
   return (
@@ -383,7 +375,7 @@ export function NextLink({
       </p>
       <Link
         href={`/work/${next.slug}`}
-        replace={replace}
+        replace
         className="wd-nextlink-link"
         aria-label={`Next project: ${next.title}`}
         onClick={onClick}

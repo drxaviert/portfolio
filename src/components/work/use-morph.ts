@@ -11,8 +11,11 @@ import {
 } from "react";
 import type { RefObject } from "react";
 import {
+  CLOSE_SCALE,
   flipFrom,
+  landWithin,
   toBox,
+  visibleCentre,
   MORPH_CLOSE_S,
   MORPH_EASE,
   MORPH_OPEN_S,
@@ -28,7 +31,7 @@ export type RevealState = "pending" | "on";
 
 type Morph = ReturnType<typeof animate>;
 
-const FADE_S = 0.12;
+export const FADE_S = 0.12;
 /** The entrance starts this long before the morph lands, so reading does not wait for it. */
 const REVEAL_LEAD_S = 0.12;
 
@@ -70,11 +73,22 @@ function setPose(
 export function useMorph(
   slug: string,
   panelRef: RefObject<HTMLElement | null>,
+  options: {
+    /**
+     * A direct load: the reader is already the destination, so it starts in its
+     * open resting state with no morph, and the entry is not the in-app overlay
+     * (closing replaces it instead of going back to a homepage entry).
+     */
+    resting?: boolean;
+  } = {},
 ): { phase: MorphPhase; reveal: RevealState; close: () => Promise<void> } {
+  const resting = options.resting ?? false;
   const router = useRouter();
   const reduce = useReducedMotion() ?? false;
-  const [phase, setPhase] = useState<MorphPhase>("opening");
-  const [reveal, setReveal] = useState<RevealState>("pending");
+  const [phase, setPhase] = useState<MorphPhase>(resting ? "open" : "opening");
+  const [reveal, setReveal] = useState<RevealState>(
+    resting ? "on" : "pending",
+  );
   const openingRef = useRef<Morph | null>(null);
   const startedRef = useRef(false);
   const closedRef = useRef(false);
@@ -120,10 +134,29 @@ export function useMorph(
     if (startedRef.current) return;
     startedRef.current = true;
 
-    window.history.replaceState(
-      { ...window.history.state, workOverlay: true },
-      "",
-    );
+    // A direct load is not an in-app overlay: there is no homepage entry behind
+    // it, so close replaces this entry instead of going back through history.
+    if (resting) {
+      // The homepage is mounted underneath and must be resting: mark the
+      // document before this commit paints, so its entrance never runs.
+      document.documentElement.dataset.entrancePlayed = "true";
+      // And remember that this document's entry is the study itself, so a
+      // reader opened over it (study to study) closes to '/' as well.
+      document.documentElement.dataset.readerEntry = "direct";
+      // Match the state a settled open morph leaves behind. The FLIP pose is
+      // measured from the panel's top-left corner, so a panel carrying the CSS
+      // default origin would shrink from its centre and land in the wrong place.
+      panelRef.current?.style.setProperty("transform-origin", "left top");
+      return;
+    }
+
+    // Only an entry reached from the homepage goes back to it.
+    if (document.documentElement.dataset.readerEntry !== "direct") {
+      window.history.replaceState(
+        { ...window.history.state, workOverlay: true },
+        "",
+      );
+    }
 
     const panel = panelRef.current;
     if (!panel) return;
@@ -176,7 +209,7 @@ export function useMorph(
       },
       (MORPH_OPEN_S - REVEAL_LEAD_S) * 1000,
     );
-  }, [slug, reduce, panelRef, settle]);
+  }, [slug, reduce, resting, panelRef, settle]);
 
   // A resize mid-morph jumps to the end; after that the panel is pure CSS, so
   // the new viewport just reflows it and close measures the card again.
@@ -204,21 +237,53 @@ export function useMorph(
       if (!panel) return;
 
       const card = findCard(slug);
-      // The nav returns on the same timing as whatever the panel does: the
-      // 300ms reverse morph, or the 120ms fade.
-      const navHome = moveNav("home", card && !reduce ? "flip" : "fade");
 
-      if (!card || reduce) {
+      // The nav returns on the same timing as whatever the panel does: the
+      // close flight, or the 120ms fade. Both waits are capped at that timing
+      // (morph.ts) so a stopped frame loop cannot strand the reader over a blank
+      // page: the route change is the promise that matters.
+      const exitSeconds = reduce ? FADE_S : MORPH_CLOSE_S;
+      const navHome = landWithin(moveNav("home", reduce ? "fade" : "flip"), exitSeconds);
+
+      if (reduce) {
         await Promise.all([
-          animate(panel, { opacity: 0 }, { duration: FADE_S, ease: "easeOut" })
-            .finished,
+          landWithin(
+            animate(panel, { opacity: 0 }, { duration: FADE_S, ease: "easeOut" })
+              .finished,
+            exitSeconds,
+          ),
+          navHome,
+        ]);
+      } else if (card) {
+        // The pose maps the panel's top-left corner onto the card's: the origin
+        // must be that corner whatever state the panel was opened in.
+        panel.style.transformOrigin = "left top";
+        const pose = flipFrom(card, layoutBox(panel));
+        await Promise.all([
+          landWithin(
+            animate(panel, pose, { duration: MORPH_CLOSE_S, ease: "easeIn" })
+              .finished,
+            exitSeconds,
+          ),
           navHome,
         ]);
       } else {
-        const pose = flipFrom(card, layoutBox(panel));
+        // No card to land on (a study with none, or a direct load behind):
+        // the close flight still runs, shrinking in place about the centre of
+        // what is actually on screen.
+        panel.style.transformOrigin = visibleCentre(
+          panel.getBoundingClientRect(),
+          { width: window.innerWidth, height: window.innerHeight },
+        );
         await Promise.all([
-          animate(panel, pose, { duration: MORPH_CLOSE_S, ease: "easeIn" })
-            .finished,
+          landWithin(
+            animate(
+              panel,
+              { opacity: 0, scale: CLOSE_SCALE },
+              { duration: MORPH_CLOSE_S, ease: "easeIn" },
+            ).finished,
+            exitSeconds,
+          ),
           navHome,
         ]);
       }
@@ -230,8 +295,15 @@ export function useMorph(
 
       if (window.location.pathname !== `/work/${slug}`) return;
 
+      // An in-app overlay leaves through the entry it was opened from (the
+      // homepage); a direct load — or a reader opened over one — has no such
+      // entry, so '/' replaces the study instead. Back from home must not
+      // reopen the reader.
       if (window.history.state?.workOverlay) router.back();
-      else router.push("/");
+      else {
+        delete document.documentElement.dataset.readerEntry;
+        router.replace("/");
+      }
     })();
 
     return closingRef.current;

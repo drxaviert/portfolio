@@ -51,9 +51,9 @@ export type HomeWorkSource = {
 
 type HomeLayoutProps = {
   /**
-   * Dev-prototype hook only (work-drawer): makes the work cards clickable and
-   * labels the slivers. Omitted on /, where every card keeps its shipped,
-   * non-interactive behaviour.
+   * Optional interactive hook: makes the work cards clickable and labels the
+   * slivers. Omitted on /, where every card keeps its shipped, non-interactive
+   * behaviour.
    */
   work?: HomeWorkSource;
   /**

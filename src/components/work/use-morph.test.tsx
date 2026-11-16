@@ -5,12 +5,14 @@ import type { Box } from "./morph";
 import { flipFrom } from "./morph";
 import { ExpandShell } from "./expand-shell";
 import { findCard } from "./use-morph";
+import { registerNavDock } from "@/components/nav/nav-flight";
 
 const mocks = vi.hoisted(() => ({
   animate: vi.fn(),
   reduce: false,
   back: vi.fn(),
   push: vi.fn(),
+  replace: vi.fn(),
 }));
 
 vi.mock("motion/react", async (importOriginal) => {
@@ -24,7 +26,11 @@ vi.mock("motion/react", async (importOriginal) => {
 });
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ back: mocks.back, push: mocks.push }),
+  useRouter: () => ({
+    back: mocks.back,
+    push: mocks.push,
+    replace: mocks.replace,
+  }),
 }));
 
 const SLUG = "systems-in-motion";
@@ -97,6 +103,7 @@ beforeEach(() => {
   mocks.reduce = false;
   mocks.back.mockReset();
   mocks.push.mockReset();
+  mocks.replace.mockReset();
 
   window.history.replaceState({}, "", "/work/systems-in-motion");
 
@@ -370,7 +377,7 @@ describe("ExpandShell", () => {
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
-  it("pushes home when the entry is not marked as the in-app overlay", async () => {
+  it("replaces home when the entry is not marked as the in-app overlay", async () => {
     placeCard(CARD_A);
 
     render(
@@ -388,8 +395,179 @@ describe("ExpandShell", () => {
       document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
     );
 
-    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/"));
     expect(mocks.back).not.toHaveBeenCalled();
+  });
+
+  it("starts a direct load open and resting, without an open morph", async () => {
+    placeCard(CARD_A);
+
+    render(
+      <ExpandShell slug={SLUG} resting>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    // No morph and no nav flight: the reader is already where it belongs.
+    expect(layerElement()).toHaveAttribute("data-phase", "open");
+    expect(layerElement()).toHaveAttribute("data-reveal", "on");
+    expect(mocks.animate).not.toHaveBeenCalled();
+    // The homepage underneath is resting, and the entry is not the in-app
+    // overlay (closing replaces it instead of going back).
+    expect(document.documentElement.dataset.entrancePlayed).toBe("true");
+    expect(window.history.state?.workOverlay).toBeUndefined();
+    // Exactly what a settled open morph leaves: the FLIP pose is measured from
+    // the panel's top-left corner, so the resting panel must carry that origin.
+    expect(panelElement().style.transformOrigin).toBe("left top");
+  });
+
+  it("gives a direct load and a soft open the same close origin", async () => {
+    placeCard(CARD_A);
+
+    const resting = render(
+      <ExpandShell slug={SLUG} resting>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+    const restingOrigin = panelElement().style.transformOrigin;
+    resting.unmount();
+    document.body.innerHTML = "";
+
+    placeCard(CARD_A);
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    // The soft open's morph settles to the same inline origin.
+    expect(panelElement().style.transformOrigin).toBe(restingOrigin);
+  });
+
+  it("flips a direct load's panel into its card and replaces the entry", async () => {
+    placeCard(CARD_A);
+
+    render(
+      <ExpandShell slug={SLUG} resting>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    const panel = document.querySelector<HTMLElement>(
+      ".wd-expand-layer .wd-reader-panel",
+    )!;
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
+
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/"));
+    expect(mocks.back).not.toHaveBeenCalled();
+
+    const close = mocks.animate.mock.calls.filter(([el]) => el === panel);
+    const pose = close[close.length - 1][1];
+    expect(pose).toMatchObject(flipFrom(CARD_A, PANEL));
+  });
+
+  it("closes a card-less overlay on the close flight", async () => {
+    document.body.innerHTML = "";
+    const toHome = vi.fn(() => Promise.resolve());
+    const unregister = registerNavDock({
+      toReader: vi.fn(() => Promise.resolve()),
+      toHome,
+    });
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    const panel = document.querySelector<HTMLElement>(
+      ".wd-expand-layer .wd-reader-panel",
+    )!;
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
+
+    await waitFor(() => expect(panel.style.opacity).toBe("0"));
+
+    const close = mocks.animate.mock.calls.find(([element]) => element === panel);
+    expect(close?.[1]).toEqual({ opacity: 0, scale: 0.95 });
+    expect(close?.[2]).toMatchObject({ duration: 0.3, ease: "easeIn" });
+    // Shrinks in place about the middle of the on-screen area.
+    expect(panel.style.transformOrigin).toBe("512px 384px");
+    expect(toHome).toHaveBeenCalledWith("flip");
+
+    unregister();
+  });
+
+  it("keeps the 120ms fade for a card-less close under reduced motion", async () => {
+    document.body.innerHTML = "";
+    mocks.reduce = true;
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    const panel = document.querySelector<HTMLElement>(
+      ".wd-expand-layer .wd-reader-panel",
+    )!;
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
+
+    await waitFor(() => expect(panel.style.opacity).toBe("0"));
+
+    const calls = mocks.animate.mock.calls.filter(
+      ([element]) => element === panel,
+    );
+    const close = calls[calls.length - 1];
+    expect(close[1]).toEqual({ opacity: 0 });
+    expect(close[2]).toMatchObject({ duration: 0.12, ease: "easeOut" });
+  });
+
+  it("leaves the route even when the close flight never finishes", async () => {
+    // A paused frame loop never resolves the close animation; the route change
+    // must not be held hostage by it.
+    placeCard(CARD_A);
+    mocks.animate.mockReturnValue({
+      finished: new Promise(() => {}),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+    vi.useFakeTimers();
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    act(() => {
+      fireEvent.click(
+        document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+      );
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(320);
+    });
+
+    expect(mocks.back).toHaveBeenCalledTimes(1);
   });
 
   it("stays put when the route already left the reader", async () => {

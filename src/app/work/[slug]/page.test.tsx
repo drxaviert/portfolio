@@ -11,9 +11,16 @@ const { notFound } = vi.hoisted(() => ({
   }),
 }));
 
+const nav = vi.hoisted(() => ({ pathname: "/work/systems-in-motion" }));
+
 vi.mock("next/navigation", () => ({
   notFound,
-  useRouter: () => ({ push: () => undefined, replace: () => undefined }),
+  usePathname: () => nav.pathname,
+  useRouter: () => ({
+    push: () => undefined,
+    replace: () => undefined,
+    back: () => undefined,
+  }),
 }));
 
 // Vitest has no MDX transform; the body is a placeholder here. The page test
@@ -31,6 +38,11 @@ async function renderStudy(slug = "systems-in-motion") {
 }
 
 beforeEach(() => {
+  nav.pathname = "/work/systems-in-motion";
+  delete document.documentElement.dataset.entrancePlayed;
+  delete document.documentElement.dataset.homeShown;
+  delete document.documentElement.dataset.readerEntry;
+
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -51,18 +63,48 @@ afterEach(() => {
 });
 
 describe("work page", () => {
-  it("renders the study title as the reader heading", async () => {
+  it("renders the study title in the reader", async () => {
     await renderStudy();
 
-    const title = screen.getByRole("heading", { name: "Systems in motion" });
-    expect(title).toHaveAttribute("id", READER_TITLE_ID);
+    // The homepage card has the same title; the reader's is the one by id.
+    const title = document.getElementById(READER_TITLE_ID);
+    expect(title).toHaveTextContent("Systems in motion");
     expect(screen.getByText("Case-study body")).toBeInTheDocument();
   });
 
-  it("renders a page, not a dialog", async () => {
+  it("renders the reader as a dialog over the homepage", async () => {
     await renderStudy();
 
+    expect(screen.getByRole("dialog")).toHaveAttribute(
+      "aria-labelledby",
+      READER_TITLE_ID,
+    );
+    // The homepage is underneath, so close has a card to fly into.
+    expect(document.querySelector("[data-work-card]")).toBeInTheDocument();
+    expect(document.querySelector("main[data-entrance]")).toBeInTheDocument();
+  });
+
+  it("opens resting, with the homepage marked as already shown", async () => {
+    await renderStudy();
+
+    const layer = document.querySelector(".wd-expand-layer");
+    expect(layer).toHaveAttribute("data-phase", "open");
+    expect(document.documentElement.dataset.entrancePlayed).toBe("true");
+  });
+
+  it("steps its reader aside on another study's URL", async () => {
+    // A study-to-study navigation leaves this page behind in children while the
+    // modal slot shows the new reader; two readers must not stack.
+    nav.pathname = "/work/title-sequence";
+
+    const tree = await WorkPage({
+      params: Promise.resolve({ slug: "systems-in-motion" }),
+    });
+    render(<ThemeProvider>{tree}</ThemeProvider>);
+
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // The homepage underneath stays: close still has a card to fly into.
+    expect(document.querySelector("[data-work-card]")).toBeInTheDocument();
   });
 
   it("ends with the next study in reading order", async () => {

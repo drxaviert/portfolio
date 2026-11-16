@@ -71,15 +71,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderReader(
-  children: ReactNode,
-  mode: "overlay" | "page" = "overlay",
-) {
+function renderReader(children: ReactNode) {
   return render(
     <ThemeProvider>
-      <Reader meta={featured()} mode={mode}>
-        {children}
-      </Reader>
+      <Reader meta={featured()}>{children}</Reader>
     </ThemeProvider>,
   );
 }
@@ -125,14 +120,6 @@ describe("reader overlay", () => {
 
     expect(next).toHaveAttribute("href", "/work/title-sequence");
     expect(next).toHaveAttribute("data-replace", "true");
-  });
-
-  it("pushes the next study on a direct load", () => {
-    renderReader(<p>Case-study body</p>, "page");
-
-    expect(
-      screen.getByRole("link", { name: "Next project: The title sequence" }),
-    ).toHaveAttribute("data-replace", "false");
   });
 
   it("hands the next study off on the close fade, not a hard cut", async () => {

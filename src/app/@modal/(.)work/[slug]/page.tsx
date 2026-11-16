@@ -26,7 +26,7 @@ export default async function InterceptedWorkPage({
 
   return (
     <ExpandShell slug={meta.slug}>
-      <Reader meta={meta} mode="overlay">
+      <Reader meta={meta}>
         <Body components={mdxComponents} />
       </Reader>
     </ExpandShell>

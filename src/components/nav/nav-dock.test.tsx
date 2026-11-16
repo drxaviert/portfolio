@@ -267,4 +267,21 @@ describe("NavDock", () => {
     requestReaderClose();
     expect(close).toHaveBeenCalledTimes(1);
   });
+
+  it("hands the close back to the reader below when the overlay lets go", () => {
+    const page = vi.fn();
+    const overlay = vi.fn();
+    const offPage = registerReaderClose(page);
+    const offOverlay = registerReaderClose(overlay);
+
+    requestReaderClose();
+    expect(overlay).toHaveBeenCalledTimes(1);
+
+    offOverlay();
+    requestReaderClose();
+    expect(page).toHaveBeenCalledTimes(1);
+
+    offPage();
+    expect(hasReaderClose()).toBe(false);
+  });
 });
