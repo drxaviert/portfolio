@@ -206,6 +206,17 @@
   initial-value: 1;
 }
 
+/*
+ * The left edge's own strength, on the card a step pushes out through the left
+ * end: its fade and blur copy ramp in on the step's own run, so the card slides
+ * out with its edge melting instead of being wiped at the column's edge.
+ */
+@property --car-le {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
 .car-row[data-stepping],
 .car-row[data-mask] {
   --car-mask: linear-gradient(
@@ -319,6 +330,40 @@
 .car-row[data-peeking] .car-slide[data-peek-out] .car-host {
   /* The padded frame's padding box is the card plus the pad; the host sits back
      inside it, so the card is exactly where it was. */
+  position: absolute;
+  inset: var(--car-shadow-pad);
+  width: auto;
+  height: auto;
+}
+
+/*
+ * The mirror of the right edge: the card a step pushes out through the left end
+ * keeps its own width and fades with the peek's left-edge ramp instead of being
+ * cropped away. The ramp is one mask over the padded box (so the fill, the ring,
+ * the shadow and the blur copy all fade on it), anchored to the edge the card is
+ * drawn at, and its strength is `--car-le`, ramped by the step's run. The crop
+ * sits on the right of a leaving card, so `right` takes it out of the masked box
+ * the same way the right edge does.
+ */
+.car-slide[data-edge-left] .car-frame {
+  right: var(--car-r);
+  margin: calc(-1 * var(--car-shadow-pad));
+  padding: var(--car-shadow-pad);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    rgb(0 0 0 / calc(1 - var(--car-le))) var(--car-shadow-pad),
+    #000 calc(var(--car-shadow-pad) + var(--peek-fade-left, 34px))
+  );
+  mask-image: linear-gradient(
+    to right,
+    rgb(0 0 0 / calc(1 - var(--car-le))) var(--car-shadow-pad),
+    #000 calc(var(--car-shadow-pad) + var(--peek-fade-left, 34px))
+  );
+}
+
+.car-slide[data-edge-left] .car-host {
   position: absolute;
   inset: var(--car-shadow-pad);
   width: auto;

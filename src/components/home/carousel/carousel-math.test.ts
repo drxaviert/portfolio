@@ -137,12 +137,15 @@ describe("easing", () => {
 });
 
 describe("wrap seam", () => {
-  it("sends the card leaving slot 0 out left and a copy in from the right", () => {
+  it("pushes the card leaving slot 0 out left at its own width, and a copy in from the right", () => {
     const planned = retarget(G, 4, 0, 1, restEntities(G, 4, 0));
     const main = planned.find((e) => e.item === 0 && !e.ghost)!;
     const ghost = planned.find((e) => e.item === 0 && e.ghost)!;
 
-    expect(main.to).toEqual(exitLeft(G));
+    // A push: it leaves at its own width, just past the left edge, so it slides
+    // out instead of shrinking to the narrow slot.
+    expect(main.to).toEqual({ x: -(G.slots[0].w + G.gap), w: G.slots[0].w });
+    expect(main.edgeLeft).toBe(true);
     expect(ghost.from).toEqual(offRight(G));
     expect(ghost.to).toEqual(G.slots[3]);
     expect(planned.filter((e) => e.ghost)).toHaveLength(1);
@@ -173,7 +176,10 @@ describe("wrap seam", () => {
     expect(planned.filter((e) => e.ghost)).toHaveLength(0);
     expect(planned.find((e) => e.item === 4)!.from).toEqual(offRight(G));
     expect(planned.find((e) => e.item === 4)!.to).toEqual(G.slots[3]);
-    expect(planned.find((e) => e.item === 0)!.to).toEqual(exitLeft(G));
+    expect(planned.find((e) => e.item === 0)!.to).toEqual({
+      x: -(G.slots[0].w + G.gap),
+      w: G.slots[0].w,
+    });
   });
 });
 

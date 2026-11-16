@@ -256,6 +256,8 @@ export type Entity = {
   peekFrom?: { fade: number };
   /** A card already blurred by the previous run: the filter it is drawn at. */
   edgeBlurFrom?: string;
+  /** Leaves through the left end: it carries the peek's left-edge treatment. */
+  edgeLeft?: boolean;
 };
 
 export function entityKey(e: Pick<Entity, "item" | "ghost">): string {
@@ -334,7 +336,21 @@ export function retarget(
       continue;
     }
 
-    out.push(retargetTo(main, exit, 0));
+    if (k > 0) {
+      // A card leaving through the left end slides out at its own width, just
+      // past the edge - a push, not a shrink. It keeps the left-edge treatment
+      // for the run (see playEntity), so its edge fades and blurs as it goes.
+      out.push({
+        ...retargetTo(
+          main,
+          { x: -(main.from.w + g.gap), w: main.from.w },
+          0,
+        ),
+        edgeLeft: true,
+      });
+    } else {
+      out.push(retargetTo(main, exit, 0));
+    }
 
     if (visible) {
       out.push({

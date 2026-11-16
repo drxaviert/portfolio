@@ -675,7 +675,9 @@ describe("left hover peek", () => {
     expect(rf.options.duration).toBe(350);
     // The running step's cards turn onto the peek arrangement: the feature that
     // was already leaving keeps going out left, the rest land in the peek slots.
-    const glideFor = [-96, OPEN_X[0], OPEN_X[1], OPEN_X[2]];
+    // The leaving feature keeps its width and slides out past the left edge; the
+    // others turn onto the peek arrangement.
+    const glideFor = [-765, OPEN_X[0], OPEN_X[1], OPEN_X[2]];
     for (let index = 0; index < 4; index++) {
       const run = slides(cards[index]).at(-1)!;
       expect(run.keyframes["--car-x"][1]).toBe(`${glideFor[index]}px`);
@@ -865,6 +867,53 @@ describe("left hover peek", () => {
         `${REST_X[slot]}px`,
       );
     }
+  });
+
+  it("slides the leaving feature out at its width with the peek's left edge on the run", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    // The pointer stays away, so this is a plain forward step to rest.
+    fireEvent.keyDown(card(container, 0).querySelector(".car-host")!, {
+      key: "ArrowRight",
+    });
+
+    const leaving = container.querySelector<HTMLElement>(
+      ".car-slide[data-edge-left]",
+    )!;
+    expect(leaving).toBeTruthy();
+    expect(leaving.querySelector("[data-car-title]")?.textContent).toBe(
+      "Systems",
+    );
+    // A push, not a shrink: it keeps its box and leaves past the left edge.
+    const move = slides(leaving).at(-1)!;
+    expect(move.keyframes["--car-x"]).toEqual(["0px", "-765px"]);
+    expect(move.keyframes["--car-r"]).toEqual(["0px", "0px"]);
+    // The peek's left edge, on the same run: the fade ramps in on --car-le and
+    // the blur copy fades with it, anchored to the edge the card is drawn at.
+    const fade = recorded.find(
+      (r) => r.target === leaving && "--car-le" in r.keyframes,
+    )!;
+    expect(fade.keyframes["--car-le"]).toEqual([0, 1]);
+    expect(fade.options.duration).toBe(900);
+    const layer = leaving.querySelector<HTMLElement>("[data-peek-blur]")!;
+    expect(layer).toHaveAttribute("data-edge", "left");
+    const blur = recorded.find(
+      (r) => r.target === layer && "opacity" in r.keyframes,
+    )!;
+    expect(blur.keyframes.opacity).toEqual([0, 1]);
+    expect(blur.options.duration).toBe(900);
+    // The left end is not blurred as a whole card: the edge copy does it.
+    expect(
+      recorded.some(
+        (r) => r.target === leaving && !Array.isArray(r.keyframes) && "filter" in r.keyframes,
+      ),
+    ).toBe(false);
+
+    finishStep();
+
+    // At rest the card is out of the row and carries none of the edge state.
+    expect(container.querySelector("[data-edge-left]")).toBeNull();
+    expect(leaving.style.getPropertyValue("--car-le")).toBe("");
+    expect(leaving.querySelector("[data-peek-blur]")).toBeNull();
   });
 
   it("ends every leave path at the rest rects with the peek's state cleared", () => {

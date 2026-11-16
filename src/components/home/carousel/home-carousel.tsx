@@ -179,6 +179,11 @@ type SlideProps = {
    * it keeps the edge treatment for the run, fading out with it.
    */
   peekOut?: boolean;
+  /**
+   * The featured card this step pushes out through the left end: it slides out
+   * at its own width with the peek's left edge (fade + blur copy) on the run.
+   */
+  edgeLeft?: boolean;
   register: (key: string, element: HTMLElement | null) => void;
   onActivate: (event: MouseEvent<HTMLElement>, index: number) => void;
 };
@@ -195,6 +200,7 @@ function Slide({
   ghost,
   peek = false,
   peekOut = false,
+  edgeLeft = false,
   register,
   onActivate,
 }: SlideProps) {
@@ -206,10 +212,11 @@ function Slide({
   // right-most visible card's right edge (slot 2, once the 4th has been pushed
   // out). The layer rides the card, so the row's hold mask fades it with the
   // card, its ring and its shadow. The card that held the right edge before a
-  // step keeps it while it leaves, so the two hand it over on one run.
+  // step keeps it while it leaves, so the two hand it over on one run, and a
+  // card leaving through the left end takes the peek's left edge for its run.
   const rightEdge =
     !ghost && (slot === VISIBLE_SLOTS - 2 || peekOut);
-  const edgeBlur = peek ? "left" : rightEdge ? "right" : null;
+  const edgeBlur = peek ? "left" : rightEdge ? "right" : edgeLeft ? "left" : null;
 
   const body = (
     <>
@@ -318,6 +325,7 @@ function Slide({
       data-offscreen={offscreen ? "" : undefined}
       data-side={peek ? "left" : undefined}
       data-peek-out={peekOut ? "" : undefined}
+      data-edge-left={edgeLeft ? "" : undefined}
       className={peek ? "car-slide car-peek car-peek-edge" : "car-slide"}
     >
       {/* The masked box for the peek's edge fade: at rest it is the card's box,
@@ -358,6 +366,11 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
    * another arrangement before the DOM order has caught up.
    */
   const [peekOut, setPeekOut] = useState<number | null>(null);
+  /**
+   * The featured card the running step pushes out through the left end: it
+   * carries the peek's left edge (fade + blur copy) while it leaves.
+   */
+  const [edgeLeft, setEdgeLeft] = useState<number | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [settled, setSettled] = useState(0);
   /** Measured slot widths, so the edge-blur layers can size their ramps. */
@@ -529,6 +542,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       delete row.dataset.mask;
     }
     setPeekOut(null);
+    setEdgeLeft(null);
   }
 
   /** Whether the pointer, where it is now, asks for the peek. */
@@ -880,6 +894,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       else if (peek.current.open || peek.current.els) closePeeks();
       setGhosts([]);
       setPeekOut(null);
+      setEdgeLeft(null);
       setDomOffset(at);
       setSettled((count) => count + 1);
     };
@@ -1199,6 +1214,10 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       );
     }
 
+    // The card the step pushes out through the left end (if any) takes the
+    // peek's left edge for the run.
+    const leftItem = planned.find((e) => e.edgeLeft)?.item ?? null;
+
     closePeeks();
 
     cancelTween();
@@ -1208,6 +1227,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       // The right edge of the arrangement the run is leaving keeps the treatment
       // for the length of the run, fading out with it (see the peek block below).
       setPeekOut(peekAfter && wasOpen ? outItem : null);
+      setEdgeLeft(leftItem);
       if (!viaKeyboard) setAnnouncement(`Showing ${items[next].title}`);
     });
 
@@ -1305,6 +1325,31 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
           { duration: s.duration, easing: "linear", fill: "both" },
         ),
       );
+    }
+
+    // The card the step pushes out through the left end carries the peek's left
+    // edge for the run: its own fade (the frame mask, on `--car-le`) and the
+    // progressive blur copy ramp in together, anchored to the edge it is drawn
+    // at, so it slides out instead of being wiped and never pops at the start.
+    if (leftItem !== null) {
+      const el = elements.current.get(`m${leftItem}`);
+      if (el) {
+        animations.push(
+          el.animate(
+            { "--car-le": [0, 1] },
+            { duration: s.duration, easing, fill: "both" },
+          ),
+        );
+        const layer = el.querySelector<HTMLElement>("[data-peek-blur]");
+        if (layer) {
+          animations.push(
+            layer.animate(
+              { opacity: [0, 1] },
+              { duration: s.duration, easing, fill: "both" },
+            ),
+          );
+        }
+      }
     }
 
     // Stepping forward with the peek open: the previous card slides back out to
@@ -1596,6 +1641,8 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   // The card that held the peek's right edge when the running step started
   // keeps the treatment for the run and hands it over (set per step).
   const peekOutItem = peekOut ?? -1;
+  // The featured card the running step pushes out through the left end.
+  const edgeLeftItem = edgeLeft ?? -1;
   const peekFadeWidth = (cardWidth: number) =>
     Math.max(8, Math.round((cardWidth * settings.peekFade) / 100));
   // The peek's outer fade widths are a share of those two cards, so they need
@@ -1640,6 +1687,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
                 total={n}
                 ghost={false}
                 peekOut={index === peekOutItem && slot !== VISIBLE_SLOTS - 2}
+                edgeLeft={index === edgeLeftItem}
                 register={register}
                 onActivate={onActivate}
               />
