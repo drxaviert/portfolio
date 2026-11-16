@@ -1,13 +1,13 @@
 /*
  * The reader's scroll ruler. A dense column of fine ticks at the right edge of
- * the scroll area: the long bright tick is the reading position, the longer
- * ones are the article's sections.
+ * the scroll area: the long bright tick is the reading position, and every tick
+ * is a point in the article that previews the text living there.
  *
  * The tick grid is one CSS variable. Every tick is a 13px row, so the same step
- * drives the tick spacing, the indicator's travel and the label's offset, and
- * the component only hands over the tick count.
+ * drives the tick spacing and the indicator's travel, and the component only
+ * hands over the tick count.
  *
- * Geometry sits at the panel's right edge, which is 22px in from it: the scroll
+ * Geometry sits at the panel's right edge, 22px in from it: the scroll
  * container reserves a stable scrollbar gutter there.
  */
 
@@ -30,7 +30,7 @@
 /*
  * Only where there is a permanent pointer and a margin to sit in. On touch and
  * on phone widths the ruler would be hover-only information with nowhere to put
- * its label, so it is not there at all.
+ * its preview, so it is not there at all.
  */
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
   .wd-ruler[data-visible="true"] {
@@ -54,24 +54,38 @@
   height: var(--wd-ruler-step);
 }
 
+/*
+ * A tick is a long line scaled down, so the hover's growth is a transform. At
+ * rest a plain tick is 6px and a section tick 11px; hovered, they are 13 and 15,
+ * which is what makes the pointed-at row read as the one being asked about.
+ */
 .wd-ruler-tick {
   display: block;
-  width: 6px;
+  width: 13px;
   height: 1px;
   border-radius: 1px;
   background: var(--outline);
+  transform: scaleX(0.46);
+  transform-origin: right center;
+  transition:
+    transform var(--duration-short-3) var(--ease-decelerate),
+    background-color var(--duration-short-3) var(--ease-decelerate);
 }
 
-/*
- * A section tick is a link, so its box is the full row (a 13px-tall target) and
- * the line is drawn inside it. The box is what the focus ring wraps.
- */
+.wd-ruler-tick[data-active="true"] {
+  transform: scaleX(1);
+  background: var(--on-surface-variant);
+}
+
+/* A section tick is a link, so its box is the full row: that box is what the
+   focus ring wraps and what the keyboard tabs to. */
 .wd-ruler-tick-section {
   position: relative;
   width: var(--wd-ruler-width);
   height: var(--wd-ruler-step);
-  border-radius: 3px;
   background: none;
+  transform: none;
+  border-radius: 3px;
 }
 
 .wd-ruler-tick-section::after {
@@ -79,11 +93,12 @@
   position: absolute;
   top: 50%;
   right: 0;
-  width: 11px;
+  width: 15px;
   height: 1px;
   margin-top: -0.5px;
   border-radius: 1px;
   background: var(--on-surface-variant);
+  transform: scaleX(0.73);
   transform-origin: right center;
   transition:
     transform var(--duration-short-3) var(--ease-decelerate),
@@ -91,7 +106,7 @@
 }
 
 .wd-ruler-tick-section[data-active="true"]::after {
-  transform: scaleX(1.3);
+  transform: scaleX(1);
   background: var(--on-surface);
 }
 
@@ -115,44 +130,87 @@
   );
 }
 
-/* The hovered or focused section's name, in the margin to the left. */
-.wd-ruler-label {
+/*
+ * The preview: one card for the whole column, moved to the hovered tick and
+ * refilled in place, so scrubbing never closes and reopens it.
+ *
+ * The outer element carries the tick's position (the component clamps it inside
+ * the reader) and the inner one carries the open state, so a move between ticks
+ * is a short slide while the first open is an opacity and a nudge out of the
+ * ruler, on the tokens the site's other popovers use.
+ */
+.wd-ruler-card {
   position: absolute;
-  top: calc(var(--wd-ruler-pad) + var(--wd-ruler-step) / 2 - 9px);
-  right: calc(100% + 10px);
-  display: block;
-  max-width: 200px;
-  overflow: hidden;
-  font-size: 11px;
-  line-height: 1.3;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  text-align: right;
-  color: var(--on-surface);
-  opacity: 0;
-  transform: translateY(calc(var(--wd-ruler-label-y, 0px)));
-  transition: opacity var(--duration-short-3) var(--ease-decelerate);
+  top: 0;
+  right: calc(100% + 12px);
+  width: 280px;
+  transform: translateY(var(--wd-ruler-card-y, 0px));
   pointer-events: none;
 }
 
-.wd-ruler[data-active="true"] .wd-ruler-label {
+.wd-ruler[data-active="true"] .wd-ruler-card {
+  transition: transform var(--duration-short-2) var(--ease-decelerate);
+}
+
+.wd-ruler-card-inner {
+  padding: 10px 12px 11px;
+  border-radius: var(--radius-lg);
+  /* Cards and menus are flat fills with a shadow, never a stroke. */
+  background: var(--surface-container-highest);
+  box-shadow:
+    var(--shadow-card),
+    0 14px 34px -14px rgb(0 0 0 / 0.5);
+  opacity: 0;
+  transform: translateX(6px);
+  transition:
+    opacity var(--duration-short-3) var(--ease-decelerate),
+    transform var(--duration-short-3) var(--ease-decelerate);
+}
+
+.wd-ruler[data-active="true"] .wd-ruler-card-inner {
   opacity: 1;
+  transform: none;
+}
+
+.wd-ruler-card-title {
+  margin: 0;
+  color: var(--on-surface);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.wd-ruler-card-body {
+  display: -webkit-box;
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.wd-ruler-card-body:empty {
+  display: none;
 }
 
 /*
- * A jump from a section tick lands the heading below the reader's blur band,
- * at the same clearance the column's own top padding uses. The component reads
- * the resolved value, so the tick's position and the jump agree.
+ * A jump from a tick lands the block below the reader's blur band, at the same
+ * clearance the column's own top padding uses. The component reads the resolved
+ * value, so a tick's position and its landing agree.
  */
-.wd-prose .wd-h2 {
+.wd-prose > * {
   scroll-margin-top: calc(
     var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
   );
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .wd-ruler-tick,
   .wd-ruler-tick-section::after,
-  .wd-ruler-label {
+  .wd-ruler[data-active="true"] .wd-ruler-card,
+  .wd-ruler-card-inner {
     transition: none;
   }
 }

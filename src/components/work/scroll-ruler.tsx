@@ -1,25 +1,30 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent, PointerEvent } from "react";
 import {
+  blockSpan,
   clamp01,
-  nearestSection,
+  collapseText,
+  pickBlock,
   placeSectionTicks,
   rulerTickCount,
+  tickAt,
   uniqueHeadingId,
 } from "./ruler-model";
+import type { BlockSpan } from "./ruler-model";
 import { READER_SCROLL_ID } from "./parts";
 import "./scroll-ruler.css";
 
 /**
  * The study reader's scroll ruler: a dense tick column at the right edge of the
- * scroll area. The long bright tick is where you are; the longer ticks are the
- * article's `##` sections, hoverable for their name and clickable to jump.
+ * scroll area. The long bright tick is where you are; every tick is a point in
+ * the article, and hovering one grows it and opens a preview of the text that
+ * lives there. Clicking jumps to it.
  *
- * It is built from the rendered DOM, not from the MDX source: any study with
- * `##` headings gets a ruler with no per-study code or config. Headings arrive
- * without ids, so this assigns them (slugified, de-duplicated) as it measures.
+ * It is built from the rendered DOM, not from the MDX source, so any study gets
+ * a working ruler with no per-study code or config. Headings arrive without
+ * ids, so this assigns them (slugified, de-duplicated) as it measures.
  */
 export type ScrollRulerProps = {
   /** Re-measures when the reader swaps article (study to study). */
@@ -29,38 +34,62 @@ export type ScrollRulerProps = {
 type RulerSection = {
   id: string;
   label: string;
-  /** Section start, 0–1 of the scrollable height. */
-  progress: number;
   /** Index on the tick grid, where this section is drawn. */
   tick: number;
 };
 
+/** What a tick's preview says: the section it sits in, and the text there. */
+type RulerCard = { title: string; excerpt: string };
+
 type RulerLayout = {
   ticks: number;
   sections: RulerSection[];
+  cards: RulerCard[];
   scrollable: boolean;
 };
 
-const EMPTY_LAYOUT: RulerLayout = { ticks: 0, sections: [], scrollable: false };
+/** Where a tick jumps to, measured in the scroll container's own coordinates. */
+type RulerTarget = { element: HTMLElement; top: number };
+
+const EMPTY_LAYOUT: RulerLayout = {
+  ticks: 0,
+  sections: [],
+  cards: [],
+  scrollable: false,
+};
+
+const EMPTY_CARD: RulerCard = { title: "", excerpt: "" };
 
 function reducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-/** The heading's scroll-margin keeps it clear of the reader's blur band. */
-function clearanceOf(heading: HTMLElement) {
-  return Number.parseFloat(getComputedStyle(heading).scrollMarginTop) || 0;
+/** The scroll-margin keeps a landing clear of the reader's blur band. */
+function clearanceOf(element: HTMLElement) {
+  return Number.parseFloat(getComputedStyle(element).scrollMarginTop) || 0;
+}
+
+/** A block's preview text: a figure speaks through its caption. */
+function textOf(element: HTMLElement) {
+  const source = element.querySelector("figcaption") ?? element;
+  return collapseText(source.textContent ?? "");
 }
 
 export function ScrollRuler({ studySlug }: ScrollRulerProps) {
   const navRef = useRef<HTMLElement>(null);
   const trackRef = useRef<HTMLOListElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLElement | null>(null);
   const layoutRef = useRef<RulerLayout>(EMPTY_LAYOUT);
+  const targetsRef = useRef<RulerTarget[]>([]);
   const signatureRef = useRef("");
 
   const [layout, setLayout] = useState<RulerLayout | null>(null);
-  const [active, setActive] = useState(-1);
+  // Hover and focus are separate: clicking a tick blurs the section link, and
+  // the pointer is still on the ruler, so the preview must not close under it.
+  const [hovered, setHovered] = useState(-1);
+  const [focused, setFocused] = useState(-1);
+  const active = hovered >= 0 ? hovered : focused;
 
   useEffect(() => {
     layoutRef.current = layout ?? EMPTY_LAYOUT;
@@ -93,52 +122,135 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
     const measure = () => {
       const max = scrollEl.scrollHeight - scrollEl.clientHeight;
       const scrollable = max > 1;
-      const headings = [
-        ...scrollEl.querySelectorAll<HTMLElement>(".wd-prose h2"),
-      ];
+      const scrollRect = scrollEl.getBoundingClientRect();
+      const prose = scrollEl.querySelector<HTMLElement>(".wd-prose");
 
-      // A study with no real structure gets the progress tick and nothing else:
-      // one heading is not a list to navigate.
+      // The article's own blocks, in reading order: a tick previews whichever
+      // one sits at its scroll position, so headings, paragraphs, figures and
+      // notes are all first-class marks.
+      const blocks = prose ? ([...prose.children] as HTMLElement[]) : [];
+      const intro = collapseText(
+        scrollEl.querySelector(".wd-intro-title")?.textContent ?? "",
+      );
+
+      const spans: BlockSpan[] = blocks.map((block) => {
+        const box = block.getBoundingClientRect();
+        const offset = box.top - scrollRect.top + scrollEl.scrollTop;
+
+        return blockSpan(offset, box.height, clearanceOf(block));
+      });
+
       const used = new Set<string>();
-      const starts: number[] = [];
-      const entries = headings.map((heading) => {
-        const label = heading.textContent?.trim() || "Section";
+      const headings = blocks.filter((block) => block.tagName === "H2");
+      const sectionOf = new Map<HTMLElement, { id: string; label: string }>();
+
+      const starts = headings.map((heading) => {
+        const label = collapseText(heading.textContent ?? "") || "Section";
         const id = heading.id || uniqueHeadingId(label, used);
         used.add(id);
+        sectionOf.set(heading, { id, label });
 
-        const offset =
-          heading.getBoundingClientRect().top -
-          scrollEl.getBoundingClientRect().top +
-          scrollEl.scrollTop -
-          clearanceOf(heading);
+        const top = heading.getBoundingClientRect().top - scrollRect.top;
+        const offset = top + scrollEl.scrollTop - clearanceOf(heading);
 
-        starts.push(max > 0 ? clamp01(offset / max) : 0);
-        return { heading, id, label };
+        return max > 0 ? clamp01(offset / max) : 0;
+      });
+
+      // One preview per block: a heading names its own section and borrows the
+      // first thing under it; anything else takes the section it sits in.
+      const blockCards: RulerCard[] = [];
+      let sectionTitle = intro || "Top";
+
+      blocks.forEach((block, index) => {
+        const own = textOf(block);
+
+        if (block.tagName === "H2") {
+          sectionTitle = own || sectionTitle;
+          const next = blocks
+            .slice(index + 1)
+            .find((candidate) => candidate.tagName !== "H2");
+          blockCards.push({
+            title: sectionTitle,
+            excerpt: next ? textOf(next) : own,
+          });
+          return;
+        }
+
+        blockCards.push({ title: sectionTitle, excerpt: own });
       });
 
       let sections: RulerSection[] = [];
 
-      if (scrollable && entries.length > 1) {
+      if (scrollable && headings.length > 1) {
         const placed = placeSectionTicks(
           starts,
-          rulerTickCount(entries.length),
+          rulerTickCount(headings.length),
         );
 
-        sections = entries.map(({ heading, id, label }, index) => {
-          if (!heading.id) heading.id = id;
-          return { id, label, progress: starts[index], tick: placed[index] };
+        sections = headings.map((heading, index) => {
+          const info = sectionOf.get(heading);
+          if (!info) throw new Error("heading lost its section");
+
+          if (!heading.id) heading.id = info.id;
+
+          return { id: info.id, label: info.label, tick: placed[index] };
         });
       }
 
-      const ticks = sections.length > 0 ? rulerTickCount(sections.length) : 0;
-      const signature = `${scrollable}|${ticks}|${sections
-        .map((section) => `${section.id}@${section.tick}:${section.progress}`)
-        .join("|")}`;
+      const ticks = scrollable ? rulerTickCount(sections.length) : 0;
+      const cards: RulerCard[] = [];
+      const targets: RulerTarget[] = [];
+
+      for (let tick = 0; tick < ticks; tick += 1) {
+        const position = ticks > 1 ? (tick / (ticks - 1)) * max : 0;
+        const index = pickBlock(spans, position);
+        const block = index >= 0 ? blocks[index] : null;
+
+        cards.push(
+          index >= 0
+            ? blockCards[index]
+            : { title: intro || "Top", excerpt: "" },
+        );
+        targets.push(
+          block
+            ? {
+                element: block,
+                top: Math.max(0, spans[index].top),
+              }
+            : { element: scrollEl, top: 0 },
+        );
+      }
+
+      // A section tick is the section's own mark, whatever block happens to be
+      // at that row: its link, its card and its landing all say the heading.
+      sections.forEach((section) => {
+        const heading = headings.find(
+          (candidate) => candidate.id === section.id,
+        );
+        if (!heading) return;
+
+        const index = blocks.indexOf(heading);
+        cards[section.tick] = blockCards[index];
+        targets[section.tick] = {
+          element: heading,
+          top: Math.max(0, spans[index].top),
+        };
+      });
+
+      targetsRef.current = targets;
+
+      const signature = [
+        scrollable,
+        ticks,
+        sections.map((section) => `${section.id}@${section.tick}`).join(","),
+        cards.map((card) => `${card.title}~${card.excerpt}`).join("|"),
+      ].join("|");
 
       if (signature !== signatureRef.current) {
         signatureRef.current = signature;
-        setActive(-1);
-        setLayout({ ticks, sections, scrollable });
+        setHovered(-1);
+        setFocused(-1);
+        setLayout({ ticks, sections, cards, scrollable });
       }
 
       writeProgress();
@@ -148,6 +260,19 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
 
     scrollEl.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", measure);
+
+    // The entrance moves every block by up to 10px, so a measure taken while it
+    // runs is short by that much. It ends once per block; the frame coalesces
+    // them into one more read of the settled layout.
+    let settleFrame = 0;
+    const onEntranceEnd = () => {
+      if (settleFrame) return;
+      settleFrame = requestAnimationFrame(() => {
+        settleFrame = 0;
+        measure();
+      });
+    };
+    scrollEl.addEventListener("animationend", onEntranceEnd);
 
     const resize = new ResizeObserver(measure);
     resize.observe(scrollEl);
@@ -172,51 +297,80 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
     return () => {
       scrollEl.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", measure);
+      scrollEl.removeEventListener("animationend", onEntranceEnd);
       resize.disconnect();
       reveal.disconnect();
       if (frame) cancelAnimationFrame(frame);
+      if (settleFrame) cancelAnimationFrame(settleFrame);
     };
   }, [studySlug]);
 
-  /** The section nearest a pointer height, by where its tick is drawn. */
-  function sectionAt(clientY: number) {
+  /**
+   * The preview is centred on its tick but never leaves the reader: at the top
+   * and bottom rows it slides inward instead of being cut off by the panel.
+   */
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    const nav = navRef.current;
+    const track = trackRef.current;
+    if (!card || !nav || !track || active < 0) return;
+
+    const slot = track.children[active] as HTMLElement | undefined;
+    if (!slot) return;
+
+    const navBox = nav.getBoundingClientRect();
+    const slotBox = slot.getBoundingClientRect();
+    const cardBox = card.getBoundingClientRect();
+    const panel = nav.closest<HTMLElement>(".wd-reader-panel") ?? nav;
+    const panelBox = panel.getBoundingClientRect();
+
+    const centre = slotBox.top + slotBox.height / 2;
+    const margin = 12;
+    const lowest = panelBox.bottom - margin - cardBox.height;
+    const top = Math.min(
+      Math.max(centre - cardBox.height / 2, panelBox.top + margin),
+      Math.max(panelBox.top + margin, lowest),
+    );
+
+    nav.style.setProperty(
+      "--wd-ruler-card-y",
+      `${Math.round(top - navBox.top)}px`,
+    );
+  }, [active, layout]);
+
+  /** The tick under a pointer height: every row is live, none is a gap. */
+  function tickFromPointer(clientY: number) {
     const current = layoutRef.current;
     const track = trackRef.current;
-    if (!track || current.sections.length === 0) return -1;
+    if (!track || current.ticks === 0) return -1;
 
     const box = track.getBoundingClientRect();
     if (box.height <= 0) return -1;
 
-    const progress = clamp01((clientY - box.top) / box.height);
-    const last = Math.max(1, current.ticks - 1);
-
-    return nearestSection(
-      current.sections.map((section) => section.tick / last),
-      progress,
-    );
+    return tickAt((clientY - box.top) / box.height, current.ticks);
   }
 
-  function jumpToSection(index: number) {
-    const section = layoutRef.current.sections[index];
+  function jumpToTick(tick: number) {
+    const target = targetsRef.current[tick];
     const scrollEl = scrollRef.current;
-    if (!section || !scrollEl) return;
+    if (!target || !scrollEl) return;
 
-    const heading = document.getElementById(section.id);
-    if (!heading) return;
-
-    const top =
-      heading.getBoundingClientRect().top -
-      scrollEl.getBoundingClientRect().top +
-      scrollEl.scrollTop -
-      clearanceOf(heading);
+    const top = target.element.getBoundingClientRect().top;
+    const offset =
+      target.element === scrollEl
+        ? 0
+        : top -
+          scrollEl.getBoundingClientRect().top +
+          scrollEl.scrollTop -
+          clearanceOf(target.element);
 
     scrollEl.scrollTo({
-      top: Math.max(0, top),
+      top: Math.max(0, offset),
       behavior: reducedMotion() ? "auto" : "smooth",
     });
   }
 
-  function onTrackClick(event: MouseEvent<HTMLElement>, index: number) {
+  function onTickClick(event: MouseEvent<HTMLElement>, tick: number) {
     // Modified clicks keep the browser's own behaviour: the link's hash is real.
     if (
       event.defaultPrevented ||
@@ -230,27 +384,26 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
     }
 
     event.preventDefault();
-    jumpToSection(index);
+    jumpToTick(tick);
   }
 
-  /** A click anywhere in the column snaps to the nearest section. */
+  /** A click anywhere in the column snaps to the tick under the pointer. */
   function onClick(event: MouseEvent<HTMLElement>) {
     if (event.defaultPrevented) return;
 
-    const index = sectionAt(event.clientY);
-    if (index < 0) return;
+    const tick = tickFromPointer(event.clientY);
+    if (tick < 0) return;
 
-    onTrackClick(event, index);
+    onTickClick(event, tick);
   }
 
   function onPointerMove(event: PointerEvent<HTMLElement>) {
-    const index = sectionAt(event.clientY);
-    if (index >= 0) setActive(index);
+    const tick = tickFromPointer(event.clientY);
+    if (tick >= 0) setHovered(tick);
   }
 
-  /** Hover and focus both park the label; leaving the column releases it. */
-  function release() {
-    if (!navRef.current?.contains(document.activeElement)) setActive(-1);
+  function onPointerLeave() {
+    setHovered(-1);
   }
 
   if (!layout) {
@@ -260,13 +413,12 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
   }
 
   const sectionByTick = new Map(
-    layout.sections.map((section, index) => [section.tick, { section, index }]),
+    layout.sections.map((section) => [section.tick, section]),
   );
-  const activeSection = active >= 0 ? layout.sections[active] : undefined;
+  const card = active >= 0 ? (layout.cards[active] ?? EMPTY_CARD) : EMPTY_CARD;
 
   const style = {
     "--wd-ruler-travel": `calc(${Math.max(0, layout.ticks - 1)} * var(--wd-ruler-step))`,
-    "--wd-ruler-label-y": `calc(${activeSection?.tick ?? 0} * var(--wd-ruler-step))`,
   } as CSSProperties;
 
   return (
@@ -279,27 +431,35 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
       style={style}
       onClick={onClick}
       onPointerMove={onPointerMove}
-      onPointerLeave={release}
+      onPointerLeave={onPointerLeave}
     >
       <ol className="wd-ruler-track" ref={trackRef}>
         {Array.from({ length: layout.ticks }, (_, tick) => {
-          const entry = sectionByTick.get(tick);
+          const section = sectionByTick.get(tick);
+
+          if (section) {
+            return (
+              <li className="wd-ruler-slot" key={tick}>
+                <a
+                  className="wd-ruler-tick wd-ruler-tick-section"
+                  href={`#${section.id}`}
+                  aria-label={section.label}
+                  data-active={tick === active}
+                  onFocus={() => setFocused(tick)}
+                  onBlur={() => setFocused(-1)}
+                  onClick={(event) => onTickClick(event, tick)}
+                />
+              </li>
+            );
+          }
 
           return (
             <li className="wd-ruler-slot" key={tick}>
-              {entry ? (
-                <a
-                  className="wd-ruler-tick wd-ruler-tick-section"
-                  href={`#${entry.section.id}`}
-                  aria-label={entry.section.label}
-                  data-active={entry.index === active}
-                  onFocus={() => setActive(entry.index)}
-                  onBlur={release}
-                  onClick={(event) => onTrackClick(event, entry.index)}
-                />
-              ) : (
-                <span className="wd-ruler-tick" aria-hidden="true" />
-              )}
+              <span
+                className="wd-ruler-tick"
+                aria-hidden="true"
+                data-active={tick === active}
+              />
             </li>
           );
         })}
@@ -307,9 +467,16 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
 
       <span className="wd-ruler-indicator" aria-hidden="true" />
 
-      <span className="wd-ruler-label" aria-hidden="true">
-        {activeSection?.label ?? ""}
-      </span>
+      {/*
+        One card, always mounted: scrubbing moves it from tick to tick and swaps
+        its text in place, so it never closes and reopens between marks.
+      */}
+      <div className="wd-ruler-card" ref={cardRef} aria-hidden="true">
+        <div className="wd-ruler-card-inner">
+          <p className="wd-ruler-card-title">{card.title}</p>
+          <p className="wd-ruler-card-body">{card.excerpt}</p>
+        </div>
+      </div>
     </nav>
   );
 }

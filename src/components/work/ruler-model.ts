@@ -99,3 +99,63 @@ export function nearestSection(progress: number[], value: number): number {
 
   return best;
 }
+
+/** A block's extent in scroll positions: where a jump to it would land. */
+export type BlockSpan = { top: number; bottom: number };
+
+/**
+ * Where a block starts and ends once its scroll-margin is honoured: a jump
+ * lands `clearance` above the block's own top, so the whole span moves with it.
+ * Applying the shift to the top only would let a long block claim the start of
+ * the one after it.
+ */
+export function blockSpan(
+  top: number,
+  height: number,
+  clearance: number,
+): BlockSpan {
+  return { top: top - clearance, bottom: top + height - clearance };
+}
+
+/**
+ * The tick a pointer height lands on. Ticks are a grid, so the nearest row
+ * wins: there is no dead gap between two marks, which is what lets the pointer
+ * scrub the column.
+ */
+export function tickAt(fraction: number, tickCount: number): number {
+  if (tickCount <= 0) return -1;
+
+  return Math.round(clamp01(fraction) * (tickCount - 1));
+}
+
+/**
+ * The block that sits at a scroll position: whatever covers it, else the
+ * nearest edge. That second case is the gap between two blocks (a figure's
+ * margin, a heading's lead-in), where the reader is still looking at one of
+ * them.
+ */
+export function pickBlock(spans: BlockSpan[], position: number): number {
+  let best = -1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  spans.forEach((span, index) => {
+    const distance =
+      position < span.top
+        ? span.top - position
+        : position > span.bottom
+          ? position - span.bottom
+          : 0;
+
+    if (distance < bestDistance) {
+      best = index;
+      bestDistance = distance;
+    }
+  });
+
+  return best;
+}
+
+/** One line of text from markup: runs of whitespace become one space. */
+export function collapseText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
