@@ -189,6 +189,23 @@
   mask-clip: no-clip;
 }
 
+/*
+ * While peeking, the mask holds at full strength for the whole hover and its
+ * ramps are the two edge cards' fade widths: the peek card's left edge and the
+ * right-most card's right edge melt into the page — card, blur, border, ring and
+ * shadow alike — because everything is inside the row. The widths come from the
+ * measured slots and the Peek fade width setting.
+ */
+.car-row[data-peeking][data-mask] {
+  --car-mask: linear-gradient(
+    to right,
+    rgb(0 0 0 / calc(1 - var(--car-fade))) 0,
+    #000 var(--peek-fade-left, 34px),
+    #000 calc(100% - var(--peek-fade-right, 33px)),
+    rgb(0 0 0 / calc(1 - var(--car-fade))) 100%
+  );
+}
+
 /* During a step the clip is exactly the column's edges, so a leaving or
    entering card never shows outside it. At rest the outset above returns. */
 .car-row[data-stepping] {
@@ -231,84 +248,62 @@
 }
 
 /*
- * The peek's progressive edge blur. The row is masked and clipped to the
- * column, so a blurred copy inside a card can never smear past the card's edge:
- * its crisp outline stays on top. These layers are the row's siblings, painted
- * above it: a blurred copy of the card's own picture, masked with a gradient so
- * it fades in from the card's middle, holds at the outer edge and fades again
- * over the 12px that bleed into the page. The mask sits on the wrapper and the
- * filter on its copy: Chromium does not paint an element that has both, and it
- * drops a masked backdrop-filter entirely. Opacity and the peek's shift are
- * animated by hover-peek-dom.ts, never the radius.
+ * The peek's progressive edge blur. A blurred copy of the card's own picture
+ * sits inside the card, above its content: masked from the card's middle to its
+ * outer edge, so the inner half stays sharp and the blur ramps up outward. The
+ * row's hold mask (below) then fades the card, this copy, the ring and the
+ * shadow to transparent at the same edge, so the card melts into the page. The
+ * mask sits on the wrapper and the filter on its copy: Chromium does not paint
+ * an element that has both, and it drops a masked backdrop-filter entirely. The
+ * copy's opacity is animated by hover-peek-dom.ts, never the radius.
  */
 .car-peek-blur {
-  --peek-bleed: 12px;
-
   position: absolute;
-  top: 0;
-  z-index: 3;
-  height: 100%;
-  overflow: hidden;
+  inset: 0;
+  z-index: 2;
   opacity: 0;
   pointer-events: none;
 }
 
 .car-peek-blur[data-edge="left"] {
-  left: calc(-1 * var(--peek-bleed));
-  width: calc(var(--peek-bleed) + var(--peek-card-w));
   -webkit-mask-image: linear-gradient(
     to right,
-    transparent 0,
-    #000 var(--peek-bleed),
-    transparent calc(var(--peek-bleed) + var(--peek-ramp))
+    #000 0,
+    transparent calc(var(--car-peek-ramp, 50) * 1%)
   );
   mask-image: linear-gradient(
     to right,
-    transparent 0,
-    #000 var(--peek-bleed),
-    transparent calc(var(--peek-bleed) + var(--peek-ramp))
+    #000 0,
+    transparent calc(var(--car-peek-ramp, 50) * 1%)
   );
 }
 
 .car-peek-blur[data-edge="right"] {
-  right: calc(-1 * var(--peek-bleed));
-  width: calc(var(--peek-bleed) + var(--peek-card-w));
   -webkit-mask-image: linear-gradient(
     to left,
-    transparent 0,
-    #000 var(--peek-bleed),
-    transparent calc(var(--peek-bleed) + var(--peek-ramp))
+    #000 0,
+    transparent calc(var(--car-peek-ramp, 50) * 1%)
   );
   mask-image: linear-gradient(
     to left,
-    transparent 0,
-    #000 var(--peek-bleed),
-    transparent calc(var(--peek-bleed) + var(--peek-ramp))
+    #000 0,
+    transparent calc(var(--car-peek-ramp, 50) * 1%)
   );
 }
 
 .car-peek-blur-copy {
   position: absolute;
   inset: 0;
-  -webkit-filter: blur(var(--peek-blur, 8px));
-  filter: blur(var(--peek-blur, 8px));
-}
-
-/* The copy's content starts where the card's does. */
-.car-peek-blur[data-edge="left"] .car-content {
-  left: var(--peek-bleed);
-}
-
-.car-peek-blur[data-edge="right"] .car-content {
-  left: 0;
+  -webkit-filter: blur(var(--car-peek-blur, 8px));
+  filter: blur(var(--car-peek-blur, 8px));
 }
 
 /* Promoted only while the peek is open. */
-.car-row[data-peeking] ~ .car-peek-blur {
-  will-change: opacity, transform;
+.car-row[data-peeking] .car-peek-blur {
+  will-change: opacity;
 }
 
-.car-row[data-peeking] ~ .car-peek-blur .car-peek-blur-copy {
+.car-row[data-peeking] .car-peek-blur-copy {
   will-change: filter;
 }
 

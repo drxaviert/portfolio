@@ -1,4 +1,3 @@
-import { EDGE_KEYFRAMES } from "./edge-blur";
 import { PEEK_EASING, PEEK_FADE_MS, TURN_EASING } from "./hover-peek";
 import type { PeekLayout } from "./hover-peek";
 
@@ -39,15 +38,6 @@ export function read(el: HTMLElement, prop: string): number {
   return Number.parseFloat(getComputedStyle(el).getPropertyValue(prop)) || 0;
 }
 
-/** The x translation of an element's current (animated) transform, in px. */
-function translateXOf(el: HTMLElement): number {
-  const transform = getComputedStyle(el).transform;
-  if (!transform || transform === "none") return 0;
-
-  const values = transform.slice(transform.indexOf("(") + 1, -1).split(",");
-  return Number.parseFloat(values[4]) || 0;
-}
-
 /** Each card's pose as drawn this instant, mid-tween values included. */
 export function cardPoses(els: PeekEls): Map<number, { x: number; w: number }> {
   return new Map(
@@ -72,12 +62,10 @@ export function closeSnap(
   prev.style.visibility = "hidden";
   prev.style.opacity = "";
   delete row.dataset.mask;
+  row.style.setProperty("--car-fade", "0");
   // A peek held mid-fade (the reader opened over it) would otherwise leave the
-  // edge blur drawn over the row at rest.
-  for (const blur of blurs) {
-    blur.style.opacity = "0";
-    blur.style.removeProperty("transform");
-  }
+  // edge blur and fade drawn over the row at rest.
+  for (const blur of blurs) blur.style.opacity = "0";
 }
 
 /**
@@ -102,12 +90,11 @@ export function tweenPeek(
   };
   const fromCards = cards.map((card) => read(card.el, "--car-x"));
   const fromFade = read(row, "--car-fade");
-  // The edge-blur layers sit at the peek's settled positions, so they ride the
-  // same shift the cards do and fade with the run (never the radius).
-  const fromBlur = blurs.map((el) => ({
-    o: Number.parseFloat(getComputedStyle(el).opacity) || 0,
-    x: translateXOf(el),
-  }));
+  // The edge-blur layers ride their cards inside the row, so they fade with the
+  // row's hold mask; only their own opacity is animated here.
+  const fromBlur = blurs.map(
+    (el) => Number.parseFloat(getComputedStyle(el).opacity) || 0,
+  );
 
   previous.forEach((animation) => animation.cancel());
   prev.style.width = `${layout.prevW}px`;
@@ -124,20 +111,16 @@ export function tweenPeek(
 
   const finish = () => {
     if (open) {
-      // Pin the edge blur at full strength once revealed, so its hold never
-      // depends on the reveal animations staying alive.
-      for (const blur of blurs) {
-        blur.style.opacity = "1";
-        blur.style.transform = "translateX(0px)";
-      }
+      // Pin the blur and the edge fade at full strength once revealed, so the
+      // hold never depends on the reveal animations staying alive.
+      for (const blur of blurs) blur.style.opacity = "1";
+      row.style.setProperty("--car-fade", "1");
       return;
     }
-    // Clear the pin: with the fade-out animation gone, the layer must stay at
-    // the opacity it faded to, not snap back to the pinned one.
-    for (const blur of blurs) {
-      blur.style.opacity = "0";
-      blur.style.removeProperty("transform");
-    }
+    // Clear the pins: with the fade-out animations gone, they must stay where
+    // they faded to, not snap back to the pinned values.
+    for (const blur of blurs) blur.style.opacity = "0";
+    row.style.setProperty("--car-fade", "0");
     prev.style.visibility = "hidden";
     prev.style.opacity = "";
     delete row.dataset.mask;
@@ -146,16 +129,14 @@ export function tweenPeek(
 
   if (timing.reduce) {
     // No movement: the final state is set at once and a fade carries it. The
-    // edge blur appears with the copy rather than fading on its own.
+    // edge blur and the edge fade appear with the copy rather than on their own.
     cards.forEach((card, index) =>
       card.el.style.setProperty("--car-x", `${toX(index)}px`),
     );
     prev.style.setProperty("--car-x", `${toPrev.x}px`);
     prev.style.opacity = String(toPrev.o);
-    for (const blur of blurs) {
-      blur.style.opacity = open ? "1" : "0";
-      blur.style.transform = `translateX(${open ? 0 : -layout.shift}px)`;
-    }
+    for (const blur of blurs) blur.style.opacity = open ? "1" : "0";
+    row.style.setProperty("--car-fade", open ? "1" : "0");
 
     const prevFade = prev.animate(
       { opacity: [fromPrev.o, toPrev.o] },
@@ -195,33 +176,15 @@ export function tweenPeek(
     { "--car-x": [`${fromPrev.x}px`, `${toPrev.x}px`] },
     options,
   );
-  // The edge mask's strength rises and falls smoothly over the run, from
-  // whatever it is now: never a switch.
+  // The row's edge fade ramps in with the reveal and holds at full strength for
+  // the rest of the hover; on leave it ramps back to opaque with the retract.
   const maskRun = row.animate(
-    EDGE_KEYFRAMES.map((k, index) => ({
-      offset: k.offset,
-      easing: k.easing,
-      "--car-fade": index === 0 ? fromFade : k.fade,
-    })),
-    { duration: options.duration, easing: "linear" },
+    { "--car-fade": [fromFade, open ? 1 : 0] },
+    options,
   );
-  const blurRuns = blurs.map((el, index) => {
-    // A layer that is not shown starts where the card does (one shift back);
-    // one that is mid-turn continues from where it is drawn.
-    const fromX =
-      fromBlur[index].o < 0.01 ? -layout.shift : fromBlur[index].x;
-
-    return el.animate(
-      {
-        opacity: [fromBlur[index].o, open ? 1 : 0],
-        transform: [
-          `translateX(${fromX}px)`,
-          `translateX(${open ? 0 : -layout.shift}px)`,
-        ],
-      },
-      options,
-    );
-  });
+  const blurRuns = blurs.map((el, index) =>
+    el.animate({ opacity: [fromBlur[index], open ? 1 : 0] }, options),
+  );
 
   prevRun.onfinish = finish;
 

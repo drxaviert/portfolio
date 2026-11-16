@@ -24,6 +24,8 @@ export type HoverPeekSettings = {
   peekBlurRamp: number;
   /** Blur radius at the outer edge of the peek's progressive blur, px. */
   peekBlurMax: number;
+  /** Width of the edge fade, as a percentage of the card's width. */
+  peekFade: number;
 };
 
 export const DEFAULT_HOVER_PEEK: HoverPeekSettings = {
@@ -34,6 +36,7 @@ export const DEFAULT_HOVER_PEEK: HoverPeekSettings = {
   hoverFade: 0.5,
   peekBlurRamp: 50,
   peekBlurMax: 8,
+  peekFade: 40,
 };
 
 export const PEEK_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";

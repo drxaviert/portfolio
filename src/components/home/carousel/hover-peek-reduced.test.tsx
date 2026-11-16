@@ -120,13 +120,14 @@ describe("hover peek under reduced motion", () => {
       ...container.querySelectorAll<HTMLElement>("[data-peek-blur]"),
     ];
     expect(layers.map((layer) => layer.dataset.edge)).toEqual([
-      "left",
       "right",
+      "left",
     ]);
     for (const layer of layers) {
       expect(layer.style.opacity).toBe("1");
-      expect(layer.style.transform).toBe("translateX(0px)");
     }
+    // The edge fade appears with the copy too, at full strength.
+    expect(container.querySelector<HTMLElement>(".car-row")!.style.getPropertyValue("--car-fade")).toBe("1");
     expect(
       recorded.some((r) => layers.includes(r.target as HTMLElement)),
     ).toBe(false);

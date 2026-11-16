@@ -63,7 +63,12 @@ type NumberKey =
   | "edgeBlur"
   | keyof Pick<
       HoverPeekSettings,
-      "revealMs" | "retractMs" | "leaveMs" | "peekBlurRamp" | "peekBlurMax"
+      | "revealMs"
+      | "retractMs"
+      | "leaveMs"
+      | "peekBlurRamp"
+      | "peekBlurMax"
+      | "peekFade"
     >;
 
 /**
@@ -165,6 +170,7 @@ export function CarouselTuner({
       {slider("leaveMs", "Leave delay", "ms", 0, 400, 10)}
       {slider("peekBlurRamp", "Peek blur width", "%", 10, 100, 5)}
       {slider("peekBlurMax", "Peek blur max", "px", 0, 12, 0.5)}
+      {slider("peekFade", "Peek fade width", "%", 10, 60, 5)}
       <button type="button" onClick={copy}>
         {copied ? "Copied" : "Copy values"}
       </button>

@@ -163,60 +163,6 @@ function isModified(event: MouseEvent<HTMLElement>): boolean {
   );
 }
 
-/** The peek's edge blur layer, drawn above the row so it can smear outward. */
-function PeekEdgeBlur({
-  edge,
-  item,
-  cardWidth,
-  ramp,
-  wide,
-  blur,
-}: {
-  edge: "left" | "right";
-  item: CarouselItem;
-  cardWidth: number;
-  ramp: number;
-  wide: number;
-  blur: number;
-}) {
-  return (
-    <span
-      aria-hidden="true"
-      data-peek-blur=""
-      data-edge={edge}
-      className="car-peek-blur"
-      style={
-        {
-          "--peek-card-w": `${cardWidth}px`,
-          "--peek-ramp": `${ramp}px`,
-          "--peek-blur": `${blur}px`,
-          "--car-wide": `${wide}px`,
-        } as CSSProperties
-      }
-    >
-      <span className="car-peek-blur-copy">
-        <span className="car-content">
-          {item.kind === "work" ? (
-            <>
-              <span className="absolute inset-0 overflow-hidden">
-                <Cover scene={item.cover} fit="cover" />
-              </span>
-              <span className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]" />
-            </>
-          ) : (
-            // A placeholder has no picture, but it still has a card face: blur
-            // the surface itself so its edge smears like the others.
-            <span
-              data-peek-surface=""
-              className="bg-surface-container-low absolute inset-0"
-            />
-          )}
-        </span>
-      </span>
-    </span>
-  );
-}
-
 type SlideProps = {
   item: CarouselItem;
   index: number;
@@ -247,6 +193,15 @@ function Slide({
   const offscreen = slot >= VISIBLE_SLOTS;
   const key = peek ? "peekL" : `${ghost ? "g" : "m"}${index}`;
   const hostClass = "car-host ring-host rounded-lg";
+  // The peek's outer edges carry the blur: the copy's left edge, and the
+  // right-most visible card's right edge (slot 2, once the 4th has been pushed
+  // out). The layer rides the card, so the row's hold mask fades it with the
+  // card, its ring and its shadow.
+  const edgeBlur = peek
+    ? "left"
+    : !ghost && slot === VISIBLE_SLOTS - 2
+      ? "right"
+      : null;
 
   const body = (
     <>
@@ -282,6 +237,34 @@ function Slide({
             {item.title}
           </div>
         </div>
+        {edgeBlur ? (
+          <span
+            aria-hidden="true"
+            data-peek-blur=""
+            data-edge={edgeBlur}
+            className="car-peek-blur"
+          >
+            <span className="car-peek-blur-copy">
+              <span className="car-content">
+                {item.kind === "work" ? (
+                  <>
+                    <span className="absolute inset-0 overflow-hidden">
+                      <Cover scene={item.cover} fit="cover" />
+                    </span>
+                    <span className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]" />
+                  </>
+                ) : (
+                  // A placeholder has no picture, but it still has a card face:
+                  // blur the surface itself so its edge melts like the others.
+                  <span
+                    data-peek-surface=""
+                    className="bg-surface-container-low absolute inset-0"
+                  />
+                )}
+              </span>
+            </span>
+          </span>
+        ) : null}
       </div>
     </>
   );
@@ -455,11 +438,10 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       cards.push({ item, el, restX: g.slots[slot].x });
     }
 
-    // The edge-blur layers are the row's siblings (above its mask), not its
-    // children: they have to paint past the column's edge.
+    // The edge-blur layers live inside the edge cards, so the row's hold mask
+    // fades them with the cards themselves.
     const blurs = [
-      ...(row.parentElement?.querySelectorAll<HTMLElement>("[data-peek-blur]") ??
-        []),
+      ...row.querySelectorAll<HTMLElement>("[data-peek-blur]"),
     ];
 
     return { row, prev, cards, blurs };
@@ -499,7 +481,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
         state.els = null;
         state.layout = null;
         delete row.dataset.peeking;
-        row.style.removeProperty("--car-fade");
       },
     );
   }
@@ -1170,11 +1151,21 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   }
 
   const domOrder = slotOrder(n, domOffset);
+  const peekFadeWidth = (cardWidth: number) =>
+    Math.max(8, Math.round((cardWidth * settings.peekFade) / 100));
+  // The peek's outer fade widths are a share of those two cards, so they need
+  // the measured slot widths; the blur radius and ramp are plain settings.
   const rowStyle = {
     "--car-edge-w": `${settings.edgeWidth}px`,
+    "--car-peek-blur": `${settings.peekBlurMax}px`,
+    "--car-peek-ramp": `${settings.peekBlurRamp}`,
+    ...(slotWidths
+      ? {
+          "--peek-fade-left": `${peekFadeWidth(slotWidths[VISIBLE_SLOTS - 1])}px`,
+          "--peek-fade-right": `${peekFadeWidth(slotWidths[VISIBLE_SLOTS - 2])}px`,
+        }
+      : {}),
   } as CSSProperties;
-  const peekRamp = (cardWidth: number) =>
-    Math.max(1, Math.round((cardWidth * settings.peekBlurRamp) / 100));
 
   return (
     <>
@@ -1231,27 +1222,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
             />
           ))}
         </div>
-
-        {hoverCapable && n >= VISIBLE_SLOTS && slotWidths ? (
-          <>
-            <PeekEdgeBlur
-              edge="left"
-              item={items[peekOf(n, offset)]}
-              cardWidth={slotWidths[VISIBLE_SLOTS - 1]}
-              ramp={peekRamp(slotWidths[VISIBLE_SLOTS - 1])}
-              wide={slotWidths[0]}
-              blur={settings.peekBlurMax}
-            />
-            <PeekEdgeBlur
-              edge="right"
-              item={items[slotOrder(n, offset)[VISIBLE_SLOTS - 2]]}
-              cardWidth={slotWidths[VISIBLE_SLOTS - 2]}
-              ramp={peekRamp(slotWidths[VISIBLE_SLOTS - 2])}
-              wide={slotWidths[0]}
-              blur={settings.peekBlurMax}
-            />
-          </>
-        ) : null}
 
         <p className="sr-only" aria-live="polite">
           {announcement}

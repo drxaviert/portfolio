@@ -266,17 +266,18 @@ describe("left hover peek", () => {
     expect(left.style.opacity).toBe("0");
   });
 
-  it("draws the edge blur above the row, so it can smear past the column", () => {
+  it("puts the edge blur inside the edge cards, so the hold mask fades it too", () => {
     const { container } = render(<HomeCarousel items={FOUR_WORKS} />);
     const rowEl = row(container);
     const layers = [
       ...container.querySelectorAll<HTMLElement>("[data-peek-blur]"),
     ];
-    expect(layers.map((el) => el.dataset.edge)).toEqual(["left", "right"]);
+    // DOM order is card order: slot 2's right layer, then the peek copy's left.
+    expect(layers.map((el) => el.dataset.edge)).toEqual(["right", "left"]);
     for (const layer of layers) {
-      // Not inside the row: the row's mask and clip end at the column edge.
-      expect(rowEl.contains(layer)).toBe(false);
-      expect(layer.parentElement).toBe(rowEl.parentElement);
+      // Inside the row (so its mask reaches it) and inside the card.
+      expect(rowEl.contains(layer)).toBe(true);
+      expect(layer.closest(".car-slide")).toBeTruthy();
       expect(layer.querySelector(".car-peek-blur-copy")).toBeTruthy();
       expect(layer.querySelector(".car-content")).toBeTruthy();
     }
@@ -289,15 +290,11 @@ describe("left hover peek", () => {
 
     move(110);
 
-    const [left, right] = layers;
     for (const layer of layers) {
       const run = recorded.find((r) => r.target === layer)!;
-      // It fades in with the reveal and rides the same shift as the cards.
+      // It fades in with the reveal; the card carries it, so no transform.
       expect(run.keyframes.opacity).toEqual([0, 1]);
-      expect(run.keyframes.transform).toEqual([
-        "translateX(-96px)",
-        "translateX(0px)",
-      ]);
+      expect("transform" in run.keyframes).toBe(false);
       expect(run.options.duration).toBe(450);
     }
 
@@ -305,15 +302,12 @@ describe("left hover peek", () => {
     for (const layer of layers) layer.style.opacity = "1";
     move(100 + 400);
     act(() => vi.advanceTimersByTime(121));
-    for (const layer of [left, right]) {
+    for (const layer of layers) {
       const out = recorded
         .filter((r) => r.target === layer && !Array.isArray(r.keyframes))
         .at(-1)!;
       expect(out.keyframes.opacity).toEqual([1, 0]);
-      expect(out.keyframes.transform).toEqual([
-        "translateX(0px)",
-        "translateX(-96px)",
-      ]);
+      expect("transform" in out.keyframes).toBe(false);
       expect(out.options.duration).toBe(350);
     }
   });
@@ -351,31 +345,45 @@ describe("left hover peek", () => {
     expect(container.querySelectorAll(".car-peek-edge")).toHaveLength(1);
   });
 
-  it("animates the mask strength smoothly instead of toggling it", () => {
+  it("holds the edge fade at full strength after the reveal, never toggling it", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
     move(110);
 
     const mask = recorded.find(
-      (r) => r.target === row(container) && Array.isArray(r.keyframes),
+      (r) =>
+        r.target === row(container) &&
+        !Array.isArray(r.keyframes) &&
+        "--car-fade" in r.keyframes,
     )!;
-    const frames = mask.keyframes as unknown as {
-      offset: number;
-      easing?: string;
-      "--car-fade": number;
-    }[];
-    // Eases in, holds, eases out: never a step from 0 to 1.
-    expect(frames.map((f) => f["--car-fade"])).toEqual([0, 1, 1, 0]);
-    expect(frames[0].easing).toBe("ease-in-out");
-    expect(frames[0].offset).toBe(0);
-    expect(frames[1].offset).toBeGreaterThan(0.25);
+    // One smooth ramp in with the reveal, then a held fade: no in-and-out sweep.
+    expect(mask.keyframes["--car-fade"]).toEqual([0, 1]);
     expect(mask.options.duration).toBe(450);
+    expect(mask.options.fill).toBe("forwards");
 
-    // The mask is on for the whole peek (fully opaque at rest), so it never
-    // switches on or off with the motion.
+    // When the reveal lands it is pinned at one and the mask stays on, so the
+    // fade holds for the whole hover.
     expect(row(container)).toHaveAttribute("data-mask");
     act(() => slides(prevCard(container)!)[0].onfinish?.());
     expect(row(container)).toHaveAttribute("data-mask");
+    expect(row(container).style.getPropertyValue("--car-fade")).toBe("1");
+
+    // Leaving ramps it back to zero and takes the mask off.
+    move(100 + 400);
+    act(() => vi.advanceTimersByTime(121));
+    const fadeOut = recorded
+      .filter(
+        (r) =>
+          r.target === row(container) &&
+          !Array.isArray(r.keyframes) &&
+          "--car-fade" in r.keyframes,
+      )
+      .at(-1)!;
+    expect(fadeOut.keyframes["--car-fade"]).toEqual([1, 0]);
+    expect(fadeOut.options.duration).toBe(350);
+    act(() => slides(prevCard(container)!).at(-1)!.onfinish?.());
+    expect(row(container)).not.toHaveAttribute("data-mask");
+    expect(row(container).style.getPropertyValue("--car-fade")).toBe("0");
   });
 
   it("reveals from the gutter, not only from inside the column", () => {
@@ -701,7 +709,8 @@ describe("held motion without a reader", () => {
 
     act(() => slides(prevCard(container)!).at(-1)!.onfinish?.());
     expect(row(container)).not.toHaveAttribute("data-peeking");
-    expect(row(container).style.getPropertyValue("--car-fade")).toBe("");
+    // The fade is back to fully opaque.
+    expect(row(container).style.getPropertyValue("--car-fade")).toBe("0");
   });
 
   it("stays held on popstate while a reader is open", () => {
@@ -967,13 +976,12 @@ describe("peek glitch fixes", () => {
     ]);
     // The mask strength carries on from where it is: no pop.
     const mask = back.find(
-      (r) => r.target === row(container) && Array.isArray(r.keyframes),
+      (r) =>
+        r.target === row(container) &&
+        !Array.isArray(r.keyframes) &&
+        "--car-fade" in r.keyframes,
     )!;
-    expect(
-      (mask.keyframes as unknown as { "--car-fade": number }[])[0][
-        "--car-fade"
-      ],
-    ).toBe(0.6);
+    expect(mask.keyframes["--car-fade"][0]).toBe(0.6);
   });
 
   it("steps back from a reveal in progress from the copy's drawn pose, not its end", () => {
@@ -1061,21 +1069,26 @@ describe("peek css", () => {
     expect(css).not.toMatch(/color-mix/);
   });
 
-  it("ramps a masked blurred copy above the row, and fades the left end by mask", () => {
+  it("ramps a masked blurred copy inside the card, and holds the edge fade", () => {
     expect(css).toMatch(
-      /\.car-peek-blur-copy\s*\{[^}]*filter:\s*blur\(\s*var\(--peek-blur, 8px\)/,
+      /\.car-peek-blur-copy\s*\{[^}]*filter:\s*blur\(\s*var\(--car-peek-blur, 8px\)/,
     );
-    // The layer bleeds 12px past the column so the card edge can smear: the mask
-    // fades in at the outer bleed, holds at the edge and ramps to sharp.
+    // The copy is masked from the card's middle to its outer edge: sharp on the
+    // inner half, blurred toward the edge.
     expect(css).toMatch(
-      /\.car-peek-blur\[data-edge="left"\]\s*\{[^}]*left:\s*calc\(-1 \* var\(--peek-bleed\)\)[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*transparent 0,\s*#000 var\(--peek-bleed\),\s*transparent calc\(var\(--peek-bleed\) \+ var\(--peek-ramp\)\)/,
+      /\.car-peek-blur\[data-edge="left"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*#000 0,\s*transparent calc\(var\(--car-peek-ramp, 50\) \* 1%\)/,
     );
     expect(css).toMatch(
-      /\.car-peek-blur\[data-edge="right"\]\s*\{[^}]*right:\s*calc\(-1 \* var\(--peek-bleed\)\)[^}]*mask-image:\s*linear-gradient\(\s*to left,\s*transparent 0,\s*#000 var\(--peek-bleed\),\s*transparent calc\(var\(--peek-bleed\) \+ var\(--peek-ramp\)\)/,
+      /\.car-peek-blur\[data-edge="right"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to left,\s*#000 0,\s*transparent calc\(var\(--car-peek-ramp, 50\) \* 1%\)/,
+    );
+    // While peeking, the row's mask holds and its ramps are the two edge cards'
+    // fade widths, so the edges (and their borders) melt into the page.
+    expect(css).toMatch(
+      /\.car-row\[data-peeking\]\[data-mask\]\s*\{\s*--car-mask:\s*linear-gradient\(\s*to right,\s*rgb\(0 0 0 \/ calc\(1 - var\(--car-fade\)\)\) 0,\s*#000 var\(--peek-fade-left, 34px\),\s*#000 calc\(100% - var\(--peek-fade-right, 33px\)\),\s*rgb\(0 0 0 \/ calc\(1 - var\(--car-fade\)\)\) 100%/,
     );
     // Only while the peek is open is the filtered copy promoted.
     expect(css).toMatch(
-      /\.car-row\[data-peeking\] ~ \.car-peek-blur \.car-peek-blur-copy\s*\{\s*will-change:\s*filter/,
+      /\.car-row\[data-peeking\] \.car-peek-blur-copy\s*\{\s*will-change:\s*filter/,
     );
     expect(css).toMatch(/mask-image:\s*var\(--car-lf-fade\)/);
     // The mask reaches past the box so the hover ring is not masked away.
