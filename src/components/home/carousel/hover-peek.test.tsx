@@ -1096,6 +1096,27 @@ describe("peek css", () => {
     expect(css).toMatch(/@property --car-lf/);
   });
 
+  it("gives the edge cards' ring layers the same fade ramp, so no line survives", () => {
+    // The ring layers paint at negative z-index outside the row's mask, so the
+    // row's ramp never reached them and the blue edge line stayed crisp at a
+    // faded edge. They carry the ramp themselves, on the same two sides and the
+    // same slope: transparent from the card's edge (3.5px into the frame's box,
+    // which is inset by that much), solid by the same Peek fade width.
+    const ringRamp =
+      /:is\(\.ring-frame, \.ring-surface\)\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to (?<dir>right|left),\s*transparent 0,\s*transparent 3\.5px,\s*#000 calc\(3\.5px \+ var\(--peek-fade-(?<fade>left|right), (?<w>\d+)px\)\)/;
+    const peek = css.match(
+      new RegExp(`\\.car-row\\[data-peeking\\] \\.car-peek-edge ${ringRamp.source}`),
+    );
+    expect(peek?.groups).toMatchObject({ dir: "right", fade: "left", w: "34" });
+
+    const last = css.match(
+      new RegExp(
+        `\\.car-row\\[data-peeking\\] \\.car-slide\\[data-slot="2"\\] ${ringRamp.source}`,
+      ),
+    );
+    expect(last?.groups).toMatchObject({ dir: "left", fade: "right", w: "33" });
+  });
+
   it("clips the copy at the column's edge; only its hovered ring may enter the outset", () => {
     const block = css.match(/\.car-peek-edge\s*\{([^}]*)\}/)![1];
 

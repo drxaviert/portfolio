@@ -307,6 +307,46 @@
   will-change: filter;
 }
 
+/*
+ * The ring layers are inset past the card (3.5px across, 6px up/down) and sit
+ * at negative z-index inside an isolated host, so they paint outside the row's
+ * mask and keep their crisp outline, blue edge included, however the card's own
+ * fill fades. Give them the same ramp themselves: transparent from the card's
+ * outer edge, solid by the same Peek fade width. The frame carries the glow, so
+ * masking it fades the edge line and the glow together; the surface is its own
+ * layer, so the grown fill fades there too. Offsets are frame-relative: the
+ * frame starts 3.5px outside the card, so the ramp starts at the card's edge.
+ */
+.car-row[data-peeking] .car-peek-edge :is(.ring-frame, .ring-surface) {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    transparent 3.5px,
+    #000 calc(3.5px + var(--peek-fade-left, 34px))
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    transparent 3.5px,
+    #000 calc(3.5px + var(--peek-fade-left, 34px))
+  );
+}
+
+.car-row[data-peeking] .car-slide[data-slot="2"] :is(.ring-frame, .ring-surface) {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    transparent 0,
+    transparent 3.5px,
+    #000 calc(3.5px + var(--peek-fade-right, 33px))
+  );
+  mask-image: linear-gradient(
+    to left,
+    transparent 0,
+    transparent 3.5px,
+    #000 calc(3.5px + var(--peek-fade-right, 33px))
+  );
+}
+
 /* The previous card's left end fades with an alpha mask (no painted colour), so
    it reads as a different card. The strength is a number so it can animate to
    0 as the card grows into the wide slot. */
