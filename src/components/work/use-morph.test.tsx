@@ -570,6 +570,92 @@ describe("ExpandShell", () => {
     expect(mocks.back).toHaveBeenCalledTimes(1);
   });
 
+  it("flips a study-to-study close into the card the drawer opened from", async () => {
+    placeCard(CARD_A);
+
+    const first = render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+    // Study to study: the slot remounts for the next slug, the drawer's origin
+    // must survive.
+    first.unmount();
+
+    render(
+      <ExpandShell slug="title-sequence">
+        <ReaderStub />
+      </ExpandShell>,
+    );
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    const panel = document.querySelector<HTMLElement>(
+      ".wd-expand-layer .wd-reader-panel",
+    )!;
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
+
+    await waitFor(() => expect(panel.style.opacity).toBe("0"));
+    const calls = mocks.animate.mock.calls.filter(([el]) => el === panel);
+    expect(calls[calls.length - 1][1]).toMatchObject(flipFrom(CARD_A, PANEL));
+  });
+
+  it("flips a direct load of a card-less study into the featured card", async () => {
+    // Only the featured study has a home card, so it is the only possible
+    // origin for a study without one.
+    placeCard(CARD_A);
+
+    render(
+      <ExpandShell slug="title-sequence" resting>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    // The reader's own URL, as on a direct load.
+    window.history.replaceState({}, "", "/work/title-sequence");
+
+    const panel = document.querySelector<HTMLElement>(
+      ".wd-expand-layer .wd-reader-panel",
+    )!;
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
+
+    await waitFor(() => expect(panel.style.opacity).toBe("0"));
+    const calls = mocks.animate.mock.calls.filter(([el]) => el === panel);
+    expect(calls[calls.length - 1][1]).toMatchObject(flipFrom(CARD_A, PANEL));
+    expect(mocks.replace).toHaveBeenCalledWith("/");
+  });
+
+  it("falls back to the card-less exit when the origin card is gone", async () => {
+    placeCard(CARD_A);
+
+    render(
+      <ExpandShell slug={SLUG} resting>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    // The card left the page (a different route is behind the reader now).
+    document.querySelector("[data-work-card]")?.remove();
+    const panel = document.querySelector<HTMLElement>(
+      ".wd-expand-layer .wd-reader-panel",
+    )!;
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
+
+    await waitFor(() => expect(panel.style.opacity).toBe("0"));
+    const calls = mocks.animate.mock.calls.filter(([el]) => el === panel);
+    expect(calls[calls.length - 1][1]).toEqual({ opacity: 0, scale: 0.95 });
+  });
+
   it("stays put when the route already left the reader", async () => {
     placeCard(CARD_A);
 
