@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  activeTick,
   blockSpan,
   clamp01,
   collapseText,
@@ -160,6 +161,43 @@ describe("blockSpan", () => {
     expect(pickBlock(spans, 793)).toBe(4);
     expect(pickBlock(spans, 680)).toBe(2);
     expect(pickBlock(spans, 906)).toBe(5);
+  });
+});
+
+describe("activeTick", () => {
+  // Four sections, each heading crossing the landing line at these offsets.
+  const crossings = [
+    { tick: 2, at: 600 },
+    { tick: 6, at: 900 },
+    { tick: 10, at: 1400 },
+    { tick: 14, at: 1800 },
+  ];
+
+  it("rests on the first tick above the first section", () => {
+    expect(activeTick(crossings, 0, 2000)).toBe(0);
+    expect(activeTick(crossings, 300, 2000)).toBe(0);
+    expect(activeTick(crossings, 599, 2000)).toBe(0);
+  });
+
+  it("takes a section only once its heading crosses the line", () => {
+    expect(activeTick(crossings, 600, 2000)).toBe(2);
+    expect(activeTick(crossings, 899, 2000)).toBe(2);
+    expect(activeTick(crossings, 900, 2000)).toBe(6);
+    expect(activeTick(crossings, 1399, 2000)).toBe(6);
+    expect(activeTick(crossings, 1400, 2000)).toBe(10);
+  });
+
+  it("holds the last section at the very bottom", () => {
+    expect(activeTick(crossings, 1999, 2000)).toBe(14);
+    expect(activeTick(crossings, 2000, 2000)).toBe(14);
+    // The last heading is past the end of the scrollable range, so even the
+    // bottom only reaches it by the edge rule.
+    expect(activeTick(crossings, 1900, 2000)).toBe(14);
+  });
+
+  it("has one place to sit without sections", () => {
+    expect(activeTick([], 0, 2000)).toBe(0);
+    expect(activeTick([], 1200, 2000)).toBe(0);
   });
 });
 

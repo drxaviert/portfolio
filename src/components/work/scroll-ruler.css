@@ -1,16 +1,15 @@
 /*
- * The reader's scroll ruler. A dense column of fine ticks beside the article's
- * text column: the long bright tick is the reading position, and every tick is
- * a point in the article that previews the text living there.
+ * The reader's scroll ruler. A dense column of fine ticks in the gutter beside
+ * the article's text column: every tick is a point in the article, and the long
+ * bright mark is the section being read.
  *
  * The tick grid is one CSS variable. Every tick is a 13px row, so the same step
- * drives the tick spacing and the indicator's travel, and the component only
- * hands over the tick count.
+ * drives the tick spacing, and the component only hands over the tick count.
  *
- * It sits 40px to the right of the column, which is centred and capped at
- * 582px, so the offset is measured from the column and written back as
- * `--wd-ruler-right`. It stays pinned to the panel's vertical centre, the same
- * place it has always held.
+ * It is centred in the room the panel leaves to the right of the column (never
+ * closer than 40px), which is centred and capped at 582px, so the offset is
+ * measured from the column and written back as `--wd-ruler-right`. It stays
+ * pinned to the panel's vertical centre.
  */
 
 .wd-ruler {
@@ -118,19 +117,21 @@
   outline-offset: 1px;
 }
 
-/* The reading position: the one long, bright tick. Scroll-driven, transform
-   only, so it moves on the compositor with the article. */
+/*
+ * The reading position: one long, bright mark, snapped between section ticks.
+ * Its top edge and height are a single transform written by the runner (the
+ * theme toggle's stretch and snap, turned upright), so it never touches layout
+ * and never runs through React.
+ */
 .wd-ruler-indicator {
   position: absolute;
-  top: calc(var(--wd-ruler-pad) + var(--wd-ruler-step) / 2 - 1px);
+  top: 0;
   right: 0;
   width: var(--wd-ruler-width);
   height: 2px;
   border-radius: 1px;
   background: var(--on-surface);
-  transform: translateY(
-    calc(var(--wd-ruler-progress, 0) * var(--wd-ruler-travel, 0px))
-  );
+  transform-origin: top center;
 }
 
 /*

@@ -155,6 +155,37 @@ export function pickBlock(spans: BlockSpan[], position: number): number {
   return best;
 }
 
+/** Where a section's heading crosses the reader's landing line. */
+export type SectionCrossing = { tick: number; at: number };
+
+/**
+ * The tick the indicator holds. It is not a scroll fraction: a section is only
+ * current once its heading has crossed the reader's clearance line, so the
+ * indicator sits still through a whole section and moves when the next one
+ * arrives. Above the first crossing it rests on the first tick, and at the very
+ * end of the article it takes the last section, even when that heading never
+ * reaches the line itself.
+ */
+export function activeTick(
+  crossings: SectionCrossing[],
+  scrollTop: number,
+  maxScroll: number,
+): number {
+  if (crossings.length === 0) return 0;
+  if (scrollTop >= maxScroll - 1) {
+    return crossings[crossings.length - 1].tick;
+  }
+
+  let tick = 0;
+
+  for (const crossing of crossings) {
+    if (scrollTop + 0.5 >= crossing.at) tick = crossing.tick;
+    else break;
+  }
+
+  return tick;
+}
+
 /** One line of text from markup: runs of whitespace become one space. */
 export function collapseText(text: string): string {
   return text.replace(/\s+/g, " ").trim();

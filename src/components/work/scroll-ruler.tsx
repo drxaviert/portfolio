@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { CSSProperties, MouseEvent, PointerEvent } from "react";
 import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import type { MouseEvent, PointerEvent } from "react";
+import {
+  activeTick,
   blockSpan,
   clamp01,
   collapseText,
@@ -12,7 +19,14 @@ import {
   tickAt,
   uniqueHeadingId,
 } from "./ruler-model";
-import type { BlockSpan } from "./ruler-model";
+import type { BlockSpan, SectionCrossing } from "./ruler-model";
+import {
+  LEADING_DURATION_MS,
+  leadingEase,
+  TRAILING_DELAY_MS,
+  TRAILING_DURATION_MS,
+  trailingEase,
+} from "@/components/theme/theme-toggle";
 import { READER_SCROLL_ID } from "./parts";
 import "./scroll-ruler.css";
 
@@ -71,6 +85,8 @@ const EMPTY_CARD: RulerCard = { title: "", excerpt: "" };
 const RULER_GAP = 40;
 /** The least the ruler may leave between itself and the panel's right edge. */
 const RULER_CLEARANCE = 16;
+/** How long a click's scroll keeps the indicator on its destination. */
+const JUMP_HOLD_MS = 1200;
 /** Mirrors `--wd-ruler-width`, for a layout read before CSS is applied. */
 const RULER_WIDTH_FALLBACK = 18;
 
@@ -105,9 +121,136 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
   const [focused, setFocused] = useState(-1);
   const active = hovered >= 0 ? hovered : focused;
 
+  // The indicator's tick is the only thing scroll changes in React: a section
+  // crossing, not a frame. The move itself is written straight to the DOM.
+  const [indicatorTick, setIndicatorTick] = useState(0);
+  const indicatorTickRef = useRef(0);
+  const indicatorRef = useRef<HTMLSpanElement>(null);
+  const crossingsRef = useRef<SectionCrossing[]>([]);
+  const edgesRef = useRef({ lo: 0, hi: 0, placed: false });
+  const flightRef = useRef(0);
+  const jumpRef = useRef<{ top: number } | null>(null);
+  const jumpTimerRef = useRef(0);
+
   useEffect(() => {
     layoutRef.current = layout ?? EMPTY_LAYOUT;
   }, [layout]);
+
+  /** The two edges of a tick's mark, in px from the nav's own top. */
+  const edgesFor = useCallback((tick: number) => {
+    const nav = navRef.current;
+    const slot = trackRef.current?.children[tick] as HTMLElement | undefined;
+    if (!nav || !slot) return null;
+
+    const top = nav.getBoundingClientRect().top;
+    const box = slot.getBoundingClientRect();
+    const centre = box.top + box.height / 2 - top;
+
+    return { lo: centre - 1, hi: centre + 1 };
+  }, []);
+
+  /** The bar's whole state is one transform: its top edge, then its height. */
+  const drawIndicator = useCallback((lo: number, hi: number) => {
+    const element = indicatorRef.current;
+    if (!element) return;
+
+    const height = Math.max(2, hi - lo);
+    element.style.transform = `translateY(${lo}px) scaleY(${height / 2})`;
+  }, []);
+
+  /**
+   * The theme toggle's stretch and snap, turned ninety degrees: the edge in the
+   * direction of travel leaves on 180ms ease-out cubic, the other holds for
+   * 120ms and closes on 220ms ease-out quint. Both edges are read from where
+   * the bar is right now, so a second crossing mid-flight retargets it instead
+   * of restarting it. Under reduced motion it is already there.
+   */
+  const moveIndicator = useCallback(
+    (tick: number, animate: boolean) => {
+      const target = edgesFor(tick);
+      if (!target) return;
+
+      cancelAnimationFrame(flightRef.current);
+      flightRef.current = 0;
+
+      const current = edgesRef.current;
+
+      if (!animate || !current.placed || reducedMotion()) {
+        edgesRef.current = { ...target, placed: true };
+        drawIndicator(target.lo, target.hi);
+        return;
+      }
+
+      const movingDown =
+        (target.lo + target.hi) / 2 >= (current.lo + current.hi) / 2;
+
+      const flight = {
+        start: performance.now(),
+        leadFrom: movingDown ? current.hi : current.lo,
+        leadTo: movingDown ? target.hi : target.lo,
+        trailFrom: movingDown ? current.lo : current.hi,
+        trailTo: movingDown ? target.lo : target.hi,
+        leadingDown: movingDown,
+      };
+
+      const loop = (now: number) => {
+        const elapsed = Math.max(0, (now - flight.start) / 1000);
+        const leadProgress = Math.min(
+          1,
+          elapsed / (LEADING_DURATION_MS / 1000),
+        );
+        const trailProgress = Math.min(
+          1,
+          Math.max(0, elapsed - TRAILING_DELAY_MS / 1000) /
+            (TRAILING_DURATION_MS / 1000),
+        );
+
+        const lead =
+          flight.leadFrom +
+          (flight.leadTo - flight.leadFrom) * leadingEase(leadProgress);
+        const trail =
+          flight.trailFrom +
+          (flight.trailTo - flight.trailFrom) * trailingEase(trailProgress);
+
+        edgesRef.current = flight.leadingDown
+          ? { lo: trail, hi: lead, placed: true }
+          : { lo: lead, hi: trail, placed: true };
+
+        drawIndicator(edgesRef.current.lo, edgesRef.current.hi);
+
+        if (leadProgress >= 1 && trailProgress >= 1) {
+          edgesRef.current = { ...target, placed: true };
+          drawIndicator(target.lo, target.hi);
+          flightRef.current = 0;
+
+          return;
+        }
+
+        flightRef.current = requestAnimationFrame(loop);
+      };
+
+      flightRef.current = requestAnimationFrame(loop);
+    },
+    [drawIndicator, edgesFor],
+  );
+
+  /**
+   * One section crossing, one state change: the tick is the only thing React
+   * re-renders for while the article scrolls.
+   */
+  const syncIndicator = useCallback(
+    (tick: number, animate: boolean) => {
+      if (tick !== indicatorTickRef.current) {
+        indicatorTickRef.current = tick;
+        setIndicatorTick(tick);
+      }
+
+      moveIndicator(tick, animate);
+    },
+    [moveIndicator],
+  );
+
+  useEffect(() => () => cancelAnimationFrame(flightRef.current), []);
 
   useEffect(() => {
     const scrollEl = document.getElementById(READER_SCROLL_ID);
@@ -116,21 +259,30 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
 
     let frame = 0;
 
-    // Scroll fires far more often than the indicator can change, so the write
-    // is coalesced into one frame and touches one custom property.
-    const writeProgress = () => {
-      frame = 0;
-      const max = scrollEl.scrollHeight - scrollEl.clientHeight;
-      const progress = max > 0 ? clamp01(scrollEl.scrollTop / max) : 0;
-      navRef.current?.style.setProperty(
-        "--wd-ruler-progress",
-        progress.toFixed(4),
-      );
-    };
-
+    // Scroll fires far more often than a section can change, so the read is
+    // coalesced into one frame; the crossing is all it can write.
     const onScroll = () => {
       if (frame) return;
-      frame = requestAnimationFrame(writeProgress);
+
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+
+        const jump = jumpRef.current;
+        if (jump) {
+          // The click already put the mark on the destination's section; the
+          // frames that land the scroll must not recompute it a hair short and
+          // flick it back one section.
+          if (Math.abs(scrollEl.scrollTop - jump.top) >= 2) return;
+          jumpRef.current = null;
+          return;
+        }
+
+        const max = scrollEl.scrollHeight - scrollEl.clientHeight;
+        syncIndicator(
+          activeTick(crossingsRef.current, scrollEl.scrollTop, max),
+          true,
+        );
+      });
     };
 
     const measure = () => {
@@ -160,13 +312,13 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
           panel.getBoundingClientRect().right -
           column.getBoundingClientRect().right;
 
+        // Centred in the gutter the panel leaves beside the column, never
+        // closer than the minimum gap. The column is centred and capped, so its
+        // edge moves at every breakpoint; this is the offset that is measured.
+        const gap = Math.max(RULER_GAP, (room - width) / 2);
+
         roomForRuler = room >= RULER_GAP + width + RULER_CLEARANCE;
-        // The column is centred and capped, so its edge moves at every
-        // breakpoint; this is the one offset that has to be measured.
-        nav.style.setProperty(
-          "--wd-ruler-right",
-          `${room - RULER_GAP - width}px`,
-        );
+        nav.style.setProperty("--wd-ruler-right", `${room - gap - width}px`);
       }
 
       // The article's own blocks, in reading order: a tick previews whichever
@@ -188,7 +340,10 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
       const headings = blocks.filter((block) => block.tagName === "H2");
       const sectionOf = new Map<HTMLElement, { id: string; label: string }>();
 
-      const starts = headings.map((heading) => {
+      const starts: number[] = [];
+      const crosses: number[] = [];
+
+      headings.forEach((heading) => {
         const label = collapseText(heading.textContent ?? "") || "Section";
         const id = heading.id || uniqueHeadingId(label, used);
         used.add(id);
@@ -197,7 +352,8 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
         const top = heading.getBoundingClientRect().top - scrollRect.top;
         const offset = top + scrollEl.scrollTop - clearanceOf(heading);
 
-        return max > 0 ? clamp01(offset / max) : 0;
+        crosses.push(Math.max(0, offset));
+        starts.push(max > 0 ? clamp01(offset / max) : 0);
       });
 
       // One preview per block: a heading names its own section and borrows the
@@ -282,6 +438,10 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
       });
 
       targetsRef.current = targets;
+      crossingsRef.current = sections.map((section, index) => ({
+        tick: section.tick,
+        at: crosses[index],
+      }));
 
       const signature = [
         scrollable,
@@ -304,7 +464,13 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
         });
       }
 
-      writeProgress();
+      // A fresh measure is a fresh geometry: place the mark, never animate it.
+      if (!jumpRef.current) {
+        syncIndicator(
+          activeTick(crossingsRef.current, scrollEl.scrollTop, max),
+          false,
+        );
+      }
     };
 
     measure();
@@ -356,7 +522,7 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
       if (frame) cancelAnimationFrame(frame);
       if (settleFrame) cancelAnimationFrame(settleFrame);
     };
-  }, [studySlug]);
+  }, [studySlug, syncIndicator]);
 
   /**
    * The preview is centred on its tick but never leaves the reader: at the top
@@ -417,8 +583,21 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
           scrollEl.scrollTop -
           clearanceOf(target.element);
 
+    const max = scrollEl.scrollHeight - scrollEl.clientHeight;
+    const destination = Math.min(max, Math.max(0, offset));
+
+    // The scroll passes every section in between; the mark goes straight to the
+    // section that will be current when it lands (the clicked tick itself when
+    // that tick is a section's) and holds it until the scroll arrives.
+    jumpRef.current = { top: destination };
+    window.clearTimeout(jumpTimerRef.current);
+    jumpTimerRef.current = window.setTimeout(() => {
+      jumpRef.current = null;
+    }, JUMP_HOLD_MS);
+    syncIndicator(activeTick(crossingsRef.current, destination, max), true);
+
     scrollEl.scrollTo({
-      top: Math.max(0, offset),
+      top: destination,
       behavior: reducedMotion() ? "auto" : "smooth",
     });
   }
@@ -470,10 +649,6 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
   );
   const card = active >= 0 ? (layout.cards[active] ?? EMPTY_CARD) : EMPTY_CARD;
 
-  const style = {
-    "--wd-ruler-travel": `calc(${Math.max(0, layout.ticks - 1)} * var(--wd-ruler-step))`,
-  } as CSSProperties;
-
   return (
     <nav
       ref={navRef}
@@ -481,7 +656,7 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
       aria-label="Sections"
       data-visible={layout.visible}
       data-active={active >= 0}
-      style={style}
+      data-indicator={indicatorTick}
       onClick={onClick}
       onPointerMove={onPointerMove}
       onPointerLeave={onPointerLeave}
@@ -518,7 +693,11 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
         })}
       </ol>
 
-      <span className="wd-ruler-indicator" aria-hidden="true" />
+      <span
+        className="wd-ruler-indicator"
+        ref={indicatorRef}
+        aria-hidden="true"
+      />
 
       {/*
         One card, always mounted: scrubbing moves it from tick to tick and swaps

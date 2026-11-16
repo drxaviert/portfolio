@@ -323,8 +323,8 @@ describe("ScrollRuler", () => {
       expect(ruler()).toHaveAttribute("data-visible", "true"),
     );
 
-    // 209px of room, less the 40px gap and the 18px ruler column.
-    expect(ruler().style.getPropertyValue("--wd-ruler-right")).toBe("151px");
+    // 209px of room, less the 18px ruler column, split evenly: it is centred.
+    expect(ruler().style.getPropertyValue("--wd-ruler-right")).toBe("95.5px");
   });
 
   it("hides itself when the panel leaves no room beside the column", async () => {
@@ -356,7 +356,7 @@ describe("ScrollRuler", () => {
     await waitFor(() =>
       expect(ruler()).toHaveAttribute("data-visible", "true"),
     );
-    expect(ruler().style.getPropertyValue("--wd-ruler-right")).toBe("151px");
+    expect(ruler().style.getPropertyValue("--wd-ruler-right")).toBe("95.5px");
 
     // The panel narrowed: the column keeps its 582px cap and its edge moves in.
     column.getBoundingClientRect = () => rect(0, 2600, 1000 - 90 - 582, 582);
@@ -368,7 +368,7 @@ describe("ScrollRuler", () => {
     expect(ruler()).toHaveAttribute("data-visible", "true");
   });
 
-  it("writes the reading position as scroll progress", async () => {
+  it("holds its tick until a section crosses the landing line", async () => {
     const { scroll } = mountStudy({ blocks: fourSections() });
     renderRuler("systems-in-motion");
 
@@ -376,13 +376,38 @@ describe("ScrollRuler", () => {
       expect(ruler()).toHaveAttribute("data-visible", "true"),
     );
 
-    scroll.scrollTop = 1000;
+    // The top of the article: the first tick, before any section has arrived.
+    expect(ruler()).toHaveAttribute("data-indicator", "0");
+
+    scroll.scrollTop = 300;
+    fireEvent.scroll(scroll);
+    await waitFor(() => expect(ruler()).toHaveAttribute("data-indicator", "2"));
+
+    // Inside the same section the mark does not move at all.
+    scroll.scrollTop = 650;
+    fireEvent.scroll(scroll);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(ruler()).toHaveAttribute("data-indicator", "2");
+
+    // The next heading crosses its line at 700.
+    scroll.scrollTop = 700;
+    fireEvent.scroll(scroll);
+    await waitFor(() => expect(ruler()).toHaveAttribute("data-indicator", "6"));
+  });
+
+  it("takes the last section at the bottom of the article", async () => {
+    const { scroll } = mountStudy({ blocks: fourSections() });
+    renderRuler("systems-in-motion");
+
+    await waitFor(() =>
+      expect(ruler()).toHaveAttribute("data-visible", "true"),
+    );
+
+    scroll.scrollTop = 2000;
     fireEvent.scroll(scroll);
 
     await waitFor(() =>
-      expect(ruler().style.getPropertyValue("--wd-ruler-progress")).toBe(
-        "0.5000",
-      ),
+      expect(ruler()).toHaveAttribute("data-indicator", "14"),
     );
   });
 
@@ -397,6 +422,47 @@ describe("ScrollRuler", () => {
       top: 1200,
       behavior: "smooth",
     });
+  });
+
+  it("moves once to the clicked tick, not through the sections between", async () => {
+    const { scroll } = mountStudy({ blocks: fourSections() });
+    renderRuler("systems-in-motion");
+
+    await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
+
+    scroll.scrollTop = 0;
+    fireEvent.click(screen.getByLabelText("The process"));
+
+    expect(ruler()).toHaveAttribute("data-indicator", "10");
+
+    // The smooth scroll passes the first two sections on its way there.
+    scroll.scrollTop = 400;
+    fireEvent.scroll(scroll);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(ruler()).toHaveAttribute("data-indicator", "10");
+
+    scroll.scrollTop = 1200;
+    fireEvent.scroll(scroll);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(ruler()).toHaveAttribute("data-indicator", "10");
+  });
+
+  it("lands a plain tick's jump on the section that tick belongs to", async () => {
+    const { scroll } = mountStudy({ blocks: fourSections() });
+    renderRuler("systems-in-motion");
+
+    await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
+
+    const at = layoutTrack();
+    // Row 3 is inside "The concept"'s paragraph, so its section is the one
+    // above it, tick 2 — the mark must not stop on the plain tick.
+    fireEvent.click(ruler(), { clientY: at(3) });
+
+    expect(scroll.scrollTo).toHaveBeenCalledWith({
+      top: 240,
+      behavior: "smooth",
+    });
+    expect(ruler()).toHaveAttribute("data-indicator", "2");
   });
 
   it("jumps to the block at a plain tick, not only to sections", async () => {
