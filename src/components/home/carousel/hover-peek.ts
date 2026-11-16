@@ -20,7 +20,7 @@ export type HoverPeekSettings = {
   leaveMs: number;
   /** Strength of the soft fade on the previous card's left end. */
   hoverFade: number;
-  /** Width of the progressive edge blur, as a percentage of the card's width. */
+  /** Reach of the progressive edge blur, as a percentage of the edge fade. */
   peekBlurRamp: number;
   /** Blur radius at the outer edge of the peek's progressive blur, px. */
   peekBlurMax: number;
@@ -34,7 +34,7 @@ export const DEFAULT_HOVER_PEEK: HoverPeekSettings = {
   retractMs: 350,
   leaveMs: 120,
   hoverFade: 0.5,
-  peekBlurRamp: 50,
+  peekBlurRamp: 100,
   peekBlurMax: 8,
   peekFade: 40,
 };

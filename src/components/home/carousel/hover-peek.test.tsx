@@ -1073,18 +1073,14 @@ describe("peek css", () => {
     expect(css).toMatch(
       /\.car-peek-blur-copy\s*\{[^}]*filter:\s*blur\(\s*var\(--car-peek-blur, 8px\)/,
     );
-    // The copy is masked from the card's middle to its outer edge: sharp on the
-    // inner half, blurred toward the edge.
+    // The copy is blurred from the card's outer edge inward and ends on the very
+    // ramp the card fades on (a share of it, the Peek blur width), so blurred
+    // and sharp copies meet where the card is already solid.
     expect(css).toMatch(
-      /\.car-peek-blur\[data-edge="left"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*#000 0,\s*transparent calc\(var\(--car-peek-ramp, 50\) \* 1%\)/,
+      /\.car-peek-blur\[data-edge="left"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*#000 0,\s*transparent calc\(var\(--peek-fade-left, 34px\) \* var\(--car-peek-ramp, 100\) \/ 100\)/,
     );
     expect(css).toMatch(
-      /\.car-peek-blur\[data-edge="right"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to left,\s*#000 0,\s*transparent calc\(var\(--car-peek-ramp, 50\) \* 1%\)/,
-    );
-    // While peeking, the row's mask holds and its ramps are the two edge cards'
-    // fade widths, so the edges (and their borders) melt into the page.
-    expect(css).toMatch(
-      /\.car-row\[data-peeking\]\[data-mask\]\s*\{\s*--car-mask:\s*linear-gradient\(\s*to right,\s*rgb\(0 0 0 \/ calc\(1 - var\(--car-fade\)\)\) 0,\s*#000 var\(--peek-fade-left, 34px\),\s*#000 calc\(100% - var\(--peek-fade-right, 33px\)\),\s*rgb\(0 0 0 \/ calc\(1 - var\(--car-fade\)\)\) 100%/,
+      /\.car-peek-blur\[data-edge="right"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to left,\s*#000 0,\s*transparent calc\(var\(--peek-fade-right, 33px\) \* var\(--car-peek-ramp, 100\) \/ 100\)/,
     );
     // Only while the peek is open is the filtered copy promoted.
     expect(css).toMatch(
@@ -1096,29 +1092,44 @@ describe("peek css", () => {
     expect(css).toMatch(/@property --car-lf/);
   });
 
-  it("gives the edge cards' ring layers the same fade ramp, so no line survives", () => {
-    // The ring layers paint at negative z-index outside the row's mask, so the
-    // row's ramp never reached them and the blue edge line stayed crisp at a
-    // faded edge. They carry the ramp themselves, on the same two sides and the
-    // same slope: transparent from the card's edge (3.5px into the frame's box,
-    // which is inset by that much), solid by the same Peek fade width.
-    const ringRamp =
-      /:is\(\.ring-frame, \.ring-surface\)\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to (?<dir>right|left),\s*transparent 0,\s*transparent 3\.5px,\s*#000 calc\(3\.5px \+ var\(--peek-fade-(?<fade>left|right), (?<w>\d+)px\)\)/;
-    const peek = css.match(
-      new RegExp(`\\.car-row\\[data-peeking\\] \\.car-peek-edge ${ringRamp.source}`),
-    );
-    expect(peek?.groups).toMatchObject({ dir: "right", fade: "left", w: "34" });
+  it("gives every layer of the edge cards the same fade ramp", () => {
+    // Each layer carries the ramp itself: an ancestor's mask does not reach the
+    // ring in every theme and would fade the fill twice. Same start (the card's
+    // edge) and end (the Peek fade width) everywhere; the outer stop carries
+    // --car-fade so a reveal still fades the edges in.
+    const peekClip =
+      /\.car-row\[data-peeking\] \.car-peek-edge \.car-clip\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*rgb\(0 0 0 \/ calc\(1 - var\(--car-fade\)\)\) 0,\s*#000 var\(--peek-fade-left, 34px\)/;
+    expect(css).toMatch(peekClip);
 
-    const last = css.match(
-      new RegExp(
-        `\\.car-row\\[data-peeking\\] \\.car-slide\\[data-slot="2"\\] ${ringRamp.source}`,
-      ),
+    const lastClip =
+      /\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] \.car-clip\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to left,\s*rgb\(0 0 0 \/ calc\(1 - var\(--car-fade\)\)\) 0,\s*#000 var\(--peek-fade-right, 33px\)/;
+    expect(css).toMatch(lastClip);
+
+    // The ring's frame and surface sit 3.5px outside the card, so their ramp
+    // starts and ends 3.5px later and lands on the same card-relative px.
+    const peekRing =
+      /\.car-row\[data-peeking\] \.car-peek-edge :is\(\.ring-frame, \.ring-surface\)\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*transparent 0,\s*rgb\(0 0 0 \/ calc\(1 - var\(--car-fade\)\)\) 3\.5px,\s*#000 calc\(3\.5px \+ var\(--peek-fade-left, 34px\)\)/;
+    expect(css).toMatch(peekRing);
+
+    const lastRing =
+      /\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] :is\(\.ring-frame, \.ring-surface\)\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to left,\s*transparent 0,\s*rgb\(0 0 0 \/ calc\(1 - var\(--car-fade\)\)\) 3\.5px,\s*#000 calc\(3\.5px \+ var\(--peek-fade-right, 33px\)\)/;
+    expect(css).toMatch(lastRing);
+
+    // The row and the copy carry no mask of their own while peeking, so nothing
+    // is faded twice, and the host's shadow is dropped rather than left crisp.
+    expect(css).toMatch(
+      /\.car-row\[data-peeking\]:not\(\[data-stepping\]\)\s*\{\s*-webkit-mask-image:\s*none;\s*mask-image:\s*none/,
     );
-    expect(last?.groups).toMatchObject({ dir: "left", fade: "right", w: "33" });
+    expect(css).toMatch(
+      /\.car-row\[data-peeking\] \.car-peek-edge\s*\{\s*\/\*[^*]*\*\/\s*-webkit-mask-image:\s*none;\s*mask-image:\s*none/,
+    );
+    expect(css).toMatch(
+      /\.car-row\[data-peeking\] \.car-peek-edge \.car-host,\s*\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] \.car-host\s*\{\s*box-shadow:\s*none/,
+    );
   });
 
   it("clips the copy at the column's edge; only its hovered ring may enter the outset", () => {
-    const block = css.match(/\.car-peek-edge\s*\{([^}]*)\}/)![1];
+    const block = css.match(/^\.car-peek-edge\s*\{([^}]*)\}/m)![1];
 
     expect(block).toMatch(/clip-path:\s*inset\(/);
     expect(block).toContain("var(--car-x) * -1");

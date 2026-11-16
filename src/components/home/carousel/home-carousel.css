@@ -164,10 +164,14 @@
  * colour, no backdrop. The mask image is 24px taller than the row and unclipped
  * (no-clip) so shadows and rings above and below survive; horizontally it is
  * exactly the column.
+ *
+ * `--car-fade` inherits: the peek gives each edge card its own mask (below),
+ * and that mask's outer stop carries the same strength so the fade in and out
+ * of a reveal is one tween for everything.
  */
 @property --car-fade {
   syntax: "<number>";
-  inherits: false;
+  inherits: true;
   initial-value: 0;
 }
 
@@ -190,21 +194,99 @@
 }
 
 /*
- * While peeking, the mask holds at full strength for the whole hover and its
- * ramps are the two edge cards' fade widths: the peek card's left edge and the
- * right-most card's right edge melt into the page — card, blur, border, ring and
- * shadow alike — because everything is inside the row. The widths come from the
- * measured slots and the Peek fade width setting.
+ * While peeking, the two edge cards carry the fade themselves, one mask per
+ * layer on the layer itself: an ancestor's mask does not reach the ring in
+ * every theme (it paints outside the row and the host), and the row's mask
+ * would fade the fill twice. Every mask is the same ramp in the card's own
+ * coordinates: transparent at the card's edge, solid at the Peek fade width,
+ * its outer stop carrying `--car-fade` so a reveal fades in and a retract out.
+ * The fill (cover, card fade, blur copy) is masked on `.car-clip`, whose box is
+ * the card; the ring's frame and surface sit 3.5px outside it, so their ramps
+ * start 3.5px in and end 3.5px later.
  */
-.car-row[data-peeking][data-mask] {
-  --car-mask: linear-gradient(
+.car-row[data-peeking]:not([data-stepping]) {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.car-row[data-peeking] .car-peek-edge {
+  /* The copy is inert: the layers below carry the fade. */
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.car-row[data-peeking] .car-peek-edge .car-clip,
+.car-row[data-peeking] .car-slide[data-slot="2"] .car-clip,
+.car-row[data-peeking] .car-peek-edge :is(.ring-frame, .ring-surface),
+.car-row[data-peeking] .car-slide[data-slot="2"] :is(.ring-frame, .ring-surface) {
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/* The host's shadow follows its box, so it cannot fade with the layers above
+   it; drop it while peeking rather than leave a crisp hairline at a faded
+   edge. The ring's own 1px band still draws the card's edge. */
+.car-row[data-peeking] .car-peek-edge .car-host,
+.car-row[data-peeking] .car-slide[data-slot="2"] .car-host {
+  box-shadow: none;
+}
+
+.car-row[data-peeking] .car-peek-edge .car-clip {
+  -webkit-mask-image: linear-gradient(
     to right,
     rgb(0 0 0 / calc(1 - var(--car-fade))) 0,
-    #000 var(--peek-fade-left, 34px),
-    #000 calc(100% - var(--peek-fade-right, 33px)),
-    rgb(0 0 0 / calc(1 - var(--car-fade))) 100%
+    #000 var(--peek-fade-left, 34px)
+  );
+  mask-image: linear-gradient(
+    to right,
+    rgb(0 0 0 / calc(1 - var(--car-fade))) 0,
+    #000 var(--peek-fade-left, 34px)
   );
 }
+
+.car-row[data-peeking] .car-slide[data-slot="2"] .car-clip {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    rgb(0 0 0 / calc(1 - var(--car-fade))) 0,
+    #000 var(--peek-fade-right, 33px)
+  );
+  mask-image: linear-gradient(
+    to left,
+    rgb(0 0 0 / calc(1 - var(--car-fade))) 0,
+    #000 var(--peek-fade-right, 33px)
+  );
+}
+
+.car-row[data-peeking] .car-peek-edge :is(.ring-frame, .ring-surface) {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    rgb(0 0 0 / calc(1 - var(--car-fade))) 3.5px,
+    #000 calc(3.5px + var(--peek-fade-left, 34px))
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    rgb(0 0 0 / calc(1 - var(--car-fade))) 3.5px,
+    #000 calc(3.5px + var(--peek-fade-left, 34px))
+  );
+}
+
+.car-row[data-peeking] .car-slide[data-slot="2"] :is(.ring-frame, .ring-surface) {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    transparent 0,
+    rgb(0 0 0 / calc(1 - var(--car-fade))) 3.5px,
+    #000 calc(3.5px + var(--peek-fade-right, 33px))
+  );
+  mask-image: linear-gradient(
+    to left,
+    transparent 0,
+    rgb(0 0 0 / calc(1 - var(--car-fade))) 3.5px,
+    #000 calc(3.5px + var(--peek-fade-right, 33px))
+  );
+}
+
 
 /* During a step the clip is exactly the column's edges, so a leaving or
    entering card never shows outside it. At rest the outset above returns. */
@@ -249,13 +331,15 @@
 
 /*
  * The peek's progressive edge blur. A blurred copy of the card's own picture
- * sits inside the card, above its content: masked from the card's middle to its
- * outer edge, so the inner half stays sharp and the blur ramps up outward. The
- * row's hold mask (below) then fades the card, this copy, the ring and the
- * shadow to transparent at the same edge, so the card melts into the page. The
- * mask sits on the wrapper and the filter on its copy: Chromium does not paint
- * an element that has both, and it drops a masked backdrop-filter entirely. The
- * copy's opacity is animated by hover-peek-dom.ts, never the radius.
+ * sits inside the card, above its content: masked from the card's outer edge
+ * inward, so the edge melts and the inner half stays sharp. It ends on the same
+ * ramp the card fades on (the Peek fade width, `peekBlurRamp`% of it), so the
+ * blurred and sharp copies meet where the card is already solid and no band is
+ * left behind. The card's own mask then fades this copy with everything else.
+ * The mask sits on the wrapper and the filter on its copy: Chromium does not
+ * paint an element that has both, and it drops a masked backdrop-filter
+ * entirely. The copy's opacity is animated by hover-peek-dom.ts, never the
+ * radius.
  */
 .car-peek-blur {
   position: absolute;
@@ -269,12 +353,12 @@
   -webkit-mask-image: linear-gradient(
     to right,
     #000 0,
-    transparent calc(var(--car-peek-ramp, 50) * 1%)
+    transparent calc(var(--peek-fade-left, 34px) * var(--car-peek-ramp, 100) / 100)
   );
   mask-image: linear-gradient(
     to right,
     #000 0,
-    transparent calc(var(--car-peek-ramp, 50) * 1%)
+    transparent calc(var(--peek-fade-left, 34px) * var(--car-peek-ramp, 100) / 100)
   );
 }
 
@@ -282,12 +366,12 @@
   -webkit-mask-image: linear-gradient(
     to left,
     #000 0,
-    transparent calc(var(--car-peek-ramp, 50) * 1%)
+    transparent calc(var(--peek-fade-right, 33px) * var(--car-peek-ramp, 100) / 100)
   );
   mask-image: linear-gradient(
     to left,
     #000 0,
-    transparent calc(var(--car-peek-ramp, 50) * 1%)
+    transparent calc(var(--peek-fade-right, 33px) * var(--car-peek-ramp, 100) / 100)
   );
 }
 
@@ -305,46 +389,6 @@
 
 .car-row[data-peeking] .car-peek-blur-copy {
   will-change: filter;
-}
-
-/*
- * The ring layers are inset past the card (3.5px across, 6px up/down) and sit
- * at negative z-index inside an isolated host, so they paint outside the row's
- * mask and keep their crisp outline, blue edge included, however the card's own
- * fill fades. Give them the same ramp themselves: transparent from the card's
- * outer edge, solid by the same Peek fade width. The frame carries the glow, so
- * masking it fades the edge line and the glow together; the surface is its own
- * layer, so the grown fill fades there too. Offsets are frame-relative: the
- * frame starts 3.5px outside the card, so the ramp starts at the card's edge.
- */
-.car-row[data-peeking] .car-peek-edge :is(.ring-frame, .ring-surface) {
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    transparent 3.5px,
-    #000 calc(3.5px + var(--peek-fade-left, 34px))
-  );
-  mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    transparent 3.5px,
-    #000 calc(3.5px + var(--peek-fade-left, 34px))
-  );
-}
-
-.car-row[data-peeking] .car-slide[data-slot="2"] :is(.ring-frame, .ring-surface) {
-  -webkit-mask-image: linear-gradient(
-    to left,
-    transparent 0,
-    transparent 3.5px,
-    #000 calc(3.5px + var(--peek-fade-right, 33px))
-  );
-  mask-image: linear-gradient(
-    to left,
-    transparent 0,
-    transparent 3.5px,
-    #000 calc(3.5px + var(--peek-fade-right, 33px))
-  );
 }
 
 /* The previous card's left end fades with an alpha mask (no painted colour), so
