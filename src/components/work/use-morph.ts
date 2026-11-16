@@ -23,6 +23,7 @@ import {
 import type { Box } from "./morph";
 import { announceOverlayExit } from "./overlay-exit";
 import { moveNav } from "@/components/nav/nav-flight";
+import { FEATURED_SLUG } from "@/lib/work-order";
 
 export type MorphPhase = "opening" | "open" | "closing";
 
@@ -147,13 +148,28 @@ export function useMorph(
       // measured from the panel's top-left corner, so a panel carrying the CSS
       // default origin would shrink from its centre and land in the wrong place.
       panelRef.current?.style.setProperty("transform-origin", "left top");
+      // The drawer is one surface: whatever study this is, it closes into a
+      // card. Its own if home has one, otherwise the featured study's.
+      document.documentElement.dataset.drawerOrigin = findCard(slug)
+        ? slug
+        : FEATURED_SLUG;
       return;
     }
 
     // Only an entry reached from the homepage goes back to it.
     if (document.documentElement.dataset.readerEntry !== "direct") {
+      // The drawer keeps the origin it opened from across study swaps and
+      // Back/Forward: a restored entry carries it in history state, a remount
+      // finds it on the document, otherwise this open is the origin.
+      const restored = window.history.state?.workOrigin;
+      const origin =
+        typeof restored === "string"
+          ? restored
+          : (document.documentElement.dataset.drawerOrigin ?? slug);
+
+      document.documentElement.dataset.drawerOrigin = origin;
       window.history.replaceState(
-        { ...window.history.state, workOverlay: true },
+        { ...window.history.state, workOverlay: true, workOrigin: origin },
         "",
       );
     }
@@ -236,7 +252,12 @@ export function useMorph(
       const panel = panelRef.current;
       if (!panel) return;
 
-      const card = findCard(slug);
+      // The drawer is one surface: it closes into the card it was opened from,
+      // whatever studies it showed on the way. The card-less exit is only for a
+      // drawer whose origin card is not on screen any more.
+      const origin =
+        document.documentElement.dataset.drawerOrigin ?? slug;
+      const card = findCard(origin);
 
       // The nav returns on the same timing as whatever the panel does: the
       // close flight, or the 120ms fade. Both waits are capped at that timing

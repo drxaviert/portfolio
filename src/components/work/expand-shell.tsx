@@ -170,9 +170,19 @@ function useOverlayBehaviour(
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [panelRef]);
 
+  // Focus goes back to the card the drawer opened from, and once the drawer is
+  // gone the next one starts from whatever card it uses. Leaving for another
+  // study (study to study) keeps the origin.
   useEffect(
     () => () => {
-      returnTarget(slug)?.focus({ preventScroll: true });
+      const origin =
+        document.documentElement.dataset.drawerOrigin ?? slug;
+
+      returnTarget(origin)?.focus({ preventScroll: true });
+
+      if (!window.location.pathname.startsWith("/work/")) {
+        delete document.documentElement.dataset.drawerOrigin;
+      }
     },
     [slug],
   );

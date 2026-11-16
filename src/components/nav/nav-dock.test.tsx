@@ -168,6 +168,24 @@ describe("NavDock", () => {
     );
   });
 
+  it("puts the nav back in the drawer when the route enters a reader", async () => {
+    // Browser Forward into a study entry restores the reader without running
+    // the open morph, so nothing else moves the dock into the drawer.
+    const view = renderDock();
+    expect(dock()).toHaveAttribute("data-nav-state", "home");
+
+    mocks.pathname = "/work/systems-in-motion";
+    view.rerender(
+      <ThemeProvider>
+        <NavDock />
+      </ThemeProvider>,
+    );
+
+    await waitFor(() =>
+      expect(dock()).toHaveAttribute("data-nav-state", "reader"),
+    );
+  });
+
   it("hangs the phase row on one shared gap in both docks", () => {
     const read = (...parts: string[]) =>
       readFileSync(join(process.cwd(), ...parts), "utf8");

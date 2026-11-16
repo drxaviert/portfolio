@@ -183,6 +183,16 @@ export function NavDock() {
     void fly("home", "fade");
   }, [readerRoute, fly]);
 
+  // Entering one without an open morph (browser Forward restores a study entry
+  // without remounting the panel) still has to put the nav in the drawer: the
+  // morph is the only other thing that moves it there. A normal open has already
+  // set the state by the time this runs, so it is a no-op there.
+  useEffect(() => {
+    if (!readerRoute || stateRef.current === "reader") return;
+
+    void toReader("flip");
+  }, [readerRoute, toReader]);
+
   // Capture, not bubble: Next's Link starts routing in its own click handler,
   // which would otherwise outrun the close.
   function onClickCapture(event: MouseEvent<HTMLDivElement>) {
