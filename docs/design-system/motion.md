@@ -396,6 +396,25 @@ Every block holds its start state (`backwards` fill), so nothing paints at its e
 - `src/components/work/use-morph.ts:177` — reveal at open − 120ms
 - `src/components/work/parts.tsx:415` — `--wd-beat-lead` on the incoming panel
 
+## Work reader — ruler indicator snap
+
+The scroll ruler's bright mark is not a progress bar. It holds a section's tick for as long as that section is being read and snaps to the next one when that heading crosses the reader's 124px landing line. The snap is the theme toggle's stretch & snap, turned upright: same curves, same lag, same retarget rule, no new tokens.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| A heading crosses the landing line | mark leading edge `translateY` | 180ms (`--duration-short-6`) | 0 | ease-out cubic, `1-(1-t)^3` | current edge → the new tick's edge |
+| A heading crosses the landing line | mark trailing edge `translateY` | 220ms (`--duration-short-7`) | 120ms (`--duration-short-2`) | ease-out quint, `1-(1-t)^5` | current edge → the new tick's edge |
+| A fling crosses several sections | both edges | as above | not re-armed | same curves | current edges → the latest target, once |
+| A tick is clicked | both edges | as above | as above | same curves | current edges → the clicked tick, no stepping through the sections between |
+| Reduced motion | — | 0 | 0 | — | placed on the target tick in one write |
+
+The mark is one element: its top edge is a `translateY` and its height a `scaleY` from `transform-origin: top center`, so a move is one transform per frame and never a layout change. Both edges are captured from the bar's current position when a new target arrives, so a second crossing mid-flight retargets it instead of restarting from the old tick. Scrolling only sets the section index in React — one render per crossing, never per frame — and the flight is a `requestAnimationFrame` loop that writes the node directly. Above the first crossing the mark rests on the first tick; at the very bottom it takes the last section, whose heading may never reach the line.
+
+- `src/components/work/scroll-ruler.tsx:140` — the mark's two edges (`edgesFor`)
+- `src/components/work/scroll-ruler.tsx:168` — the flight: curves, lag, retarget from the live edges
+- `src/components/work/ruler-model.ts:169` — `activeTick`, the crossing rule
+- `src/components/theme/theme-toggle.tsx:299` — the constants and both eases it reuses
+
 ## Work drawer — study hand-off
 
 "Next project" is not a route swap with an empty beat: the outgoing article leaves on the reader's own 140ms close fade, the route is pushed 49ms into it, and the incoming entrance mounts 120ms in.
@@ -450,6 +469,7 @@ The progressive blur over the reader's top edge is six static `backdrop-filter` 
 | Content out | 140ms `ease-in` on close, 120ms `ease-out` reduced |
 | Thumb pair, rail | 120ms `ease-out`, visibility steps with the fade |
 | Picker row | existing rows: opacity only 120ms, no scale, no icon settle |
+| Ruler indicator | placed on the target tick in one write, no flight |
 
 - `src/components/work/blur-stack.tsx:4` — six bands
 - `src/components/work/blur-stack.css:96` — reduced-transparency / no-support fallback

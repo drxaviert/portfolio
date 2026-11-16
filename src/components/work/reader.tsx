@@ -10,6 +10,7 @@ import {
   READER_TITLE_ID,
 } from "./parts";
 import { ReaderMobileActions, ReaderRail } from "./reader-rail";
+import { ScrollRuler } from "./scroll-ruler";
 import { BlurStack } from "./blur-stack";
 import "@/components/home/ring-hover.css";
 import "./reader.css";
@@ -65,6 +66,10 @@ export function Reader({ meta, children }: ReaderProps) {
           </div>
         </div>
       </div>
+
+      {/* Beside the scroll box, not inside it: the ruler marks the article's
+          position and must not scroll away with it. */}
+      <ScrollRuler studySlug={meta.slug} />
 
       {/* Below 1024px the ways back are fixed to the panel's foot, outside the
           scroll container so they stay put while the article moves. */}

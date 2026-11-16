@@ -127,12 +127,28 @@
   --wd-enter-delay: 480ms;
 }
 
+/* The scroll ruler is the cascade's last group: it is never on screen while the
+   panel is still hiding its content, and it arrives on the body's last beat. */
+.wd-expand-layer[data-reveal="pending"] .wd-ruler {
+  opacity: 0;
+}
+
+.wd-expand-layer[data-reveal="on"] .wd-ruler {
+  animation: wd-enter-fade var(--wd-enter-duration) var(--wd-enter-ease)
+    backwards;
+  animation-delay: calc(480ms + var(--wd-beat-lead, 0ms));
+}
+
 /* Reduced motion keeps the state change and drops the choreography: one 120ms
    opacity pass on the scroll column, no per-item animation, no filter. */
 @media (prefers-reduced-motion: reduce) {
   .wd-expand-layer[data-reveal="on"]
     :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
   .wd-expand-layer[data-reveal="on"] .wd-hero {
+    animation: none;
+  }
+
+  .wd-expand-layer[data-reveal="on"] .wd-ruler {
     animation: none;
   }
 
