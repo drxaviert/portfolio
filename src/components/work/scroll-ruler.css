@@ -1,14 +1,16 @@
 /*
- * The reader's scroll ruler. A dense column of fine ticks at the right edge of
- * the scroll area: the long bright tick is the reading position, and every tick
- * is a point in the article that previews the text living there.
+ * The reader's scroll ruler. A dense column of fine ticks beside the article's
+ * text column: the long bright tick is the reading position, and every tick is
+ * a point in the article that previews the text living there.
  *
  * The tick grid is one CSS variable. Every tick is a 13px row, so the same step
  * drives the tick spacing and the indicator's travel, and the component only
  * hands over the tick count.
  *
- * Geometry sits at the panel's right edge, 22px in from it: the scroll
- * container reserves a stable scrollbar gutter there.
+ * It sits 40px to the right of the column, which is centred and capped at
+ * 582px, so the offset is measured from the column and written back as
+ * `--wd-ruler-right`. It stays pinned to the panel's vertical centre, the same
+ * place it has always held.
  */
 
 .wd-ruler {
@@ -18,7 +20,7 @@
 
   position: absolute;
   top: 50%;
-  right: 22px;
+  right: var(--wd-ruler-right, 22px);
   z-index: 2;
   display: none;
   width: var(--wd-ruler-width);
@@ -28,11 +30,12 @@
 }
 
 /*
- * Only where there is a permanent pointer and a margin to sit in. On touch and
- * on phone widths the ruler would be hover-only information with nowhere to put
- * its preview, so it is not there at all.
+ * Only where there is a permanent pointer: on touch the preview is
+ * hover-only information. Width is not a breakpoint any more — the component
+ * hides the ruler whenever the panel leaves it less than a gap, its own width
+ * and 16px of clearance beside the column.
  */
-@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+@media (hover: hover) and (pointer: fine) {
   .wd-ruler[data-visible="true"] {
     display: block;
     cursor: pointer;

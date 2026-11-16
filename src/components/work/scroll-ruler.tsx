@@ -17,14 +17,18 @@ import { READER_SCROLL_ID } from "./parts";
 import "./scroll-ruler.css";
 
 /**
- * The study reader's scroll ruler: a dense tick column at the right edge of the
- * scroll area. The long bright tick is where you are; every tick is a point in
- * the article, and hovering one grows it and opens a preview of the text that
- * lives there. Clicking jumps to it.
+ * The study reader's scroll ruler: a dense tick column beside the article's
+ * text column, 40px off its right edge. The long bright tick is where you are;
+ * every tick is a point in the article, and hovering one grows it and opens a
+ * preview of the text that lives there. Clicking jumps to it.
  *
  * It is built from the rendered DOM, not from the MDX source, so any study gets
  * a working ruler with no per-study code or config. Headings arrive without
  * ids, so this assigns them (slugified, de-duplicated) as it measures.
+ *
+ * The column is centred and capped, so its right edge moves at every breakpoint
+ * and whenever the panel does. The ruler reads that edge on every measure and
+ * hides itself when the panel leaves it less than a gap plus its own width.
  */
 export type ScrollRulerProps = {
   /** Re-measures when the reader swaps article (study to study). */
@@ -46,6 +50,8 @@ type RulerLayout = {
   sections: RulerSection[];
   cards: RulerCard[];
   scrollable: boolean;
+  /** A scroller with enough room beside the column to hold the ruler. */
+  visible: boolean;
 };
 
 /** Where a tick jumps to, measured in the scroll container's own coordinates. */
@@ -56,9 +62,17 @@ const EMPTY_LAYOUT: RulerLayout = {
   sections: [],
   cards: [],
   scrollable: false,
+  visible: false,
 };
 
 const EMPTY_CARD: RulerCard = { title: "", excerpt: "" };
+
+/** Space between the text column's right edge and the ruler column. */
+const RULER_GAP = 40;
+/** The least the ruler may leave between itself and the panel's right edge. */
+const RULER_CLEARANCE = 16;
+/** Mirrors `--wd-ruler-width`, for a layout read before CSS is applied. */
+const RULER_WIDTH_FALLBACK = 18;
 
 function reducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -124,6 +138,36 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
       const scrollable = max > 1;
       const scrollRect = scrollEl.getBoundingClientRect();
       const prose = scrollEl.querySelector<HTMLElement>(".wd-prose");
+
+      // The ruler sits beside the text column, so it is placed from the
+      // column's own right edge rather than from the panel's: the column is
+      // centred and capped, and that edge moves at every breakpoint. The room
+      // the panel leaves on that side is the one measured number CSS cannot
+      // know; the gap, the ruler width and the clearance all come from the
+      // component's own variables, so there is one source for each.
+      const nav = navRef.current;
+      const panel = nav?.closest<HTMLElement>(".wd-reader-panel");
+      const column = scrollEl.querySelector<HTMLElement>(".wd-reader-column");
+
+      let roomForRuler = false;
+
+      if (nav && panel && column) {
+        const width =
+          Number.parseFloat(
+            getComputedStyle(nav).getPropertyValue("--wd-ruler-width"),
+          ) || RULER_WIDTH_FALLBACK;
+        const room =
+          panel.getBoundingClientRect().right -
+          column.getBoundingClientRect().right;
+
+        roomForRuler = room >= RULER_GAP + width + RULER_CLEARANCE;
+        // The column is centred and capped, so its edge moves at every
+        // breakpoint; this is the one offset that has to be measured.
+        nav.style.setProperty(
+          "--wd-ruler-right",
+          `${room - RULER_GAP - width}px`,
+        );
+      }
 
       // The article's own blocks, in reading order: a tick previews whichever
       // one sits at its scroll position, so headings, paragraphs, figures and
@@ -241,6 +285,7 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
 
       const signature = [
         scrollable,
+        roomForRuler,
         ticks,
         sections.map((section) => `${section.id}@${section.tick}`).join(","),
         cards.map((card) => `${card.title}~${card.excerpt}`).join("|"),
@@ -250,7 +295,13 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
         signatureRef.current = signature;
         setHovered(-1);
         setFocused(-1);
-        setLayout({ ticks, sections, cards, scrollable });
+        setLayout({
+          ticks,
+          sections,
+          cards,
+          scrollable,
+          visible: scrollable && roomForRuler,
+        });
       }
 
       writeProgress();
@@ -288,7 +339,9 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
     if (layer) {
       reveal.observe(layer, {
         attributes: true,
-        attributeFilter: ["data-reveal"],
+        // The reveal releases the content mid-morph; the phase settles it. Both
+        // move the panel, and the panel's box is what the ruler is placed from.
+        attributeFilter: ["data-reveal", "data-phase"],
       });
     }
 
@@ -426,7 +479,7 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
       ref={navRef}
       className="wd-ruler"
       aria-label="Sections"
-      data-visible={layout.scrollable}
+      data-visible={layout.visible}
       data-active={active >= 0}
       style={style}
       onClick={onClick}

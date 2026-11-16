@@ -5,16 +5,18 @@ import { READER_SCROLL_ID } from "./parts";
 import { RULER_MIN_TICKS } from "./ruler-model";
 
 const fixtures: HTMLElement[] = [];
+let panel: HTMLElement;
+let mountPoint: HTMLElement;
 
-function rect(top: number, height = 20): DOMRect {
+function rect(top: number, height = 20, left = 0, width = 0): DOMRect {
   return {
     top,
-    left: 0,
-    right: 0,
+    left,
+    right: left + width,
     bottom: top + height,
-    width: 0,
+    width,
     height,
-    x: 0,
+    x: left,
     y: top,
     toJSON: () => ({}),
   } as DOMRect;
@@ -54,11 +56,14 @@ function mountStudy({
   intro = "Systems in motion",
   scrollHeight = 2600,
   clientHeight = 600,
+  room = 209,
 }: {
   blocks: Block[];
   intro?: string;
   scrollHeight?: number;
   clientHeight?: number;
+  /** Room between the column's right edge and the panel's right edge. */
+  room?: number;
 }) {
   const scroll = document.createElement("div");
   scroll.id = READER_SCROLL_ID;
@@ -72,6 +77,12 @@ function mountStudy({
   });
   scroll.getBoundingClientRect = () => rect(0, clientHeight);
   scroll.scrollTo = vi.fn();
+
+  const column = document.createElement("div");
+  column.className = "wd-reader-column";
+  const columnRight = 1000 - room;
+  column.getBoundingClientRect = () =>
+    rect(0, scrollHeight, columnRight - 582, 582);
 
   const isProse = document.createElement("div");
   isProse.className = "wd-reader-main";
@@ -104,11 +115,27 @@ function mountStudy({
 
   prose.append(...elements);
   isProse.append(introTitle, prose);
-  scroll.append(isProse);
-  document.body.append(scroll);
-  fixtures.push(scroll);
+  column.append(isProse);
+  scroll.append(column);
 
-  return { scroll, elements, prose };
+  panel = document.createElement("div");
+  panel.className = "wd-reader-panel";
+  panel.getBoundingClientRect = () => rect(0, 800, 0, 1000);
+  panel.append(scroll);
+
+  // React owns only this wrapper, so the fixture's own DOM survives the render.
+  mountPoint = document.createElement("div");
+  panel.append(mountPoint);
+
+  document.body.append(panel);
+  fixtures.push(panel);
+
+  return { scroll, elements, prose, panel, mountPoint, column };
+}
+
+/** The ruler lives inside the reader's panel, as it does in the app. */
+function renderRuler(slug: string) {
+  return render(<ScrollRuler studySlug={slug} />, { container: mountPoint });
 }
 
 function ruler() {
@@ -164,7 +191,7 @@ afterEach(() => {
 describe("ScrollRuler", () => {
   it("draws the reference ruler's 17 ticks and one link per section", async () => {
     mountStudy({ blocks: fourSections() });
-    render(<ScrollRuler studySlug="systems-in-motion" />);
+    renderRuler("systems-in-motion");
 
     await waitFor(() =>
       expect(ruler().querySelectorAll(".wd-ruler-slot")).toHaveLength(
@@ -184,7 +211,7 @@ describe("ScrollRuler", () => {
 
   it("generates the heading ids the links point at", async () => {
     const { elements } = mountStudy({ blocks: fourSections() });
-    render(<ScrollRuler studySlug="systems-in-motion" />);
+    renderRuler("systems-in-motion");
 
     const headings = elements.filter((el) => el.tagName === "H2");
 
@@ -211,7 +238,7 @@ describe("ScrollRuler", () => {
         { tag: "h2", text: "The system", top: 1300 },
       ],
     });
-    render(<ScrollRuler studySlug="duplicates" />);
+    renderRuler("duplicates");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(3));
 
@@ -227,7 +254,7 @@ describe("ScrollRuler", () => {
       blocks: [{ tag: "p", text: "Just the one paragraph.", top: 300 }],
       intro: "A short study",
     });
-    render(<ScrollRuler studySlug="no-sections" />);
+    renderRuler("no-sections");
 
     await waitFor(() =>
       expect(ruler()).toHaveAttribute("data-visible", "true"),
@@ -247,7 +274,7 @@ describe("ScrollRuler", () => {
 
   it("treats a single heading as progress only", async () => {
     mountStudy({ blocks: [{ tag: "h2", text: "The concept", top: 300 }] });
-    render(<ScrollRuler studySlug="one-section" />);
+    renderRuler("one-section");
 
     await waitFor(() =>
       expect(ruler()).toHaveAttribute("data-visible", "true"),
@@ -264,7 +291,7 @@ describe("ScrollRuler", () => {
         top: 200 + index * 200,
       })),
     });
-    render(<ScrollRuler studySlug="twelve" />);
+    renderRuler("twelve");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(12));
 
@@ -279,7 +306,7 @@ describe("ScrollRuler", () => {
       blocks: fourSections(),
       scrollHeight: 600,
     });
-    render(<ScrollRuler studySlug="short-study" />);
+    renderRuler("short-study");
 
     await waitFor(() =>
       expect(ruler()).toHaveAttribute("data-visible", "false"),
@@ -288,9 +315,62 @@ describe("ScrollRuler", () => {
     expect(screen.queryAllByRole("link")).toHaveLength(0);
   });
 
+  it("sits 40px to the right of the text column", async () => {
+    mountStudy({ blocks: fourSections(), room: 209 });
+    renderRuler("systems-in-motion");
+
+    await waitFor(() =>
+      expect(ruler()).toHaveAttribute("data-visible", "true"),
+    );
+
+    // 209px of room, less the 40px gap and the 18px ruler column.
+    expect(ruler().style.getPropertyValue("--wd-ruler-right")).toBe("151px");
+  });
+
+  it("hides itself when the panel leaves no room beside the column", async () => {
+    mountStudy({ blocks: fourSections(), room: 60 });
+    renderRuler("systems-in-motion");
+
+    await waitFor(() =>
+      expect(ruler()).toHaveAttribute("data-visible", "false"),
+    );
+
+    // Hidden by its own rule, so the links leave the tab order with it.
+    expect(ruler().style.getPropertyValue("--wd-ruler-right")).toBe("2px");
+  });
+
+  it("takes the ruler's width and clearance out of the fit", async () => {
+    // 40px gap + 18px ruler + 16px clearance is the least it can hold.
+    mountStudy({ blocks: fourSections(), room: 73 });
+    renderRuler("systems-in-motion");
+
+    await waitFor(() =>
+      expect(ruler()).toHaveAttribute("data-visible", "false"),
+    );
+  });
+
+  it("follows the column when it moves", async () => {
+    const { column } = mountStudy({ blocks: fourSections(), room: 209 });
+    renderRuler("systems-in-motion");
+
+    await waitFor(() =>
+      expect(ruler()).toHaveAttribute("data-visible", "true"),
+    );
+    expect(ruler().style.getPropertyValue("--wd-ruler-right")).toBe("151px");
+
+    // The panel narrowed: the column keeps its 582px cap and its edge moves in.
+    column.getBoundingClientRect = () => rect(0, 2600, 1000 - 90 - 582, 582);
+    fireEvent(window, new Event("resize"));
+
+    await waitFor(() =>
+      expect(ruler().style.getPropertyValue("--wd-ruler-right")).toBe("32px"),
+    );
+    expect(ruler()).toHaveAttribute("data-visible", "true");
+  });
+
   it("writes the reading position as scroll progress", async () => {
     const { scroll } = mountStudy({ blocks: fourSections() });
-    render(<ScrollRuler studySlug="systems-in-motion" />);
+    renderRuler("systems-in-motion");
 
     await waitFor(() =>
       expect(ruler()).toHaveAttribute("data-visible", "true"),
@@ -308,7 +388,7 @@ describe("ScrollRuler", () => {
 
   it("jumps to a section's heading when its tick is clicked", async () => {
     const { scroll } = mountStudy({ blocks: fourSections() });
-    render(<ScrollRuler studySlug="systems-in-motion" />);
+    renderRuler("systems-in-motion");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
     fireEvent.click(screen.getByLabelText("The process"));
@@ -321,7 +401,7 @@ describe("ScrollRuler", () => {
 
   it("jumps to the block at a plain tick, not only to sections", async () => {
     const { scroll } = mountStudy({ blocks: fourSections() });
-    render(<ScrollRuler studySlug="systems-in-motion" />);
+    renderRuler("systems-in-motion");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
 
@@ -338,7 +418,7 @@ describe("ScrollRuler", () => {
   it("jumps instantly under reduced motion", async () => {
     stubMatchMedia(true);
     const { scroll } = mountStudy({ blocks: fourSections() });
-    render(<ScrollRuler studySlug="systems-in-motion" />);
+    renderRuler("systems-in-motion");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
     fireEvent.click(screen.getByLabelText("The outcome"));
@@ -351,7 +431,7 @@ describe("ScrollRuler", () => {
 
   it("leaves a modified click to the browser", async () => {
     const { scroll } = mountStudy({ blocks: fourSections() });
-    render(<ScrollRuler studySlug="systems-in-motion" />);
+    renderRuler("systems-in-motion");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
     fireEvent.click(screen.getByLabelText("The system"), { metaKey: true });
@@ -361,7 +441,7 @@ describe("ScrollRuler", () => {
 
   it("previews the section and the text at the hovered tick", async () => {
     mountStudy({ blocks: fourSections() });
-    render(<ScrollRuler studySlug="systems-in-motion" />);
+    renderRuler("systems-in-motion");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
 
@@ -375,7 +455,7 @@ describe("ScrollRuler", () => {
 
   it("keeps one card open while scrubbing, swapping its text in place", async () => {
     mountStudy({ blocks: fourSections() });
-    render(<ScrollRuler studySlug="systems-in-motion" />);
+    renderRuler("systems-in-motion");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
 
@@ -410,7 +490,7 @@ describe("ScrollRuler", () => {
         { tag: "p", text: "We wrote the brief back.", top: 800 },
       ],
     });
-    render(<ScrollRuler studySlug="caption" />);
+    renderRuler("caption");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(2));
 
@@ -423,7 +503,7 @@ describe("ScrollRuler", () => {
 
   it("releases the preview when the pointer leaves", async () => {
     mountStudy({ blocks: fourSections() });
-    render(<ScrollRuler studySlug="systems-in-motion" />);
+    renderRuler("systems-in-motion");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
 
@@ -436,7 +516,7 @@ describe("ScrollRuler", () => {
 
   it("keeps the preview while the pointer stays, even as focus moves away", async () => {
     mountStudy({ blocks: fourSections() });
-    render(<ScrollRuler studySlug="systems-in-motion" />);
+    renderRuler("systems-in-motion");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
 
@@ -458,7 +538,7 @@ describe("ScrollRuler", () => {
 
   it("shows the preview for a focused section tick, so the keyboard gets it", async () => {
     mountStudy({ blocks: fourSections() });
-    render(<ScrollRuler studySlug="systems-in-motion" />);
+    renderRuler("systems-in-motion");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
     fireEvent.focus(screen.getByLabelText("The system"));
