@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import type { MouseEvent } from "react";
 import { READER_SCROLL_ID, READER_TITLE_ID } from "./parts";
-import { useReaderClose } from "./reader-nav";
+import { useReaderClose } from "./reader-close";
 import { useShowTop } from "./use-show-top";
 
 /**
@@ -78,6 +78,7 @@ function scrollToTop(scrollEl: HTMLElement | null) {
 function closeOnClick(close: (() => void) | undefined) {
   return (event: MouseEvent<HTMLAnchorElement>) => {
     if (!close) return;
+    if (event.button !== 0) return;
 
     const modified =
       event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;

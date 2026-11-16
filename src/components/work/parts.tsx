@@ -1,10 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import type { KeyboardEvent, ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useLayoutEffect, useRef, useState } from "react";
+import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import type { WorkMeta } from "@/lib/work";
 import { Cover } from "./cover";
+import {
+  announceProgressionEntry,
+  clearProgressionLead,
+  leaveForNextStudy,
+  peekProgressionLead,
+} from "./progression";
 
 /**
  * The Margin layout's parts. Media is always a plain gray box: the site's
@@ -334,14 +341,33 @@ export function ContactSheet({ caption }: { caption: string }) {
   );
 }
 
-export function NextLink({
-  next,
-  replace = false,
-}: {
-  next: WorkMeta;
-  /** The overlay replaces the entry so one Back always returns home. */
-  replace?: boolean;
-}) {
+export function NextLink({ next }: { next: WorkMeta }) {
+  const router = useRouter();
+  const committed = useRef(false);
+
+  async function onClick(event: MouseEvent<HTMLAnchorElement>) {
+    // Modified clicks, middle clicks and anything already handled keep the
+    // browser's own behaviour.
+    if (event.defaultPrevented || event.button !== 0) return;
+
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+
+    event.preventDefault();
+    if (committed.current) return;
+
+    committed.current = true;
+
+    // The article leaves on the close fade, the route goes a third of the way
+    // in, and the incoming entrance mounts part-way in: the two overlap, so
+    // the panel is never bare between studies.
+    announceProgressionEntry();
+    await leaveForNextStudy();
+
+    router.replace(`/work/${next.slug}`);
+  }
+
   return (
     <section className="wd-nextlink" aria-labelledby="wd-nextlink-title">
       <p className="wd-kicker" id="wd-nextlink-title">
@@ -349,13 +375,42 @@ export function NextLink({
       </p>
       <Link
         href={`/work/${next.slug}`}
-        replace={replace}
+        replace
         className="wd-nextlink-link"
         aria-label={`Next project: ${next.title}`}
+        onClick={onClick}
       >
         <span>{next.title}</span>
         <span aria-hidden="true">→</span>
       </Link>
     </section>
   );
+}
+
+/**
+ * Gives this reader the study -> study head start, then forgets the pending
+ * lead. It mounts with the incoming article and runs before the first paint,
+ * so the entrance's first frame is already part-way in.
+ */
+export function ProgressionLead() {
+  const marker = useRef<HTMLSpanElement>(null);
+
+  useLayoutEffect(() => {
+    const lead = peekProgressionLead();
+    if (!lead) return;
+
+    // The page-mode reader and the overlay can both be mounted: measure from
+    // this marker so the lead lands on the panel that is entering.
+    const panel = marker.current?.closest<HTMLElement>(".wd-reader-panel");
+    if (!panel) return;
+
+    panel.style.setProperty("--wd-beat-lead", `-${lead}ms`);
+    // Under reduced motion the content changes in one commit; without this the
+    // incoming column would still run its 120ms fade from zero, adding a beat
+    // of empty panel between studies.
+    panel.dataset.progression = "lead";
+    clearProgressionLead();
+  }, []);
+
+  return <span ref={marker} hidden />;
 }

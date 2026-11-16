@@ -1,0 +1,220 @@
+/*
+ * The reader's scroll ruler. A dense column of fine ticks in the gutter beside
+ * the article's text column: every tick is a point in the article, and the long
+ * bright mark is the section being read.
+ *
+ * The tick grid is one CSS variable. Every tick is a 13px row, so the same step
+ * drives the tick spacing, and the component only hands over the tick count.
+ *
+ * It is centred in the room the panel leaves to the right of the column (never
+ * closer than 40px), which is centred and capped at 582px, so the offset is
+ * measured from the column and written back as `--wd-ruler-right`. It stays
+ * pinned to the panel's vertical centre.
+ */
+
+.wd-ruler {
+  --wd-ruler-step: 13px;
+  --wd-ruler-pad: 10px;
+  --wd-ruler-width: 18px;
+
+  position: absolute;
+  top: 50%;
+  right: var(--wd-ruler-right, 22px);
+  z-index: 2;
+  display: none;
+  width: var(--wd-ruler-width);
+  padding-block: var(--wd-ruler-pad);
+  transform: translateY(-50%);
+  color: var(--on-surface-variant);
+}
+
+/*
+ * Only where there is a permanent pointer: on touch the preview is
+ * hover-only information. Width is not a breakpoint any more — the component
+ * hides the ruler whenever the panel leaves it less than a gap, its own width
+ * and 16px of clearance beside the column.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .wd-ruler[data-visible="true"] {
+    display: block;
+    cursor: pointer;
+  }
+}
+
+.wd-ruler-track {
+  display: grid;
+  grid-auto-rows: var(--wd-ruler-step);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wd-ruler-slot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: var(--wd-ruler-step);
+}
+
+/*
+ * A tick is a long line scaled down, so the hover's growth is a transform. At
+ * rest a plain tick is 6px and a section tick 11px; hovered, they are 13 and 15,
+ * which is what makes the pointed-at row read as the one being asked about.
+ */
+.wd-ruler-tick {
+  display: block;
+  width: 13px;
+  height: 1px;
+  border-radius: 1px;
+  background: var(--outline);
+  transform: scaleX(0.46);
+  transform-origin: right center;
+  transition:
+    transform var(--duration-short-3) var(--ease-decelerate),
+    background-color var(--duration-short-3) var(--ease-decelerate);
+}
+
+.wd-ruler-tick[data-active="true"] {
+  transform: scaleX(1);
+  background: var(--on-surface-variant);
+}
+
+/* A section tick is a link, so its box is the full row: that box is what the
+   focus ring wraps and what the keyboard tabs to. */
+.wd-ruler-tick-section {
+  position: relative;
+  width: var(--wd-ruler-width);
+  height: var(--wd-ruler-step);
+  background: none;
+  transform: none;
+  border-radius: 3px;
+}
+
+.wd-ruler-tick-section::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 15px;
+  height: 1px;
+  margin-top: -0.5px;
+  border-radius: 1px;
+  background: var(--on-surface-variant);
+  transform: scaleX(0.73);
+  transform-origin: right center;
+  transition:
+    transform var(--duration-short-3) var(--ease-decelerate),
+    background-color var(--duration-short-3) var(--ease-decelerate);
+}
+
+.wd-ruler-tick-section[data-active="true"]::after {
+  transform: scaleX(1);
+  background: var(--on-surface);
+}
+
+.wd-ruler-tick-section:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/*
+ * The reading position: one long, bright mark, snapped between section ticks.
+ * Its top edge and height are a single transform written by the runner (the
+ * theme toggle's stretch and snap, turned upright), so it never touches layout
+ * and never runs through React.
+ */
+.wd-ruler-indicator {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--wd-ruler-width);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--on-surface);
+  transform-origin: top center;
+}
+
+/*
+ * The preview: one card for the whole column, moved to the hovered tick and
+ * refilled in place, so scrubbing never closes and reopens it.
+ *
+ * The outer element carries the tick's position (the component clamps it inside
+ * the reader) and the inner one carries the open state, so a move between ticks
+ * is a short slide while the first open is an opacity and a nudge out of the
+ * ruler, on the tokens the site's other popovers use.
+ */
+.wd-ruler-card {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 12px);
+  width: 280px;
+  transform: translateY(var(--wd-ruler-card-y, 0px));
+  pointer-events: none;
+}
+
+.wd-ruler[data-active="true"] .wd-ruler-card {
+  transition: transform var(--duration-short-2) var(--ease-decelerate);
+}
+
+.wd-ruler-card-inner {
+  padding: 10px 12px 11px;
+  border-radius: var(--radius-lg);
+  /* Cards and menus are flat fills with a shadow, never a stroke. */
+  background: var(--surface-container-highest);
+  box-shadow:
+    var(--shadow-card),
+    0 14px 34px -14px rgb(0 0 0 / 0.5);
+  opacity: 0;
+  transform: translateX(6px);
+  transition:
+    opacity var(--duration-short-3) var(--ease-decelerate),
+    transform var(--duration-short-3) var(--ease-decelerate);
+}
+
+.wd-ruler[data-active="true"] .wd-ruler-card-inner {
+  opacity: 1;
+  transform: none;
+}
+
+.wd-ruler-card-title {
+  margin: 0;
+  color: var(--on-surface);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.wd-ruler-card-body {
+  display: -webkit-box;
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.wd-ruler-card-body:empty {
+  display: none;
+}
+
+/*
+ * A jump from a tick lands the block below the reader's blur band, at the same
+ * clearance the column's own top padding uses. The component reads the resolved
+ * value, so a tick's position and its landing agree.
+ */
+.wd-prose > * {
+  scroll-margin-top: calc(
+    var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-ruler-tick,
+  .wd-ruler-tick-section::after,
+  .wd-ruler[data-active="true"] .wd-ruler-card,
+  .wd-ruler-card-inner {
+    transition: none;
+  }
+}

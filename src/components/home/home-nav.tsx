@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { useTooltipWarm } from "@/components/nav/use-tooltip-warm";
 import { NavItems } from "./nav-items";
 import { RingLayers } from "./ring-hover";
 
@@ -38,17 +41,22 @@ const FOCUS_RING =
   "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 export function HomeNav() {
+  const tooltips = useTooltipWarm();
+
   return (
     <nav
       aria-label="Primary"
       className="ring-host flex h-16 items-center justify-between rounded-lg px-4"
+      data-tooltip-warm={tooltips.warm}
+      onPointerEnter={tooltips.onPointerEnter}
+      onPointerLeave={tooltips.onPointerLeave}
     >
       <RingLayers fill="bg-surface-container-low" />
 
       <Link
         href="/"
         aria-label="Home"
-        className={`shrink-0 rounded-full no-underline ${FOCUS_RING}`}
+        className={`nav-logo relative shrink-0 rounded-full no-underline ${FOCUS_RING}`}
       >
         <OrbHead />
       </Link>

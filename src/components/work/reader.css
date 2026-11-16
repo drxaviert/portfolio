@@ -8,14 +8,9 @@
  * without any JavaScript measurement.
  */
 
+/* The panel's inset and the nav's insets are root tokens (globals.css): the nav
+   dock in the root layout reads the same values. */
 .wd-reader-panel {
-  /* The panel's own inset and the header nav's top inset and height, in one
-     place: the nav wrapper, the nav bar, the blur zone and the scroll column
-     all derive from these. */
-  --wd-panel-inset: 0px;
-  --wd-nav-inset: 8px;
-  --wd-nav-height: 4rem; /* HomeNav's h-16 */
-
   position: fixed;
   inset: var(--wd-panel-inset);
   display: flex;
@@ -27,88 +22,10 @@
 
 @media (min-width: 768px) {
   .wd-reader-panel {
-    --wd-panel-inset: 16px;
-    --wd-nav-inset: 12px;
-
     border-radius: 12px;
     box-shadow:
       var(--shadow-card),
       0 30px 70px -30px rgb(0 0 0 / 0.45);
-  }
-}
-
-/*
- * The real HomeNav, carried in at the homepage nav's box. The wrapper reaches
- * back out over the panel's inset, then repeats home-layout's container: a
- * 1200px frame with px-4 md:px-8, then the 1136px content column. That is the
- * same CSS the homepage nav is laid out in, so left, width and height match
- * without measuring anything and survive a resize.
- */
-.wd-reader-nav {
-  position: absolute;
-  inset-inline: calc(var(--wd-panel-inset) * -1);
-  top: var(--wd-nav-inset);
-  z-index: 2;
-  pointer-events: none;
-}
-
-.wd-reader-nav-inner {
-  width: 100%;
-  max-width: 1200px;
-  margin-inline: auto;
-  padding-inline: 16px;
-}
-
-.wd-reader-nav-bar {
-  width: 100%;
-  max-width: 1136px;
-  margin-inline: auto;
-  pointer-events: auto;
-}
-
-/*
- * The bar's height is the variable, not a second copy of HomeNav's h-16: the
- * blur zone's bottom edge and the scroll column's clearance are both derived
- * from it, so the three cannot drift. The homepage keeps h-16.
- */
-.wd-reader-nav-bar > nav {
-  height: var(--wd-nav-height);
-}
-
-/*
- * The nav is the reader's top edge, so a tooltip or the Day row opening above
- * it would be clipped by the panel and, at 375, by the viewport. HomeNav's own
- * popovers are unchanged on the homepage; here they open downward instead.
- */
-.wd-reader-nav .segment-tooltip,
-.wd-reader-nav .nav-tooltip {
-  top: calc(100% + 8px);
-  bottom: auto;
-  margin-top: 0;
-}
-
-/*
- * The toggle sits at the panel's right edge, and its widest label ("Auto ·
- * follows your clock") is centred on the last segment, so half of it would
- * overrun the panel. Right-align that one label to its segment instead.
- */
-.wd-reader-nav [data-mode-track] .segment:last-child .segment-tooltip {
-  left: auto;
-  right: 0;
-  translate: none;
-}
-
-.wd-reader-nav .phase-row,
-.wd-reader-nav [role="menu"] {
-  top: calc(100% + 24px);
-  bottom: auto;
-  margin-top: 0;
-  margin-bottom: 0;
-}
-
-@media (min-width: 768px) {
-  .wd-reader-nav-inner {
-    padding-inline: 32px;
   }
 }
 
@@ -126,8 +43,11 @@
   width: 100%;
   max-width: 582px; /* 550px measure + 2 × 16px gutters */
   margin-inline: auto;
-  /* Clears the header nav: its top inset, its bar and a 12px gap. */
-  padding: calc(var(--wd-nav-inset) + var(--wd-nav-height) + 12px) 16px 64px;
+  /* Clears the header nav: its top inset, its bar and the shared gap. */
+  padding: calc(
+      var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
+    )
+    16px 64px;
 }
 
 /* Anchors the margin notes and the wide breakouts without pixel geometry. */
@@ -179,8 +99,10 @@
 .wd-rail-work {
   position: sticky;
   /* The nav's bottom edge, which is the blur zone's edge, plus the reading
-     column's own 12px clearance. */
-  top: calc(var(--wd-nav-inset) + var(--wd-nav-height) + 12px);
+     column's own clearance. */
+  top: calc(
+    var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
+  );
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -357,12 +279,24 @@
 /* ----------------------------------------------------------------- hero ---- */
 
 .wd-hero {
-  /* The faux-UI card's canvas: the cover scene and the featured card carry the
-     same picture, so the hero reserves the same box and lets it scale. */
-  aspect-ratio: 753 / 416;
+  /* The faux-UI canvas is 753 x 416 with a 32px inset, so the shot Dat reads as
+     "the cover" is the 689 x 352 panel inside it. The hero is the shot, not the
+     canvas: it takes the shot's aspect and the stage below bleeds the inset, so
+     the cover's own edges are the reading column's edges. Without the bleed the
+     hero box aligned with the text while the picture sat 32 * scale (23px at
+     550) right of it and as far below the nav. */
+  aspect-ratio: 689 / 352;
   border-radius: 12px;
   /* Holds the 753px canvas (scale 1) until the fit hook measures the box. */
   overflow: hidden;
+}
+
+/* Re-scale the canvas so the shot, not the padded frame, is the hero's width,
+   then shift the frame by the same inset. 689 = 753 - 2 x 32px. */
+.wd-hero .fu-stage > .fu-card {
+  top: calc(var(--fu-scale) * -32px * 753 / 689);
+  left: calc(var(--fu-scale) * -32px * 753 / 689);
+  transform: scale(calc(var(--fu-scale) * 753 / 689));
 }
 
 /* The MDX `<Hero />` without a scene keeps the neutral media surface. */
@@ -423,6 +357,9 @@
 
 .wd-p {
   margin: 14px 0 0;
+  /* Long-form body: keep the measure inside the reading band even if the
+     column ever widens. Headings and the meta row keep the full column. */
+  max-width: 68ch;
   color: var(--on-surface-variant);
   font-size: 14px;
   line-height: 1.45;

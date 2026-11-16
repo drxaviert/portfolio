@@ -30,12 +30,25 @@
 
 .phase-row {
   --phase-row-exit-ms: 240;
+  /*
+   * How long the entrance waits before it starts. Normally zero; a theme
+   * switch raises it to the crossfade duration (see the next rule), because
+   * the browser paints a snapshot of the new state for the whole fade and
+   * anything animating underneath it would not be visible.
+   */
+  --phase-enter-delay: 0ms;
 
   opacity: 0;
   visibility: hidden;
   transform: scale(0.96);
   transform-origin: bottom right;
+  /* The shared toggle-to-row gap; the reader flips the side, not the value. */
+  margin-bottom: var(--wd-phase-row-gap);
   pointer-events: none;
+}
+
+:root[data-phase-switching] .phase-row {
+  --phase-enter-delay: var(--horizon-transition-duration);
 }
 
 .phase-row[data-visible="true"] {
@@ -44,42 +57,42 @@
   transform: none;
   pointer-events: auto;
   transition:
-    opacity 400ms cubic-bezier(0.23, 1, 0.32, 1),
-    transform 400ms cubic-bezier(0.23, 1, 0.32, 1),
-    visibility 0s;
+    opacity var(--duration-long-1) var(--ease-emphasized-decelerate)
+      var(--phase-enter-delay),
+    transform var(--duration-long-1) var(--ease-emphasized-decelerate)
+      var(--phase-enter-delay),
+    visibility 0s var(--phase-enter-delay);
 }
 
 .phase-row[data-visible="false"] {
   transition:
-    opacity calc(var(--phase-row-exit-ms) * 1ms) ease-in,
-    transform calc(var(--phase-row-exit-ms) * 1ms) ease-in,
+    opacity calc(var(--phase-row-exit-ms) * 1ms) var(--ease-accelerate),
+    transform calc(var(--phase-row-exit-ms) * 1ms) var(--ease-accelerate),
     visibility 0s calc(var(--phase-row-exit-ms) * 1ms);
 }
 
 /* Segments: 360ms fade/rise, left to right; exit together in 240ms. */
 .phase-row[data-phase-row] [role="radio"] {
   transition:
-    opacity 360ms cubic-bezier(0.23, 1, 0.32, 1),
-    translate 360ms cubic-bezier(0.23, 1, 0.32, 1),
-    color 150ms ease-out,
-    transform 150ms ease-out,
-    scale 150ms ease-out;
+    opacity var(--duration-medium-7) var(--ease-emphasized-decelerate),
+    translate var(--duration-medium-7) var(--ease-emphasized-decelerate),
+    color var(--duration-short-3) var(--ease-decelerate),
+    transform var(--duration-short-3) var(--ease-decelerate),
+    scale var(--duration-short-3) var(--ease-decelerate);
 }
 /*
  * Selected fill, enter-only: leaving the checked state drops this rule, so the
  * old fill is released on the same frame while the new one fades in. A fast
  * flip can then never paint two selected segments (or two labels) at once.
- * The extra [data-phase-row] keeps the phase-switch fade (globals.css), which
- * transitions every colour on the page, from retiming either state.
  */
 .phase-row[data-phase-row] [role="radio"][aria-checked="true"] {
   transition:
-    background-color 150ms ease-out,
-    opacity 360ms cubic-bezier(0.23, 1, 0.32, 1),
-    translate 360ms cubic-bezier(0.23, 1, 0.32, 1),
-    color 150ms ease-out,
-    transform 150ms ease-out,
-    scale 150ms ease-out;
+    background-color var(--duration-short-3) var(--ease-decelerate),
+    opacity var(--duration-medium-7) var(--ease-emphasized-decelerate),
+    translate var(--duration-medium-7) var(--ease-emphasized-decelerate),
+    color var(--duration-short-3) var(--ease-decelerate),
+    transform var(--duration-short-3) var(--ease-decelerate),
+    scale var(--duration-short-3) var(--ease-decelerate);
 }
 .phase-row[data-visible="true"] [role="radio"] {
   opacity: 1;
@@ -91,24 +104,26 @@
  * selection changes while the row is open.
  */
 .phase-row[data-visible="true"] [role="radio"]:nth-of-type(1) {
-  --segment-delay: 120ms;
+  --segment-delay: var(--duration-short-2);
 }
 .phase-row[data-visible="true"] [role="radio"]:nth-of-type(2) {
-  --segment-delay: 170ms;
+  --segment-delay: var(--duration-short-5);
 }
 .phase-row[data-visible="true"] [role="radio"]:nth-of-type(3) {
-  --segment-delay: 220ms;
+  --segment-delay: var(--duration-short-7);
 }
 .phase-row[data-visible="true"] [role="radio"]:nth-of-type(4) {
-  --segment-delay: 270ms;
+  --segment-delay: var(--duration-medium-3);
 }
 .phase-row[data-visible="true"] [role="radio"] {
   transition-delay:
-    var(--segment-delay), var(--segment-delay), 0ms, 0ms, 0ms;
+    calc(var(--segment-delay) + var(--phase-enter-delay)),
+    calc(var(--segment-delay) + var(--phase-enter-delay)), 0ms, 0ms, 0ms;
 }
 .phase-row[data-visible="true"] [role="radio"][aria-checked="true"] {
   transition-delay:
-    0ms, var(--segment-delay), var(--segment-delay), 0ms, 0ms, 0ms;
+    0ms, calc(var(--segment-delay) + var(--phase-enter-delay)),
+    calc(var(--segment-delay) + var(--phase-enter-delay)), 0ms, 0ms, 0ms;
 }
 .phase-row[data-visible="false"] [role="radio"] {
   opacity: 0;
@@ -117,11 +132,15 @@
    * Five properties now (opacity, translate, colour, transform, scale); the
    * checked list below adds the selected fill in front.
    */
-  transition-duration: 240ms, 240ms, 150ms, 240ms, 240ms;
+  transition-duration:
+    var(--duration-medium-1), var(--duration-medium-1), var(--duration-short-3),
+    var(--duration-medium-1), var(--duration-medium-1);
   transition-delay: 0ms;
 }
 .phase-row[data-visible="false"] [role="radio"][aria-checked="true"] {
-  transition-duration: 150ms, 240ms, 240ms, 150ms, 240ms, 240ms;
+  transition-duration:
+    var(--duration-short-3), var(--duration-medium-1), var(--duration-medium-1),
+    var(--duration-short-3), var(--duration-medium-1), var(--duration-medium-1);
   transition-delay: 0ms;
 }
 
@@ -192,8 +211,8 @@
     [role="radio"]:nth-of-type(1)
     [data-glyph]
     [data-sun] {
-    transition: transform 600ms cubic-bezier(0.34, 1.3, 0.64, 1);
-    transition-delay: 180ms;
+    transition: transform var(--duration-long-2) var(--ease-spring);
+    transition-delay: var(--duration-short-6);
   }
   .phase-row[data-visible="true"][data-entering="true"]
     [role="radio"]:nth-of-type(2)
@@ -207,8 +226,8 @@
     [role="radio"]:nth-of-type(2)
     [data-glyph]
     [data-sun] {
-    transition: transform 600ms cubic-bezier(0.34, 1.3, 0.64, 1);
-    transition-delay: 230ms;
+    transition: transform var(--duration-long-2) var(--ease-spring);
+    transition-delay: var(--duration-short-8);
   }
   .phase-row[data-visible="true"][data-entering="true"]
     [role="radio"]:nth-of-type(3)
@@ -222,8 +241,8 @@
     [role="radio"]:nth-of-type(3)
     [data-glyph]
     [data-sun] {
-    transition: transform 600ms cubic-bezier(0.34, 1.3, 0.64, 1);
-    transition-delay: 280ms;
+    transition: transform var(--duration-long-2) var(--ease-spring);
+    transition-delay: var(--duration-medium-4);
   }
   .phase-row[data-visible="true"][data-entering="true"]
     [role="radio"]:nth-of-type(4)
@@ -237,8 +256,8 @@
     [role="radio"]:nth-of-type(4)
     [data-glyph]
     [data-sun] {
-    transition: transform 600ms cubic-bezier(0.34, 1.3, 0.64, 1);
-    transition-delay: 330ms;
+    transition: transform var(--duration-long-2) var(--ease-spring);
+    transition-delay: var(--duration-medium-6);
   }
 
   /* The icon box scales on the same schedule. */
@@ -246,29 +265,29 @@
     [role="radio"]:nth-of-type(1)
     [data-glyph] {
     transform-origin: center;
-    transition: transform 600ms cubic-bezier(0.34, 1.3, 0.64, 1);
-    transition-delay: 180ms;
+    transition: transform var(--duration-long-2) var(--ease-spring);
+    transition-delay: var(--duration-short-6);
   }
   .phase-row[data-visible="true"][data-entering="true"]
     [role="radio"]:nth-of-type(2)
     [data-glyph] {
     transform-origin: center;
-    transition: transform 600ms cubic-bezier(0.34, 1.3, 0.64, 1);
-    transition-delay: 230ms;
+    transition: transform var(--duration-long-2) var(--ease-spring);
+    transition-delay: var(--duration-short-8);
   }
   .phase-row[data-visible="true"][data-entering="true"]
     [role="radio"]:nth-of-type(3)
     [data-glyph] {
     transform-origin: center;
-    transition: transform 600ms cubic-bezier(0.34, 1.3, 0.64, 1);
-    transition-delay: 280ms;
+    transition: transform var(--duration-long-2) var(--ease-spring);
+    transition-delay: var(--duration-medium-4);
   }
   .phase-row[data-visible="true"][data-entering="true"]
     [role="radio"]:nth-of-type(4)
     [data-glyph] {
     transform-origin: center;
-    transition: transform 600ms cubic-bezier(0.34, 1.3, 0.64, 1);
-    transition-delay: 330ms;
+    transition: transform var(--duration-long-2) var(--ease-spring);
+    transition-delay: var(--duration-medium-6);
   }
 }
 
@@ -278,45 +297,55 @@
  * Mode segments: colour, press scale, and an enter-only selected fill. The
  * fill's transition is declared on the checked state, so losing the selection
  * drops the rule and releases the old fill immediately; a fast flip shows one
- * selection at a time instead of crossfading two. Both rules are specific
- * enough to keep the phase-switch fade in globals.css (which transitions every
- * colour on the page for one theme change) from retiming either state.
+ * selection at a time instead of crossfading two.
  */
 [data-mode-track] .segment:not([aria-checked="true"]) {
   transition:
-    color 150ms ease-out,
-    transform 150ms ease-out,
-    scale 150ms ease-out;
+    color var(--duration-short-3) var(--ease-decelerate),
+    transform var(--duration-short-3) var(--ease-decelerate),
+    scale var(--duration-short-3) var(--ease-decelerate);
 }
 
 [data-mode-track] .segment[aria-checked="true"] {
   transition:
-    background-color 150ms ease-out,
-    color 150ms ease-out,
-    transform 150ms ease-out,
-    scale 150ms ease-out;
+    background-color var(--duration-short-3) var(--ease-decelerate),
+    color var(--duration-short-3) var(--ease-decelerate),
+    transform var(--duration-short-3) var(--ease-decelerate),
+    scale var(--duration-short-3) var(--ease-decelerate);
 }
 
 /*
  * Tooltip: the documented 150ms fade on the way in (300ms after hover, so
  * travel across the track does not flash labels), released at once on the way
  * out. Two labels can never be visible together, and the outgoing one cannot
- * cover the neighbouring icons.
+ * cover the neighbouring icons. Above the segment by default; the dock puts the
+ * mode track's labels on the far side of the Day row (nav-dock.css).
  */
 .segment-tooltip {
+  top: auto;
+  bottom: calc(100% + 8px);
   opacity: 0;
 }
 
 .segment:focus-visible .segment-tooltip {
   opacity: 1;
-  transition: opacity 150ms ease-out;
+  transition: opacity var(--duration-short-3) var(--ease-decelerate);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .segment:hover .segment-tooltip {
     opacity: 1;
-    transition: opacity 150ms ease-out 300ms;
+    transition: opacity var(--duration-short-3) var(--ease-decelerate)
+      var(--duration-medium-5);
   }
+}
+
+/*
+ * A warm group shows the next label on the frame the pointer reaches it: the
+ * first one paid the delay, so the rest skip both the wait and the fade.
+ */
+[data-tooltip-warm="true"] .segment:hover .segment-tooltip {
+  transition: none;
 }
 
 /* No transition in the released state, so a theme fade cannot stretch it. */
@@ -365,13 +394,13 @@
 
   .phase-row[data-visible="true"] {
     transition:
-      opacity calc(var(--phase-row-exit-ms) * 1ms) ease-out,
+      opacity calc(var(--phase-row-exit-ms) * 1ms) var(--ease-decelerate),
       visibility 0s;
   }
 
   .phase-row[data-visible="false"] {
     transition:
-      opacity calc(var(--phase-row-exit-ms) * 1ms) ease-out,
+      opacity calc(var(--phase-row-exit-ms) * 1ms) var(--ease-decelerate),
       visibility 0s calc(var(--phase-row-exit-ms) * 1ms);
   }
 
@@ -379,24 +408,24 @@
   .phase-row[data-visible="false"] [role="radio"] {
     opacity: 1;
     translate: none;
-    transition: color 150ms ease-out;
+    transition: color var(--duration-short-3) var(--ease-decelerate);
   }
 
   .phase-row[data-visible="true"] [role="radio"][aria-checked="true"],
   .phase-row[data-visible="false"] [role="radio"][aria-checked="true"] {
     transition:
-      background-color 150ms ease-out,
-      color 150ms ease-out;
+      background-color var(--duration-short-3) var(--ease-decelerate),
+      color var(--duration-short-3) var(--ease-decelerate);
   }
 
   [data-mode-track] .segment {
-    transition: color 150ms ease-out;
+    transition: color var(--duration-short-3) var(--ease-decelerate);
   }
 
   [data-mode-track] .segment[aria-checked="true"] {
     transition:
-      background-color 150ms ease-out,
-      color 150ms ease-out;
+      background-color var(--duration-short-3) var(--ease-decelerate),
+      color var(--duration-short-3) var(--ease-decelerate);
   }
 
   .segment:active {
@@ -432,7 +461,7 @@
 /* The faint hover capsule uses the same motion at the documented 0.55 weight. */
 .shape-layer--hover {
   opacity: 0;
-  transition: opacity 150ms ease-out;
+  transition: opacity var(--duration-short-3) var(--ease-decelerate);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -461,12 +490,12 @@
   }
 
   .segment[role="radio"] {
-    transition: color 150ms ease-out;
+    transition: color var(--duration-short-3) var(--ease-decelerate);
   }
 
   .segment[role="radio"][aria-checked="true"] {
     transition:
-      background-color 120ms ease-out,
-      color 150ms ease-out;
+      background-color var(--duration-short-2) var(--ease-decelerate),
+      color var(--duration-short-3) var(--ease-decelerate);
   }
 }

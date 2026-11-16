@@ -1152,8 +1152,8 @@ describe("left hover peek", () => {
 
     // The reader's morph reads this at open and again at close.
     const measured = findCard("systems-in-motion")!;
-    expect(measured.card.left).toBe(ROW.left + OPEN_X[0]);
-    expect(measured.card.left).not.toBe(ROW.left + REST_X[0]);
+    expect(measured.left).toBe(ROW.left + OPEN_X[0]);
+    expect(measured.left).not.toBe(ROW.left + REST_X[0]);
   });
 
   it("puts the row back once the reader has landed, and before it measures to close", () => {
@@ -1183,7 +1183,7 @@ describe("left hover peek", () => {
         expect(layer.style.opacity).toBe("0");
       }
       // The close morph now finds the card at its rest box.
-      expect(findCard("systems-in-motion")!.card.left).toBe(
+      expect(findCard("systems-in-motion")!.left).toBe(
         ROW.left + REST_X[0],
       );
       unmount();
@@ -1220,7 +1220,7 @@ describe("left hover peek", () => {
         (r as unknown as { cancel: ReturnType<typeof vi.fn> }).cancel,
       ).toHaveBeenCalled();
     expect(row(container)).toHaveAttribute("data-stepping");
-    expect(findCard("title-sequence")!.card.left).toBe(ROW.left + 310);
+    expect(findCard("title-sequence")!.left).toBe(ROW.left + 310);
 
     // The reader's panel is in the page when it reports it has landed.
     const layer = document.createElement("div");

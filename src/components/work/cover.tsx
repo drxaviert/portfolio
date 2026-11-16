@@ -8,7 +8,6 @@ import {
   WindowScene,
 } from "@/components/faux-ui/scenes";
 import type { Mode } from "@/components/faux-ui/scenes";
-import { useSceneFit } from "@/components/faux-ui/use-scene-fit";
 import type { SceneFit } from "@/components/faux-ui/use-scene-fit";
 import { useScenePause } from "@/components/faux-ui/use-scene-pause";
 import type { WorkMeta } from "@/lib/work";
@@ -39,11 +38,9 @@ export function Cover({
   scene: WorkMeta["cover"];
   fit?: SceneFit;
 }) {
-  const stageRef = useRef<HTMLDivElement | null>(null);
   const shotRef = useRef<HTMLDivElement | null>(null);
   const Scene = SCENES[scene];
 
-  useSceneFit(stageRef, fit);
   useScenePause(shotRef);
 
   if (!Scene) {
@@ -57,11 +54,8 @@ export function Cover({
   }
 
   return (
-    <div
-      className="relative h-full w-full overflow-hidden"
-      data-scene={scene}
-    >
-      <div ref={stageRef} className="fu-stage" data-fit={fit}>
+    <div className="relative h-full w-full overflow-hidden" data-scene={scene}>
+      <div className="fu-stage" data-fit={fit}>
         <div className="fu-card">
           <div ref={shotRef} className="fu-shot" aria-hidden="true">
             <Scene mode="loop" />

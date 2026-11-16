@@ -1,33 +1,50 @@
 /*
- * T9 comparison only: three content entrances for the reader, chosen at
- * runtime with `?entrance=a|b|c` (entrance-script.ts puts the value on <html>
- * before paint). Without the parameter the reader keeps the 240ms column fade
- * it shipped with.
+ * The reader's content entrance: the blur reveal (Dat's pick from the T9/T14
+ * comparison), on an even beat.
  *
- *   a  cascade    the header block, then the body blocks 40-45ms apart, the
- *                 last five sharing the sixth item's delay
- *   b  title-led  the title is already there; the rest of the column rises as
- *                 one group 90ms later
- *   c  soft       the whole column resolves out of a 4px blur, no stagger
+ * It is a handoff from the panel, not a second entrance. The drawer releases it
+ * at the reveal (75% through the panel's 480ms flight, when the panel is
+ * visually settled); nothing starts while the panel is still travelling.
  *
- * All three start 120ms before the morph ends (use-morph's reveal) and total
- * 415ms / 310ms / 320ms. They animate opacity, transform and (for c) a small
- * filter, and end on `none` so no containing block survives the entrance.
- * A direct load runs the same animation from mount, so the column never flashes
- * untransformed. Reduced motion drops every variant for one 120ms opacity pass.
+ * Then every block makes the same move - opacity 0 + 10px rise to nothing,
+ * 800ms on easeOutQuint - while the text also comes out of a 10px blur on a
+ * gentler curve of its own. One curve for everything front-loaded the blur:
+ * 8px was down to 2.4px by 200ms and 0.4px by 400ms, so the text snapped sharp
+ * while the opacity was barely half way, which read as a cut rather than a
+ * fade. The defocus now runs the full 800ms on CSS ease, so it is still soft
+ * (2px) when the fade is at 96% and settles without a step:
+ *
+ *   beat     80ms between consecutive blocks, no sub-steps
+ *   order    cover, title, subtitle, meta, then the body blocks
+ *   cap      the first viewport (p1, p2, p3); everything below arrives with the
+ *            last visible block
+ *   cover    opacity + translate only, no filter on the large media
+ *   window   480 + 800 = 1280ms from the reveal
+ *   hand-off "Next project" mounts the next article `--wd-beat-lead` (120ms)
+ *            into this entrance, so it overlaps the outgoing body's 140ms
+ *            content-out and the panel is never bare between studies
+ *
+ * A direct load has no panel flight, so it starts at 0; closing mid-entrance
+ * only fades the scroll column out. Items animate opacity, transform and a
+ * small filter, and nothing keeps a filter or transform afterwards (fill is
+ * `backwards`, so the base style is the end state).
+ *
+ * Reduced motion replaces the entrance with one 120ms ease-out opacity pass on
+ * the scroll column, no blur, no delays.
  */
 
 .wd-reader-panel {
-  --wd-enter-ease: cubic-bezier(0.23, 1, 0.32, 1);
-  --wd-enter-item: 220ms var(--wd-enter-ease);
-  --wd-enter-group: 240ms var(--wd-enter-ease);
-  --wd-enter-column: 320ms var(--wd-enter-ease);
+  --wd-enter-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Slow out of the gate, soft at the end: the blur stays visible while the
+     fade finishes instead of resolving in its first third. */
+  --wd-enter-blur-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --wd-enter-duration: 800ms;
   --wd-fade-reduced: 120ms ease-out;
 }
 
 /* The scroll column is invisible for the whole morph, then joins the content
-   entrance: instantly for the variants (their own items animate), over 240ms
-   for the default. `closing` always wins over a reveal that already happened. */
+   entrance: instantly, because the items below animate on their own. `closing`
+   always wins over a reveal that already happened. */
 .wd-expand-layer[data-reveal="pending"] .wd-reader-scroll {
   opacity: 0;
   transition: none;
@@ -38,16 +55,11 @@
   opacity: 1;
 }
 
-html:not([data-entrance])
-  .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
-  .wd-reader-scroll {
-  transition: opacity var(--wd-content-in);
-}
-
-@keyframes wd-enter-rise {
+/* The move: opacity and the 10px rise, on the pinned curve. */
+@keyframes wd-enter-fade {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -55,114 +67,106 @@ html:not([data-entrance])
   }
 }
 
-@keyframes wd-soft-reveal {
+/* The defocus: filter only, so it can run on its own timing. Blur starts at
+   10px and resolves to none (the identity), never a hard stop. */
+@keyframes wd-enter-defocus {
   from {
-    opacity: 0;
-    filter: blur(4px);
+    filter: blur(10px);
   }
   to {
-    opacity: 1;
     filter: none;
   }
 }
 
-/* ---------------------------------------------------------- a: cascade --- */
+/* ------------------------------------------------------ blur, on the beat -- */
 
-html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro,
-html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-prose > *,
-html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro,
-html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-prose > * {
-  animation: wd-enter-rise var(--wd-enter-item) both;
-  animation-delay: var(--wd-enter-delay, 0ms);
+.wd-expand-layer[data-reveal="on"]
+  :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *) {
+  animation:
+    wd-enter-fade var(--wd-enter-duration) var(--wd-enter-ease) backwards,
+    wd-enter-defocus var(--wd-enter-duration) var(--wd-enter-blur-ease)
+      backwards;
+  /* Both animations ride the block's beat; the list pairs with the one above. */
+  animation-delay:
+    calc(var(--wd-enter-delay, 0ms) + var(--wd-beat-lead, 0ms)),
+    calc(var(--wd-enter-delay, 0ms) + var(--wd-beat-lead, 0ms));
 }
 
-html[data-entrance="a"] .wd-intro {
-  --wd-enter-delay: 0ms;
+/* The cover has no filter: the large media is the one thing measured to cost
+   frames when blurred. */
+.wd-expand-layer[data-reveal="on"] .wd-hero {
+  animation: wd-enter-fade var(--wd-enter-duration) var(--wd-enter-ease)
+    backwards;
+  animation-delay: calc(0ms + var(--wd-beat-lead, 0ms));
 }
 
-html[data-entrance="a"] .wd-prose > *:nth-child(1) {
-  --wd-enter-delay: 40ms;
+/* One beat, in reading order: cover 0, title 80, subtitle 160, meta 240,
+   p1 320, p2 400, p3 and everything below 480. The cover leads: it is what
+   Dat reads first, and it has no filter to finish settling. */
+.wd-intro-title {
+  --wd-enter-delay: 80ms;
 }
 
-html[data-entrance="a"] .wd-prose > *:nth-child(2) {
-  --wd-enter-delay: 85ms;
-}
-
-html[data-entrance="a"] .wd-prose > *:nth-child(3) {
-  --wd-enter-delay: 125ms;
-}
-
-html[data-entrance="a"] .wd-prose > *:nth-child(4) {
+.wd-intro-subtitle {
   --wd-enter-delay: 160ms;
 }
 
-html[data-entrance="a"] .wd-prose > *:nth-child(5) {
-  --wd-enter-delay: 190ms;
+.wd-intro-meta {
+  --wd-enter-delay: 240ms;
 }
 
-/* Cap the stagger: everything from the sixth block arrives with the fifth. */
-html[data-entrance="a"] .wd-prose > *:nth-child(n + 6) {
-  --wd-enter-delay: 195ms;
+.wd-prose > *:nth-child(1) {
+  --wd-enter-delay: 320ms;
 }
 
-/* --------------------------------------------------------- b: title-led --- */
-
-html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-intro-subtitle,
-html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-intro-meta,
-html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-prose,
-html[data-entrance="b"] .wd-expand-layer[data-reveal="on"] .wd-intro-subtitle,
-html[data-entrance="b"] .wd-expand-layer[data-reveal="on"] .wd-intro-meta,
-html[data-entrance="b"] .wd-expand-layer[data-reveal="on"] .wd-prose {
-  animation: wd-enter-rise var(--wd-enter-group) both;
-  animation-delay: 90ms;
+.wd-prose > *:nth-child(2) {
+  --wd-enter-delay: 400ms;
 }
 
-/* -------------------------------------------------------- c: soft reveal -- */
-
-html[data-entrance="c"] .wd-reader-panel[data-mode="page"] .wd-reader-column,
-html[data-entrance="c"] .wd-expand-layer[data-reveal="on"] .wd-reader-column {
-  animation: wd-soft-reveal var(--wd-enter-column) both;
+.wd-prose > *:nth-child(n + 3) {
+  --wd-enter-delay: 480ms;
 }
 
-/* Reduced motion keeps the fade and drops the choreography: one 120ms opacity
-   pass on the scroll column, no stagger, no transforms, no filter. The
-   selectors repeat the ones above so they outrank them. */
+/* The scroll ruler is the cascade's last group: it is never on screen while the
+   panel is still hiding its content, and it arrives on the body's last beat. */
+.wd-expand-layer[data-reveal="pending"] .wd-ruler {
+  opacity: 0;
+}
+
+.wd-expand-layer[data-reveal="on"] .wd-ruler {
+  animation: wd-enter-fade var(--wd-enter-duration) var(--wd-enter-ease)
+    backwards;
+  animation-delay: calc(480ms + var(--wd-beat-lead, 0ms));
+}
+
+/* Reduced motion keeps the state change and drops the choreography: one 120ms
+   opacity pass on the scroll column, no per-item animation, no filter. */
 @media (prefers-reduced-motion: reduce) {
-  html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-intro,
-  html[data-entrance="a"] .wd-reader-panel[data-mode="page"] .wd-prose > *,
-  html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-intro,
-  html[data-entrance="a"] .wd-expand-layer[data-reveal="on"] .wd-prose > *,
-  html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-intro-subtitle,
-  html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-intro-meta,
-  html[data-entrance="b"] .wd-reader-panel[data-mode="page"] .wd-prose,
-  html[data-entrance="b"] .wd-expand-layer[data-reveal="on"] .wd-intro-subtitle,
-  html[data-entrance="b"] .wd-expand-layer[data-reveal="on"] .wd-intro-meta,
-  html[data-entrance="b"] .wd-expand-layer[data-reveal="on"] .wd-prose,
-  html[data-entrance="c"] .wd-reader-panel[data-mode="page"] .wd-reader-column,
-  html[data-entrance="c"] .wd-expand-layer[data-reveal="on"] .wd-reader-column {
+  .wd-expand-layer[data-reveal="on"]
+    :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
+  .wd-expand-layer[data-reveal="on"] .wd-hero {
     animation: none;
   }
 
-  html[data-entrance] .wd-reader-panel[data-mode="page"] .wd-reader-scroll {
-    transition: opacity var(--wd-fade-reduced);
+  .wd-expand-layer[data-reveal="on"] .wd-ruler {
+    animation: none;
   }
 
-  html[data-entrance]
-    .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
+  .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
     .wd-reader-scroll {
     transition: opacity var(--wd-fade-reduced);
   }
 
-  /* The default entrance is the same 240ms column fade; reduced motion keeps
-     it opacity-only at 120ms. */
-  html:not([data-entrance])
-    .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
-    .wd-reader-scroll {
-    transition: opacity var(--wd-fade-reduced);
+  /* The hand-off swaps the article in one commit. The incoming column must not
+     run a fade from zero on top of that, which would add an empty beat between
+     studies. Reduced motion wants a state change, not a second entrance. */
+  .wd-reader-panel[data-progression="lead"] .wd-reader-scroll {
+    opacity: 1;
+    transition: none;
   }
 
   @starting-style {
-    html[data-entrance] .wd-reader-panel[data-mode="page"] .wd-reader-scroll {
+    .wd-expand-layer[data-reveal="on"] .wd-reader-scroll {
       opacity: 0;
     }
   }

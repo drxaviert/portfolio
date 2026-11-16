@@ -41,9 +41,12 @@ describe("home page", () => {
     })) {
       expect(link).toHaveAttribute("href", "/work/systems-in-motion");
     }
+    // The nav itself is one element in the root layout; the page reserves its
+    // slot and nothing else.
+    expect(document.querySelector("[data-nav-slot]")).toBeInTheDocument();
     expect(
-      screen.getByRole("navigation", { name: "Primary" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("navigation", { name: "Primary" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("img", { name: /contribution tracker/i }),
     ).toBeInTheDocument();
@@ -62,5 +65,36 @@ describe("home page", () => {
     expect(
       screen.queryByRole("radiogroup", { name: "Preview phase" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("gives the carousel's four visible cards the entrance as items 3-6", () => {
+    render(
+      <ThemeProvider>
+        <Page />
+      </ThemeProvider>,
+    );
+
+    const carousel = screen.getByRole("region", { name: "Selected work" });
+    const slides = Array.from(
+      carousel.querySelectorAll<HTMLElement>(".car-slide:not([data-ghost])"),
+    );
+    const itemAt = (slot: number) =>
+      slides
+        .find((slide) => slide.dataset.slot === String(slot))
+        ?.querySelector<HTMLElement>("[data-entrance-item]")?.dataset
+        .entranceItem;
+
+    expect([0, 1, 2, 3].map(itemAt)).toEqual(["3", "4", "5", "6"]);
+    for (const slide of slides.filter((s) => Number(s.dataset.slot) >= 4)) {
+      expect(slide.querySelector("[data-entrance-item]")).toBeNull();
+    }
+    // The row and the slides themselves never animate: only the card inside.
+    expect(carousel.querySelector(".car-row")?.closest(".entrance-cell")).toBe(
+      null,
+    );
+    for (const cell of carousel.querySelectorAll(".entrance-cell")) {
+      expect(cell.getAttribute("data-entrance-row")).toBe("2");
+      expect(cell.parentElement).toHaveClass("car-frame");
+    }
   });
 });

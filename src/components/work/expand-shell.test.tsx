@@ -27,16 +27,14 @@ vi.mock("next/navigation", () => ({
 const SLUG = "systems-in-motion";
 
 /**
- * The reader's panel, cut down to its tabbable shape at 1440: the nav, the
- * focused title, the article's controls and the mobile "Back to work" link,
- * which is the last node in the DOM and hidden at this width.
+ * The reader's panel, cut down to its tabbable shape at 1440: the focused
+ * title, the article's controls and the mobile "Back to work" link, which is
+ * the last node in the DOM and hidden at this width. The nav is not in here:
+ * it is one element in the root layout, ahead of the panel.
  */
 function ReaderStub() {
   return (
     <div className="wd-reader-panel">
-      <nav>
-        <a href="/">Home</a>
-      </nav>
       <h1 id="wd-study-title" tabIndex={-1}>
         Systems in motion
       </h1>
@@ -61,7 +59,11 @@ const RECT = {
   toJSON: () => ({}),
 } as DOMRect;
 
-const RECT_LIST = { length: 1, 0: RECT, item: () => RECT } as unknown as DOMRectList;
+const RECT_LIST = {
+  length: 1,
+  0: RECT,
+  item: () => RECT,
+} as unknown as DOMRectList;
 const EMPTY_LIST = { length: 0, item: () => null } as unknown as DOMRectList;
 
 const nativeRects = Element.prototype.getClientRects;
@@ -96,6 +98,16 @@ function placeCard() {
   document.body.append(card);
 
   return card;
+}
+
+/** The root layout's nav, which the trap must cycle before the panel. */
+function placeDock() {
+  const dock = document.createElement("div");
+  dock.dataset.navDock = "";
+  dock.innerHTML = '<a href="/" aria-label="Home">Home</a>';
+  document.body.append(dock);
+
+  return dock;
 }
 
 function panelLayer() {
@@ -133,6 +145,8 @@ beforeEach(() => {
   window.history.replaceState({ workOverlay: true }, "", `/work/${SLUG}`);
   stubMatchMedia();
   stubRenderedBoxes();
+
+  placeDock();
 
   const main = document.createElement("main");
   document.body.append(main);
@@ -199,7 +213,9 @@ describe("ExpandShell focus containment", () => {
 
     fireEvent.click(backdrop());
     await waitFor(() =>
-      expect(document.querySelector<HTMLElement>(".wd-reader-panel")!.style.opacity).toBe("0"),
+      expect(
+        document.querySelector<HTMLElement>(".wd-reader-panel")!.style.opacity,
+      ).toBe("0"),
     );
 
     unmount();
@@ -208,18 +224,16 @@ describe("ExpandShell focus containment", () => {
     expect(document.activeElement).toBe(card);
   });
 
-  it("returns focus to the nav when the study has no homepage card", async () => {
-    const home = document.querySelector<HTMLElement>("body > main")!;
-    const logo = document.createElement("a");
-    logo.href = "/";
-    logo.setAttribute("aria-label", "Home");
-    home.append(logo);
+  it("returns focus to the persistent nav when the study has no homepage card", async () => {
+    const logo = screen.getByRole("link", { name: "Home" });
 
     const { unmount } = await renderShell();
 
     fireEvent.click(backdrop());
     await waitFor(() =>
-      expect(document.querySelector<HTMLElement>(".wd-reader-panel")!.style.opacity).toBe("0"),
+      expect(
+        document.querySelector<HTMLElement>(".wd-reader-panel")!.style.opacity,
+      ).toBe("0"),
     );
 
     unmount();

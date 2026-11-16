@@ -1,0 +1,120 @@
+/*
+ * The one HomeNav, anchored by the root layout. Home geometry is CSS, not a
+ * measurement: the same 1200px frame with 16/32px gutters and the 1136px bar
+ * the home layout uses, plus the vertical offset of everything above the nav in
+ * the home column (tracker + gap + card band + gap). The column centres itself
+ * with `my-auto` inside the frame, so the nav's top is the larger of "column
+ * starts at the frame's padding" and "column is centred in the viewport".
+ *
+ * Keep --wd-nav-offset in step with src/components/home/home-layout.tsx: the
+ * tracker (h-40/md 220/xl 276px), the 12px gap, the card band (420px below md,
+ * md 560, lg 360, xl 416) and the 12px gap again. NavDock also corrects any
+ * drift from [data-nav-slot] at runtime.
+ */
+
+.wd-nav-dock {
+  --wd-frame-pad: 16px;
+  --wd-nav-offset: 824px;
+
+  position: absolute;
+  top: max(
+    calc(var(--wd-frame-pad) + var(--wd-nav-offset)),
+    calc(50dvh + var(--wd-nav-offset) / 2 - 2rem)
+  );
+  left: max(var(--wd-frame-pad), calc(50% - 568px));
+  width: min(1136px, 100% - var(--wd-frame-pad) * 2);
+  /* Above the reader's layer (z-index 50) and, on the home page, above the
+     cards and their glow. */
+  z-index: 60;
+  pointer-events: none;
+}
+
+.wd-nav-dock > nav {
+  height: var(--wd-nav-height);
+  pointer-events: auto;
+}
+
+@media (min-width: 768px) {
+  .wd-nav-dock {
+    --wd-frame-pad: 32px;
+    --wd-nav-offset: 804px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .wd-nav-dock {
+    --wd-nav-offset: 604px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .wd-nav-dock {
+    --wd-frame-pad: 60px;
+    --wd-nav-offset: 716px;
+  }
+}
+
+/* In the reader the nav is the panel's top row: fixed to the viewport, at the
+   panel's inset plus the nav's own inset. */
+.wd-nav-dock[data-nav-state="reader"] {
+  position: fixed;
+  top: calc(var(--wd-panel-inset) + var(--wd-nav-inset));
+}
+
+/*
+ * The Day row and the toggle sit on opposite sides, and every label points away
+ * from the other track, so a label never lands under a popover. Reader: the row
+ * hangs below the toggle, so the toggle's labels go above it and the row's own
+ * labels go below. Home: the row is above, so the toggle's labels go below it.
+ * The glyph's label keeps the reader's downward side. The toggle's widest label
+ * right-aligns to its segment so it never runs past the panel.
+ */
+.wd-nav-dock:not([data-nav-state="reader"]) [data-mode-track] .segment-tooltip {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+
+.wd-nav-dock[data-nav-state="reader"] [data-mode-track] .segment-tooltip {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
+.wd-nav-dock[data-nav-state="reader"] .phase-row .segment-tooltip {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+
+.wd-nav-dock[data-nav-state="reader"] .nav-tooltip {
+  top: calc(100% + 8px);
+  bottom: auto;
+  margin-top: 0;
+}
+
+.wd-nav-dock[data-nav-state="reader"]
+  [data-mode-track]
+  .segment:last-child
+  .segment-tooltip {
+  left: auto;
+  right: 0;
+  translate: none;
+}
+
+/*
+ * The Day row flips below the toggle here, on the homepage's own gap, and
+ * scales out of the corner nearest the toggle rather than its far one.
+ */
+.wd-nav-dock[data-nav-state="reader"] .phase-row {
+  top: calc(100% + var(--wd-phase-row-gap));
+  bottom: auto;
+  margin-top: 0;
+  margin-bottom: 0;
+  transform-origin: top right;
+}
+
+/* The under-768 menu is a different popover; it keeps its own clearance. */
+.wd-nav-dock[data-nav-state="reader"] [role="menu"] {
+  top: calc(100% + 24px);
+  bottom: auto;
+  margin-top: 0;
+  margin-bottom: 0;
+}

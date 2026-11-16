@@ -28,9 +28,6 @@ describe("drawer motion values", () => {
   it("pins the backdrop and content fades by name", () => {
     expect(shell).toMatch(/--wd-backdrop-in: 320ms ease-out;/);
     expect(shell).toMatch(/--wd-backdrop-out: 240ms ease-in;/);
-    expect(shell).toMatch(
-      /--wd-content-in: 240ms cubic-bezier\(0\.23, 1, 0\.32, 1\);/,
-    );
     expect(shell).toMatch(/--wd-content-out: 140ms ease-in;/);
 
     expect(shell).toContain(
@@ -66,12 +63,81 @@ describe("drawer motion values", () => {
     expect(reduced).not.toContain("transition-duration");
   });
 
-  it("opens the reader's nav tooltips inward instead of into the panel edge", () => {
-    expect(reader).toMatch(
-      /\.wd-reader-nav \.nav-tooltip \{[^}]*top: calc\(100% \+ 8px\);/,
+  it("runs the blur reveal on one even beat, in reading order", () => {
+    const entrance = read("entrance.css");
+
+    // The move and its curve; the defocus rides its own, slower curve.
+    expect(entrance).toMatch(
+      /--wd-enter-ease: cubic-bezier\(0\.22, 1, 0\.36, 1\);/,
     );
-    expect(reader).toMatch(
-      /\.wd-reader-nav \[data-mode-track\] \.segment:last-child \.segment-tooltip \{[^}]*right: 0;/,
+    expect(entrance).toMatch(
+      /--wd-enter-blur-ease: cubic-bezier\(0\.25, 0\.1, 0\.25, 1\);/,
+    );
+    expect(entrance).toMatch(/--wd-enter-duration: 800ms;/);
+    expect(entrance).toMatch(
+      /@keyframes wd-enter-fade \{\s*from \{\s*opacity: 0;\s*transform: translateY\(10px\);\s*\}\s*to \{\s*opacity: 1;\s*transform: none;/,
+    );
+    expect(entrance).toMatch(
+      /animation:\s*wd-enter-fade var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards,\s*wd-enter-defocus var\(--wd-enter-duration\) var\(--wd-enter-blur-ease\)\s*backwards;/,
+    );
+
+    // One 80ms beat: cover 0, title 80, subtitle 160, meta 240, p1 320, p2 400,
+    // p3+ 480.
+    expect(entrance).toMatch(/\.wd-intro-title \{\s*--wd-enter-delay: 80ms;/);
+    expect(entrance).toMatch(
+      /\.wd-intro-subtitle \{\s*--wd-enter-delay: 160ms;/,
+    );
+    expect(entrance).toMatch(/\.wd-intro-meta \{\s*--wd-enter-delay: 240ms;/);
+    expect(entrance).toMatch(
+      /\.wd-prose > \*:nth-child\(1\) \{\s*--wd-enter-delay: 320ms;/,
+    );
+    expect(entrance).toMatch(
+      /\.wd-prose > \*:nth-child\(2\) \{\s*--wd-enter-delay: 400ms;/,
+    );
+    expect(entrance).toMatch(
+      /\.wd-prose > \*:nth-child\(n \+ 3\) \{\s*--wd-enter-delay: 480ms;/,
+    );
+    // Cover: the first beat, the same timing, no filter.
+    expect(entrance).toMatch(
+      /\.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{\s*animation: wd-enter-fade var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards;\s*animation-delay: calc\(0ms \+ var\(--wd-beat-lead, 0ms\)\);/,
+    );
+  });
+
+  it("has no entrance switch left", () => {
+    const entrance = read("entrance.css");
+
+    expect(entrance).not.toContain("data-entrance");
+    expect(entrance).not.toContain("wd-blur-in");
+  });
+
+  it("starts a study-to-study entrance part-way in, on the same beat", () => {
+    const entrance = read("entrance.css");
+
+    // The lead rides on top of the beat; the beat itself is untouched.
+    expect(entrance).toMatch(
+      /animation-delay:\s*calc\(\s*var\(--wd-enter-delay, 0ms\) \+ var\(--wd-beat-lead, 0ms\)\s*\)/,
+    );
+    expect(entrance).toContain(
+      "animation-delay: calc(0ms + var(--wd-beat-lead, 0ms));",
+    );
+  });
+
+  it("does not fade the incoming column in again after a hand-off", () => {
+    const reduced = reducedMotionBlock(read("entrance.css"));
+
+    expect(reduced).toMatch(
+      /\.wd-reader-panel\[data-progression="lead"\] \.wd-reader-scroll \{\s*opacity: 1;\s*transition: none;/,
+    );
+  });
+
+  it("opens the reader's nav tooltips inward instead of into the viewport edge", () => {
+    const dock = read("../nav/nav-dock.css");
+
+    expect(dock).toMatch(
+      /\.wd-nav-dock\[data-nav-state="reader"\] \.nav-tooltip \{[^}]*top: calc\(100% \+ 8px\);/,
+    );
+    expect(dock).toMatch(
+      /\[data-nav-state="reader"\]\s*\[data-mode-track\]\s*\.segment:last-child\s*\.segment-tooltip \{[^}]*right: 0;/,
     );
   });
 

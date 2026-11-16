@@ -1,0 +1,361 @@
+/*
+ * Home entrance — Soft focus, split blur. Shipped on `/` 2026-11-14.
+ *
+ * Dat picked this after tuning twelve variants on /dev/proto/entrance. The glow
+ * and the content come into focus together: the cards rise 7px and blur out of
+ * 8px while a theme veil clears, and the whole sequence settles at 1710ms. That
+ * is deliberately over the usual 700ms budget — the calm/ethereal exception
+ * recorded in docs/design-system/motion.md.
+ *
+ * This file is the production subset: the shared tokens, the cell layout, the
+ * horizon index, the soft-focus mechanics and their reduced-motion branch. The
+ * other eleven prototype variants, and the A/B blur methods, live in
+ * src/app/dev/proto/entrance/proto-variants.css, which only the dev route
+ * loads.
+ *
+ * CSS-only start: the server markup carries data-entrance="soft" and the
+ * animations begin at first paint with `backwards` fill, so there is no
+ * sharp-to-blurred pop and nothing waits on JS. `data-entrance-played` on
+ * <html>, set by home-entrance.tsx once the sequence settles, cancels the
+ * animations so a client-side return to / in the same tab does not replay,
+ * while a hard load (a new document) plays again.
+ *
+ * Variant timings (item = horizon order: nav, project, 3 slivers, top band)
+ *   soft   veil 0-1400ms, cards 250 + item*60ms, 1100ms each      → ends 1710ms
+ *
+ * The cards rest in their visible state, so a cancelled animation simply shows
+ * the page. Only the veil starts hidden in CSS (it is an overlay); its
+ * animation's first frame paints it over the page.
+ */
+
+/*
+ * Soft focus: a theme-tinted veil plus a per-card blur. The *layout* never
+ * blurs — no full-viewport backdrop filter — because that averages cards,
+ * gutters and shadows into patches the size of its radius, which is what made
+ * the first version look blotchy (measured and written up in motion.md).
+ */
+.entrance-soft {
+  position: fixed;
+  inset: 0;
+  /* Above the layout's z-index 3 popover, below any dev panel. */
+  z-index: 10;
+  pointer-events: none;
+  background-color: color-mix(
+    in oklab,
+    var(--surface-bright) calc(var(--soft-veil) * 100%),
+    transparent
+  );
+  /* Rest state is gone: with the animation cancelled (a return to / in the
+     same tab) the veil must never paint. */
+  opacity: 0;
+  visibility: hidden;
+  animation: entrance-soft-clear var(--soft-duration) var(--entrance-ease)
+    forwards;
+}
+
+.entrance-scope,
+[data-entrance="soft"],
+:root:has([data-entrance="soft"][data-entrance-shipped])
+  .wd-nav-dock[data-nav-state="home"] {
+  --entrance-ease: var(--ease-emphasized-decelerate);
+
+  --scale-from: 0.96;
+  --scale-blur: 6px;
+  --scale-duration: var(--duration-medium-7);
+  --scale-stagger: 50ms;
+
+  --rise-distance: 8px;
+  --rise-duration: 380ms;
+  --rise-stagger: 60ms;
+
+  /* 380ms edge with a 175ms hold splits into 102.5ms in + 102.5ms out. */
+  --ring-edge-in: 102.5ms;
+  --ring-edge-out: 102.5ms;
+  --ring-edge-hold: 175ms;
+  --ring-fill-delay: 80ms;
+  --ring-fill-duration: var(--duration-medium-1);
+  --ring-stagger: 40ms;
+
+  --sky-glow-duration: var(--duration-medium-5);
+  --sky-delay: var(--duration-short-2);
+  --sky-stagger: 36ms;
+  --sky-duration: var(--duration-medium-7);
+  --sky-from: 0.98;
+  --sky-blur: 4px;
+
+  --clear-blur: 20px;
+  --clear-duration: 680ms;
+  --clear-feather: 25vh;
+  --clear-delay: 0ms;
+
+  --step-count: 3;
+  --step-distance: 5px;
+  --step-duration: var(--duration-short-6);
+  --step-stagger: 40ms;
+  --step-marker-size: 6px;
+  --step-marker-hold: var(--duration-short-1);
+  --step-marker-fade: 200ms;
+  /* Design-tool marker: the glow's own blob hue, blue by Day, mint by Night. */
+  --step-marker-color: var(--horizon-2);
+
+  --grain-strength: 0.08;
+  --grain-jitter: 3px;
+  --grain-rate: var(--duration-short-1);
+  --grain-duration: 460ms;
+  --grain-delay: var(--duration-short-4);
+  --grain-stagger: 32ms;
+  --grain-item-duration: 320ms;
+
+  --grow-from: 0.6;
+  --grow-rise: 12px;
+  --grow-duration: 420ms;
+  --grow-stagger: 70ms;
+
+  --breath-inhale: 1200ms;
+  --breath-swell: 0.9;
+  --breath-delay: 480ms;
+  --breath-duration: 540ms;
+  --breath-blur: 2.5px;
+  --breath-stagger: 30ms;
+
+  --mist-density: 0.9;
+  --mist-lift: 4%;
+  --mist-duration: 1100ms;
+  --mist-card-duration: 900ms;
+  --mist-stagger: 30ms;
+
+  /* Day's dim is its own grey scrim; Night's surface-dim is black. */
+  --dawn-scrim: color-mix(in oklab, var(--on-surface) 8%, var(--surface-dim));
+  --dawn-dim: 0.6;
+  --dawn-bloom-duration: 1300ms;
+  --dawn-bloom-scale: 0.96;
+  --dawn-content-delay: 650ms;
+  --dawn-rise: 4px;
+  --dawn-content-duration: var(--duration-long-2);
+  --dawn-stagger: 25ms;
+  /* The phase halves the bloom's scale delta at Night; the panel never writes
+     this one, so the rule keeps applying. */
+  --dawn-phase-mix: 1;
+
+  --soft-blur: 8px;
+  --soft-veil: 0.24;
+  --soft-duration: 1400ms;
+  --soft-card-delay: var(--duration-medium-2);
+  --soft-card-duration: 1100ms;
+  --soft-rise: 7px;
+  --soft-stagger: 60ms;
+
+  /* Reduced motion: one fade, no rise or blur. */
+  --entrance-reduced-duration: var(--duration-short-2);
+}
+
+/*
+ * The shipped entrance runs on the Calm curve. Scoped to the shipped attribute
+ * so the prototype's curve picker keeps working on its own variants.
+ */
+[data-entrance-shipped],
+:root:has([data-entrance="soft"][data-entrance-shipped])
+  .wd-nav-dock[data-nav-state="home"] {
+  --entrance-ease: var(--ease-calm);
+}
+
+/*
+ * Layout parity: the wrapper is the flex/grid item the card used to be, and
+ * the body plus the card fill it. Sizing rules are here (not in the JSX) so
+ * the two branches stay one source of truth for the card's layout role.
+ */
+[data-entrance] .entrance-cell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+[data-entrance] .entrance-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+[data-entrance] .entrance-body > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/*
+ * Distance from the horizon, for the variants that build upward from the glow
+ * instead of reading top-down: 0 is the nav on the bottom edge, then the
+ * project card, then the three slivers (all shorter, so their bottom edges sit
+ * higher), then the top band left to right. The horizon itself is below the
+ * fold, so "closest to the horizon" means "lowest edge on screen".
+ */
+[data-entrance] [data-entrance-item="7"] {
+  --entrance-h: 0;
+}
+
+[data-entrance] [data-entrance-item="3"] {
+  --entrance-h: 1;
+}
+
+[data-entrance] [data-entrance-item="4"] {
+  --entrance-h: 2;
+}
+
+[data-entrance] [data-entrance-item="5"] {
+  --entrance-h: 3;
+}
+
+[data-entrance] [data-entrance-item="6"] {
+  --entrance-h: 4;
+}
+
+[data-entrance] [data-entrance-item="1"] {
+  --entrance-h: 5;
+}
+
+[data-entrance] [data-entrance-item="2"] {
+  --entrance-h: 6;
+}
+/* Soft focus: the cards rise, fade and sharpen on their own clock. */
+[data-entrance="soft"] .entrance-body {
+  animation: entrance-soft-card-split var(--soft-card-duration)
+    var(--entrance-ease) backwards;
+  animation-delay: calc(
+    var(--soft-card-delay) + var(--entrance-h) * var(--soft-stagger)
+  );
+}
+
+/*
+ * The nav is item 7, the closest to the horizon (h 0), but it is not inside
+ * <main>: the one HomeNav lives in the root layout's dock (nav-dock.tsx), over
+ * the slot the home layout reserves. So the shipped page reaches it with :has()
+ * while the dock sits at its home position. The animation runs on the <nav>,
+ * not the dock, whose transform belongs to the drawer FLIP.
+ */
+:root:has([data-entrance="soft"][data-entrance-shipped])
+  .wd-nav-dock[data-nav-state="home"]
+  > nav {
+  animation: entrance-soft-card-split var(--soft-card-duration)
+    var(--entrance-ease) backwards;
+  animation-delay: var(--soft-card-delay);
+}
+
+@keyframes entrance-soft-clear {
+  from {
+    opacity: 1;
+    visibility: visible;
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* Split: the card softens and sharpens on its own fade clock, so the blur never
+   sees a neighbour's edge. `filter` is released with the animation (backwards
+   fill only), leaving nothing composited after the card lands. */
+@keyframes entrance-soft-card-split {
+  from {
+    opacity: 0;
+    translate: 0 var(--soft-rise, 6px);
+    filter: blur(var(--soft-blur, 8px));
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    filter: blur(0);
+  }
+}
+
+/* Split, CSS fallback glow: only the blob layer softens; its grain sibling is
+   outside this element, so the dither stays sharp. */
+@keyframes entrance-soft-glow {
+  from {
+    filter: blur(var(--soft-blur, 8px));
+  }
+  to {
+    filter: blur(0);
+  }
+}
+
+/* Split, CSS fallback glow: blur the blob layer only, and only when no shader
+   is painting on top of it. The grain layer is its sibling, so the dither stays
+   sharp on top of the softened glow. */
+[data-entrance="soft"]:not(:has(.horizon-canvas-layer)) .horizon-motion-layer {
+  animation: entrance-soft-glow var(--soft-duration) var(--entrance-ease)
+    backwards;
+}
+
+/*
+ * Split, WebGL glow: the shader reads this registered length once a frame and
+ * turns it into a couple of coverage-texture taps (dither is applied after the
+ * taps, so it stays per-pixel). Unregistered elsewhere, so the initial 0px is
+ * what the shader reads on every other route and the uniform is a no-op.
+ */
+@property --soft-softness {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+[data-entrance="soft"] .horizon-canvas-layer {
+  animation: entrance-soft-softness var(--soft-duration) var(--entrance-ease)
+    backwards;
+}
+
+@keyframes entrance-soft-softness {
+  from {
+    --soft-softness: var(--soft-blur, 8px);
+  }
+  to {
+    --soft-softness: 0px;
+  }
+}
+
+@keyframes entrance-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Reduced motion: one 120ms opacity fade, no blur, no rise, no softness. */
+@media (prefers-reduced-motion: reduce) {
+  [data-entrance="soft"] .entrance-body,
+  :root:has([data-entrance="soft"][data-entrance-shipped])
+    .wd-nav-dock[data-nav-state="home"]
+    > nav {
+    animation: entrance-fade-in var(--entrance-reduced-duration)
+      var(--ease-decelerate) backwards !important;
+    animation-delay: 0ms !important;
+    filter: none !important;
+  }
+
+  .entrance-soft {
+    display: none;
+  }
+
+  [data-entrance="soft"] .horizon-motion-layer,
+  [data-entrance="soft"] .horizon-canvas-layer {
+    animation: none;
+    filter: none;
+  }
+}
+
+/*
+ * One play per document. A hard load starts with no attribute and runs; the
+ * component sets it once the sequence settles, and a client-side return to /
+ * in the same tab then finds the animations cancelled (the rest states are the
+ * visible ones).
+ */
+:root[data-entrance-played] [data-entrance-shipped] .entrance-body,
+:root[data-entrance-played] .wd-nav-dock > nav,
+:root[data-entrance-played] [data-entrance-shipped] .entrance-soft,
+:root[data-entrance-played] [data-entrance-shipped] .horizon-canvas-layer,
+:root[data-entrance-played]
+  [data-entrance-shipped]:not(:has(.horizon-canvas-layer))
+  .horizon-motion-layer {
+  animation: none !important;
+}

@@ -17,6 +17,15 @@ globalThis.ResizeObserver ??= ObserverStub as unknown as typeof ResizeObserver;
 globalThis.IntersectionObserver ??=
   ObserverStub as unknown as typeof IntersectionObserver;
 
+/**
+ * jsdom has no Web Animations. The study hand-off fades the outgoing column
+ * before the route changes; tests only need the animation to exist and finish.
+ */
+Element.prototype.animate ??= (() => ({
+  finished: Promise.resolve(),
+  cancel() {},
+})) as unknown as Element["animate"];
+
 afterEach(() => {
   cleanup();
 });

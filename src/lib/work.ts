@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { FEATURED_SLUG } from "./work-order";
 
 export type Cover = "tiles" | "window" | "phone";
 
-/** The one study with a card on the homepage. */
-export const FEATURED_SLUG = "systems-in-motion";
+export { FEATURED_SLUG };
 
 /** Reading order for the list and for the wrap-around next-study link. */
 const WORK_ORDER = [

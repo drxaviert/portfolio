@@ -118,6 +118,18 @@
   text-align: left;
 }
 
+/* The homepage entrance's wrapper (entrance-cell.tsx) fills the frame, and the
+   card inside keeps its own width: home-entrance.css grows every child of
+   .entrance-body, which would undo the crop a moving card draws at. */
+.car-frame > .car-entrance.entrance-cell {
+  position: absolute;
+  inset: 0;
+}
+
+.car-frame > .car-entrance > .entrance-body > .car-host {
+  flex: none;
+}
+
 /* Crops the content to the card's own box (the slot at rest). */
 .car-clip {
   position: absolute;

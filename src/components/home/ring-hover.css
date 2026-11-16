@@ -22,14 +22,14 @@
   /* How far the ring grows past the host box on hover (into the gutters). */
   --ring-grow-y: 6px;
   --ring-grow-x: 3.5px;
-  --ring-radius: 12px;
-  --ring-inner-radius: 11px;
+  --ring-radius: var(--radius-lg);
+  --ring-inner-radius: calc(var(--radius-lg) - 1px);
   --ring-glow-size: 614px;
-  --ring-grow: 800ms;
-  --ring-follow: 1000ms;
-  --ring-fade: 250ms;
-  --ring-ease: cubic-bezier(0.165, 0.84, 0.44, 1);
-  --ring-follow-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ring-grow: var(--duration-long-3);
+  --ring-follow: var(--duration-long-4);
+  --ring-fade: var(--duration-medium-2);
+  --ring-ease: var(--ease-spring-grow);
+  --ring-follow-ease: var(--ease-spring-follow);
   --ring-shift-x: 5px;
   --ring-shift-y: 4px;
   --ring-line: var(--frame-line);
@@ -44,7 +44,7 @@
      switch swaps the token without animating the edge. */
   background-color: transparent;
   box-shadow: var(--shadow-card);
-  transition: z-index 100ms steps(1);
+  transition: z-index var(--duration-short-1) steps(1);
 }
 
 .ring-frame {
@@ -62,7 +62,7 @@
   opacity: 0;
   transition:
     clip-path var(--ring-grow) var(--ring-ease),
-    opacity 100ms linear var(--ring-grow);
+    opacity var(--duration-short-1) var(--ease-linear) var(--ring-grow);
 }
 
 .ring-glow {
@@ -89,7 +89,7 @@
   transform: translate3d(var(--ring-mx, 0px), var(--ring-my, 0px), 0);
   transition:
     transform var(--ring-follow) var(--ring-follow-ease),
-    opacity var(--ring-fade) linear;
+    opacity var(--ring-fade) var(--ease-linear);
 }
 
 .ring-surface {
@@ -118,7 +118,7 @@
     opacity: 1;
     transition:
       clip-path var(--ring-grow) var(--ring-ease),
-      opacity 100ms linear;
+      opacity var(--duration-short-1) var(--ease-linear);
   }
 
   .ring-host:hover .ring-surface {
@@ -138,6 +138,33 @@
   }
 }
 
+/*
+ * A theme switch is applied as one view transition, and for its length the
+ * live document stops receiving hit tests: `:hover` drops even though the
+ * pointer has not moved. Left alone, that drop starts the ring's exit on every
+ * host under the pointer — the nav bar, whose whole fill is this surface, is
+ * the one you see shrink 6px on each side and grow straight back.
+ *
+ * Delay the exit past the crossfade instead. The pointer is still inside the
+ * host, so hover is back before the clip moves and the pending exit is
+ * cancelled; a real leave mid-switch still closes, one crossfade later. The
+ * margin covers the frames between the transition's `finished` promise and hit
+ * testing returning. Reduced motion keeps its own surface rules untouched.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-phase-switching="click"] .ring-surface,
+  :root[data-phase-switching="click"] .ring-frame,
+  :root[data-phase-switching="click"] .ring-glow {
+    transition-delay: calc(var(--horizon-transition-duration) + 250ms);
+  }
+
+  :root[data-phase-switching="auto"] .ring-surface,
+  :root[data-phase-switching="auto"] .ring-frame,
+  :root[data-phase-switching="auto"] .ring-glow {
+    transition-delay: calc(var(--phase-auto-transition-duration) + 250ms);
+  }
+}
+
 /* Keyboard: a focusable host, or keyboard focus inside a host (the nav bar). */
 .ring-host:focus-visible,
 .ring-host:has(:focus-visible) {
@@ -150,7 +177,7 @@
   opacity: 1;
   transition:
     clip-path var(--ring-grow) var(--ring-ease),
-    opacity 100ms linear;
+    opacity var(--duration-short-1) var(--ease-linear);
 }
 
 .ring-host:focus-visible .ring-surface,
@@ -183,7 +210,7 @@
     clip-path: inset(
       var(--ring-grow-y) var(--ring-grow-x) round var(--ring-radius)
     );
-    transition: opacity 100ms linear;
+    transition: opacity var(--duration-short-1) var(--ease-linear);
   }
 
   .ring-surface {
@@ -206,7 +233,7 @@
   /* Glow fades only: no trailing movement, it stays centred. */
   .ring-glow {
     transform: none;
-    transition: opacity var(--ring-fade) linear;
+    transition: opacity var(--ring-fade) var(--ease-linear);
   }
 
   .ring-title,

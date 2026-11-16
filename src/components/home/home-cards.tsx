@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { Cover } from "@/components/work/cover";
 import type { WorkMeta } from "@/lib/work";
+import { EntranceCell } from "./entrance-cell";
+import type { EntranceVariant } from "./entrance-cell";
 import { RingLayers } from "./ring-hover";
 import "./home-cards.css";
 
@@ -27,8 +29,8 @@ export const WORK_SLIVERS = [
 ];
 
 /**
- * Optional interactive mode used by the work-drawer prototype. When `onOpen`
- * is absent the card is exactly the shipped, non-interactive article.
+ * Optional interactive mode: when `onOpen` is absent the card is exactly the
+ * shipped, non-interactive article.
  */
 function cardInteraction(onOpen: (element: HTMLElement) => void) {
   return {
@@ -83,10 +85,7 @@ export function ProjectCard({
           />
         </>
       ) : null}
-      <h1
-        data-work-card-title={slug ? "" : undefined}
-        className="ring-title relative z-10 text-balance text-title-sm font-semibold md:text-title"
-      >
+      <h1 className="ring-title relative z-10 text-balance text-title-sm font-semibold md:text-title">
         {title}
       </h1>
     </>
@@ -94,11 +93,7 @@ export function ProjectCard({
 
   if (slug) {
     return (
-      <Link
-        href={`/work/${slug}`}
-        data-work-card={slug}
-        className={CARD_CLASS}
-      >
+      <Link href={`/work/${slug}`} data-work-card={slug} className={CARD_CLASS}>
         {content}
       </Link>
     );
@@ -122,10 +117,12 @@ type WorkSliver = {
 type WorkSliversProps = {
   /** Omitted on /, where the slivers stay decorative. */
   items?: WorkSliver[];
+  /** Entrance hook (see entrance-cell.tsx); the slivers are items 4-6. */
+  entrance?: EntranceVariant;
 };
 
 /** Decorative work-column stand-ins; empty by design. */
-export function WorkSlivers({ items }: WorkSliversProps = {}) {
+export function WorkSlivers({ items, entrance }: WorkSliversProps = {}) {
   if (items) {
     return (
       <>
@@ -133,23 +130,29 @@ export function WorkSlivers({ items }: WorkSliversProps = {}) {
           const sliver = WORK_SLIVERS[index % WORK_SLIVERS.length];
 
           return (
-            <button
+            <EntranceCell
               key={item.title}
-              type="button"
-              aria-label={`Open case study: ${item.title}`}
-              onClick={(event) => item.onOpen(event.currentTarget)}
-              className={`wd-sliver ring-host rounded-lg md:h-auto ${sliver.height}`}
+              variant={entrance}
+              item={4 + index}
+              row={2}
             >
-              <RingLayers fill={sliver.fill} />
-              <span
-                aria-hidden="true"
-                className="wd-sliver-tint"
-                data-index={index}
-              />
-              <span aria-hidden="true" className="wd-sliver-label">
-                {item.title}
-              </span>
-            </button>
+              <button
+                type="button"
+                aria-label={`Open case study: ${item.title}`}
+                onClick={(event) => item.onOpen(event.currentTarget)}
+                className={`wd-sliver ring-host rounded-lg md:h-auto ${sliver.height}`}
+              >
+                <RingLayers fill={sliver.fill} />
+                <span
+                  aria-hidden="true"
+                  className="wd-sliver-tint"
+                  data-index={index}
+                />
+                <span aria-hidden="true" className="wd-sliver-label">
+                  {item.title}
+                </span>
+              </button>
+            </EntranceCell>
           );
         })}
       </>
@@ -159,13 +162,14 @@ export function WorkSlivers({ items }: WorkSliversProps = {}) {
   return (
     <>
       {WORK_SLIVERS.map((sliver, index) => (
-        <div
-          key={index}
-          aria-hidden="true"
-          className={`ring-host rounded-lg md:h-auto ${sliver.height}`}
-        >
-          <RingLayers fill={sliver.fill} />
-        </div>
+        <EntranceCell key={index} variant={entrance} item={4 + index} row={2}>
+          <div
+            aria-hidden="true"
+            className={`ring-host rounded-lg md:h-auto ${sliver.height}`}
+          >
+            <RingLayers fill={sliver.fill} />
+          </div>
+        </EntranceCell>
       ))}
     </>
   );

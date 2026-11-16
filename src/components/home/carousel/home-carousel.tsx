@@ -14,6 +14,8 @@ import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
 import { flushSync } from "react-dom";
 import { Cover } from "@/components/work/cover";
 import type { WorkMeta } from "@/lib/work";
+import { EntranceCell } from "../entrance-cell";
+import type { EntranceVariant } from "../entrance-cell";
 import { RingLayers } from "../ring-hover";
 import { EDGE_KEYFRAMES } from "./edge-blur";
 import { restStyle, playEntity } from "./carousel-dom";
@@ -209,6 +211,11 @@ type SlideProps = {
    * right edge's column-anchored fade and blur copy (home-carousel.css).
    */
   crossRight?: boolean;
+  /**
+   * The homepage entrance (entrance-cell.tsx), for the four cards visible at
+   * first paint only: the item number they rise as, 3-6 in reading order.
+   */
+  entrance?: { variant?: EntranceVariant; item: number };
   register: (key: string, element: HTMLElement | null) => void;
   onActivate: (event: MouseEvent<HTMLElement>, index: number) => void;
 };
@@ -227,6 +234,7 @@ function Slide({
   peekOut = false,
   edgeLeft = false,
   crossRight = false,
+  entrance,
   register,
   onActivate,
 }: SlideProps) {
@@ -378,7 +386,23 @@ function Slide({
       {/* The masked box for the peek's edge fade: at rest it is the card's box,
           and while peeking it grows by the shadow's reach so the mask can paint
           the shadow as well (see home-carousel.css). */}
-      <div className="car-frame">{host}</div>
+      <div className="car-frame">
+        {/* The entrance rides inside the slide, never on it: the slide and the
+            row keep their boxes still, so the row snap, the guide and the
+            hover band measure a row that is not moving. */}
+        {entrance ? (
+          <EntranceCell
+            variant={entrance.variant}
+            item={entrance.item}
+            row={2}
+            className="car-entrance"
+          >
+            {host}
+          </EntranceCell>
+        ) : (
+          host
+        )}
+      </div>
     </div>
   );
 }
@@ -391,8 +415,19 @@ function Slide({
  * A card is laid out at the wide slot's width and only cropped to its slot, so
  * its content never reflows while a step runs (see carousel-dom.ts). Item
  * motion is planned in carousel-math.ts; this component wires it to the DOM.
+ *
+ * `entrance` is the homepage's page-load entrance: the four items visible at
+ * first paint rise as items 3-6 (the featured card and the three slivers on
+ * main's stacked row). It is tied to the item, not the slot, so a step never
+ * re-parents a card, and the animation only ever plays once, on mount.
  */
-export function HomeCarousel({ items }: { items: CarouselItem[] }) {
+export function HomeCarousel({
+  items,
+  entrance,
+}: {
+  items: CarouselItem[];
+  entrance?: EntranceVariant;
+}) {
   const n = items.length;
   const reduce = useReducedMotion() ?? false;
   const search = useLocationSearch();
@@ -1761,6 +1796,11 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
                 crossRight={
                   slot >= VISIBLE_SLOTS - 1 ||
                   slotOf(index, domOffset, n) >= VISIBLE_SLOTS - 1
+                }
+                entrance={
+                  entrance && index < VISIBLE_SLOTS
+                    ? { variant: entrance, item: 3 + index }
+                    : undefined
                 }
                 register={register}
                 onActivate={onActivate}
