@@ -887,19 +887,37 @@ describe("left hover peek", () => {
     const move = slides(leaving).at(-1)!;
     expect(move.keyframes["--car-x"]).toEqual(["0px", "-765px"]);
     expect(move.keyframes["--car-r"]).toEqual(["0px", "0px"]);
-    // The peek's left edge, on the same run: the fade ramps in on --car-le and
-    // the blur copy fades with it, anchored to the edge the card is drawn at.
+    // The peek's left edge, on the same run: the fade (--car-le) and the blur
+    // copy follow how far the card has crossed the column's edge, in eased
+    // progress on the run's own curve - nothing at the click, the full Peek
+    // fade width once the card is that far out. (A ramp on the run's clock was
+    // ~2px wide while the card had already crossed ~40px: a hard cut.)
+    const fadeWidth = parseFloat(
+      row(container).style.getPropertyValue("--peek-fade-left"),
+    );
+    const expected = [
+      { offset: 0, value: 0 },
+      { offset: fadeWidth / 765, value: 1 },
+      { offset: 1, value: 1 },
+    ];
+    const asKeys = (frames: unknown, prop: string) =>
+      (frames as Record<string, number>[]).map((k) => ({
+        offset: k.offset,
+        value: k[prop],
+      }));
     const fade = recorded.find(
-      (r) => r.target === leaving && "--car-le" in r.keyframes,
+      (r) =>
+        r.target === leaving &&
+        Array.isArray(r.keyframes) &&
+        "--car-le" in r.keyframes[0],
     )!;
-    expect(fade.keyframes["--car-le"]).toEqual([0, 1]);
+    expect(asKeys(fade.keyframes, "--car-le")).toEqual(expected);
     expect(fade.options.duration).toBe(900);
+    expect(fade.options.easing).toBe(move.options.easing);
     const layer = leaving.querySelector<HTMLElement>("[data-peek-blur]")!;
     expect(layer).toHaveAttribute("data-edge", "left");
-    const blur = recorded.find(
-      (r) => r.target === layer && "opacity" in r.keyframes,
-    )!;
-    expect(blur.keyframes.opacity).toEqual([0, 1]);
+    const blur = recorded.find((r) => r.target === layer)!;
+    expect(asKeys(blur.keyframes, "opacity")).toEqual(expected);
     expect(blur.options.duration).toBe(900);
     // The left end is not blurred as a whole card: the edge copy does it.
     expect(
@@ -914,6 +932,50 @@ describe("left hover peek", () => {
     expect(container.querySelector("[data-edge-left]")).toBeNull();
     expect(leaving.style.getPropertyValue("--car-le")).toBe("");
     expect(leaving.querySelector("[data-peek-blur]")).toBeNull();
+  });
+
+  it("gives every card a step pushes out through the left end the left edge", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    // A click on slot 2 is a step of two: the feature and slot 1 both leave
+    // through the left end, so both melt there (slot 1 used to be cut hard).
+    fireEvent.click(card(container, 2).querySelector(".car-host")!);
+
+    const leaving = Array.from(
+      container.querySelectorAll<HTMLElement>(".car-slide[data-edge-left]"),
+    );
+    expect(leaving).toHaveLength(2);
+    const fadeWidth = parseFloat(
+      row(container).style.getPropertyValue("--peek-fade-left"),
+    );
+    for (const el of leaving) {
+      const [from, to] = slides(el)
+        .at(-1)!
+        .keyframes["--car-x"].map((x) => parseFloat(String(x)));
+      const fade = recorded.find(
+        (r) =>
+          r.target === el &&
+          Array.isArray(r.keyframes) &&
+          "--car-le" in r.keyframes[0],
+      )!;
+      const keys = fade.keyframes as unknown as Record<string, number>[];
+      // No edge until the card reaches the column's edge, full one fade width
+      // past it.
+      expect(keys.map((k) => [k.offset, k["--car-le"]])).toEqual(
+        [
+          [0, 0],
+          ...(from > 0 ? [[from / (from - to), 0]] : []),
+          [(from + fadeWidth) / (from - to), 1],
+          [1, 1],
+        ],
+      );
+      expect(el.querySelector("[data-peek-blur]")).toHaveAttribute(
+        "data-edge",
+        "left",
+      );
+    }
+
+    finishStep();
+    expect(container.querySelector("[data-edge-left]")).toBeNull();
   });
 
   it("ends every leave path at the rest rects with the peek's state cleared", () => {

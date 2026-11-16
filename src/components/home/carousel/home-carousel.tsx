@@ -26,6 +26,7 @@ import {
   RETARGET_BEZIER,
   bezierSpec,
   easeSpec,
+  edgeLeftKeys,
   entityKey,
   keyStep,
   restEntities,
@@ -106,6 +107,7 @@ const CROSSFADE_MS = 120;
 const HELD_GRACE_MS = 1500;
 /** How long a step that is released mid-flight takes to glide to rest. */
 const SETTLE_MS = 350;
+const NO_ITEMS: readonly number[] = [];
 
 /** Whether the reader is open (or about to be) over the page. */
 function overlayPresent(): boolean {
@@ -216,7 +218,9 @@ function Slide({
   // card leaving through the left end takes the peek's left edge for its run.
   const rightEdge =
     !ghost && (slot === VISIBLE_SLOTS - 2 || peekOut);
-  const edgeBlur = peek ? "left" : rightEdge ? "right" : edgeLeft ? "left" : null;
+  // A card leaving through the left end is not the right edge this run, even
+  // when its slot after the wrap is the right-most one (a short ring).
+  const edgeBlur = peek || edgeLeft ? "left" : rightEdge ? "right" : null;
 
   const body = (
     <>
@@ -367,10 +371,11 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
    */
   const [peekOut, setPeekOut] = useState<number | null>(null);
   /**
-   * The featured card the running step pushes out through the left end: it
-   * carries the peek's left edge (fade + blur copy) while it leaves.
+   * The cards the running step pushes out through the left end (the feature,
+   * and the cards after it on a step of two or three): each carries the peek's
+   * left edge (fade + blur copy) while it leaves.
    */
-  const [edgeLeft, setEdgeLeft] = useState<number | null>(null);
+  const [edgeLeft, setEdgeLeft] = useState<readonly number[]>(NO_ITEMS);
   const [announcement, setAnnouncement] = useState("");
   const [settled, setSettled] = useState(0);
   /** Measured slot widths, so the edge-blur layers can size their ramps. */
@@ -542,7 +547,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       delete row.dataset.mask;
     }
     setPeekOut(null);
-    setEdgeLeft(null);
+    setEdgeLeft(NO_ITEMS);
   }
 
   /** Whether the pointer, where it is now, asks for the peek. */
@@ -894,7 +899,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       else if (peek.current.open || peek.current.els) closePeeks();
       setGhosts([]);
       setPeekOut(null);
-      setEdgeLeft(null);
+      setEdgeLeft(NO_ITEMS);
       setDomOffset(at);
       setSettled((count) => count + 1);
     };
@@ -1214,9 +1219,9 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       );
     }
 
-    // The card the step pushes out through the left end (if any) takes the
-    // peek's left edge for the run.
-    const leftItem = planned.find((e) => e.edgeLeft)?.item ?? null;
+    // Every card the step pushes out through the left end takes the peek's
+    // left edge for the run (a step of two or three pushes out more than one).
+    const leaving = planned.filter((e) => e.edgeLeft && !e.ghost);
 
     closePeeks();
 
@@ -1227,7 +1232,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       // The right edge of the arrangement the run is leaving keeps the treatment
       // for the length of the run, fading out with it (see the peek block below).
       setPeekOut(peekAfter && wasOpen ? outItem : null);
-      setEdgeLeft(leftItem);
+      setEdgeLeft(leaving.map((e) => e.item));
       if (!viaKeyboard) setAnnouncement(`Showing ${items[next].title}`);
     });
 
@@ -1327,28 +1332,37 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
       );
     }
 
-    // The card the step pushes out through the left end carries the peek's left
+    // A card the step pushes out through the left end carries the peek's left
     // edge for the run: its own fade (the frame mask, on `--car-le`) and the
-    // progressive blur copy ramp in together, anchored to the edge it is drawn
-    // at, so it slides out instead of being wiped and never pops at the start.
-    if (leftItem !== null) {
-      const el = elements.current.get(`m${leftItem}`);
-      if (el) {
+    // progressive blur copy, anchored to the column's edge. Their strength is
+    // how far the card has crossed that edge (edgeLeftKeys), on the run's own
+    // easing, so it is nothing while the card still rests on the edge and the
+    // full Peek fade width once it is that far past: the edge never shows a
+    // hard cut on the first frames, nor pops at the click.
+    const fadeWidth = Math.max(
+      8,
+      Math.round(
+        (Math.round(g.slots[VISIBLE_SLOTS - 1].w) * s.peekFade) / 100,
+      ),
+    );
+    for (const entity of leaving) {
+      const el = elements.current.get(`m${entity.item}`);
+      if (!el) continue;
+      const keys = edgeLeftKeys(entity.from.x, entity.to.x, fadeWidth);
+      animations.push(
+        el.animate(
+          keys.map((k) => ({ offset: k.offset, "--car-le": k.value })),
+          { duration: s.duration, easing, fill: "both" },
+        ),
+      );
+      const layer = el.querySelector<HTMLElement>("[data-peek-blur]");
+      if (layer) {
         animations.push(
-          el.animate(
-            { "--car-le": [0, 1] },
+          layer.animate(
+            keys.map((k) => ({ offset: k.offset, opacity: k.value })),
             { duration: s.duration, easing, fill: "both" },
           ),
         );
-        const layer = el.querySelector<HTMLElement>("[data-peek-blur]");
-        if (layer) {
-          animations.push(
-            layer.animate(
-              { opacity: [0, 1] },
-              { duration: s.duration, easing, fill: "both" },
-            ),
-          );
-        }
       }
     }
 
@@ -1642,7 +1656,6 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
   // keeps the treatment for the run and hands it over (set per step).
   const peekOutItem = peekOut ?? -1;
   // The featured card the running step pushes out through the left end.
-  const edgeLeftItem = edgeLeft ?? -1;
   const peekFadeWidth = (cardWidth: number) =>
     Math.max(8, Math.round((cardWidth * settings.peekFade) / 100));
   // The peek's outer fade widths are a share of those two cards, so they need
@@ -1687,7 +1700,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
                 total={n}
                 ghost={false}
                 peekOut={index === peekOutItem && slot !== VISIBLE_SLOTS - 2}
-                edgeLeft={index === edgeLeftItem}
+                edgeLeft={edgeLeft.includes(index)}
                 register={register}
                 onActivate={onActivate}
               />

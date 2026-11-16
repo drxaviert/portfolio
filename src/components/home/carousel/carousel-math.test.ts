@@ -6,6 +6,7 @@ import {
   RETARGET_BEZIER,
   bezierSpec,
   easeSpec,
+  edgeLeftKeys,
   entityKey,
   exitLeft,
   keyStep,
@@ -244,5 +245,34 @@ describe("title timing", () => {
     expect(run(0.85, { fromTitle: 0, toTitle: 1 })).toBeCloseTo(0.5, 5);
     expect(run(0.06, { fromTitle: 1, toTitle: 0 })).toBeCloseTo(0.5, 5);
     expect(run(0.3, { fromTitle: 1, toTitle: 0 })).toBe(0);
+  });
+});
+
+describe("edgeLeftKeys", () => {
+  it("follows how far the card's left edge has crossed the column's edge", () => {
+    // The feature, resting on the edge, leaving 765px out: full strength after
+    // one fade width, not on the run's clock.
+    expect(edgeLeftKeys(0, -765, 34)).toEqual([
+      { offset: 0, value: 0 },
+      { offset: 34 / 765, value: 1 },
+      { offset: 1, value: 1 },
+    ]);
+    // Slot 1 on a step of two: nothing until it reaches the edge.
+    expect(edgeLeftKeys(765, -192, 34)).toEqual([
+      { offset: 0, value: 0 },
+      { offset: 765 / 957, value: 0 },
+      { offset: 799 / 957, value: 1 },
+      { offset: 1, value: 1 },
+    ]);
+    // A card already part-way out (a click mid-run) starts from where it is.
+    expect(edgeLeftKeys(-17, -765, 34)).toEqual([
+      { offset: 0, value: 0.5 },
+      { offset: 17 / 748, value: 1 },
+      { offset: 1, value: 1 },
+    ]);
+    expect(edgeLeftKeys(-100, -765, 34)).toEqual([
+      { offset: 0, value: 1 },
+      { offset: 1, value: 1 },
+    ]);
   });
 });

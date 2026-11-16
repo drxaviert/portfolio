@@ -369,6 +369,35 @@ export function retarget(
   return out;
 }
 
+/**
+ * The left edge's strength over a run, for a card leaving through the left
+ * end: how far its left edge has crossed the column's edge (x = 0), over the
+ * fade width, clamped to 0..1. Offsets are in eased progress, so the keyframes
+ * go on an animation with the step's own easing and the strength follows the
+ * card's position exactly: no ramp before the card reaches the edge (it would
+ * fade a card still resting there), a full ramp as soon as it is one fade width
+ * past it (a ramp that rose on the run's clock left a hard cut at the edge for
+ * the first frames, when the card has already travelled furthest).
+ */
+export function edgeLeftKeys(
+  fromX: number,
+  toX: number,
+  fadeWidth: number,
+): { offset: number; value: number }[] {
+  const at = (x: number) =>
+    fadeWidth > 0 ? Math.min(1, Math.max(0, -x / fadeWidth)) : x < 0 ? 1 : 0;
+  const keys = [{ offset: 0, value: at(fromX) }];
+  if (toX !== fromX) {
+    const crossings = [0, -fadeWidth]
+      .map((x) => ({ offset: (x - fromX) / (toX - fromX), value: at(x) }))
+      .filter((k) => k.offset > 0 && k.offset < 1)
+      .sort((a, b) => a.offset - b.offset);
+    keys.push(...crossings);
+  }
+  keys.push({ offset: 1, value: at(toX) });
+  return keys;
+}
+
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
