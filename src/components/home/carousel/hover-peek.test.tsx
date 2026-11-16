@@ -1408,6 +1408,32 @@ describe("held motion without a reader", () => {
   });
 });
 
+describe("whole-pixel column", () => {
+  it("shifts a column centred half a pixel in onto a whole pixel, and back on resize", () => {
+    // An odd viewport centres the column at x.5: every edge anchored to it
+    // splits a pixel (a 1px line at the right edge during chained peek clicks).
+    let left = ROW.left + 0.5;
+    const base = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      if (this.classList.contains("car-row")) {
+        const shift = Number.parseFloat((this as HTMLElement).style.left) || 0;
+        return rect(left + shift, ROW.top, ROW.width, ROW.height);
+      }
+      return base.call(this);
+    };
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    expect(row(container).style.left).toBe("0.5px");
+    expect(row(container).getBoundingClientRect().left % 1).toBe(0);
+
+    // The centred column moves without resizing: the window's resize snaps it.
+    left = ROW.left;
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(row(container).style.left).toBe("");
+  });
+});
+
 describe("hover zone cost", () => {
   /** Counts the row's box reads, the one layout read the zone could cause. */
   function countRowReads() {
@@ -1451,7 +1477,9 @@ describe("hover zone cost", () => {
       window.dispatchEvent(new Event("resize"));
     });
     for (let i = 0; i < 20; i++) move(100 + 300);
-    expect(count.reads - before).toBe(1);
+    // One for the zone, one for snapping the row to a whole pixel - not one per
+    // pointer move.
+    expect(count.reads - before).toBe(2);
 
     fireEvent.keyDown(card(container, 0).querySelector(".car-host")!, {
       key: "ArrowRight",

@@ -141,6 +141,23 @@ function supportsLinearEasing(): boolean {
   );
 }
 
+/**
+ * Puts the row's left edge on a whole device pixel. The column is centred, so
+ * at an odd viewport width it starts half a pixel in, and every edge anchored
+ * to it (the clip, the cards' column-edge masks, the hover band) then splits a
+ * pixel. There the right edge's blur copy - its own layer, which the compositor
+ * snaps to whole pixels apart from the card's mask - showed through as a 1px
+ * line. Shifting the row by that fraction (`left`: it is relative) keeps every
+ * card, mask and anchor where it was relative to the row.
+ */
+function snapRow(row: HTMLElement) {
+  row.style.left = "";
+  const left = row.getBoundingClientRect().left;
+  const ratio = window.devicePixelRatio || 1;
+  const shift = Math.round(left * ratio) / ratio - left;
+  if (Math.abs(shift) > 0.001) row.style.left = `${shift}px`;
+}
+
 function measureGeometry(
   row: HTMLElement,
   guide: HTMLElement,
@@ -1432,6 +1449,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     const guide = guideRef.current;
     if (!row || !guide) return;
 
+    snapRow(row);
     const measured = measureGeometry(row, guide);
     if (!measured) return;
 
@@ -1466,8 +1484,15 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
     const observer = new ResizeObserver(() => sync());
     observer.observe(row);
+    // A centred column can move by half a pixel without changing size (an odd
+    // viewport width), which the observer does not see.
+    const snap = () => snapRow(row);
+    window.addEventListener("resize", snap);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", snap);
+    };
   }, []);
 
   // After a step the peek is re-evaluated: if the pointer is still in the zone
