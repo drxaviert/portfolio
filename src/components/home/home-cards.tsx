@@ -29,8 +29,8 @@ const WORK_SLIVERS = [
 ];
 
 /**
- * Optional interactive mode used by the work-drawer prototype. When `onOpen`
- * is absent the card is exactly the shipped, non-interactive article.
+ * Optional interactive mode: when `onOpen` is absent the card is exactly the
+ * shipped, non-interactive article.
  */
 function cardInteraction(onOpen: (element: HTMLElement) => void) {
   return {
