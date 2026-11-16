@@ -338,13 +338,29 @@
 
 /*
  * The mirror of the right edge: the card a step pushes out through the left end
- * keeps its own width and fades with the peek's left-edge ramp instead of being
- * cropped away. The ramp is one mask over the padded box (so the fill, the ring,
- * the shadow and the blur copy all fade on it), anchored to the edge the card is
- * drawn at, and its strength is `--car-le`, ramped by the step's run. The crop
- * sits on the right of a leaving card, so `right` takes it out of the masked box
- * the same way the right edge does.
+ * keeps its own width and melts away with the peek's left-edge ramp instead of
+ * being cropped. The peek's ramp sits on the card's own left end, but a leaving
+ * card is 500px past that end by the time the run is under way, so its ramp is
+ * anchored to the COLUMN's left edge instead: that is the line it crosses.
+ *
+ * The mask is transparent up to the column's edge and ramps to solid over the
+ * Peek fade width inside it, widening as `--car-le` ramps, so the card is a
+ * soft, fading band at the column's edge and paints nothing at all in the 4px
+ * of ring/shadow band the row's step clip opens past its edge (below). It is a
+ * mask, not a clip, so it paints no colour of its own; and it is on the padded
+ * box, so the fill, the ring and the shadow all fade on the one ramp.
+ *
+ * `--car-cut` is the column's edge in the padded frame's coordinates: the
+ * card's box sits at `--car-x` in the row, and the frame is grown by the shadow
+ * pad on every side, hence `pad - x`. It is derived here because `--car-x` does
+ * not inherit (see @property) and the frame, a child, needs it.
  */
+.car-slide[data-edge-left] {
+  --car-cut: calc(var(--car-shadow-pad) - var(--car-x));
+  /* The same edge in the card's own box, for the blur copy inside the host. */
+  --car-cross: calc(0px - var(--car-x));
+}
+
 .car-slide[data-edge-left] .car-frame {
   right: var(--car-r);
   margin: calc(-1 * var(--car-shadow-pad));
@@ -353,13 +369,34 @@
   mask-repeat: no-repeat;
   -webkit-mask-image: linear-gradient(
     to right,
-    rgb(0 0 0 / calc(1 - var(--car-le))) var(--car-shadow-pad),
-    #000 calc(var(--car-shadow-pad) + var(--peek-fade-left, 34px))
+    rgb(0 0 0 / 0) var(--car-cut),
+    #000 calc(var(--car-cut) + var(--peek-fade-left, 34px) * var(--car-le))
   );
   mask-image: linear-gradient(
     to right,
-    rgb(0 0 0 / calc(1 - var(--car-le))) var(--car-shadow-pad),
-    #000 calc(var(--car-shadow-pad) + var(--peek-fade-left, 34px))
+    rgb(0 0 0 / 0) var(--car-cut),
+    #000 calc(var(--car-cut) + var(--peek-fade-left, 34px) * var(--car-le))
+  );
+}
+
+/*
+ * The progressive blur copy rides the same edge: it is dense at the column's
+ * line and thins out over the same width inward, so the fading band at the edge
+ * is melted while the card is still sharp where it is solid. The copy's own
+ * opacity ramps on the run (see home-carousel.tsx), so nothing shows at t=0.
+ */
+.car-slide[data-edge-left] .car-peek-blur[data-edge="left"] {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 var(--car-cross),
+    transparent
+      calc(var(--car-cross) + var(--peek-fade-left, 34px) * var(--car-peek-ramp, 100) / 100)
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 var(--car-cross),
+    transparent
+      calc(var(--car-cross) + var(--peek-fade-left, 34px) * var(--car-peek-ramp, 100) / 100)
   );
 }
 

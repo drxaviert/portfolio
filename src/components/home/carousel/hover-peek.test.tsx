@@ -1685,6 +1685,35 @@ describe("peek css", () => {
     );
   });
 
+  it("anchors the leaving feature's fade to the column's edge, not its drawn edge", () => {
+    // The card's own left end is 500px past the column by the time the run is
+    // under way, so a fade on that end is never seen. The ramp sits on the line
+    // the card actually crosses: `--car-cut` is the column's edge in the padded
+    // frame (the row's x, then the pad), `--car-cross` the same edge in the
+    // card's own box for the blur copy.
+    const block = css.match(/^\.car-slide\[data-edge-left\]\s*\{([^}]*)\}/m)![1];
+    expect(block).toContain(
+      "--car-cut: calc(var(--car-shadow-pad) - var(--car-x))",
+    );
+    expect(block).toContain("--car-cross: calc(0px - var(--car-x))");
+
+    // Transparent up to that edge, solid a Peek fade width inside it, widening
+    // as `--car-le` ramps: the card paints nothing in the 4px ring/shadow band
+    // the step clip opens past the row, so the row's mask onset there cannot
+    // leave a line, and what is left of the card melts into the page.
+    expect(css).toMatch(
+      /\.car-slide\[data-edge-left\] \.car-frame\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*rgb\(0 0 0 \/ 0\) var\(--car-cut\),\s*#000 calc\(var\(--car-cut\) \+ var\(--peek-fade-left, 34px\) \* var\(--car-le\)\)/,
+    );
+
+    // The blur copy rides the same edge: dense at the column's line, thinning
+    // out over the Peek blur width inward, so the fading band is the melted one.
+    expect(css).toMatch(
+      /\.car-slide\[data-edge-left\] \.car-peek-blur\[data-edge="left"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*#000 var\(--car-cross\),\s*transparent\s*calc\(var\(--car-cross\) \+ var\(--peek-fade-left, 34px\) \* var\(--car-peek-ramp, 100\) \/ 100\)/,
+    );
+    // The old anchor - the strength alone at the card's own drawn edge - is gone.
+    expect(css).not.toMatch(/rgb\(0 0 0 \/ calc\(1 - var\(--car-le\)\)\)/);
+  });
+
   it("clips the copy at the column's edge; only its hovered ring may enter the outset", () => {
     const block = css.match(/^\.car-peek-edge\s*\{([^}]*)\}/m)![1];
 
