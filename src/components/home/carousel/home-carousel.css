@@ -99,6 +99,11 @@
   pointer-events: none;
 }
 
+.car-frame {
+  position: absolute;
+  inset: 0;
+}
+
 .car-host {
   display: block;
   width: 100%;
@@ -194,15 +199,18 @@
 }
 
 /*
- * While peeking, the two edge cards carry the fade themselves, one mask per
- * layer on the layer itself: an ancestor's mask does not reach the ring in
- * every theme (it paints outside the row and the host), and the row's mask
- * would fade the fill twice. Every mask is the same ramp in the card's own
- * coordinates: transparent at the card's edge, solid at the Peek fade width,
- * its outer stop carrying `--car-fade` so a reveal fades in and a retract out.
- * The fill (cover, card fade, blur copy) is masked on `.car-clip`, whose box is
- * the card; the ring's frame and surface sit 3.5px outside it, so their ramps
- * start 3.5px in and end 3.5px later.
+ * While peeking, the two edge cards carry one fade, on the box that holds the
+ * whole card. A mask stops at the masked box, so that box is grown by the
+ * shadow's reach (8px clears the shadow's 4px and the ring's 6px outset) with a
+ * matching negative margin: the card's own geometry does not move, the host
+ * sits back inside the padding box, i.e. on the card, and the shadow - a
+ * `box-shadow` on the host - is painted inside the mask. Every layer under it
+ * (fill, cover, card fade, blur copy, ring frame, glow, surface) shares that one
+ * ramp: transparent at the card's edge, solid at the Peek fade width, the outer
+ * stop carrying `--car-fade` so a reveal fades in and a retract back out.
+ *
+ * The row and the copy take no mask of their own while peeking, so nothing is
+ * faded twice.
  */
 .car-row[data-peeking]:not([data-stepping]) {
   -webkit-mask-image: none;
@@ -210,83 +218,60 @@
 }
 
 .car-row[data-peeking] .car-peek-edge {
-  /* The copy is inert: the layers below carry the fade. */
+  /* The copy is inert: the frame below carries the fade. */
   -webkit-mask-image: none;
   mask-image: none;
 }
 
-.car-row[data-peeking] .car-peek-edge .car-clip,
-.car-row[data-peeking] .car-slide[data-slot="2"] .car-clip,
-.car-row[data-peeking] .car-peek-edge :is(.ring-frame, .ring-surface),
-.car-row[data-peeking] .car-slide[data-slot="2"] :is(.ring-frame, .ring-surface) {
+.car-row[data-peeking] .car-peek-edge .car-frame,
+.car-row[data-peeking] .car-slide[data-slot="2"] .car-frame {
+  --car-shadow-pad: 8px;
+
+  margin: calc(-1 * var(--car-shadow-pad));
+  padding: var(--car-shadow-pad);
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
 }
 
-/* The host's shadow follows its box, so it cannot fade with the layers above
-   it; drop it while peeking rather than leave a crisp hairline at a faded
-   edge. The ring's own 1px band still draws the card's edge. */
+.car-row[data-peeking] .car-peek-edge .car-frame {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent var(--car-shadow-pad),
+    rgb(0 0 0 / calc(1 - var(--car-fade))) var(--car-shadow-pad),
+    #000 calc(var(--car-shadow-pad) + var(--peek-fade-left, 34px))
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent var(--car-shadow-pad),
+    rgb(0 0 0 / calc(1 - var(--car-fade))) var(--car-shadow-pad),
+    #000 calc(var(--car-shadow-pad) + var(--peek-fade-left, 34px))
+  );
+}
+
+.car-row[data-peeking] .car-slide[data-slot="2"] .car-frame {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    transparent var(--car-shadow-pad),
+    rgb(0 0 0 / calc(1 - var(--car-fade))) var(--car-shadow-pad),
+    #000 calc(var(--car-shadow-pad) + var(--peek-fade-right, 33px))
+  );
+  mask-image: linear-gradient(
+    to left,
+    transparent var(--car-shadow-pad),
+    rgb(0 0 0 / calc(1 - var(--car-fade))) var(--car-shadow-pad),
+    #000 calc(var(--car-shadow-pad) + var(--peek-fade-right, 33px))
+  );
+}
+
 .car-row[data-peeking] .car-peek-edge .car-host,
 .car-row[data-peeking] .car-slide[data-slot="2"] .car-host {
-  box-shadow: none;
+  /* The padded frame's padding box is the card plus the pad; the host sits back
+     inside it, so the card is exactly where it was. */
+  position: absolute;
+  inset: var(--car-shadow-pad);
+  width: auto;
+  height: auto;
 }
-
-.car-row[data-peeking] .car-peek-edge .car-clip {
-  -webkit-mask-image: linear-gradient(
-    to right,
-    rgb(0 0 0 / calc(1 - var(--car-fade))) 0,
-    #000 var(--peek-fade-left, 34px)
-  );
-  mask-image: linear-gradient(
-    to right,
-    rgb(0 0 0 / calc(1 - var(--car-fade))) 0,
-    #000 var(--peek-fade-left, 34px)
-  );
-}
-
-.car-row[data-peeking] .car-slide[data-slot="2"] .car-clip {
-  -webkit-mask-image: linear-gradient(
-    to left,
-    rgb(0 0 0 / calc(1 - var(--car-fade))) 0,
-    #000 var(--peek-fade-right, 33px)
-  );
-  mask-image: linear-gradient(
-    to left,
-    rgb(0 0 0 / calc(1 - var(--car-fade))) 0,
-    #000 var(--peek-fade-right, 33px)
-  );
-}
-
-.car-row[data-peeking] .car-peek-edge :is(.ring-frame, .ring-surface) {
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    rgb(0 0 0 / calc(1 - var(--car-fade))) 3.5px,
-    #000 calc(3.5px + var(--peek-fade-left, 34px))
-  );
-  mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    rgb(0 0 0 / calc(1 - var(--car-fade))) 3.5px,
-    #000 calc(3.5px + var(--peek-fade-left, 34px))
-  );
-}
-
-.car-row[data-peeking] .car-slide[data-slot="2"] :is(.ring-frame, .ring-surface) {
-  -webkit-mask-image: linear-gradient(
-    to left,
-    transparent 0,
-    rgb(0 0 0 / calc(1 - var(--car-fade))) 3.5px,
-    #000 calc(3.5px + var(--peek-fade-right, 33px))
-  );
-  mask-image: linear-gradient(
-    to left,
-    transparent 0,
-    rgb(0 0 0 / calc(1 - var(--car-fade))) 3.5px,
-    #000 calc(3.5px + var(--peek-fade-right, 33px))
-  );
-}
-
 
 /* During a step the clip is exactly the column's edges, so a leaving or
    entering card never shows outside it. At rest the outset above returns. */

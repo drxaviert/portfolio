@@ -311,7 +311,10 @@ function Slide({
       data-side={peek ? "left" : undefined}
       className={peek ? "car-slide car-peek car-peek-edge" : "car-slide"}
     >
-      {host}
+      {/* The masked box for the peek's edge fade: at rest it is the card's box,
+          and while peeking it grows by the shadow's reach so the mask can paint
+          the shadow as well (see home-carousel.css). */}
+      <div className="car-frame">{host}</div>
     </div>
   );
 }
