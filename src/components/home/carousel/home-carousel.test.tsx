@@ -540,14 +540,53 @@ describe("edge blur", () => {
     expect(row).not.toHaveAttribute("data-stepping");
   });
 
-  it("edge blurs only the leaving and entering cards", () => {
+  it("edge blurs only the cards coming in through the left end", () => {
     render(<HomeCarousel items={ITEMS} />);
 
-    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+    // A step back brings a card in through the left end: it blurs as a whole.
+    fireEvent.keyDown(host("Systems"), { key: "ArrowLeft" });
 
     const blurred = recorded.filter((r) => hasProp(r, "filter"));
     expect(blurred.length).toBeGreaterThan(0);
-    for (const r of blurred) expect(r.target.classList).toContain("car-slide");
+    for (const r of blurred) {
+      expect(r.target.classList).toContain("car-slide");
+      const [from] = r.keyframes["--car-x"] as string[];
+      expect(parseFloat(from)).toBeLessThan(0);
+    }
+  });
+
+  it("melts a card crossing the right end at the column's edge, not with a whole-card blur", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    const css = readFileSync(
+      resolve(process.cwd(), "src/components/home/carousel/home-carousel.css"),
+      "utf8",
+    );
+
+    // A step on brings the seam copy in past the right end. It used to blur as
+    // a whole and be cut hard by the row's clip at the column's edge; it now
+    // carries the column-anchored mask and blur copy, so it takes no filter (a
+    // filter on the slide would stop its mask painting in Chromium).
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+
+    expect(recorded.some((r) => hasProp(r, "filter"))).toBe(false);
+    const ghost = container.querySelector<HTMLElement>(".car-slide[data-ghost]")!;
+    expect(ghost).toHaveAttribute("data-cross-right");
+    expect(ghost.querySelector("[data-cross-blur]")).not.toBeNull();
+    // The right-most slot carries the layer too; the inner slots do not.
+    const slide = (slot: number) =>
+      container.querySelector<HTMLElement>(
+        `.car-slide[data-slot="${slot}"]:not([data-ghost])`,
+      )!;
+    expect(slide(1)).not.toHaveAttribute("data-cross-right");
+    // The copy of the peek's right edge is not driven by the peek.
+    expect(ghost.querySelector("[data-cross-blur]")).not.toHaveAttribute(
+      "data-peek-blur",
+    );
+    // The mask is anchored to the column's edge in the card's own box, never
+    // to the card's drawn edge.
+    expect(css).toMatch(
+      /\.car-slide\[data-cross-right\]\s*\{\s*--car-cross-r:\s*calc\(var\(--car-row-w, 100vw\) - var\(--car-x\)\)/,
+    );
   });
 
   it("caps the edge blur at 2.5px and promotes only the blurred cards, only during the step", () => {
@@ -557,7 +596,7 @@ describe("edge blur", () => {
       "utf8",
     );
 
-    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+    fireEvent.keyDown(host("Systems"), { key: "ArrowLeft" });
 
     const blurred = recorded.filter((r) => hasProp(r, "filter"));
     for (const r of blurred) {
@@ -583,7 +622,7 @@ describe("edge blur", () => {
     window.history.pushState({}, "", "/?blur=none&sliver=grey");
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
-    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+    fireEvent.keyDown(host("Systems"), { key: "ArrowLeft" });
 
     // The row still masks and the leaving/entering cards still blur.
     const row = container.querySelector<HTMLElement>(".car-row")!;

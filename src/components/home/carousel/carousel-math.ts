@@ -398,6 +398,20 @@ export function edgeLeftKeys(
   return keys;
 }
 
+/**
+ * Whether a run takes the card's drawn right edge past the column's right edge
+ * (x = rowWidth) at either end: it crosses that edge, so it carries the right
+ * edge's column-anchored fade and progressive blur (home-carousel.css) instead
+ * of a blur over the whole card. The drawn edge is `x + w` (the pose's width,
+ * not the wider box a moving card is laid out in).
+ */
+export function crossesRight(
+  e: Pick<Entity, "from" | "to">,
+  rowWidth: number,
+): boolean {
+  return Math.max(e.from.x + e.from.w, e.to.x + e.to.w) > rowWidth + 0.5;
+}
+
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }

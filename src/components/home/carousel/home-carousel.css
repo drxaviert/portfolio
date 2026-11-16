@@ -407,6 +407,101 @@
   height: auto;
 }
 
+/*
+ * The column's right edge. A card a run takes across it (the 4th card the peek
+ * pushes out, the peek's right edge leaving on a peek click, a seam copy coming
+ * in, a card stepping back out) melts at that line instead of being cut by the
+ * row's clip: the row's own mask (`--car-rm`) rides the run's clock and its
+ * onset sits a couple of px outside the row, so on the first frames - when a
+ * quick-start run has moved furthest - the card was cut hard at the clip with a
+ * bright 1-2px band of unmasked card in the clip's outset, and the peek's right
+ * fade sits on the card's DRAWN edge, which by then is past the column.
+ *
+ * So the fade is anchored to the column's edge and its strength is how far the
+ * card's drawn right edge has crossed it, both worked out here from the card's
+ * own pose every frame (`--car-x`, `--car-r`, the box width), so every path -
+ * steps, the hover peek, glides, interrupts - gets it without a ramp of its own.
+ *
+ * In the card's own box the column's edge is at `--car-row-w - --car-x`
+ * (`--car-cross-r`, derived on the slide because `--car-x` does not inherit).
+ * The mask image is the box grown 12px on every side (unclipped, so the ring
+ * and shadow keep painting), so there the edge is at 12px + that, and the
+ * drawn right edge at 100% - 12px - `--car-r`. `--car-xk` is the distance
+ * crossed, clamped to 0..Peek fade width.
+ *
+ * Crossed by k, the card is solid up to (edge - k) and clear from the edge out;
+ * at k = 0 the step sits one shadow pad past the edge (beyond any clip), so a
+ * card resting on the edge keeps its ring and shadow, and it slides in to the
+ * edge as k grows past the pad. The mask is on the slide, so the slide carries
+ * no filter (playEntity skips the whole-card blur for a card that crosses).
+ */
+.car-row:is([data-stepping], [data-peeking], [data-mask])
+  .car-slide[data-cross-right]:not(.car-peek-edge, [data-peek-fade], [data-edge-blur]),
+.car-slide[data-cross-right][data-clipped]:not(.car-peek-edge, [data-peek-fade], [data-edge-blur]) {
+  --car-xk: clamp(
+    0px,
+    100% - 24px - var(--car-r) - var(--car-cross-r),
+    var(--peek-fade-right, 33px)
+  );
+  --car-xe: calc(
+    12px + var(--car-cross-r) +
+      max(0px, var(--car-shadow-pad) - var(--car-xk))
+  );
+
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 calc(var(--car-xe) - var(--car-xk)),
+    transparent var(--car-xe)
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 calc(var(--car-xe) - var(--car-xk)),
+    transparent var(--car-xe)
+  );
+  mask-repeat: no-repeat;
+  mask-size: calc(100% + 24px) calc(100% + 24px);
+  mask-position: -12px -12px;
+  mask-clip: no-clip;
+}
+
+.car-slide[data-cross-right] {
+  --car-cross-r: calc(var(--car-row-w, 100vw) - var(--car-x));
+}
+
+/*
+ * The progressive blur copy rides the same line: dense at the column's edge,
+ * thinning inward over the crossed distance (`peekBlurRamp`% of it). It is
+ * inside the host, whose right end is the drawn edge (100%), so the crossed
+ * distance is 100% - the edge. Nothing shows until the card crosses.
+ */
+.car-cross-blur {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent
+      calc(
+        var(--car-cross-r) -
+          clamp(0px, 100% - var(--car-cross-r), var(--peek-fade-right, 33px)) *
+          var(--car-peek-ramp, 100) / 100
+      ),
+    #000 var(--car-cross-r)
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent
+      calc(
+        var(--car-cross-r) -
+          clamp(0px, 100% - var(--car-cross-r), var(--peek-fade-right, 33px)) *
+          var(--car-peek-ramp, 100) / 100
+      ),
+    #000 var(--car-cross-r)
+  );
+}
+
+.car-row:is([data-stepping], [data-peeking], [data-mask]) .car-cross-blur,
+.car-slide[data-clipped] .car-cross-blur {
+  opacity: 1;
+}
+
 /* During a step the row is clipped close to the column's edges, so a leaving
    or entering card does not show past it; the 4px outset is the ring's band and
    the shadow, so an edge card does not lose its border for the length of the

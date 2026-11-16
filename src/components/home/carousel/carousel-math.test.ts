@@ -5,6 +5,7 @@ import {
   clickAction,
   RETARGET_BEZIER,
   bezierSpec,
+  crossesRight,
   easeSpec,
   edgeLeftKeys,
   entityKey,
@@ -274,5 +275,45 @@ describe("edgeLeftKeys", () => {
       { offset: 0, value: 1 },
       { offset: 1, value: 1 },
     ]);
+  });
+});
+
+describe("crossesRight", () => {
+  // 1136px column (1440 viewport): rest slot 3 at 1052..1136, the seam's
+  // waiting place at 1148.
+  const W = 1136;
+  const pose = (x: number, w: number) => ({ x, w });
+
+  it("is the drawn right edge past the column's edge at either end of the run", () => {
+    // Resting on the edge: not crossing (its shadow and ring are kept).
+    expect(crossesRight({ from: pose(1052, 84), to: pose(1052, 84) }, W)).toBe(
+      false,
+    );
+    // The 4th card the hover peek pushes out, and the seam copy coming in.
+    expect(crossesRight({ from: pose(1052, 84), to: pose(1148, 84) }, W)).toBe(
+      true,
+    );
+    expect(crossesRight({ from: pose(1148, 84), to: pose(1052, 84) }, W)).toBe(
+      true,
+    );
+    // A card moving left inside the column, and one leaving left.
+    expect(crossesRight({ from: pose(1052, 84), to: pose(957, 83) }, W)).toBe(
+      false,
+    );
+    expect(crossesRight({ from: pose(0, 753), to: pose(-765, 753) }, W)).toBe(
+      false,
+    );
+  });
+
+  it("uses the drawn width, not the wider box a moving card is laid out in", () => {
+    // Slot 3 growing into a 180px slot: its box is 180 wide from x = 1052, far
+    // past the edge, but it is drawn 84 wide there, so it never crosses. And
+    // sub-pixel rounding on the edge is not a crossing.
+    expect(crossesRight({ from: pose(1052, 84), to: pose(869, 180) }, W)).toBe(
+      false,
+    );
+    expect(crossesRight({ from: pose(1052, 84.4), to: pose(1052, 84) }, W)).toBe(
+      false,
+    );
   });
 });

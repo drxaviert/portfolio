@@ -1,5 +1,5 @@
 import { blur } from "./edge-blur";
-import { titleKeys } from "./carousel-math";
+import { crossesRight, titleKeys } from "./carousel-math";
 import type { Entity, Pose, TitleTiming } from "./carousel-math";
 
 /**
@@ -90,13 +90,21 @@ export function playEntity(
     "--car-r": [crop(e.from.w, box), crop(e.to.w, box)],
   };
 
-  if (moves && b.edgeBlur > 0.01 && !e.peekFrom && !e.edgeLeft) {
+  if (
+    moves &&
+    b.edgeBlur > 0.01 &&
+    !e.peekFrom &&
+    !e.edgeLeft &&
+    !crossesRight(e, b.rowWidth)
+  ) {
     // A card leaving or entering past the row's ends melts with the edge. A card
     // taking over the peek's copy does not: it starts at the copy's drawn pose,
     // which can sit left of the row while the copy is still sliding in, and the
     // peek's own edge treatment is what fades that end. A card leaving through
     // the left end gets the peek's left-edge ramp instead (its blur copy), not a
-    // blur over the whole card.
+    // blur over the whole card, and so does one crossing the right end (the
+    // column-anchored mask on the card and its blur copy, home-carousel.css):
+    // a filter on the card would also stop that mask from painting.
     const outside = (x: number) => x < 0 || x >= b.rowWidth;
 
     if (outside(e.to.x))

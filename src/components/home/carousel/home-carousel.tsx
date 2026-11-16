@@ -186,6 +186,12 @@ type SlideProps = {
    * at its own width with the peek's left edge (fade + blur copy) on the run.
    */
   edgeLeft?: boolean;
+  /**
+   * A card a run can take across the column's right edge (the right-most slot,
+   * a card coming in from or going out past it, a seam copy): it carries the
+   * right edge's column-anchored fade and blur copy (home-carousel.css).
+   */
+  crossRight?: boolean;
   register: (key: string, element: HTMLElement | null) => void;
   onActivate: (event: MouseEvent<HTMLElement>, index: number) => void;
 };
@@ -203,6 +209,7 @@ function Slide({
   peek = false,
   peekOut = false,
   edgeLeft = false,
+  crossRight = false,
   register,
   onActivate,
 }: SlideProps) {
@@ -221,6 +228,30 @@ function Slide({
   // A card leaving through the left end is not the right edge this run, even
   // when its slot after the wrap is the right-most one (a short ring).
   const edgeBlur = peek || edgeLeft ? "left" : rightEdge ? "right" : null;
+
+  // The blurred picture an edge-blur layer masks (the filter is on this copy,
+  // the mask on its wrapper: Chromium paints neither if one element has both).
+  const blurCopy = (
+    <span className="car-peek-blur-copy">
+      <span className="car-content">
+        {item.kind === "work" ? (
+          <>
+            <span className="absolute inset-0 overflow-hidden">
+              <Cover scene={item.cover} fit="cover" />
+            </span>
+            <span className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]" />
+          </>
+        ) : (
+          // A placeholder has no picture, but it still has a card face:
+          // blur the surface itself so its edge melts like the others.
+          <span
+            data-peek-surface=""
+            className="bg-surface-container-low absolute inset-0"
+          />
+        )}
+      </span>
+    </span>
+  );
 
   const body = (
     <>
@@ -263,25 +294,19 @@ function Slide({
             data-edge={edgeBlur}
             className="car-peek-blur"
           >
-            <span className="car-peek-blur-copy">
-              <span className="car-content">
-                {item.kind === "work" ? (
-                  <>
-                    <span className="absolute inset-0 overflow-hidden">
-                      <Cover scene={item.cover} fit="cover" />
-                    </span>
-                    <span className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]" />
-                  </>
-                ) : (
-                  // A placeholder has no picture, but it still has a card face:
-                  // blur the surface itself so its edge melts like the others.
-                  <span
-                    data-peek-surface=""
-                    className="bg-surface-container-low absolute inset-0"
-                  />
-                )}
-              </span>
-            </span>
+            {blurCopy}
+          </span>
+        ) : null}
+        {crossRight ? (
+          // The right end's progressive blur, anchored to the column's edge
+          // (home-carousel.css): dense where the card crosses it, thinning
+          // inward. Its strength is in its own mask, so the peek never drives it.
+          <span
+            aria-hidden="true"
+            data-cross-blur=""
+            className="car-peek-blur car-cross-blur"
+          >
+            {blurCopy}
           </span>
         ) : null}
       </div>
@@ -330,6 +355,7 @@ function Slide({
       data-side={peek ? "left" : undefined}
       data-peek-out={peekOut ? "" : undefined}
       data-edge-left={edgeLeft ? "" : undefined}
+      data-cross-right={crossRight ? "" : undefined}
       className={peek ? "car-slide car-peek car-peek-edge" : "car-slide"}
     >
       {/* The masked box for the peek's edge fade: at rest it is the card's box,
@@ -1417,6 +1443,9 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
     geometry.current = measured;
     zone.current.dirty = true;
     row.style.setProperty("--car-wide", `${measured.slots[0].w}px`);
+    // The column's width, so a card can find the column's right edge in its own
+    // box (`--car-row-w - --car-x`) for the right edge's fade.
+    row.style.setProperty("--car-row-w", `${measured.rowWidth}px`);
     row.dataset.ready = "true";
     applyRest(offsetRef.current);
     setSlotWidths((previous) => {
@@ -1701,6 +1730,13 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
                 ghost={false}
                 peekOut={index === peekOutItem && slot !== VISIBLE_SLOTS - 2}
                 edgeLeft={edgeLeft.includes(index)}
+                // Only the right-most slot and beyond can cross the right edge:
+                // where the card is going (`offset`) or where the last run left
+                // it (`domOffset`), so a run in flight keeps its layer.
+                crossRight={
+                  slot >= VISIBLE_SLOTS - 1 ||
+                  slotOf(index, domOffset, n) >= VISIBLE_SLOTS - 1
+                }
                 register={register}
                 onActivate={onActivate}
               />
@@ -1728,6 +1764,7 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
               slot={slotOf(index, offset, n)}
               total={n}
               ghost
+              crossRight
               register={register}
               onActivate={onActivate}
             />
