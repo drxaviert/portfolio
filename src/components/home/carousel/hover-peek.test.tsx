@@ -184,6 +184,20 @@ function drawShifted(c: HTMLElement) {
     card(c, slot).style.setProperty("--car-x", `${OPEN_X[slot]}px`);
 }
 
+/** Leaves the hover area and runs the peek's retract to its end. */
+function leavePeek(c: HTMLElement) {
+  move(600);
+  act(() => vi.advanceTimersByTime(121));
+  act(() => slides(prevCard(c)!).at(-1)!.onfinish?.());
+}
+
+/** Clicks the peek's previous card and runs the step to its landing. */
+function clickPeek(c: HTMLElement) {
+  prevCard(c)!.style.setProperty("--car-x", "0px");
+  fireEvent.click(prevCard(c)!);
+  finishStep();
+}
+
 describe("left hover peek", () => {
   it("shifts the whole row one column right, widths untouched, last card off the column", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
@@ -684,6 +698,140 @@ describe("left hover peek", () => {
     }
     expect(copy.style.visibility).toBe("visible");
     expect(copy.style.getPropertyValue("--car-lf")).toBe("0.5");
+  });
+
+  it("returns to rest after leaving the peek a peek click landed in", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    drawShifted(container);
+    clickPeek(container);
+
+    // The landing writes the peek's poses inline (the step's own animations are
+    // gone by then), so the retract has to put the rest poses back itself.
+    expect(row(container)).toHaveAttribute("data-peeking");
+    expect(card(container, 0).style.getPropertyValue("--car-x")).toBe(
+      `${OPEN_X[0]}px`,
+    );
+
+    leavePeek(container);
+
+    expect(row(container)).not.toHaveAttribute("data-peeking");
+    expect(row(container)).not.toHaveAttribute("data-mask");
+    for (let slot = 0; slot < 4; slot++) {
+      expect(card(container, slot).style.getPropertyValue("--car-x")).toBe(
+        `${REST_X[slot]}px`,
+      );
+    }
+    expect(prevCard(container)!.style.visibility).toBe("hidden");
+  });
+
+  it("returns to rest after leaving a step that landed in the peek", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    // The pointer is in the zone, so the arrow step lands in the next peek.
+    fireEvent.keyDown(card(container, 0).querySelector(".car-host")!, {
+      key: "ArrowRight",
+    });
+    finishStep();
+    expect(row(container)).toHaveAttribute("data-peeking");
+
+    leavePeek(container);
+
+    expect(row(container)).not.toHaveAttribute("data-peeking");
+    for (let slot = 0; slot < 4; slot++) {
+      expect(card(container, slot).style.getPropertyValue("--car-x")).toBe(
+        `${REST_X[slot]}px`,
+      );
+    }
+  });
+
+  it("returns to rest after repeat peek clicks", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    drawShifted(container);
+    clickPeek(container);
+    clickPeek(container);
+    clickPeek(container);
+    expect(row(container)).toHaveAttribute("data-peeking");
+
+    leavePeek(container);
+
+    expect(row(container)).not.toHaveAttribute("data-peeking");
+    for (let slot = 0; slot < 4; slot++) {
+      expect(card(container, slot).style.getPropertyValue("--car-x")).toBe(
+        `${REST_X[slot]}px`,
+      );
+    }
+  });
+
+  it("returns to rest after leaving and re-entering quickly", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    move(110);
+    drawShifted(container);
+    clickPeek(container);
+
+    // Leave just long enough for the retract to start, then come back in.
+    move(600);
+    act(() => vi.advanceTimersByTime(121));
+    move(110);
+    act(() => vi.advanceTimersByTime(500));
+
+    leavePeek(container);
+
+    expect(row(container)).not.toHaveAttribute("data-peeking");
+    for (let slot = 0; slot < 4; slot++) {
+      expect(card(container, slot).style.getPropertyValue("--car-x")).toBe(
+        `${REST_X[slot]}px`,
+      );
+    }
+  });
+
+  it("ends every leave path at the rest rects with the peek's state cleared", () => {
+    const setups: Record<string, (c: HTMLElement) => void> = {
+      "plain peek": () => move(110),
+      "peek click": (c) => {
+        move(110);
+        drawShifted(c);
+        clickPeek(c);
+      },
+      "repeat clicks": (c) => {
+        move(110);
+        drawShifted(c);
+        clickPeek(c);
+        clickPeek(c);
+      },
+      "arrow while peeked": (c) => {
+        move(110);
+        fireEvent.keyDown(card(c, 0).querySelector(".car-host")!, {
+          key: "ArrowRight",
+        });
+        finishStep();
+      },
+    };
+
+    for (const [name, setup] of Object.entries(setups)) {
+      const { container, unmount } = render(<HomeCarousel items={ITEMS} />);
+      setup(container);
+      leavePeek(container);
+
+      expect(`${name}: ${row(container).hasAttribute("data-peeking")}`).toBe(
+        `${name}: false`,
+      );
+      expect(row(container)).not.toHaveAttribute("data-mask");
+      expect(["", "0"]).toContain(
+        row(container).style.getPropertyValue("--car-fade"),
+      );
+      for (let slot = 0; slot < 4; slot++) {
+        const slide = card(container, slot);
+        expect(`${name} slot ${slot}: ${slide.style.getPropertyValue("--car-x")}`).toBe(
+          `${name} slot ${slot}: ${REST_X[slot]}px`,
+        );
+        // The right edge's hand-over is per run; nothing is left on a card.
+        expect(slide.style.getPropertyValue("--car-rf")).toBe("");
+      }
+      expect(container.querySelector("[data-peek-out]")).toBeNull();
+      unmount();
+    }
   });
 
   it("hands the peek's right edge over on the run instead of switching it at the landing", () => {

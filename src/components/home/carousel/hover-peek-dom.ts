@@ -148,6 +148,12 @@ export function tweenPeek(
       row.style.setProperty("--car-fade", "1");
       return;
     }
+    // The retract's runs end at each card's rest slot but are not filled, so
+    // write the rest pose down too: a peek that a step landed in leaves the
+    // shifted poses inline (openSnap), and without this the cards would fall
+    // back to them - a row stuck one column right of rest with no peek card.
+    for (const card of cards)
+      card.el.style.setProperty("--car-x", `${card.restX}px`);
     // Clear the pins: with the fade-out animations gone, they must stay where
     // they faded to, not snap back to the pinned values.
     for (const blur of blurs) blur.style.opacity = "0";
