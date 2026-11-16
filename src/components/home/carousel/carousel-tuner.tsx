@@ -63,6 +63,8 @@ type NumberKey =
   | "edgeBlur"
   | keyof Pick<
       HoverPeekSettings,
+      | "hoverZone"
+      | "hoverOutside"
       | "revealMs"
       | "retractMs"
       | "leaveMs"
@@ -165,6 +167,8 @@ export function CarouselTuner({
       {slider("edgeWidth", "Edge mask width", "px", 8, 64, 2)}
       {slider("edgeBlur", "Edge blur", "px", 0, 12, 0.5)}
       <strong style={{ color: "#fff" }}>Hover peek (one-column shift)</strong>
+      {slider("hoverZone", "Hover zone inside", "px", 8, 120, 2)}
+      {slider("hoverOutside", "Hover zone outside", "px", 0, 120, 2)}
       {slider("revealMs", "Reveal", "ms", 100, 600, 10)}
       {slider("retractMs", "Retract", "ms", 100, 600, 10)}
       {slider("leaveMs", "Leave delay", "ms", 0, 400, 10)}

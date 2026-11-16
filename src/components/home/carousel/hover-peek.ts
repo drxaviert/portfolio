@@ -12,8 +12,10 @@ import type { Geometry } from "./carousel-math";
  * [prev 84][12][featured 753][12][180][12][83], exactly the column.
  */
 export type HoverPeekSettings = {
-  /** How far in from the column edge the hover zone reaches at rest, px. */
+  /** How far in from the column's left edge the band reaches at rest, px. */
   hoverZone: number;
+  /** How far the band reaches left of the column's edge, into the gutter, px. */
+  hoverOutside: number;
   revealMs: number;
   retractMs: number;
   /** Delay before the peek retracts once the pointer leaves, ms. */
@@ -29,7 +31,8 @@ export type HoverPeekSettings = {
 };
 
 export const DEFAULT_HOVER_PEEK: HoverPeekSettings = {
-  hoverZone: 40,
+  hoverZone: 32,
+  hoverOutside: 24,
   revealMs: 450,
   retractMs: 350,
   leaveMs: 120,
@@ -59,17 +62,26 @@ export function movedItems(n: number, offset: number): number[] {
 type Rect = { left: number; right: number; top: number; bottom: number };
 
 /**
- * The hover zone: the page gutter beside the column plus `reach` px inside it,
- * over the row's height. At rest the reach is the tunable zone; while the peek
- * is open it grows to cover the previous card, so the pointer can move onto it.
+ * The hover zone: a band around the column's left edge, over the row's height,
+ * from `outside` px into the page gutter to `reach` px inside the column. The
+ * gutter is not a target in itself - the row reacts to the pointer near the
+ * edge, not anywhere to the left of it. At rest `reach` is the tunable zone;
+ * while the peek is open it grows to cover the previous card, so the pointer can
+ * move onto it and click it, and the outside bound stays the same.
  */
 export function inZone(
   x: number,
   y: number,
   row: Rect,
   reach: number,
+  outside: number,
 ): boolean {
-  return y >= row.top && y <= row.bottom && x < row.left + reach;
+  return (
+    y >= row.top &&
+    y <= row.bottom &&
+    x >= row.left - outside &&
+    x < row.left + reach
+  );
 }
 
 /** Whether the pointer is on the previous card (the first `width` px). */

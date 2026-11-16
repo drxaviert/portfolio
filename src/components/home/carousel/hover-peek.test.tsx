@@ -400,12 +400,19 @@ describe("left hover peek", () => {
     expect(row(container).style.getPropertyValue("--car-fade")).toBe("0");
   });
 
-  it("reveals from the gutter, not only from inside the column", () => {
+  it("reveals from the band just outside the column, not from far in the gutter", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
-    move(40);
+    // The row starts at x=100; 20px into the gutter is inside the band, and the
+    // band does not reach the page edge.
+    move(80);
+    expect(row(container)).toHaveAttribute("data-peeking");
 
-    expect(slides(card(container, 0))).toHaveLength(1);
+    move(40);
+    act(() => vi.advanceTimersByTime(121));
+    act(() => slides(prevCard(container)!).at(-1)!.onfinish?.());
+    expect(row(container)).not.toHaveAttribute("data-peeking");
+    expect(slides(card(container, 0))).toHaveLength(2);
   });
 
   it("does nothing for a pointer elsewhere, including the right edge", () => {

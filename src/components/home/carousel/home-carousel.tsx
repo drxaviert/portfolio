@@ -540,12 +540,13 @@ export function HomeCarousel({ items }: { items: CarouselItem[] }) {
 
     // Wider only while open (and not while retracting), so the pointer can
     // reach the previous card; a retract is not undone by a pointer that is
-    // outside the rest zone.
+    // outside the rest zone. The band never reaches far into the page gutter.
     return inZone(
       at.x,
       at.y,
       cached.rect,
       state.open ? (state.layout?.shift ?? s.hoverZone) : s.hoverZone,
+      s.hoverOutside,
     );
   }
 
