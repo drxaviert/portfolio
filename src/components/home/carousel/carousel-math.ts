@@ -63,16 +63,20 @@ export function stepMode(reduceMotion: boolean): StepMode {
 // ---------------------------------------------------------------- easing
 
 export type EaseKey =
-  "smooth" | "glide" | "quint-out" | "sheet" | "expo-out" | "custom";
+  "quick" | "smooth" | "glide" | "quint-out" | "sheet" | "expo-out" | "custom";
 export type Ease = (t: number) => number;
 export type Bezier = [number, number, number, number];
 
 /**
- * Default is "smooth": a gentle start and a long glide. easeOutExpo covers
- * about half the distance in its first ~70ms, so a step starting on it snaps;
- * it stays here as "expo-out" for comparison.
+ * Default is "quick": a fast, decelerating start (about 18% of the travel by
+ * 50ms, 36% by 100ms of a 900ms step), so the whole row is visibly moving from
+ * the first frames instead of holding still for ~150ms. "smooth" is the old
+ * gentle-start-and-long-glide curve, kept as a preset; easeOutExpo covers about
+ * half the distance in its first ~70ms, so a step starting on it snaps — it
+ * stays as "expo-out" for comparison.
  */
 export const EASE_OPTIONS: { value: EaseKey; label: string }[] = [
+  { value: "quick", label: "quick (0.25, 0.8, 0.25, 1)" },
   { value: "smooth", label: "smooth (0.5, 0, 0.1, 1)" },
   { value: "glide", label: "glide (0.65, 0, 0.35, 1)" },
   { value: "quint-out", label: "quint-out (0.22, 1, 0.36, 1)" },
@@ -81,7 +85,11 @@ export const EASE_OPTIONS: { value: EaseKey; label: string }[] = [
   { value: "custom", label: "custom cubic-bezier" },
 ];
 
-const BEZIERS: Record<"smooth" | "glide" | "quint-out" | "sheet", Bezier> = {
+const BEZIERS: Record<
+  "quick" | "smooth" | "glide" | "quint-out" | "sheet",
+  Bezier
+> = {
+  quick: [0.25, 0.8, 0.25, 1],
   smooth: [0.5, 0, 0.1, 1],
   glide: [0.65, 0, 0.35, 1],
   "quint-out": [0.22, 1, 0.36, 1],

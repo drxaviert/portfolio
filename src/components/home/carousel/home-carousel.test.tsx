@@ -371,14 +371,14 @@ describe("carousel CSS", () => {
 });
 
 describe("easing and one timeline", () => {
-  it("defaults to a 900ms smooth curve", () => {
+  it("defaults to a 900ms quick-start ease-out curve", () => {
     render(<HomeCarousel items={ITEMS} />);
 
     fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
 
     const card = recorded.find((r) => hasProp(r, "--car-x"))!;
     expect(card.options.duration).toBe(900);
-    expect(card.options.easing).toBe("cubic-bezier(0.5, 0, 0.1, 1)");
+    expect(card.options.easing).toBe("cubic-bezier(0.25, 0.8, 0.25, 1)");
   });
 
   it("runs card, clip, covers, title and the wrap copy on the same duration and curve", () => {
@@ -400,7 +400,7 @@ describe("easing and one timeline", () => {
     ).toBe(true);
     for (const r of timeline) {
       expect(r.options.duration).toBe(900);
-      expect(r.options.easing).toBe("cubic-bezier(0.5, 0, 0.1, 1)");
+      expect(r.options.easing).toBe("cubic-bezier(0.25, 0.8, 0.25, 1)");
       expect(r.options.delay ?? 0).toBe(0);
     }
   });
@@ -420,7 +420,7 @@ describe("easing and one timeline", () => {
       ),
     );
     expect(timings).toEqual(
-      new Set(["900|cubic-bezier(0.5, 0, 0.1, 1)|0"]),
+      new Set(["900|cubic-bezier(0.25, 0.8, 0.25, 1)|0"]),
     );
   });
 

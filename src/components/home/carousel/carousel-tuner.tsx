@@ -20,11 +20,11 @@ export type CarouselSettings = BlurSettings &
     titleSpan: number;
   };
 
-/** The one step: 900ms on the gentle-start smooth curve. */
+/** The one step: 900ms on the quick-start ease-out curve. */
 export const DEFAULT_SETTINGS: CarouselSettings = {
   duration: 900,
-  ease: "smooth",
-  custom: [0.5, 0, 0.1, 1],
+  ease: "quick",
+  custom: [0.25, 0.8, 0.25, 1],
   titleStart: 0.75,
   titleSpan: 0.2,
   ...DEFAULT_BLUR,
