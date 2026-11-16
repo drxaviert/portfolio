@@ -1,0 +1,141 @@
+import { useSyncExternalStore } from "react";
+import { VISIBLE_SLOTS, mod } from "./carousel-math";
+import type { Geometry } from "./carousel-math";
+
+/**
+ * The left hover peek: a one-column shift. The pointer near the first card's
+ * left edge slides the whole row right by one narrow column plus a gap (the
+ * last slot's width + 12px, 96px at xl). Every card keeps its rest width and
+ * only moves; the last card is pushed out past the column's right edge, and
+ * the previous item enters from beyond the left edge into a new first slot the
+ * size of the last column. The row then reads
+ * [prev 84][12][featured 753][12][180][12][83], exactly the column.
+ */
+export type HoverPeekSettings = {
+  /** How far in from the column's left edge the band reaches at rest, px. */
+  hoverZone: number;
+  /** How far the band reaches left of the column's edge, into the gutter, px. */
+  hoverOutside: number;
+  revealMs: number;
+  retractMs: number;
+  /** Delay before the peek retracts once the pointer leaves, ms. */
+  leaveMs: number;
+  /** Strength of the soft fade on the previous card's left end. */
+  hoverFade: number;
+  /** Reach of the progressive edge blur, as a percentage of the edge fade. */
+  peekBlurRamp: number;
+  /** Blur radius at the outer edge of the peek's progressive blur, px. */
+  peekBlurMax: number;
+  /** Width of the edge fade, as a percentage of the card's width. */
+  peekFade: number;
+};
+
+export const DEFAULT_HOVER_PEEK: HoverPeekSettings = {
+  hoverZone: 32,
+  hoverOutside: 24,
+  revealMs: 450,
+  retractMs: 350,
+  leaveMs: 120,
+  hoverFade: 0.5,
+  peekBlurRamp: 100,
+  peekBlurMax: 8,
+  peekFade: 40,
+};
+
+export const PEEK_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
+/** A reveal and a retract that interrupt each other turn round on this. */
+export const TURN_EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
+export const PEEK_FADE_MS = 120;
+
+/** The item that peeks in on the left: order[(first - 1 + n) % n]. */
+export function peekItem(n: number, offset: number): number {
+  return mod(offset - 1, n);
+}
+
+/** The items in the visible slots, front to back: the ones the shift moves. */
+export function movedItems(n: number, offset: number): number[] {
+  return Array.from({ length: Math.min(VISIBLE_SLOTS, n) }, (_, slot) =>
+    mod(offset + slot, n),
+  );
+}
+
+type Rect = { left: number; right: number; top: number; bottom: number };
+
+/**
+ * The hover zone: a band around the column's left edge, over the row's height,
+ * from `outside` px into the page gutter to `reach` px inside the column. The
+ * gutter is not a target in itself - the row reacts to the pointer near the
+ * edge, not anywhere to the left of it. At rest `reach` is the tunable zone;
+ * while the peek is open it grows to cover the previous card, so the pointer can
+ * move onto it and click it, and the outside bound stays the same.
+ */
+export function inZone(
+  x: number,
+  y: number,
+  row: Rect,
+  reach: number,
+  outside: number,
+): boolean {
+  return (
+    y >= row.top &&
+    y <= row.bottom &&
+    x >= row.left - outside &&
+    x < row.left + reach
+  );
+}
+
+/** Whether the pointer is on the previous card (the first `width` px). */
+export function onPrev(
+  x: number,
+  y: number,
+  row: Rect,
+  width: number,
+): boolean {
+  return (
+    y >= row.top && y <= row.bottom && x >= row.left && x <= row.left + width
+  );
+}
+
+export type PeekLayout = {
+  /** How far every card moves right: the last slot's width plus a gap. */
+  shift: number;
+  /** The previous card's box, the same size as the last column. */
+  prevW: number;
+  /** Where each visible card's box goes with the peek open (widths unchanged). */
+  cardX: number[];
+  /** The previous card: from beyond the left edge to the first slot. */
+  prev: { fromX: number; toX: number };
+};
+
+export function peekLayout(g: Geometry): PeekLayout {
+  const last = g.slots[VISIBLE_SLOTS - 1];
+  const shift = last.w + g.gap;
+
+  return {
+    shift,
+    prevW: last.w,
+    cardX: g.slots.map((slot) => slot.x + shift),
+    prev: { fromX: g.slots[0].x - shift, toX: g.slots[0].x },
+  };
+}
+
+const QUERY = "(hover: hover) and (pointer: fine)";
+
+function subscribe(onChange: () => void) {
+  if (typeof window.matchMedia !== "function") return () => {};
+
+  const list = window.matchMedia(QUERY);
+  list.addEventListener?.("change", onChange);
+  return () => list.removeEventListener?.("change", onChange);
+}
+
+/** True for a mouse-like pointer that can really hover (not touch). */
+export function useHoverCapable(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () =>
+      typeof window.matchMedia === "function" &&
+      window.matchMedia(QUERY).matches,
+    () => false,
+  );
+}

@@ -21,7 +21,11 @@ import {
   MORPH_OPEN_S,
 } from "./morph";
 import type { Box } from "./morph";
-import { announceOverlayExit } from "./overlay-exit";
+import {
+  announceOverlayClosing,
+  announceOverlayExit,
+  announceOverlayOpened,
+} from "./overlay-exit";
 import { moveNav } from "@/components/nav/nav-flight";
 import { FEATURED_SLUG } from "@/lib/work-order";
 
@@ -42,7 +46,14 @@ export function cardSelector(slug: string): string {
 
 /** The source card, measured now. Close calls this again for the live rect. */
 export function findCard(slug: string): Box | null {
-  const card = document.querySelector<HTMLElement>(cardSelector(slug));
+  // Below md the stacked card and the carousel card can both exist; only the
+  // one that is laid out (display: none has no box) is the morph's source.
+  const candidates = Array.from(
+    document.querySelectorAll<HTMLElement>(cardSelector(slug)),
+  );
+  const card =
+    candidates.find((candidate) => candidate.getClientRects().length > 0) ??
+    candidates[0];
 
   return card ? toBox(card.getBoundingClientRect()) : null;
 }
@@ -127,6 +138,7 @@ export function useMorph(
     panel?.style.removeProperty("opacity");
 
     setPhase("open");
+    announceOverlayOpened();
   }, [panelRef, setPhase, clearRevealTimer]);
 
   // Measure once, before the first paint, then animate from the card to the
@@ -248,6 +260,9 @@ export function useMorph(
       clearRevealTimer();
       setPhase("closing");
       openingRef.current?.stop();
+      // The card measured below must be at rest: the homepage behind puts itself
+      // back now, while the panel still covers it.
+      announceOverlayClosing();
 
       const panel = panelRef.current;
       if (!panel) return;

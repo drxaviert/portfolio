@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { CAROUSEL_STEP_END, CAROUSEL_STEP_START } from "./step-events";
 
 const HOST = ".ring-host";
 const GLOW = ".ring-glow";
@@ -26,6 +27,9 @@ export function RingHoverPointer() {
     let clientX = 0;
     let clientY = 0;
     let frame = 0;
+    // True while the carousel steps: the box can move under a still pointer, so
+    // the glow re-reads it every frame until the step ends.
+    let following = false;
     const snaps = new WeakMap<HTMLElement, number>();
 
     function schedule() {
@@ -37,18 +41,36 @@ export function RingHoverPointer() {
     function flush() {
       frame = 0;
 
-      if (!glow || !rect) {
+      if (!glow || !host) {
         return;
       }
 
-      glow.style.setProperty(
-        "--ring-mx",
-        `${clientX - rect.left - rect.width / 2}px`,
-      );
-      glow.style.setProperty(
-        "--ring-my",
-        `${clientY - rect.top - rect.height / 2}px`,
-      );
+      // Read first, then write: the box is measured before any style is written
+      // in this frame, so the flush never forces a layout in the middle of its
+      // own writes. A card can be moved under a still pointer (the carousel
+      // steps), so it is read each frame rather than trusted from the entry.
+      rect = host.getBoundingClientRect();
+      const mx = clientX - rect.left - rect.width / 2;
+      const my = clientY - rect.top - rect.height / 2;
+
+      glow.style.setProperty("--ring-mx", `${mx}px`);
+      glow.style.setProperty("--ring-my", `${my}px`);
+
+      // Keep following only while a step runs; it stops with the step.
+      if (following) {
+        schedule();
+      }
+    }
+
+    function onStepStart() {
+      following = true;
+      schedule();
+    }
+
+    function onStepEnd() {
+      following = false;
+      // One last read, so the glow lands under the pointer at the settled box.
+      schedule();
     }
 
     function snapTo(node: HTMLElement, x: number, y: number) {
@@ -208,8 +230,12 @@ export function RingHoverPointer() {
       capture: true,
     });
     window.addEventListener("resize", refreshRect);
+    window.addEventListener(CAROUSEL_STEP_START, onStepStart);
+    window.addEventListener(CAROUSEL_STEP_END, onStepEnd);
 
     return () => {
+      window.removeEventListener(CAROUSEL_STEP_START, onStepStart);
+      window.removeEventListener(CAROUSEL_STEP_END, onStepEnd);
       document.removeEventListener("pointerenter", onPointerEnter, true);
       document.removeEventListener("pointerleave", onPointerLeave, true);
       document.removeEventListener("pointermove", onPointerMove);
