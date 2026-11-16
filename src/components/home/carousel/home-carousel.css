@@ -15,6 +15,9 @@
   --c3: 52;
   --cols: 444fr 120fr 52fr 52fr;
   --u: calc((100% - 36px) / (var(--c0) + var(--c1) + var(--c2) + var(--c3)));
+  /* How far a card's shadow reaches past its box: the mask and clip boxes open
+     out by this so the card's edge keeps its shadow while it moves or fades. */
+  --car-shadow-pad: 8px;
 
   position: relative;
   height: 560px;
@@ -58,8 +61,10 @@
 }
 
 /*
- * A card's position and crop. Registered so they animate as lengths, and
- * non-inheriting so only the card itself is restyled each frame.
+ * A card's position and crop. Registered so they animate as lengths. `--car-r`
+ * inherits: the card's host reads it to hold the width the card is drawn at
+ * (below), so the fill, ring and shadow sit on the visible edge instead of
+ * being clipped at the box's edge.
  */
 @property --car-x {
   syntax: "<length>";
@@ -69,7 +74,7 @@
 
 @property --car-r {
   syntax: "<length>";
-  inherits: false;
+  inherits: true;
   initial-value: 0px;
 }
 
@@ -81,11 +86,13 @@
   transform: translateX(var(--car-x));
 }
 
-/* While a card moves its box is as wide as the wider end and this crops the
-   right side down to the width the step is at. Everything the card paints (fill,
-   shadow, ring, content) is inside it, so nothing shows in the gap. */
-.car-slide[data-clipped] {
-  clip-path: inset(0 var(--car-r) 0 0 round 12px);
+/* While a card moves its box is as wide as the wider end; the crop it gives
+   back (`--car-r`) is the part it is not drawn at. The host holds the width the
+   card is drawn at, so its fill, ring, shadow and content all end on the edge
+   the card has this frame - a clip at the box's edge would also cut the shadow
+   and the ring there, and removing it when the step lands popped them. */
+.car-slide[data-clipped] .car-host {
+  width: calc(100% - var(--car-r));
 }
 
 /* A hovered or focused card's ring grows into the gutters, over its
@@ -166,9 +173,9 @@
 /*
  * Edge treatment: while a step (or the hover peek) runs the row's card layer is
  * alpha-masked so cards melt out at both ends. A mask paints nothing: no
- * colour, no backdrop. The mask image is 24px taller than the row and unclipped
- * (no-clip) so shadows and rings above and below survive; horizontally it is
- * exactly the column.
+ * colour, no backdrop. The mask image is 24px larger than the row on every side
+ * and unclipped (no-clip), so the shadow and the ring a card paints just outside
+ * its box survive; the gradient's stops sit 12px in, on the row's own edges.
  *
  * `--car-fade` inherits: the peek gives each edge card its own mask (below),
  * and that mask's outer stop carries the same strength so the fade in and out
@@ -184,17 +191,17 @@
 .car-row[data-mask] {
   --car-mask: linear-gradient(
     to right,
-    rgb(0 0 0 / calc(1 - var(--car-fade))),
-    #000 var(--car-edge-w, 28px),
-    #000 calc(100% - var(--car-edge-w, 28px)),
-    rgb(0 0 0 / calc(1 - var(--car-fade)))
+    rgb(0 0 0 / calc(1 - var(--car-fade))) 12px,
+    #000 calc(12px + var(--car-edge-w, 28px)),
+    #000 calc(100% - 12px - var(--car-edge-w, 28px)),
+    rgb(0 0 0 / calc(1 - var(--car-fade))) calc(100% - 12px)
   );
 
   -webkit-mask-image: var(--car-mask);
   mask-image: var(--car-mask);
   mask-repeat: no-repeat;
-  mask-size: 100% calc(100% + 24px);
-  mask-position: 0 -12px;
+  mask-size: calc(100% + 24px) calc(100% + 24px);
+  mask-position: -12px -12px;
   mask-clip: no-clip;
 }
 
@@ -225,8 +232,6 @@
 
 .car-row[data-peeking] .car-peek-edge .car-frame,
 .car-row[data-peeking] .car-slide[data-slot="2"] .car-frame {
-  --car-shadow-pad: 8px;
-
   margin: calc(-1 * var(--car-shadow-pad));
   padding: var(--car-shadow-pad);
   -webkit-mask-repeat: no-repeat;
@@ -273,10 +278,13 @@
   height: auto;
 }
 
-/* During a step the clip is exactly the column's edges, so a leaving or
-   entering card never shows outside it. At rest the outset above returns. */
+/* During a step the row is clipped close to the column's edges, so a leaving
+   or entering card does not show past it; the 4px outset is the ring's band and
+   the shadow, so an edge card does not lose its border for the length of the
+   step and get it back when the step lands. It is still well inside the 12px
+   gutter, so a card moving out stays hidden. */
 .car-row[data-stepping] {
-  clip-path: inset(-12px 0);
+  clip-path: inset(-12px -4px);
 }
 
 /* The blurred leaving and entering cards get their own layer for the step only,

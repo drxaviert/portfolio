@@ -1059,7 +1059,7 @@ describe("peek css", () => {
       /\.car-row\[data-stepping\],\s*\.car-row\[data-mask\]\s*\{\s*--car-mask/,
     );
     expect(css).toMatch(
-      /\.car-row\[data-stepping\]\s*\{\s*clip-path:\s*inset\(-12px 0\)/,
+      /\.car-row\[data-stepping\]\s*\{\s*clip-path:\s*inset\(-12px -4px\)/,
     );
     // While peeking only the left outset stays, so the previous card's ring is
     // not cut and the card pushed out never shows past the right edge.
@@ -1106,9 +1106,13 @@ describe("peek css", () => {
     expect(css).toMatch(lastFrame);
 
     // The box that grows carries the pad and its negative margin, and the host
-    // sits back inside it, so the shadow fades but the card does not move.
+    // sits back inside it, so the shadow fades but the card does not move. The
+    // pad itself is the row's (the same reach the moving cards rely on).
     expect(css).toMatch(
-      /\.car-row\[data-peeking\] \.car-peek-edge \.car-frame,\s*\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] \.car-frame\s*\{[^}]*--car-shadow-pad:\s*8px;\s*margin:\s*calc\(-1 \* var\(--car-shadow-pad\)\);\s*padding:\s*var\(--car-shadow-pad\)/,
+      /\.car-row\s*\{[^}]*--car-shadow-pad:\s*8px/,
+    );
+    expect(css).toMatch(
+      /\.car-row\[data-peeking\] \.car-peek-edge \.car-frame,\s*\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] \.car-frame\s*\{\s*margin:\s*calc\(-1 \* var\(--car-shadow-pad\)\);\s*padding:\s*var\(--car-shadow-pad\)/,
     );
     expect(css).toMatch(
       /\.car-row\[data-peeking\] \.car-peek-edge \.car-host,\s*\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] \.car-host\s*\{[^}]*position:\s*absolute;\s*inset:\s*var\(--car-shadow-pad\)/,

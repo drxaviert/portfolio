@@ -327,20 +327,22 @@ describe("carousel CSS", () => {
   );
 
   it("crops the card element itself, so no painted layer can sit outside it", () => {
-    // The crop is on the outermost card box; the fill, shadow, ring and content
-    // are all its descendants, so they follow the visible box.
+    // The card's box is the wider end; the host holds the width the card is
+    // drawn at, so the fill, ring and shadow all end on the visible edge.
     expect(css).toMatch(
-      /\.car-slide\[data-clipped\]\s*\{\s*clip-path:\s*inset\(0 var\(--car-r\) 0 0 round 12px\)/,
+      /\.car-slide\[data-clipped\] \.car-host\s*\{\s*width:\s*calc\(100% - var\(--car-r\)\)/,
     );
     expect(css).toMatch(
       /\.car-slide\s*\{[^}]*transform:\s*translateX\(var\(--car-x\)\)/,
     );
   });
 
-  it("clips exactly to the column edges while stepping, outset only at rest", () => {
+  it("clips the row close to the column edges while stepping, outset at rest", () => {
     expect(css).toMatch(/\.car-row\s*\{[^}]*clip-path:\s*inset\(-12px -6px\)/);
+    // 4px is the ring's band and the shadow: enough that an edge card keeps its
+    // border through a step, still inside the 12px gutter.
     expect(css).toMatch(
-      /\.car-row\[data-stepping\]\s*\{\s*clip-path:\s*inset\(-12px 0\)/,
+      /\.car-row\[data-stepping\]\s*\{\s*clip-path:\s*inset\(-12px -4px\)/,
     );
   });
 
@@ -356,14 +358,15 @@ describe("carousel CSS", () => {
     expect(css).not.toMatch(/\.car-edge/);
   });
 
-  it("registers position and crop as non-inheriting lengths", () => {
-    for (const name of ["--car-x", "--car-r"]) {
-      expect(css).toMatch(
-        new RegExp(
-          `@property ${name}\\s*\\{[^}]*syntax:\\s*"<length>";[^}]*inherits:\\s*false`,
-        ),
-      );
-    }
+  it("registers position as a non-inheriting and crop as an inherited length", () => {
+    // `--car-r` inherits: the host reads it to hold the width the card is drawn
+    // at. `--car-x` stays on the slide only.
+    expect(css).toMatch(
+      /@property --car-x\s*\{[^}]*syntax:\s*"<length>";[^}]*inherits:\s*false/,
+    );
+    expect(css).toMatch(
+      /@property --car-r\s*\{[^}]*syntax:\s*"<length>";[^}]*inherits:\s*true/,
+    );
   });
 });
 
