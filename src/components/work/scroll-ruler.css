@@ -1,0 +1,158 @@
+/*
+ * The reader's scroll ruler. A dense column of fine ticks at the right edge of
+ * the scroll area: the long bright tick is the reading position, the longer
+ * ones are the article's sections.
+ *
+ * The tick grid is one CSS variable. Every tick is a 13px row, so the same step
+ * drives the tick spacing, the indicator's travel and the label's offset, and
+ * the component only hands over the tick count.
+ *
+ * Geometry sits at the panel's right edge, which is 22px in from it: the scroll
+ * container reserves a stable scrollbar gutter there.
+ */
+
+.wd-ruler {
+  --wd-ruler-step: 13px;
+  --wd-ruler-pad: 10px;
+  --wd-ruler-width: 18px;
+
+  position: absolute;
+  top: 50%;
+  right: 22px;
+  z-index: 2;
+  display: none;
+  width: var(--wd-ruler-width);
+  padding-block: var(--wd-ruler-pad);
+  transform: translateY(-50%);
+  color: var(--on-surface-variant);
+}
+
+/*
+ * Only where there is a permanent pointer and a margin to sit in. On touch and
+ * on phone widths the ruler would be hover-only information with nowhere to put
+ * its label, so it is not there at all.
+ */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  .wd-ruler[data-visible="true"] {
+    display: block;
+    cursor: pointer;
+  }
+}
+
+.wd-ruler-track {
+  display: grid;
+  grid-auto-rows: var(--wd-ruler-step);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wd-ruler-slot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: var(--wd-ruler-step);
+}
+
+.wd-ruler-tick {
+  display: block;
+  width: 6px;
+  height: 1px;
+  border-radius: 1px;
+  background: var(--outline);
+}
+
+/*
+ * A section tick is a link, so its box is the full row (a 13px-tall target) and
+ * the line is drawn inside it. The box is what the focus ring wraps.
+ */
+.wd-ruler-tick-section {
+  position: relative;
+  width: var(--wd-ruler-width);
+  height: var(--wd-ruler-step);
+  border-radius: 3px;
+  background: none;
+}
+
+.wd-ruler-tick-section::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 11px;
+  height: 1px;
+  margin-top: -0.5px;
+  border-radius: 1px;
+  background: var(--on-surface-variant);
+  transform-origin: right center;
+  transition:
+    transform var(--duration-short-3) var(--ease-decelerate),
+    background-color var(--duration-short-3) var(--ease-decelerate);
+}
+
+.wd-ruler-tick-section[data-active="true"]::after {
+  transform: scaleX(1.55);
+  background: var(--on-surface);
+}
+
+.wd-ruler-tick-section:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* The reading position: the one long, bright tick. Scroll-driven, transform
+   only, so it moves on the compositor with the article. */
+.wd-ruler-indicator {
+  position: absolute;
+  top: calc(var(--wd-ruler-pad) + var(--wd-ruler-step) / 2 - 1px);
+  right: 0;
+  width: var(--wd-ruler-width);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--on-surface);
+  transform: translateY(
+    calc(var(--wd-ruler-progress, 0) * var(--wd-ruler-travel, 0px))
+  );
+}
+
+/* The hovered or focused section's name, in the margin to the left. */
+.wd-ruler-label {
+  position: absolute;
+  top: calc(var(--wd-ruler-pad) + var(--wd-ruler-step) / 2 - 9px);
+  right: calc(100% + 10px);
+  display: block;
+  max-width: 200px;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: right;
+  color: var(--on-surface);
+  opacity: 0;
+  transform: translateY(calc(var(--wd-ruler-label-y, 0px)));
+  transition: opacity var(--duration-short-3) var(--ease-decelerate);
+  pointer-events: none;
+}
+
+.wd-ruler[data-active="true"] .wd-ruler-label {
+  opacity: 1;
+}
+
+/*
+ * A jump from a section tick lands the heading below the reader's blur band,
+ * at the same clearance the column's own top padding uses. The component reads
+ * the resolved value, so the tick's position and the jump agree.
+ */
+.wd-prose .wd-h2 {
+  scroll-margin-top: calc(
+    var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-ruler-tick-section::after,
+  .wd-ruler-label {
+    transition: none;
+  }
+}
