@@ -27,6 +27,7 @@ import {
   announceOverlayOpened,
 } from "./overlay-exit";
 import { moveNav } from "@/components/nav/nav-flight";
+import { motionAbFlags } from "@/lib/motion-ab";
 import { FEATURED_SLUG } from "@/lib/work-order";
 
 export type MorphPhase = "opening" | "open" | "closing";
@@ -39,6 +40,8 @@ type Morph = ReturnType<typeof animate>;
 export const FADE_S = 0.12;
 /** The entrance starts this long before the morph lands, so reading does not wait for it. */
 const REVEAL_LEAD_S = 0.12;
+/** Candidate R (?reveal=1): the same entrance, 180ms earlier in the morph. */
+const REVEAL_LEAD_EARLY_S = 0.3;
 
 export function cardSelector(slug: string): string {
   return `[data-work-card="${slug}"]`;
@@ -230,12 +233,15 @@ export function useMorph(
     void moveNav("reader", "flip");
 
     // The content starts arriving under the landing panel rather than after
-    // it, so the reader is readable at the moment the morph ends.
+    // it, so the reader is readable at the moment the morph ends. Candidate R
+    // (?reveal=1) starts it 180ms earlier; everything else is unchanged.
+    const lead = motionAbFlags().reveal ? REVEAL_LEAD_EARLY_S : REVEAL_LEAD_S;
+
     revealTimerRef.current = window.setTimeout(
       () => {
         if (mountedRef.current) setReveal("on");
       },
-      (MORPH_OPEN_S - REVEAL_LEAD_S) * 1000,
+      (MORPH_OPEN_S - lead) * 1000,
     );
   }, [slug, reduce, resting, panelRef, settle]);
 

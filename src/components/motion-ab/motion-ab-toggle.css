@@ -1,0 +1,63 @@
+/*
+ * The motion A/B pill (?b1=1, ?reveal=1). A development control, so it is
+ * deliberately quiet: bottom-left, under the nav dock's layer (60) so the
+ * dock's popovers still paint above it, and built from the same surface
+ * tokens as the rest of the UI.
+ */
+.motion-ab {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-container-low);
+  box-shadow: var(--shadow-card);
+  color: var(--color-on-surface-variant);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.motion-ab__label {
+  padding: 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.motion-ab__option {
+  padding: 3px 8px;
+  border: 0;
+  border-radius: calc(var(--radius-md) - 2px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-short-1) var(--ease-linear),
+    color var(--duration-short-1) var(--ease-linear);
+}
+
+.motion-ab__option:hover {
+  color: var(--color-on-surface);
+}
+
+.motion-ab__option[aria-pressed="true"] {
+  background: var(--color-on-surface);
+  color: var(--color-surface);
+}
+
+.motion-ab__option:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-ab__option {
+    transition: none;
+  }
+}

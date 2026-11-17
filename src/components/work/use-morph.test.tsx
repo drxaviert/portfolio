@@ -6,6 +6,7 @@ import { flipFrom } from "./morph";
 import { ExpandShell } from "./expand-shell";
 import { findCard } from "./use-morph";
 import { registerNavDock } from "@/components/nav/nav-flight";
+import { setMotionAbFlag } from "@/lib/motion-ab";
 
 const mocks = vi.hoisted(() => ({
   animate: vi.fn(),
@@ -131,6 +132,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  setMotionAbFlag("reveal", false);
   vi.useRealTimers();
   HTMLElement.prototype.getBoundingClientRect = nativeRect;
   document.body.innerHTML = "";
@@ -221,6 +223,35 @@ describe("ExpandShell", () => {
 
     act(() => {
       vi.advanceTimersByTime(359);
+    });
+    expect(layerElement()).toHaveAttribute("data-reveal", "pending");
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(layerElement()).toHaveAttribute("data-reveal", "on");
+  });
+
+  it("starts the content entrance 300ms before the morph lands with the R candidate", async () => {
+    placeCard(CARD_A);
+    mocks.animate.mockReturnValue({
+      finished: new Promise(() => {}),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+    vi.useFakeTimers();
+    setMotionAbFlag("reveal", true);
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    expect(layerElement()).toHaveAttribute("data-reveal", "pending");
+
+    act(() => {
+      vi.advanceTimersByTime(179);
     });
     expect(layerElement()).toHaveAttribute("data-reveal", "pending");
 

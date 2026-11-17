@@ -241,7 +241,9 @@ function Slide({
   const first = slot === 0 && !ghost;
   const offscreen = slot >= VISIBLE_SLOTS;
   const key = peek ? "peekL" : `${ghost ? "g" : "m"}${index}`;
-  const hostClass = "car-host ring-host rounded-lg";
+  // The featured card is the one the B1 candidate (?b1=1) retunes: the wide
+  // Figma column the scale factors are derived from.
+  const hostClass = `car-host ring-host rounded-lg${first ? " ring-card" : ""}`;
   // The peek's outer edges carry the blur: the copy's left edge, and the
   // right-most visible card's right edge (slot 2, once the 4th has been pushed
   // out). The layer rides the card, so the row's hold mask fades it with the

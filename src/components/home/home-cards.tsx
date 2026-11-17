@@ -57,7 +57,7 @@ type ProjectCardProps = {
 };
 
 const CARD_CLASS =
-  "ring-host flex h-[420px] flex-col justify-end rounded-lg p-5 md:h-auto md:p-8";
+  "ring-host ring-card flex h-[420px] flex-col justify-end rounded-lg p-5 md:h-auto md:p-8";
 
 /** Highlight card: the only card with a title. */
 export function ProjectCard({
