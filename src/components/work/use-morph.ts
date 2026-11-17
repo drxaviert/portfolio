@@ -26,8 +26,15 @@ import {
   announceOverlayExit,
   announceOverlayOpened,
 } from "./overlay-exit";
-import { moveNav } from "@/components/nav/nav-flight";
+import { moveNav, registerDockAnimate } from "@/components/nav/nav-flight";
 import { FEATURED_SLUG } from "@/lib/work-order";
+
+/**
+ * The dock's flights run on this module's motion, so it lends the function
+ * before any of them can start. Keeping the import here — rather than in
+ * nav-dock.tsx — is what keeps motion out of the home route's first-load JS.
+ */
+registerDockAnimate(animate);
 
 export type MorphPhase = "opening" | "open" | "closing";
 

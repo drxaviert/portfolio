@@ -10,6 +10,25 @@
 
 export type NavDockState = "home" | "reader";
 
+/**
+ * Motion's `animate`, lent to the dock by the reader. The dock is in the root
+ * layout, so importing motion there would put the library in every route's
+ * first-load JS — including the home page, which never animates. The reader
+ * already imports it (use-morph.ts) and registers it here; a flight only ever
+ * runs while the reader is mounting or leaving, so it is always present by then.
+ */
+export type DockAnimate = typeof import("motion/react").animate;
+
+let dockAnimate: DockAnimate | null = null;
+
+export function registerDockAnimate(animate: DockAnimate | null): void {
+  dockAnimate = animate;
+}
+
+export function getDockAnimate(): DockAnimate | null {
+  return dockAnimate;
+}
+
 /** The one nav's root, and the empty slot the home layout reserves for it. */
 export const DOCK_SELECTOR = "[data-nav-dock]";
 export const SLOT_SELECTOR = "[data-nav-slot]";

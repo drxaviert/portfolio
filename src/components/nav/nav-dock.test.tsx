@@ -11,9 +11,11 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { NavDock } from "./nav-dock";
+import type { DockAnimate } from "./nav-flight";
 import {
   hasReaderClose,
   moveNav,
+  registerDockAnimate,
   registerReaderClose,
   requestReaderClose,
 } from "./nav-flight";
@@ -27,16 +29,6 @@ vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
 }));
 
-vi.mock("motion/react", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("motion/react")>();
-
-  return {
-    ...actual,
-    animate: mocks.animate as unknown as typeof actual.animate,
-    useReducedMotion: () => false,
-  };
-});
-
 function animation() {
   return {
     finished: Promise.resolve(),
@@ -49,6 +41,9 @@ beforeEach(() => {
   mocks.pathname = "/";
   mocks.animate.mockReset();
   mocks.animate.mockImplementation(animation);
+  // The reader lends the dock motion's animate; the dock itself does not
+  // bundle it (that is what keeps motion out of the home route's first load).
+  registerDockAnimate(mocks.animate as unknown as DockAnimate);
 
   vi.stubGlobal(
     "matchMedia",
@@ -118,6 +113,18 @@ describe("NavDock", () => {
     await act(() => moveNav("reader", "flip"));
 
     expect(mocks.animate).not.toHaveBeenCalled();
+  });
+
+  it("takes its new place with no flight when no reader has lent motion", async () => {
+    // Home-only documents never load the reader, so motion is never there.
+    // There is also no drawer to fly into: the dock just takes the position.
+    registerDockAnimate(null);
+    renderDock();
+
+    await act(() => moveNav("reader", "flip"));
+
+    expect(mocks.animate).not.toHaveBeenCalled();
+    expect(dock()).toHaveAttribute("data-nav-state", "reader");
   });
 
   it("closes the reader when Work is clicked in the drawer", () => {

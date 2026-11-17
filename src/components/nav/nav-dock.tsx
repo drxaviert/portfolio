@@ -1,6 +1,5 @@
 "use client";
 
-import { animate, useReducedMotion } from "motion/react";
 import { usePathname } from "next/navigation";
 import {
   useCallback,
@@ -10,9 +9,12 @@ import {
   useState,
 } from "react";
 import type { MouseEvent } from "react";
+import type { animate as motionAnimate } from "motion/react";
 import { HomeNav } from "@/components/home/home-nav";
+import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import {
   SLOT_SELECTOR,
+  getDockAnimate,
   hasReaderClose,
   registerNavDock,
   requestReaderClose,
@@ -29,7 +31,7 @@ import "./nav-dock.css";
 const FADE_S = 0.06;
 const SNAP_PX = 0.5;
 
-type Flight = ReturnType<typeof animate>;
+type Flight = ReturnType<typeof motionAnimate>;
 
 /**
  * The homepage's nav, and the drawer's, as one element. It lives in the root
@@ -45,7 +47,7 @@ type Flight = ReturnType<typeof animate>;
  */
 export function NavDock() {
   const ref = useRef<HTMLDivElement>(null);
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useReducedMotion();
   const pathname = usePathname();
   const readerRoute = pathname.startsWith("/work/");
   // Read once: later pathname changes must not snap the nav while a flight or
@@ -62,6 +64,19 @@ export function NavDock() {
     const el = ref.current;
     if (!el) return;
     if (stateRef.current === to && !flyingRef.current) return;
+
+    // Nothing has loaded the reader in this document, so there is no motion to
+    // fly with and no drawer to fly into: take the new place at once.
+    const animate = getDockAnimate();
+    if (!animate) {
+      el.style.removeProperty("top");
+      el.style.removeProperty("transform");
+      el.style.removeProperty("opacity");
+      el.dataset.navState = to;
+      stateRef.current = to;
+      if (to === "home") alignHomeRef.current?.();
+      return;
+    }
 
     const from = el.getBoundingClientRect().top;
     flyingRef.current?.stop();
