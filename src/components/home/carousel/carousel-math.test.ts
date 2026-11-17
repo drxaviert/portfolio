@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   GAP,
+  VISIBLE_SLOTS,
   advance,
   clickAction,
   RETARGET_BEZIER,
@@ -18,6 +19,7 @@ import {
   restEntities,
   retarget,
   sampleEntities,
+  slotCount,
   slotOf,
   slotOrder,
   stepMode,
@@ -62,6 +64,14 @@ describe("ring order", () => {
     expect(visibleItems(6, advance(0, 1, 6))).toEqual([1, 2, 3, 4]);
     expect(visibleItems(6, advance(0, -1, 6))).toEqual([5, 0, 1, 2]);
     expect(visibleItems(6, advance(0, 3, 6))).toEqual([3, 4, 5, 0]);
+  });
+
+  it("lays out one column per item, never more than the four slots", () => {
+    expect(slotCount(0)).toBe(0);
+    expect(slotCount(1)).toBe(1);
+    expect(slotCount(3)).toBe(3);
+    expect(slotCount(4)).toBe(VISIBLE_SLOTS);
+    expect(slotCount(30)).toBe(VISIBLE_SLOTS);
   });
 });
 
