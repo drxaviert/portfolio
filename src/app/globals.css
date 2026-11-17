@@ -703,6 +703,19 @@
   box-shadow: var(--shadow-card);
 }
 
+/*
+ * Windows High Contrast (forced-colors) drops box-shadow, and the design system
+ * builds every card and menu edge from it: no border by rule. Without a
+ * substitute the surfaces dissolve into the page. Give them a real 1px edge in
+ * CanvasText in that mode only; the border is inside the box (border-box), so
+ * no outer geometry changes anywhere else.
+ */
+@media (forced-colors: active) {
+  .shadow-card {
+    border: 1px solid CanvasText;
+  }
+}
+
 @theme {
   --spacing: 0.25rem;
 

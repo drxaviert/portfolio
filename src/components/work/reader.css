@@ -761,3 +761,18 @@
   outline: 2px solid var(--primary);
   outline-offset: 3px;
 }
+
+/*
+ * Forced colours: the panel, the thumb buttons and the step chips are flat
+ * fills whose only edge is --shadow-card (no stroke by rule). Windows High
+ * Contrast drops shadows, so give them a real CanvasText edge in that mode
+ * only; border-box keeps the outer box the same size.
+ */
+@media (forced-colors: active) {
+  .wd-reader-panel,
+  .wd-reader-action,
+  .wd-step-tab,
+  .wd-step-replay {
+    border: 1px solid CanvasText;
+  }
+}

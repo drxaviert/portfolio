@@ -1,6 +1,5 @@
 "use client";
 
-import { useReducedMotion } from "motion/react";
 import Link from "next/link";
 import {
   useEffect,
@@ -62,6 +61,7 @@ import {
   OVERLAY_OPENED_EVENT,
 } from "@/components/work/overlay-exit";
 import { announceStep } from "../step-events";
+import { useReducedMotion } from "../use-reduced-motion";
 import "../home-cards.css";
 import "./home-carousel.css";
 

@@ -101,6 +101,25 @@ describe("shipped home entrance", () => {
     expect(document.documentElement.dataset.entrancePlayed).toBe("true");
   });
 
+  it("hints will-change for the blur only while the entrance is unplayed", () => {
+    // The hint is worth it only for the layerise at the start of the blur.
+    const hint = css.match(
+      /@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\r?\n\}\r?\n/,
+    )?.[0];
+
+    expect(hint).toBeTruthy();
+    // Both animating surfaces (cards and the nav) are covered.
+    expect(hint).toContain(".entrance-body");
+    expect(hint).toContain(".wd-nav-dock");
+    // And every selector in it is dropped by the same gate that ends the
+    // animations, so no layer outlives the 1710ms sequence.
+    expect((hint!.match(/:root:not\(\[data-entrance-played\]\)/g) ?? []).length).toBe(
+      2,
+    );
+    // No unconditional will-change anywhere in the entrance stylesheet.
+    expect((css.match(/will-change/g) ?? []).length).toBe(1);
+  });
+
   it("ships a CSS-only start and a reduced-motion fade", () => {
     // The animation, not JS, carries the start pose: SSR markup + backwards fill.
     expect(css).toContain('[data-entrance="soft"] .entrance-body');
