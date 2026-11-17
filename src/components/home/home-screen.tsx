@@ -1,5 +1,6 @@
 import type { CarouselItem } from "@/components/home/carousel/home-carousel";
 import { HomeLayout } from "@/components/home/home-layout";
+import { WarmReader } from "@/components/work/warm-reader";
 import { FEATURED_SLUG, getWork, listWork } from "@/lib/work";
 import "@/components/home/home-entrance.css";
 
@@ -34,19 +35,22 @@ export function HomeScreen() {
   ];
 
   return (
-    <HomeLayout
-      entrance="soft"
-      shipped
-      items={items}
-      featured={
-        featured
-          ? {
-              slug: featured.slug,
-              title: featured.title,
-              cover: featured.cover,
-            }
-          : undefined
-      }
-    />
+    <>
+      <WarmReader />
+      <HomeLayout
+        entrance="soft"
+        shipped
+        items={items}
+        featured={
+          featured
+            ? {
+                slug: featured.slug,
+                title: featured.title,
+                cover: featured.cover,
+              }
+            : undefined
+        }
+      />
+    </>
   );
 }

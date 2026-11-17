@@ -722,13 +722,21 @@ export function HorizonShader({
       }, 120);
     };
 
+    // The canvas CSS size, refreshed by a ResizeObserver. tick() calls
+    // resize() every frame, and reading clientWidth there forced a layout
+    // whenever the page had pending style changes (about 21ms at 4x CPU on
+    // the first frame of the work drawer opening). Inside the observer
+    // callback layout is already clean, so the same read costs nothing.
+    let cssWidth = canvas.clientWidth;
+    let cssHeight = canvas.clientHeight;
+
     const resize = () => {
       const dpr = Math.min(
         window.devicePixelRatio || 1,
         paramsRef.current.dprCap,
       );
-      const width = Math.max(1, Math.round(canvas.clientWidth * dpr));
-      const height = Math.max(1, Math.round(canvas.clientHeight * dpr));
+      const width = Math.max(1, Math.round(cssWidth * dpr));
+      const height = Math.max(1, Math.round(cssHeight * dpr));
 
       if (canvas.width === width && canvas.height === height) return;
 
@@ -945,6 +953,13 @@ export function HorizonShader({
       onFallback?.("The WebGL context was lost.");
     };
 
+    const sizeObserver = new ResizeObserver(() => {
+      cssWidth = canvas.clientWidth;
+      cssHeight = canvas.clientHeight;
+      resize();
+      requestFrame();
+    });
+
     const onReducedMotion = () => requestFrame();
     const onResize = () => {
       resize();
@@ -962,6 +977,7 @@ export function HorizonShader({
     requestFrameRef.current = requestFrame;
     requestFrame();
 
+    sizeObserver.observe(canvas);
     canvas.addEventListener("webglcontextlost", onContextLost);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("resize", onResize);
@@ -975,6 +991,7 @@ export function HorizonShader({
       if (textureTimer !== null) window.clearTimeout(textureTimer);
 
       observer.disconnect();
+      sizeObserver.disconnect();
       canvas.removeEventListener("webglcontextlost", onContextLost);
       layer.removeEventListener("animationstart", onSoftStart);
       document.removeEventListener("visibilitychange", onVisibility);
