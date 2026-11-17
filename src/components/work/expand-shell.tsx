@@ -3,7 +3,7 @@
 import { useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef } from "react";
 import type { ReactNode, RefObject } from "react";
-import { cardSelector, useMorph } from "./use-morph";
+import { cardElement, useMorph } from "./use-morph";
 import { READER_TITLE_ID } from "./parts";
 import {
   DOCK_SELECTOR,
@@ -86,7 +86,9 @@ export function ExpandShell({
 /** The control focus came from: its card, or the persistent nav with no card. */
 function returnTarget(slug: string): HTMLElement | null {
   return (
-    document.querySelector<HTMLElement>(cardSelector(slug)) ??
+    // The laid-out copy: focusing a copy with no box is a no-op and leaves
+    // focus on the body.
+    cardElement(slug) ??
     // A study opened from "Next project" has no card of its own; the nav's logo
     // is the nearest thing a keyboard user met. It lives in the root layout's
     // dock, not inside the homepage, so the fallback has to reach outside main.

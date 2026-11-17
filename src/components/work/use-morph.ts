@@ -55,16 +55,26 @@ export function cardSelector(slug: string): string {
   return `[data-work-card="${slug}"]`;
 }
 
-/** The source card, measured now. Close calls this again for the live rect. */
-export function findCard(slug: string): Box | null {
-  // Below md the stacked card and the carousel card can both exist; only the
-  // one that is laid out (display: none has no box) is the morph's source.
+/**
+ * The card element for a study. Several copies can exist (the stacked card, the
+ * carousel's cards); only the one that is laid out (display: none has no box)
+ * is the source a user saw and can return to.
+ */
+export function cardElement(slug: string): HTMLElement | null {
   const candidates = Array.from(
     document.querySelectorAll<HTMLElement>(cardSelector(slug)),
   );
-  const card =
+
+  return (
     candidates.find((candidate) => candidate.getClientRects().length > 0) ??
-    candidates[0];
+    candidates[0] ??
+    null
+  );
+}
+
+/** The source card, measured now. Close calls this again for the live rect. */
+export function findCard(slug: string): Box | null {
+  const card = cardElement(slug);
 
   return card ? toBox(card.getBoundingClientRect()) : null;
 }
