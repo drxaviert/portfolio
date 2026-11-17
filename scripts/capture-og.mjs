@@ -20,9 +20,11 @@
  * same localStorage keys `src/lib/theme.ts` documents), so the pre-paint theme
  * script resolves Day + the Midday pin instead of the visitor's clock.
  *
- * Framing: `--viewport 1600x840` (or 1920x1008) renders the same 1.905:1 frame
- * at a larger CSS viewport and lets the device scale factor do the downscale
- * (`deviceScaleFactor = 1200 / width`), so the output stays 1200x630.
+ * Framing: the default `1920x1008` viewport renders the same 1.905:1 frame at a
+ * larger CSS viewport and lets the device scale factor do the downscale
+ * (`deviceScaleFactor = 1200 / width`), so the output stays 1200x630 and the
+ * whole composition, including the nav dock, fits. `--viewport 1200x630` gives
+ * the old tight crop back.
  */
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -72,7 +74,7 @@ const explicitUrl = (argValue("--url") ?? process.env.OG_CAPTURE_URL)?.trim();
 const port = Number(process.env.OG_PORT ?? DEFAULT_PORT);
 const url = explicitUrl || `http://localhost:${port}/`;
 const viewport = parseViewport(
-  argValue("--viewport") ?? process.env.OG_VIEWPORT ?? "1200x630",
+  argValue("--viewport") ?? process.env.OG_VIEWPORT ?? "1920x1008",
 );
 const deviceScaleFactor = OUTPUT_SIZE.width / viewport.width;
 const outputPath = path.resolve(

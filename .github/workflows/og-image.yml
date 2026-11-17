@@ -45,6 +45,10 @@ jobs:
 
       - name: Capture the OG image
         run: pnpm og:capture
+        env:
+          # Render the full 1.905:1 composition at 1920x1008 CSS and let the
+          # device scale factor downscale it to the 1200x630 card.
+          OG_VIEWPORT: 1920x1008
 
       - name: Commit the new card
         run: |
