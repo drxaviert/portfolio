@@ -130,14 +130,14 @@ describe("drawer motion values", () => {
     );
   });
 
-  it("opens the reader's nav tooltips inward instead of into the viewport edge", () => {
+  it("opens the dock's last-mode tooltip inward instead of into the viewport edge", () => {
     const dock = read("../nav/nav-dock.css");
 
     expect(dock).toMatch(
       /\.wd-nav-dock\[data-nav-state="reader"\] \.nav-tooltip \{[^}]*top: calc\(100% \+ 8px\);/,
     );
     expect(dock).toMatch(
-      /\[data-nav-state="reader"\]\s*\[data-mode-track\]\s*\.segment:last-child\s*\.segment-tooltip \{[^}]*right: 0;/,
+      /\.wd-nav-dock\s+\[data-mode-track\]\s*\.segment:last-child\s*\.segment-tooltip \{[^}]*right: 0;/,
     );
   });
 

@@ -397,9 +397,20 @@
   --on-primary: var(--palette-neutral-50);
   --secondary: var(--palette-blue-700);
 
+  /* Tracker ramp: 0 is the empty cell and lets the card show through; 1 and 2
+     are OKLab steps between it and the Figma stops at 3–4, so a filled cell
+     clears the card at roughly 1.3:1 without changing the palette's hue. */
   --tracker-0: var(--palette-blue-50);
-  --tracker-1: var(--palette-blue-250);
-  --tracker-2: var(--palette-blue-350);
+  --tracker-1: color-mix(
+    in oklab,
+    var(--palette-blue-250),
+    var(--palette-blue-350) 65%
+  );
+  --tracker-2: color-mix(
+    in oklab,
+    var(--palette-blue-350),
+    var(--palette-blue-450) 45%
+  );
   --tracker-3: var(--palette-blue-450);
   --tracker-4: var(--palette-blue-550);
 
@@ -478,8 +489,16 @@
   --secondary: var(--palette-violet-300);
 
   --tracker-0: var(--palette-violet-100);
-  --tracker-1: var(--palette-violet-200);
-  --tracker-2: var(--palette-violet-300);
+  --tracker-1: color-mix(
+    in oklab,
+    var(--palette-violet-200),
+    var(--palette-violet-300) 85%
+  );
+  --tracker-2: color-mix(
+    in oklab,
+    var(--palette-violet-300),
+    var(--palette-violet-400) 35%
+  );
   --tracker-3: var(--palette-violet-400);
   --tracker-4: var(--palette-violet-450);
 
@@ -549,8 +568,16 @@
   --secondary: var(--palette-amber-500);
 
   --tracker-0: var(--palette-amber-150);
-  --tracker-1: var(--palette-amber-250);
-  --tracker-2: var(--palette-amber-500);
+  --tracker-1: color-mix(
+    in oklab,
+    var(--palette-amber-250),
+    var(--palette-amber-550) 45%
+  );
+  --tracker-2: color-mix(
+    in oklab,
+    var(--palette-amber-500),
+    var(--palette-amber-550) 50%
+  );
   --tracker-3: var(--palette-amber-550);
   --tracker-4: var(--palette-amber-700);
 
@@ -621,8 +648,16 @@
   --secondary: var(--palette-red-150);
 
   --tracker-0: var(--palette-red-400);
-  --tracker-1: var(--palette-red-350);
-  --tracker-2: var(--palette-red-300);
+  --tracker-1: color-mix(
+    in oklab,
+    var(--palette-red-350),
+    var(--palette-red-300) 50%
+  );
+  --tracker-2: color-mix(
+    in oklab,
+    var(--palette-red-300),
+    var(--palette-red-250) 35%
+  );
   --tracker-3: var(--palette-red-250);
   --tracker-4: var(--palette-red-200);
 
@@ -729,13 +764,14 @@
   --text-4xl: 2.25rem;
 
   /* Display steps for the highlight card title (Figma: 40/44 at ≥768,
-     32/35.2 at 375, tracking -0.4px at both). */
+     32/35.2 at 375). Leading and tracking are unitless so the two steps keep
+     the same ratio. */
   --text-title: 2.5rem;
-  --text-title--line-height: 2.75rem;
-  --text-title--letter-spacing: -0.4px;
+  --text-title--line-height: 1.1;
+  --text-title--letter-spacing: -0.01em;
   --text-title-sm: 2rem;
-  --text-title-sm--line-height: 2.2rem;
-  --text-title-sm--letter-spacing: -0.4px;
+  --text-title-sm--line-height: 1.1;
+  --text-title-sm--letter-spacing: -0.01em;
 
   --radius-xs: 2px;
   --radius-sm: 0.25rem;
@@ -747,9 +783,18 @@
   body {
     background-color: var(--surface);
     color: var(--on-surface);
+    /* Work Sans ships a real italic; never let the browser fake one. */
+    font-synthesis: none;
     /* Match the dev chrome (glow-tuner-css.ts) so Work Sans renders the same
        weight in the shipped page, especially Night text on macOS. */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Phase accent over the current surface; the text keeps its on-surface
+     contrast instead of the UA blue. */
+  ::selection {
+    background-color: color-mix(in oklab, var(--primary) 30%, transparent);
+    color: var(--on-surface);
   }
 }
