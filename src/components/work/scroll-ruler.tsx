@@ -142,9 +142,11 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
     const slot = trackRef.current?.children[tick] as HTMLElement | undefined;
     if (!nav || !slot) return null;
 
-    const top = nav.getBoundingClientRect().top;
-    const box = slot.getBoundingClientRect();
-    const centre = box.top + box.height / 2 - top;
+    // Layout offsets, not bounding rects: while the panel morphs in it is
+    // scaled, and a rect read then is short by that scale, so the bar landed
+    // off its tick and popped to the right one when the morph ended. The bar is
+    // positioned in the nav's own (unscaled) pixels, so measure in them.
+    const centre = slot.offsetTop + slot.offsetHeight / 2;
 
     return { lo: centre - 1, hi: centre + 1 };
   }, []);
@@ -251,6 +253,18 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
   );
 
   useEffect(() => () => cancelAnimationFrame(flightRef.current), []);
+
+  /**
+   * The first measure runs before the ticks exist (`layout` is still null), so
+   * it has no slot to place the bar on and leaves it at the column's top edge
+   * until a later measure (fonts, the entrance settling) happens to run. The
+   * ticks arrive with the next commit; place the bar on them before that
+   * commit paints, so its first visible frame is already at the right tick.
+   */
+  useLayoutEffect(() => {
+    if (!layout || layout.ticks === 0) return;
+    moveIndicator(indicatorTickRef.current, false);
+  }, [layout, moveIndicator]);
 
   useEffect(() => {
     const scrollEl = document.getElementById(READER_SCROLL_ID);

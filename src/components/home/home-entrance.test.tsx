@@ -139,18 +139,19 @@ describe("shipped home entrance", () => {
     expect(css).toContain(":root[data-entrance-played]");
   });
 
-  it("starts the featured card visible so its title paints at once", () => {
+  it("fades the featured card from 0.01, never 0, so its title counts for LCP", () => {
     // The featured card holds the largest text on a phone, so its title is the
-    // LCP element. It keeps the beat and the rise but is exempt from the fade
-    // and the blur, which would otherwise hold it until the animation ends.
+    // LCP element. Chrome ignores a fully transparent element, so the original
+    // rise, fade and blur start at 1% opacity: unseen, but painted on frame one.
     expect(css).toMatch(
-      /\[data-entrance="soft"\] \[data-entrance-item="3"\] \.entrance-body \{\s*animation-name: entrance-soft-card-rise;/,
+      /\[data-entrance="soft"\] \[data-entrance-item="3"\] \.entrance-body \{\s*animation-name: entrance-soft-card-lcp;/,
     );
 
     const frames =
-      css.match(/@keyframes entrance-soft-card-rise \{([\s\S]*?)\n\}/)?.[1] ??
+      css.match(/@keyframes entrance-soft-card-lcp \{([\s\S]*?)\n\}/)?.[1] ??
       "";
-    expect(frames).toContain("translate");
-    expect(frames).not.toMatch(/opacity|filter/);
+    expect(frames).toMatch(/opacity: 0\.01/);
+    expect(frames).not.toMatch(/opacity: 0;/);
+    expect(frames).toContain("filter: blur(var(--soft-blur");
   });
 });
