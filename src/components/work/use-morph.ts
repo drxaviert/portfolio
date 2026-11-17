@@ -37,8 +37,12 @@ export type RevealState = "pending" | "on";
 type Morph = ReturnType<typeof animate>;
 
 export const FADE_S = 0.12;
-/** The entrance starts this long before the morph lands, so reading does not wait for it. */
-const REVEAL_LEAD_S = 0.12;
+/**
+ * The entrance starts this long before the morph lands, so reading does not
+ * wait for it: 300ms into the 480ms open, which puts content on screen 180ms
+ * earlier than the old 120ms lead.
+ */
+const REVEAL_LEAD_S = 0.3;
 
 export function cardSelector(slug: string): string {
   return `[data-work-card="${slug}"]`;

@@ -202,7 +202,7 @@ describe("ExpandShell", () => {
     expect(open[0][2]).toMatchObject({ duration: 0.12, ease: "easeOut" });
   });
 
-  it("starts the content entrance 120ms before the morph lands", async () => {
+  it("starts the content entrance 300ms before the morph lands", async () => {
     placeCard(CARD_A);
     mocks.animate.mockReturnValue({
       finished: new Promise(() => {}),
@@ -220,7 +220,7 @@ describe("ExpandShell", () => {
     expect(layerElement()).toHaveAttribute("data-reveal", "pending");
 
     act(() => {
-      vi.advanceTimersByTime(359);
+      vi.advanceTimersByTime(179);
     });
     expect(layerElement()).toHaveAttribute("data-reveal", "pending");
 
@@ -232,7 +232,7 @@ describe("ExpandShell", () => {
 
   it("releases the content on the reveal timer even when effects re-run", async () => {
     // StrictMode remounts effects in development: the entrance timer must
-    // survive that, or the cascade only starts when the morph settles 120ms
+    // survive that, or the cascade only starts when the morph settles 300ms
     // later (the T13 report's dev-only delay).
     placeCard(CARD_A);
     mocks.animate.mockReturnValue({
@@ -251,7 +251,7 @@ describe("ExpandShell", () => {
     );
 
     act(() => {
-      vi.advanceTimersByTime(360);
+      vi.advanceTimersByTime(180);
     });
 
     expect(layerElement()).toHaveAttribute("data-reveal", "on");
