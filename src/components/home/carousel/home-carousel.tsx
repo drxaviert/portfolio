@@ -316,6 +316,7 @@ function Slide({
             }
             role={first ? "heading" : undefined}
             aria-level={first ? 1 : undefined}
+            dir="auto"
             className={`ring-title car-title text-balance text-title-sm font-semibold md:text-title ${
               item.kind === "placeholder" ? "text-on-surface-variant" : ""
             }`}

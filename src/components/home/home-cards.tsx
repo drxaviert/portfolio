@@ -86,7 +86,10 @@ export function ProjectCard({
           />
         </>
       ) : null}
-      <h1 className="ring-title relative z-10 text-balance text-title-sm font-semibold md:text-title">
+      <h1
+        dir="auto"
+        className="ring-title relative z-10 text-balance text-title-sm font-semibold md:text-title"
+      >
         {title}
       </h1>
     </>
