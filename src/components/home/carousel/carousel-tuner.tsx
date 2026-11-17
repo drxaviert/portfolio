@@ -57,6 +57,13 @@ const FIELD: CSSProperties = {
   gap: 2,
 };
 
+/* Controls keep the panel's 11px labels, but their own text is 16px: Mobile
+   Safari zooms the page when a focused input's text is smaller than that. */
+const CONTROL: CSSProperties = {
+  fontSize: 16,
+  lineHeight: 1.25,
+};
+
 type NumberKey =
   | "duration"
   | "edgeWidth"
@@ -141,6 +148,7 @@ export function CarouselTuner({
           onChange={(event) =>
             onChange({ ease: event.target.value as EaseKey })
           }
+          style={CONTROL}
         >
           {EASE_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -160,7 +168,9 @@ export function CarouselTuner({
             const parsed = parseBezier(event.target.value);
             if (parsed) onChange({ custom: parsed, ease: "custom" });
           }}
-          style={bezierValid ? undefined : { outline: "1px solid #f66" }}
+          style={
+            bezierValid ? CONTROL : { ...CONTROL, outline: "1px solid #f66" }
+          }
         />
       </label>
       <strong style={{ color: "#fff" }}>Edge</strong>
