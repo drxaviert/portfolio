@@ -7,6 +7,7 @@ import { ExpandShell } from "./expand-shell";
 
 const mocks = vi.hoisted(() => ({
   animate: vi.fn(),
+  reduce: false,
   back: vi.fn(),
   push: vi.fn(),
 }));
@@ -17,6 +18,7 @@ vi.mock("motion/react", async (importOriginal) => {
   return {
     ...actual,
     animate: mocks.animate as unknown as typeof actual.animate,
+    useReducedMotion: () => mocks.reduce,
   };
 });
 
@@ -134,6 +136,7 @@ async function renderShell() {
 
 beforeEach(() => {
   mocks.animate.mockReset();
+  mocks.reduce = false;
   mocks.animate.mockReturnValue({
     finished: Promise.resolve(),
     complete: vi.fn(),
@@ -194,6 +197,86 @@ describe("ExpandShell focus containment", () => {
 
   it("inerts the homepage while the reader is open", async () => {
     await renderShell();
+
+    expect(document.querySelector("body > main")).toHaveAttribute("inert");
+  });
+
+  it("leaves the homepage un-inert until the morph lands", async () => {
+    placeCard();
+    let land!: () => void;
+    mocks.animate.mockReturnValueOnce({
+      finished: new Promise<void>((resolve) => (land = resolve)),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+    const main = document.querySelector("body > main")!;
+
+    expect(panelLayer()).toHaveAttribute("data-phase", "opening");
+    expect(main).not.toHaveAttribute("inert");
+
+    land();
+    await waitFor(() =>
+      expect(panelLayer()).toHaveAttribute("data-phase", "open"),
+    );
+    expect(main).toHaveAttribute("inert");
+  });
+
+  it("never inerts the homepage when a close interrupts the morph", async () => {
+    placeCard();
+    mocks.animate.mockReturnValueOnce({
+      finished: new Promise<void>(() => {}),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+
+    const { unmount } = render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+    const main = document.querySelector("body > main")!;
+
+    fireEvent.click(backdrop());
+    await waitFor(() =>
+      expect(panelLayer()).toHaveAttribute("data-phase", "closing"),
+    );
+    expect(main).not.toHaveAttribute("inert");
+
+    unmount();
+    expect(main).not.toHaveAttribute("inert");
+  });
+
+  it("inerts the homepage at once under reduced motion", async () => {
+    mocks.reduce = true;
+    placeCard();
+    mocks.animate.mockReturnValueOnce({
+      finished: new Promise<void>(() => {}),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    expect(panelLayer()).toHaveAttribute("data-phase", "opening");
+    expect(document.querySelector("body > main")).toHaveAttribute("inert");
+  });
+
+  it("inerts the homepage at once on a direct load", () => {
+    render(
+      <ExpandShell slug={SLUG} resting>
+        <ReaderStub />
+      </ExpandShell>,
+    );
 
     expect(document.querySelector("body > main")).toHaveAttribute("inert");
   });
