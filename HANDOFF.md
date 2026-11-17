@@ -1,73 +1,109 @@
-# Portfolio — session handoff (2026-11-09)
+# Portfolio - session handoff (2026-11-17)
 
-Paste this into a fresh session instead of resuming the old 320k-token one.
+Paste this into a fresh session. It supersedes the 2026-11-09 handoff.
 
-## Repo state (verified 2026-11-09)
+## Repo state (verified 2026-11-17)
 
-| Item         | Value                                                                                               |
-| ------------ | --------------------------------------------------------------------------------------------------- |
-| Local repo   | `C:\Users\Dat\orca\portfolio`                                                                       |
-| Branch       | `main`, clean working tree                                                                          |
-| HEAD         | `38d9e8a chore: pin Node 24`                                                                        |
-| Remote       | `git@github.com:drxaviert/portfolio.git` (pushed)                                                   |
-| CI           | First GitHub Actions run passed (install, lint, typecheck, test, build)                             |
-| Extra branch | `drxaviert/mobbin-nav-type-inspiration`                                                             |
-| Worktree     | `C:\Users\Dat\orca\workspaces\portfolio\eagleray` on that branch, at `38d9e8a`, `pnpm install` done |
+| Item   | Value                                                                  |
+| ------ | ---------------------------------------------------------------------- |
+| Local  | `C:\Users\Dat\orca\portfolio`, branch `main`, clean, synced with origin |
+| HEAD   | `b5cc189 Merge pull request #52 from drxaviert/polish/metadata-a11y`    |
+| Remote | `git@github.com:drxaviert/portfolio.git` (public, pushed)               |
+| CI     | `CI` workflow green on `b5cc189`; `OG image` workflow in progress       |
+| Vercel | Connected: status green; branch push = preview, `main` = production     |
+| Stack  | Node 24 (`.nvmrc`, `engines 24.x`; local v24.21.0), pnpm 10.34.9        |
+| App    | Next 16.4.5 App Router, React 19.3, Tailwind v4, Motion 14, MDX, three  |
 
-Old experiment branches (`hero-ui`, `scaffold-app`, `scaffold-go`) were deleted; there is no other worktree.
+`NEXT_PUBLIC_SITE_URL` is unset in the repo; metadata falls back to `http://localhost:3000`, so the
+Vercel project needs it for real OG/robots/sitemap URLs.
 
-## Stack on `main`
+## What is shipped on main
 
-- Next.js 16 App Router, TypeScript, Tailwind v4, Motion, MDX, pnpm, Node 24 pinned (`.nvmrc`, `engines`).
-- Neutral placeholder design tokens, class-based light/dark theme with a no-flash inline script, system-following default, persisted choice, accessible toggle.
-- 12 Vitest tests; ESLint, Prettier and `format:check` wired; README present.
-- Docs: `docs/superpowers/specs/2026-11-08-portfolio-repo-setup-design.md` and `docs/superpowers/plans/2026-11-08-portfolio-repo-setup.md`.
-- No real page content yet — home route is a bare shell.
+- **Home + Horizon background** - phase glow and prototype home (#2), frame-line spotlight (#3),
+  ambient WebGL drift/breathe with CSS fallback (#4), tuned glow (#8), background dim (#11), one
+  compositor fade on phase change (#24), Soft focus entrance (#25), card ring scale with a 300ms
+  content lead (#39), motion out of `/` first-load JS (#41); invisible perf batch (#37).
+- **Nav** - Glide hover capsule (#20), no stretch across the DS glyph (#21), interruptible springs
+  (#23), no shrink on theme/phase switch (#28), hover glow no longer adds a scrollbar (#36), real
+  `<button>` placeholders and safe-area reader thumbs (#40).
+- **Theme toggle** - Day/Night/Auto phases (#1), Day sub-row from Auto (#12, docs #13), stretch and
+  snap selection highlight (#17), Day row closes on pointer leave (#46).
+- **Cards / carousel** - Figma rest box and outward ring (#6), shadow card edge (#9), finger-sized
+  targets and composited spotlight (#16), stepped middle-row carousel with hover peek (#33).
+- **Work drawer + case-study reader** - Featured card + Expand drawer (#29), follow-ups and `/work`
+  redirect (#30), back/nav restore (#31), scroll ruler (#32), first-click latency (#38), reader
+  warm-up (#43), deferred `inert` (#45), focus return after close (#48), reader typography (#51).
+- **Typography** - next-project arrow and 16px tuner floor (#50), reader 16px body, scale tokens and
+  12px floor for T1-T4/T6 (#51); audit in `docs/handoffs/2026-11-17-typography-audit.md`.
+- **Metadata / OG** - site metadata, OG card, icon, robots and sitemap (#52). The OG workflow
+  recaptures `/` at 1920x1008 and commits the PNG back with `[skip ci]`.
+- **Design-system docs** - `docs/design-system/tokens.md` and `motion.md` are the spec source (#7,
+  #13, #26). The public procedural page is still on the design-system branch (below).
+- **Tests / CI** - GitHub Actions `CI` runs install, lint, typecheck, test, build; 40 Vitest files;
+  `OG image` workflow owns the social card.
 
-## Working rules (agreed, still in force)
+## Locked design decisions
 
-- **Opus is the orchestrator only.** It plans, specs, reviews and merges. It does not implement code.
-- **Implementation → Orca workers.** Use the Orca skill and the full Run/Task/Dispatch lifecycle with self-contained task specs.
-- **Agent:** `opencode`, never `opencode2`.
-- **Never pass `--model` or `--effort`** (not even `--model default`). Let Orca's Config default apply.
-- **Verify before launch** that the worker resolves to `opencode-go/deepseek-v4.1-flash` at max effort. If not, stop and report.
-- **UI/UX work → Claude Orca worker on Sonnet 5.5, medium effort** (Figma/Paper, wireframes, components, design systems, Mobbin research).
-- Ask before anything that touches `main`, GitHub, or cannot be undone.
-- Multi-worktree finished work: review each branch → run all checks → merge into `main` one at a time (foundations first) → re-check after each merge → clean up worktrees.
+- Horizon: very subtle time-of-day glow, no rim, matte orb, neutral dark base (`horizon-glow-direction`).
+- Cards and modals have no stroke; separate with `shadow-light` / `shadow-dark` (`cards-shadow-not-stroke`).
+- Figma boxes are the resting geometry; hover grows outward only (`figma-is-size-source`, #6).
+- Nav hover is the Glide capsule, reusing the toggle's stretch-and-snap motion (`nav-hover-glide`).
+- Toggle is Day - Night - Auto, icon-only from 768px, Auto default and persisted, local-clock phases
+  (`theme-toggle-auto`).
+- Drawer is Featured + Expand, nav visible and identical, `/work/[slug]` intercepting route + MDX
+  (`work-drawer-direction`).
+- Keep the approved motion; do not re-propose a shorter ring or glow (`motion-pass-rejected`).
+- Approved motion is logged in `docs/design-system/motion.md`, not Figma (`log-motion-to-design-system`).
+- Design-system page = procedural token engine, defaults parity-tested against `globals.css`
+  (`procedural-design-system-page`).
+- No real work yet; studies stay placeholders until Dat supplies material (`real-work-intake`).
 
-## Tools / MCPs
+## Worktrees and branches
 
-- **Paper** — primary design surface. Requires Paper Desktop running. File: `portfolio` (id `01M6WKV32PWB1CH8KKRGGD5YW2`).
-- **Mobbin** — configured in OpenCode (`https://api.mobbin.com/mcp`, remote) and works read-only; requires a paid plan. Claude uses the claude.ai connector.
-- **codebase-memory-mcp** — required for the workflow; indexes rebuild on demand.
-- **chrome-devtools** — for checking the running app.
-- **talk-to-figma** — **disabled for OpenCode** because it leaked orphaned processes. Claude still has it.
-- **Figma Console MCP** — evaluated, **not installed**. Verdict: likely better than talk-to-figma (130+ tools, MIT, ~3.2k stars, v1.46.0 on Oct 29; can write variables/components/auto layout; needs a personal access token + the Desktop Bridge plugin). Install alongside, user-level, and test with a read-only probe before retiring talk-to-figma.
+| Worktree                                    | Branch                    | HEAD      | Status                                                                 |
+| ------------------------------------------- | ------------------------- | --------- | ---------------------------------------------------------------------- |
+| `C:\Users\Dat\orca\portfolio`               | `main`                    | `b5cc189` | clean, synced                                                          |
+| `workspaces\portfolio\design-system`        | `drxaviert/design-system` | `c28714f` | 34 commits after #26, 35 unpushed, 184 behind; **parked by Dat, keep** |
+| `workspaces\portfolio\typography-lows`      | `fix/typography-lows`     | `b5cc189` | clean, no commits yet; T5 + T7-T12 in progress                          |
+| `workspaces\portfolio\reader-typography`    | `fix/reader-typography`   | `541e14b` | merged in #51; leftover worktree, removable                             |
+| `C:\Users\Dat\orca\portfolio-design-canvas` | `feat/design-canvas`      | `f43621d` | 30 ahead / 322 behind, unpushed; separate design-canvas project         |
 
-## Known issues / gotchas
+The design-system branch adds `/design-system` (redirects `/dev/system`) and the live procedural token
+engine. No PR is open yet.
 
-- **Orca launch bug:** it appends `#max` to the model id, producing `opencode-go/deepseek-v4.1-flash#max`. Workaround already applied: pin the project model without the effort hint in `opencode.json`.
-- **Orca runs `pnpm install` in every new worktree terminal.** Worktrees created before the scaffold existed failed with `ERR_PNPM_NO_PKG_MANIFEST`; fixed by fast-forwarding that branch to `main`. New worktrees from `main` are fine.
-- **Paper must be open** before any design worker runs, or it blocks.
-- **Mobbin** returns a paywall error if the plan lapses or the connector is not signed in.
+Throwaway test branches with no worktree: `drxaviert/aquarium` (`8e9702e`, 2 ahead) and
+`drxaviert/html-in-canvas` (`f1ee891`, 1 ahead). Both unpushed; Dat closes them. Many merged `fix/*`,
+`docs/*`, `perf/*` branches remain local and can be pruned after worktree cleanup.
 
-## Context / cost setup (done 2026-11-09)
+## Open work
 
-- `~/.claude/CLAUDE.md` — new global rules: new session per topic, `/context` at 60%, `/compact`, never paste screenshots into long sessions, bound tool output.
-- `~/.claude/agents/research.md` — Sonnet, web research, read-only, ≤40-line brief.
-- `~/.claude/agents/explore.md` — Sonnet, codebase mapping via codebase-memory, read-only.
-- `~/.claude/settings.json` — main model `claude-opus-5-5`, `MAX_THINKING_TOKENS=12000`.
-- Decision: **no DeepSeek for research** — Claude Code would need a translation proxy; keep Sonnet.
+1. **Typography audit** - T1-T4 and T6 shipped in #51. T5 (tracker levels 0-1 are invisible on the
+   card) and T7-T12 (italic/`font-synthesis`, display leading, `::selection`, curly punctuation,
+   tooltip overflow, long-title wrap) are next on `fix/typography-lows`, which has no commits yet.
+   Brief: `docs/handoffs/2026-11-17-typography-audit.md`.
+2. **Real case-study content** - none. `content/work/*.mdx` holds three written placeholders
+   (`title-sequence`, `systems-in-motion`, `type-in-motion`).
+3. **Design-system branch PR** - the parked procedural page needs a rebase, review and PR.
+4. **`viewport-fit=cover`** - Dat decision. Without it the safe-area insets from #40 are 0.
 
-## Where the design stands
+## Working rules
 
-- Design was intentionally reset. Nothing from the earlier Paper/Figma exploration is authoritative.
-- One test artboard remains in Paper (`homepage/hero/.../light`); it is disposable.
-- The `eagleray` worktree is on `drxaviert/mobbin-nav-type-inspiration` with no work of its own yet — it is ready for the next design implementation.
+- Opus orchestrates: plans, specs, reviews, merges. It does not implement.
+- Implementation runs on OpenCode DeepSeek workers. Never pass `--model` or `--effort`;
+  `opencode.json` pins `opencode-go/deepseek-v4.1-flash`.
+- Start dev servers with `pnpm dev:log`, never bare `pnpm dev` (piped output wedges Next).
+- When handing Dat a test link, give `http://localhost:<port>` and `http://192.168.2.33:<port>`.
+- Once Dat approves a job, merge its PR and push `main` without asking again. Commit bodies say what
+  changed and why.
+- A guard hook blocks worktree removal, so Dat runs the orca worktree removal command. Release the
+  job's workers first and check for uncommitted or unpushed work.
 
-## Next actions
+## Known gotchas
 
-1. Finish deciding the visual direction (deferred; design not final).
-2. Once direction is set, build the home page in the `eagleray` worktree, following the existing tokens and theme.
-3. Optional: install Figma Console MCP and run the read-only probe.
-4. Optional: import `drxaviert/portfolio` on Vercel (user action) — CI is already green.
+- `pnpm format:check` fails on 16 files on `main`: Windows writes CRLF while Prettier expects LF.
+  CI does not run `format:check`, so this is not a red build.
+- Without `viewport-fit=cover`, `env(safe-area-inset-*)` is 0; the #40 thumb inset is inert.
+- LAN dev only hydrates with `allowedDevOrigins` (`192.168.2.33`, `192.168.2.28` in
+  `next.config.ts`). Check it in a fresh worktree before sharing a LAN link.
+- Set `NEXT_PUBLIC_SITE_URL` on Vercel, or canonical/OG URLs say `localhost:3000`.
+- The `OG image` bot commit lands on `main` by itself; pull with `--ff-only`.
