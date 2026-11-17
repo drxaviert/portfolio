@@ -752,6 +752,19 @@
   color: var(--on-surface-variant);
 }
 
+/* The arrow is drawn, not typed: the text glyph's ink sits on the line box's
+   optical centre, which is where a centred 1.25em icon lands at this size. */
+.wd-nextlink-arrow {
+  display: inline-flex;
+  align-self: center;
+}
+
+.wd-nextlink-arrow svg {
+  width: 1.25em;
+  height: 1.25em;
+  display: block;
+}
+
 .wd-nextlink-link:hover span:first-child {
   text-decoration: underline;
   text-decoration-thickness: from-font;

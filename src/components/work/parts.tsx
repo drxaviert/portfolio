@@ -381,7 +381,23 @@ export function NextLink({ next }: { next: WorkMeta }) {
         onClick={onClick}
       >
         <span>{next.title}</span>
-        <span aria-hidden="true">→</span>
+        {/* Drawn, not typed: Work Sans does have U+2192, but Google's three
+            subsets (latin, latin-ext, vietnamese) all omit it, so the text
+            glyph fell back to Arial. 1.25em matches the 13x11px ink the glyph
+            would have had at 16px, and centres on the line box like it did. */}
+        <span className="wd-nextlink-arrow" aria-hidden="true">
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.25"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            focusable="false"
+          >
+            <path d="M3.5 10h13M11 4.5l5.5 5.5-5.5 5.5" />
+          </svg>
+        </span>
       </Link>
     </section>
   );
