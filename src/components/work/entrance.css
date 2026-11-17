@@ -19,9 +19,8 @@
  *   cap      the first viewport (p1, p2, p3); everything below arrives with the
  *            last visible block
  *   LCP      the first two paragraphs are the largest text above the fold on
- *            a direct load, so they rise without the fade or the defocus and
- *            are readable at first paint; the cover's media and the text after
- *            them keep the blur
+ *            a direct load; they fade from 0.01 (not 0) so they count for LCP
+ *            at first paint, and otherwise keep the full blur reveal
  *   cover    opacity + translate only, no filter on the large media
  *   window   480 + 800 = 1280ms from the reveal
  *   hand-off "Next project" mounts the next article `--wd-beat-lead` (120ms)
@@ -134,34 +133,25 @@
 /*
  * The largest text above the fold on a direct load is one of the first two
  * paragraphs, so one of them is the LCP element (which one depends on the
- * study's opening). They keep their beat and their 10px rise, but start
- * visible and sharp: the fade and the defocus would hold the LCP back for the
- * whole 800ms. Everything after them keeps the split entrance.
+ * study's opening). They play the same fade, rise and defocus as every other
+ * block, on the same beat, but their fade starts at 0.01, not 0: Chrome leaves
+ * a fully transparent element out of LCP until it is visible, and 1% is
+ * invisible yet painted on the first frame. Only the animation names change;
+ * the delays and curves come from the shared rule above.
  */
-@keyframes wd-enter-rise {
+@keyframes wd-enter-fade-lcp {
   from {
+    opacity: 0.01;
     transform: translateY(10px);
   }
   to {
+    opacity: 1;
     transform: none;
   }
 }
 
 .wd-expand-layer[data-reveal="on"] .wd-prose > .wd-p:nth-of-type(-n + 2) {
-  animation: wd-enter-rise var(--wd-enter-duration) var(--wd-enter-ease)
-    calc(var(--wd-enter-delay, 0ms) + var(--wd-beat-lead, 0ms)) backwards;
-}
-
-/* The scroll ruler is the cascade's last group: it is never on screen while the
-   panel is still hiding its content, and it arrives on the body's last beat. */
-.wd-expand-layer[data-reveal="pending"] .wd-ruler {
-  opacity: 0;
-}
-
-.wd-expand-layer[data-reveal="on"] .wd-ruler {
-  animation: wd-enter-fade var(--wd-enter-duration) var(--wd-enter-ease)
-    backwards;
-  animation-delay: calc(480ms + var(--wd-beat-lead, 0ms));
+  animation-name: wd-enter-fade-lcp, wd-enter-defocus;
 }
 
 /* Reduced motion keeps the state change and drops the choreography: one 120ms

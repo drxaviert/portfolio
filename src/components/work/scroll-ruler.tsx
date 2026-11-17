@@ -303,6 +303,15 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
       const max = scrollEl.scrollHeight - scrollEl.clientHeight;
       const scrollable = max > 1;
       const scrollRect = scrollEl.getBoundingClientRect();
+      // While the panel morphs it is scaled, and every rect read inside it is
+      // short by that scale. Divide it out so a measure taken mid-morph is the
+      // same one the settled layout gives, and nothing moves when it lands.
+      const scaleX = scrollEl.offsetWidth
+        ? scrollRect.width / scrollEl.offsetWidth
+        : 1;
+      const scaleY = scrollEl.offsetHeight
+        ? scrollRect.height / scrollEl.offsetHeight
+        : 1;
       const prose = scrollEl.querySelector<HTMLElement>(".wd-prose");
 
       // The ruler sits beside the text column, so it is placed from the
@@ -323,8 +332,9 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
             getComputedStyle(nav).getPropertyValue("--wd-ruler-width"),
           ) || RULER_WIDTH_FALLBACK;
         const room =
-          panel.getBoundingClientRect().right -
-          column.getBoundingClientRect().right;
+          (panel.getBoundingClientRect().right -
+            column.getBoundingClientRect().right) /
+          scaleX;
 
         // Centred in the gutter the panel leaves beside the column, never
         // closer than the minimum gap. The column is centred and capped, so its
@@ -345,9 +355,9 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
 
       const spans: BlockSpan[] = blocks.map((block) => {
         const box = block.getBoundingClientRect();
-        const offset = box.top - scrollRect.top + scrollEl.scrollTop;
+        const offset = (box.top - scrollRect.top) / scaleY + scrollEl.scrollTop;
 
-        return blockSpan(offset, box.height, clearanceOf(block));
+        return blockSpan(offset, box.height / scaleY, clearanceOf(block));
       });
 
       const used = new Set<string>();
@@ -363,7 +373,8 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
         used.add(id);
         sectionOf.set(heading, { id, label });
 
-        const top = heading.getBoundingClientRect().top - scrollRect.top;
+        const top =
+          (heading.getBoundingClientRect().top - scrollRect.top) / scaleY;
         const offset = top + scrollEl.scrollTop - clearanceOf(heading);
 
         crosses.push(Math.max(0, offset));
