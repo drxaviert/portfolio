@@ -1,25 +1,36 @@
 /**
  * Captures the homepage as the site-wide Open Graph image.
  *
- * The card is a real 1200x630 screenshot of `/`, not a rendered text card, so
- * the image shows whatever the site actually ships above that fold: the
- * tracker card, the Play shell, the featured carousel card and its slivers,
- * over the Day horizon. It runs against a production server (`pnpm start`,
- * i.e. `next start`) built from the current checkout, or against
- * `OG_CAPTURE_URL` when one is supplied.
+ * The card is a real screenshot of `/`, not a rendered text card, so the image
+ * shows whatever the site actually ships: the tracker card, the Play shell, the
+ * featured work card and the nav dock over the Day horizon. It runs against a
+ * production server (`pnpm start`, i.e. `next start`) built from the current
+ * checkout, or against `OG_CAPTURE_URL` when one is supplied.
+ *
+ * Determinism: the browser context emulates `prefers-reduced-motion: reduce`.
+ * That is a capture-only switch — visitors are unaffected — and it parks every
+ * ambient clock the page owns: the horizon shader stops after one frame at
+ * clock 0, its CSS drift/breathe layers are `animation: none`, and the Play
+ * card's fibre fan renders one static frame instead of a rAF loop. The entrance
+ * still runs (its reduced branch is a 120ms fade), so waiting for
+ * `data-entrance-played` still lands on the settled page. Two captures of the
+ * same build therefore produce the same PNG.
  *
  * The two persisted theme keys are seeded before any page script runs (the
  * same localStorage keys `src/lib/theme.ts` documents), so the pre-paint theme
- * script resolves Day + the Midday pin instead of the visitor's clock. The
- * capture then waits out the 1710ms home entrance, the WebGL canvas's 300ms
- * opacity fade and the webfont load before taking the shot.
+ * script resolves Day + the Midday pin instead of the visitor's clock.
+ *
+ * Framing: `--viewport 1600x840` (or 1920x1008) renders the same 1.905:1 frame
+ * at a larger CSS viewport and lets the device scale factor do the downscale
+ * (`deviceScaleFactor = 1200 / width`), so the output stays 1200x630.
  */
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
 
-const VIEWPORT = { width: 1200, height: 630 };
+const OUTPUT_SIZE = { width: 1200, height: 630 };
+const ASPECT = OUTPUT_SIZE.width / OUTPUT_SIZE.height;
 const DEFAULT_PORT = 3100;
 const SERVER_READY_TIMEOUT_MS = 60_000;
 
@@ -31,7 +42,43 @@ const HORIZON_FADE_MS = 300;
 const SETTLE_MS = 250;
 
 const projectRoot = path.resolve(import.meta.dirname, "..");
-const outputPath = path.join(projectRoot, "src", "app", "opengraph-image.png");
+
+function argValue(name) {
+  const index = process.argv.indexOf(name);
+
+  return index > -1 ? process.argv[index + 1] : undefined;
+}
+
+function parseViewport(value) {
+  const match = /^(\d+)x(\d+)$/.exec(value ?? "");
+
+  if (!match) {
+    throw new Error(`Expected a viewport like 1600x840, got "${value}".`);
+  }
+
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+
+  if (Math.abs(width / height - ASPECT) > 0.002) {
+    throw new Error(
+      `${width}x${height} is not the ${OUTPUT_SIZE.width}:${OUTPUT_SIZE.height} aspect.`,
+    );
+  }
+
+  return { width, height };
+}
+
+const explicitUrl = (argValue("--url") ?? process.env.OG_CAPTURE_URL)?.trim();
+const port = Number(process.env.OG_PORT ?? DEFAULT_PORT);
+const url = explicitUrl || `http://localhost:${port}/`;
+const viewport = parseViewport(
+  argValue("--viewport") ?? process.env.OG_VIEWPORT ?? "1200x630",
+);
+const deviceScaleFactor = OUTPUT_SIZE.width / viewport.width;
+const outputPath = path.resolve(
+  projectRoot,
+  argValue("--out") ?? "src/app/opengraph-image.png",
+);
 
 function log(message) {
   process.stdout.write(`[og] ${message}\n`);
@@ -127,11 +174,12 @@ function seedTheme() {
 async function capture(url) {
   const browser = await chromium.launch();
   const context = await browser.newContext({
-    viewport: VIEWPORT,
-    deviceScaleFactor: 1,
+    viewport,
+    deviceScaleFactor,
     colorScheme: "light",
     locale: "en-US",
-    reducedMotion: "no-preference",
+    // Capture-only freeze: no visitor sees this. See the file header.
+    reducedMotion: "reduce",
   });
 
   await context.addInitScript(seedTheme);
@@ -185,9 +233,9 @@ async function capture(url) {
       await page.waitForTimeout(ENTRANCE_TOTAL_MS);
     }
 
-    // WebGL boots after the CSS horizon; wait for its first frame to be shown
-    // and for the opacity fade. A context without WebGL keeps the CSS layer,
-    // so a missing canvas is not a failure.
+    // WebGL boots after the CSS horizon; wait for its first frame to be shown.
+    // A context without WebGL keeps the CSS layer, so a missing canvas is not a
+    // failure.
     const horizonReady = await page
       .waitForFunction(
         () =>
@@ -201,7 +249,7 @@ async function capture(url) {
 
     log(
       horizonReady
-        ? "WebGL horizon faded in"
+        ? "WebGL horizon ready (frozen at its rest frame)"
         : "WebGL horizon unavailable; captured the CSS horizon",
     );
 
@@ -211,12 +259,19 @@ async function capture(url) {
 
     await page.waitForTimeout(SETTLE_MS);
 
-    const buffer = await page.screenshot({ type: "png", animations: "allow" });
+    const buffer = await page.screenshot({
+      type: "png",
+      // Finite animations jump to their end state; infinite ones are cancelled.
+      animations: "disabled",
+    });
     const size = readPngSize(buffer);
 
-    if (size.width !== VIEWPORT.width || size.height !== VIEWPORT.height) {
+    if (
+      size.width !== OUTPUT_SIZE.width ||
+      size.height !== OUTPUT_SIZE.height
+    ) {
       throw new Error(
-        `Expected ${VIEWPORT.width}x${VIEWPORT.height}, got ${size.width}x${size.height}.`,
+        `Expected ${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height}, got ${size.width}x${size.height}.`,
       );
     }
 
@@ -224,7 +279,7 @@ async function capture(url) {
     await writeFile(outputPath, buffer);
 
     log(
-      `wrote ${path.relative(projectRoot, outputPath)} (${size.width}x${size.height})`,
+      `wrote ${path.relative(projectRoot, outputPath)} (${size.width}x${size.height} from ${viewport.width}x${viewport.height} CSS @${deviceScaleFactor})`,
     );
 
     if (problems.length > 0) {
@@ -237,9 +292,6 @@ async function capture(url) {
   }
 }
 
-const explicitUrl = process.env.OG_CAPTURE_URL?.trim();
-const port = Number(process.env.OG_PORT ?? DEFAULT_PORT);
-const url = explicitUrl || `http://localhost:${port}/`;
 let server = null;
 
 try {
@@ -249,7 +301,9 @@ try {
     await waitForServer(url, server);
   }
 
-  log(`capturing ${url} at ${VIEWPORT.width}x${VIEWPORT.height}`);
+  log(
+    `capturing ${url} at ${viewport.width}x${viewport.height} CSS -> ${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height}`,
+  );
   await capture(url);
 } catch (error) {
   process.stderr.write(
