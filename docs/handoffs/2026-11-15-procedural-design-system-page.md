@@ -1,27 +1,30 @@
-# Handoff: procedural design-system page (brainstorm → design doc)
+# Handoff: procedural design-system page (implementation in progress)
 
-Lead: Opus, design-system job. Worktree `portfolio/design-system`, branch `drxaviert/design-system` (PR #26 is merged; the branch is fast-forwarded to main).
+Lead: Opus, design-system job. Worktree `portfolio/design-system`, branch `drxaviert/design-system`. Not pushed.
 
-## Done this session
-- Audit steps 1 and 3 merged as PR #26: motion tokens (`--ease-*`, `--duration-*`), entrance choreography kept in `--entrance-*` component vars, 81 `--palette-*` primitives, `tokens.md`/`motion.md` fixed. Browser parity against main: 0 diffs.
-- Gotcha learned: no relative-colour syntax (`rgb(from …)`) in output. It breaks Safari < 18; `--horizon-ring-glow` stays literal rgba.
+## Goal
+`/design-system` is a docs-style page. Five source params (hue, contrast, round, speed, tod) derive every token live through a page-scoped TS engine. Spec: `docs/superpowers/specs/2026-11-14-procedural-design-system-page-design.md` (approved; see its Decision log). Plan: `docs/superpowers/plans/2026-11-14-procedural-design-system-page.md` (15 tasks; Dat said "go").
 
-## Goal (Dat's words)
-"Design system" in the nav opens a Google/Vercel-style docs site (tokens + components, when/how to use, states). The visitor can change the system and see the change reflected live on the page. Why: Dat builds reusable, interactive procedural systems in Houdini and wants the portfolio to show that systems thinking. Target: design-engineer role.
+## Execution
+One DeepSeek Orca worker (opencode, `opencode-go/deepseek-v4.1-flash`), driven task by task with `orca orchestration send --to dispatch:<latest id>`. Run `run_c1ad463512e3`, terminal `structworker_59b76ffb-...`. Opus reviews each `worker_done` with one or two checks before sending the next task.
 
-## Decisions (Dat chose)
-- Option B: a few source parameters drive everything (not per-token editing, not a node graph).
-- Approach 2: a page-scoped TypeScript engine derives tokens from the parameters and writes CSS vars on the page wrapper. The live site stays static. A parity test enforces engine at defaults == `globals.css`.
+## Done (commits)
+- Spec 6def82f · Plan e0c4e54, 20a5e64 (hue smoothstep 0.01–0.03; chain built from the globals.css var() graph)
+- T1 colour maths 8d0a4c4 · T2 source/parity/nodes 166153a (independent CSS oracle, 209 tokens per phase)
+- T3 derive 5 params + AA grid bf4852d (contrast range 0.9–2.85)
+- T4 engine 26bccdb + fix fd402d5 (spring stiffness ×speed²; dispose restores the LIVE site phase)
+- T5 URL state + useSystemParams ec9877d (getActivePhase added to theme.ts); full suite 251/251
+- IN FLIGHT: dispatch `ctx_15fc1adc53d0`. A T5 fix (invalid ?tod falls back to the site phase), then T6: route shell, /dev/system redirect, section nav. Checks asked for: `pnpm build` lists the route as static, dev on PORT=3107 via dev:log, leaving the page clears the engine vars.
 
-## State
-- Draft design doc: `docs/superpowers/specs/2026-11-14-procedural-design-system-page-design.md` (untracked, not committed). Dat has NOT seen or approved it yet.
-- The doc's "Proposed" section holds Opus's calls: `/design-system` route, URL-encoded presets + Reset, sidebar + sticky Controls (bottom sheet on phone), 4 components (Card, Nav item + Glide, Theme toggle + phase row, Tracker widget), and an M3 duration-scale comparison.
+## Findings to raise with Dat
+- The live site fails AA today: on-primary on primary (Dawn 2.11, Midday 3.73, Dusk 1.88) and primary text on surface-container-low. The engine records these in AA_KNOWN_FAILING and asserts no regression. Fixing the palette is a separate small job.
 
-## Next steps (brainstorming skill, resume at "Builder check")
-1. Dispatch the builder check: a fresh subagent with `C:\Users\Dat\.claude\plugins\cache\superpowers-marketplace\superpowers\7.0.2\skills\brainstorming\builder-check-prompt.md` against the doc. Sort its questions into answered / minor (Opus's call) / Dat's.
-2. Bring Dat's questions in one message, update the doc, hand it over with the list of Opus's calls, and get approval.
-3. Commit the doc (clear body), then run superpowers:writing-plans. Implementation goes to DeepSeek workers; Opus reviews.
+## Gotchas
+- `derive(params, siteBlend)` is a redundant arg from the plan. The engine always passes `p.tod`.
+- The worker calls `pnpm.cmd` (PowerShell script execution is disabled).
+- Don't touch home-layout.tsx / home-cards.tsx / nav-items.tsx. No nav-link wiring until the drawer job merges.
+- No `rgb(from …)` in output (Safari < 18).
 
-## Constraints
-- Don't edit `home-layout.tsx` / `home-cards.tsx` until the work-drawer and home-carousel jobs merge (neither had pushed as of 2026-11-14). Wiring the nav link waits for the drawer job.
-- Dev server: `PORT=<n> pnpm dev:log`. Share localhost and http://192.168.2.33:<n>.
+## Next
+1. Review T6's worker_done (build line, redirect, var cleanup), then send T7 (controls panel + phone bottom sheet), and so on through T15. T15 adds Playwright.
+2. After T15, run a whole-branch review, show Dat on localhost + http://192.168.2.33:3107, and merge after approval.
