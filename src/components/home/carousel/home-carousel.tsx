@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   useEffect,
@@ -39,7 +40,7 @@ import {
   stepMode,
 } from "./carousel-math";
 import type { Ease, Entity, Geometry, TitleTiming } from "./carousel-math";
-import { CarouselTuner, DEFAULT_SETTINGS } from "./carousel-tuner";
+import { DEFAULT_SETTINGS } from "./carousel-settings";
 import {
   cardPoses,
   closeSnap,
@@ -110,6 +111,15 @@ const HELD_GRACE_MS = 1500;
 /** How long a step that is released mid-flight takes to glide to rest. */
 const SETTLE_MS = 350;
 const NO_ITEMS: readonly number[] = [];
+
+/**
+ * The dev tuner, kept out of the shipped bundle: the `NODE_ENV` test folds to
+ * false in a production build, so the dynamic import never survives it.
+ */
+const CarouselTuner =
+  process.env.NODE_ENV !== "production"
+    ? dynamic(() => import("./carousel-tuner").then((m) => m.CarouselTuner))
+    : null;
 
 /** Whether the reader is open (or about to be) over the page. */
 function overlayPresent(): boolean {
@@ -434,7 +444,9 @@ export function HomeCarousel({
   const reduce = useReducedMotion() ?? false;
   const search = useLocationSearch();
   const hoverCapable = useHoverCapable();
-  const tune = new URLSearchParams(search).get("tune") === "1";
+  const tune =
+    process.env.NODE_ENV !== "production" &&
+    new URLSearchParams(search).get("tune") === "1";
 
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   // `offset` is the target: labels, slots and the announcement follow it at
@@ -1841,7 +1853,7 @@ export function HomeCarousel({
         </p>
       </section>
 
-      {tune ? (
+      {tune && CarouselTuner ? (
         <CarouselTuner
           settings={settings}
           onChange={(patch) =>
