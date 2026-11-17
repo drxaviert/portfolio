@@ -13,6 +13,16 @@ function forcedColorsBlock(css: string): string {
 }
 
 describe("global interaction rules", () => {
+  it("paints the phase surface on the body above injected framework rules", () => {
+    // Next's built-in error and not-found paths stream an unlayered
+    // body{color:#000;background:#fff} into the page, which outranks the
+    // layered base rule. This scoped, unlayered rule keeps the phase tokens in
+    // charge on every route.
+    expect(globals).toMatch(
+      /html\[data-phase\] body \{\s*background-color: var\(--surface\);\s*color: var\(--on-surface\);/,
+    );
+  });
+
   it("drops the double-tap-zoom wait on every control", () => {
     // iOS Safari holds the first tap ~300ms without this. :where() keeps the
     // rule at zero specificity, so no component loses its own touch behaviour.
