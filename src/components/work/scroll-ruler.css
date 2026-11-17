@@ -218,3 +218,10 @@
     transition: none;
   }
 }
+
+/* Forced colours: the hover card's only edge is its shadow; keep an edge. */
+@media (forced-colors: active) {
+  .wd-ruler-card-inner {
+    border: 1px solid CanvasText;
+  }
+}

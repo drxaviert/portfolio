@@ -47,6 +47,18 @@
   transition: z-index var(--duration-short-1) steps(1);
 }
 
+/*
+ * Forced colours drop the shadow that is this card's only edge (by design, at
+ * rest the ring frame is transparent and the fill is clipped to the host box).
+ * A CanvasText border keeps the card a card in Windows High Contrast; it is
+ * inside the host box, so the ring geometry outside it is untouched.
+ */
+@media (forced-colors: active) {
+  .ring-host {
+    border: 1px solid CanvasText;
+  }
+}
+
 .ring-frame {
   position: absolute;
   inset: calc(var(--ring-grow-y) * -1) calc(var(--ring-grow-x) * -1);
