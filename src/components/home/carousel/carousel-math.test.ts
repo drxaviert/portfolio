@@ -163,6 +163,22 @@ describe("wrap seam", () => {
     expect(planned.filter((e) => e.ghost)).toHaveLength(1);
   });
 
+  it("queues the copies of a far step one column apart instead of piling them", () => {
+    const planned = retarget(G, 4, 0, 2, restEntities(G, 4, 0));
+    const ghosts = planned
+      .filter((e) => e.ghost)
+      .sort((a, b) => a.to.x - b.to.x);
+
+    expect(ghosts.map((e) => e.item)).toEqual([0, 1]);
+    // The copy landing nearest the front enters at the usual point; the next
+    // one waits a narrow column plus a gap behind it.
+    expect(ghosts[0].from).toEqual(offRight(G));
+    expect(ghosts[1].from).toEqual({
+      x: offRight(G).x + offRight(G).w + G.gap,
+      w: offRight(G).w,
+    });
+  });
+
   it("moves everything else one slot forward with no copy", () => {
     const planned = retarget(G, 4, 0, 1, restEntities(G, 4, 0));
 

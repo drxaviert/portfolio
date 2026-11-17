@@ -313,6 +313,24 @@ export function retarget(
   const exit = k > 0 ? exitLeft(g) : offRight(g);
   const entry = k > 0 ? offRight(g) : exitLeft(g);
 
+  // A far step wraps several cards, each with a seam copy entering from the same
+  // point. On one start they would travel as a pile (their edges and shadows
+  // stacked, drawn twice) until they fan out. On a rightward run they queue
+  // instead, one column behind the other in landing order, so they keep the
+  // gap between them for the whole run. One copy (a step of one) is unchanged.
+  const entering = current
+    .map((e) => e.item)
+    .filter((item, index, all) => all.indexOf(item) === index)
+    .filter((item) => {
+      if (current.filter((e) => e.item === item).length >= 2) return false;
+      const unwrapped = slotOf(item, prevOffset, n) - k;
+      return (
+        (unwrapped < 0 || unwrapped >= n) && mod(unwrapped, n) < VISIBLE_SLOTS
+      );
+    })
+    .map((item) => mod(slotOf(item, prevOffset, n) - k, n))
+    .sort((a, b) => a - b);
+
   for (let item = 0; item < n; item++) {
     const ents = current.filter((e) => e.item === item);
     const prevSlot = slotOf(item, prevOffset, n);
@@ -358,10 +376,11 @@ export function retarget(
     }
 
     if (visible) {
+      const queued = k > 0 ? entering.indexOf(dest) : 0;
       out.push({
         item,
         ghost: true,
-        from: entry,
+        from: { ...entry, x: entry.x + queued * (entry.w + g.gap) },
         to: destPose,
         fromWide: 0,
         toWide: wide,
