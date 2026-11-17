@@ -307,6 +307,26 @@ describe("ExpandShell focus containment", () => {
     expect(document.activeElement).toBe(card);
   });
 
+  it("returns focus to the laid-out card, not an earlier copy with no box", async () => {
+    // The carousel keeps a box-less copy of the card ahead of the one on screen.
+    const hidden = placeCard();
+    hidden.setAttribute("data-unrendered", "");
+    const card = placeCard();
+
+    const { unmount } = await renderShell();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() =>
+      expect(
+        document.querySelector<HTMLElement>(".wd-reader-panel")!.style.opacity,
+      ).toBe("0"),
+    );
+
+    unmount();
+
+    expect(document.activeElement).toBe(card);
+  });
+
   it("returns focus to the persistent nav when the study has no homepage card", async () => {
     const logo = screen.getByRole("link", { name: "Home" });
 

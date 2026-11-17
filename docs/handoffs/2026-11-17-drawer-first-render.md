@@ -57,3 +57,6 @@ Measure the first drawer open on a prod build at 4× CPU, break it down, and pro
 - Playwright (`pw-inert.cjs` in this session's scratchpad), 4x CPU: Tab ×6 during the morph never focused into main. main is not inert while opening and is inert at open. Close and interrupted close both leave it un-inert. Reduced motion and a direct load are inert.
 - Existing issue (also on main, not from this change): after Escape close, `document.activeElement` is BODY, not the source card. Worth a look.
 - Tests: 4 new ExpandShell regression tests (no inert while opening, inert at open, interrupt never inerts, reduced motion and direct load inert at once).
+
+## v6 (2026-11-16): focus return after close fixed
+- Cause: `returnTarget` took the first `[data-work-card=slug]`, a carousel copy with no box. Focusing it was a no-op, so focus fell to BODY. It now uses `cardElement(slug)` (use-morph.ts), the same laid-out-copy pick `findCard` uses. Playwright (`pw-focus.cjs` in this session's scratchpad): Escape, backdrop, nav "Work", mobile "Back to work" and an interrupted close all return focus to the source card.
