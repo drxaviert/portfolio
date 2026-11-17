@@ -1,5 +1,6 @@
 "use client";
 
+import { useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef } from "react";
 import type { ReactNode, RefObject } from "react";
 import { cardSelector, useMorph } from "./use-morph";
@@ -44,7 +45,13 @@ export function ExpandShell({
   useEscToClose(close);
   useEffect(() => registerReaderClose(close), [close]);
 
-  useOverlayBehaviour(panelRef, slug);
+  // The homepage goes inert once the morph has landed, not as it starts:
+  // inertness is inherited, so flagging `main` restyles every homepage element
+  // (~50ms at 4x CPU), and that belongs after the morph's first frames. The
+  // focus trap and the backdrop hold keys and clicks in the meantime. A
+  // reduced-motion fade has no morph to protect; a direct load starts open.
+  const reduce = useReducedMotion() ?? false;
+  useOverlayBehaviour(panelRef, slug, phase === "open" || reduce);
 
   // The inert boundary comes off with the same commit that sets the phase, so
   // the title can only take focus after React has rendered the open state.
@@ -91,10 +98,12 @@ function returnTarget(slug: string): HTMLElement | null {
 function useOverlayBehaviour(
   panelRef: RefObject<HTMLElement | null>,
   slug: string,
+  lockHome: boolean,
 ) {
+  const inertRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     const body = document.body;
-    const background = document.querySelector<HTMLElement>("body > main");
     const overflow = body.style.overflow;
     const paddingRight = body.style.paddingRight;
     const gutter = window.innerWidth - document.documentElement.clientWidth;
@@ -102,18 +111,29 @@ function useOverlayBehaviour(
     body.style.overflow = "hidden";
     if (gutter > 0) body.style.paddingRight = `${gutter}px`;
 
-    // The reader is the only thing on screen: the homepage behind it leaves the
-    // tab order and the accessibility tree, so no key or click can reach it.
-    // This cleanup runs before the focus return below, so the card can take
-    // focus back once the overlay is unmounted.
-    background?.setAttribute("inert", "");
-
+    // The inert flag below is cleared here, not in its own effect: this cleanup
+    // runs before the focus return further down, so the card can take focus
+    // back once the overlay is unmounted.
     return () => {
       body.style.overflow = overflow;
       body.style.paddingRight = paddingRight;
-      background?.removeAttribute("inert");
+      inertRef.current?.removeAttribute("inert");
+      inertRef.current = null;
     };
   }, []);
+
+  // The reader is the only thing on screen: the homepage behind it leaves the
+  // tab order and the accessibility tree, so no key or click can reach it.
+  // Latched: once set, it stays until unmount, so a close after the morph keeps
+  // the homepage inert to the end. A close that interrupts the morph never
+  // sets it.
+  useEffect(() => {
+    if (!lockHome || inertRef.current) return;
+
+    const background = document.querySelector<HTMLElement>("body > main");
+    background?.setAttribute("inert", "");
+    inertRef.current = background;
+  }, [lockHome]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
