@@ -84,6 +84,19 @@ The ring surface uses `--radius-lg` outside and `calc(var(--radius-lg) - 1px)` f
 | `--text-title-sm` | 2rem / 2.2rem, tracking -0.4px | highlight card title, 375 |
 | `--font-sans` | Work Sans → system sans | whole app |
 
+The reader (`components/work/reader.css`, `scroll-ruler.css`) declares no px sizes: each role reads a
+step of the scale above, and leading stays unitless so the step and its line can change independently.
+
+| Reader role | Token | Size / leading | Where |
+| --- | --- | --- | --- |
+| Body, standfirst, lists, quotes | `--text-base` | 16px / 1.55 | `.wd-p`, `.wd-intro-subtitle`, `.wd-ul`, `.wd-ol`, `.wd-quote` |
+| Section heading | `--text-lg` | 18px / 1.3 | `.wd-h2` |
+| Code, decision table | `--text-sm` | 14px / 1.5–1.6 | `.wd-pre`, `.wd-code`, `.wd-table` |
+| Meta, captions, notes, labels, controls | `--text-xs` | 12px / 1.35–1.5 | kickers, captions, margin notes, table head, step chips, rail |
+
+12px is the reader's floor: nothing readable or interactive goes below it, and every control keeps a
+target of at least 24px (44px for the step replay) through padding or an invisible `::after`.
+
 ## Horizon, play and orb
 
 | Token | Role |
