@@ -227,6 +227,40 @@ A frame writes one property: the capsule keeps the run's width and carries the p
 - `src/components/home/nav-items.css:111` — reduced-motion capsule hide
 - `src/components/home/nav-items.css:119` — reduced-motion 55% fill crossfade
 
+## Home card hover ring
+
+The featured card's ring is the same surface every host carries (a frame, the glow inside it, and the fill), but its growth is a transform, not a clip. Both layers are clipped once — the surface to the Figma card box, the frame one pixel larger — and a shared `scale` moves those clips outward, so the 1px edge survives while the fill grows 2.5px x / 5px y into the gutters. The clips never animate, so a hover no longer repaints the frame layer, which carries the 614px glow.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Card hovered | surface + frame `transform` | 800ms (`--duration-long-3`, `--ring-grow`) | 0 | `cubic-bezier(0.165, 0.84, 0.44, 1)` (`--ease-spring-grow`) | `scale(1)` → `scale(1.0066, 1.024)` at xl |
+| Card hovered | frame `opacity` | 100ms (`--duration-short-1`) | 0 | `linear` (`--ease-linear`) | 0 → 1 |
+| Pointer leaves | surface + frame `transform` | 800ms (`--duration-long-3`, `--ring-grow`) | 0 | `cubic-bezier(0.165, 0.84, 0.44, 1)` (`--ease-spring-grow`) | `scale(…)` → `scale(1)` |
+| Pointer leaves | frame `opacity` | 100ms (`--duration-short-1`) | 800ms (`--ring-grow`) | `linear` (`--ease-linear`) | 1 → 0, after the ring has closed |
+| Keyboard focus | same as hover | same | same | same | the focused card grows too |
+
+| Card | Surface | `--ring-card-scale-x` / `-y` | Fill growth |
+| --- | --- | --- | --- |
+| Stacked, below md | 358×420 | 1.014 / 1.0238 | 2.5px x / 5px y |
+| md | 444×560 | 1.0113 / 1.0179 | 2.5px x / 5px y |
+| lg | 656×360 | 1.0076 / 1.0278 | 2.5px x / 5px y |
+| xl | 753×416 | 1.0066 / 1.024 | 2.5px x / 5px y |
+
+The factors are `1 + 2 × (grow − 1px) / card size`, with `--ring-grow-x` 3.5px and `--ring-grow-y` 6px. The subtracted pixel is the edge the fill leaves for the frame, so each card lands its frame on the shipped 3.5px x / 6px y outer boundary. A scale cannot add fixed pixels to every width, so the scope is the featured card only (`home-cards.tsx`, and the carousel's front slot): the nav, the slivers and the narrower carousel columns keep the clip-path grow.
+
+Why transform: animating `clip-path` repaints the ring layer every frame. Measured over one 1440×900 hover, `RasterTask` was 11.8ms across 443 tasks with `GPUTask` at 121.2ms, and 0.1ms across 7 tasks with 25.3ms after. Neither version runs layout; the remaining style recalc (~0.4ms a frame) belongs to the pointer-follow glow variables (`ring-pointer.tsx`), not the ring.
+
+Reduced motion is untouched: the growth block sits inside `prefers-reduced-motion: no-preference`, so the reduced path above still reveals the ring inside the card with no growth.
+
+- `src/components/home/ring-hover.css:271` — the card ring: static clips, transform growth
+- `src/components/home/ring-hover.css:296` — growth only under `no-preference`
+- `src/components/home/ring-hover.css:298` — scale factors, base and per breakpoint (md 304, lg 311, xl 318)
+- `src/components/home/ring-hover.css:329` — rest: surface clip on the Figma box, frame 1px larger
+- `src/components/home/ring-hover.css:381` — hover: one scale on the surface and the frame
+- `src/components/home/home-cards.tsx:59` — `.ring-card` on the featured card
+- `src/components/home/carousel/home-carousel.tsx:244` — the front slot carries `.ring-card`
+- `src/components/home/ring-pointer.tsx:6` — the glow's pointer-follow variables
+
 ## Day phase row entrance — "Stagger + icons"
 
 The row is a 4-segment track (Clock · Dawn · Midday · Dusk) above the toggle on the homepage and below it in the drawer. It scales out of the toggle's nearest corner (bottom right when it sits above, top right when it hangs below), then the segments fade and rise left to right, then each icon settles 60ms after its own segment.
@@ -371,7 +405,7 @@ The one nav lives in the root layout and never remounts, so opening a study FLIP
 
 ## Work drawer — content cascade
 
-The cascade is a handoff from the panel, not a second entrance: it is released at the reveal, 360ms into the 480ms open (120ms before the panel lands). Cover first, then the header, then the body, on one even 80ms beat.
+The cascade is a handoff from the panel, not a second entrance: it is released at the reveal, 180ms into the 480ms open (300ms before the panel lands). Cover first, then the header, then the body, on one even 80ms beat.
 
 | Block | Starts at | Opacity + 10px rise | Defocus |
 | --- | --- | --- | --- |
@@ -383,7 +417,7 @@ The cascade is a handoff from the panel, not a second entrance: it is released a
 | p2 | 400ms | same | same |
 | p3 and below | 480ms | same | same |
 
-Every block holds its start state (`backwards` fill), so nothing paints at its end state before its beat. The blur has its own longer curve: the fade is at 92% by 400ms while the defocus still measures 3.2px there, so the text resolves instead of snapping sharp. The cover carries no filter (blur on the large media was the one measured cost). The window ends 1280ms after the reveal, 1640ms after the click.
+Every block holds its start state (`backwards` fill), so nothing paints at its end state before its beat. The blur has its own longer curve: the fade is at 92% by 400ms while the defocus still measures 3.2px there, so the text resolves instead of snapping sharp. The cover carries no filter (blur on the large media was the one measured cost). The window ends 1280ms after the reveal, 1460ms after the click.
 
 - `src/components/work/entrance.css:37` — fade curve `cubic-bezier(0.22, 1, 0.36, 1)`
 - `src/components/work/entrance.css:40` — defocus curve `cubic-bezier(0.25, 0.1, 0.25, 1)`
@@ -393,7 +427,8 @@ Every block holds its start state (`backwards` fill), so nothing paints at its e
 - `src/components/work/entrance.css:93` — both ride the block's beat and the hand-off lead
 - `src/components/work/entrance.css:110` — 80ms beat, title
 - `src/components/work/entrance.css:130` — 480ms, p3 and below
-- `src/components/work/use-morph.ts:177` — reveal at open − 120ms
+- `src/components/work/use-morph.ts:45` — `REVEAL_LEAD_S = 0.3`, the release 300ms before the morph lands
+- `src/components/work/use-morph.ts:238` — the reveal timer: `MORPH_OPEN_S − REVEAL_LEAD_S` (480 − 300)
 - `src/components/work/parts.tsx:415` — `--wd-beat-lead` on the incoming panel
 
 ## Work reader — ruler indicator snap

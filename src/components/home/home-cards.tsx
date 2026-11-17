@@ -56,8 +56,9 @@ type ProjectCardProps = {
   onOpen?: (element: HTMLElement) => void;
 };
 
+/** The featured card; `.ring-card` grows its hover ring with transform scale. */
 const CARD_CLASS =
-  "ring-host flex h-[420px] flex-col justify-end rounded-lg p-5 md:h-auto md:p-8";
+  "ring-host ring-card flex h-[420px] flex-col justify-end rounded-lg p-5 md:h-auto md:p-8";
 
 /** Highlight card: the only card with a title. */
 export function ProjectCard({
