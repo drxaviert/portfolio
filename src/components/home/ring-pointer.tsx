@@ -30,6 +30,9 @@ export function RingHoverPointer() {
     // True while the carousel steps: the box can move under a still pointer, so
     // the glow re-reads it every frame until the step ends.
     let following = false;
+    // Set by a step ending, so the flush takes one last measurement of the
+    // settled box without touching layout from the event handler.
+    let needsRead = false;
     const snaps = new WeakMap<HTMLElement, number>();
 
     function schedule() {
@@ -47,9 +50,18 @@ export function RingHoverPointer() {
 
       // Read first, then write: the box is measured before any style is written
       // in this frame, so the flush never forces a layout in the middle of its
-      // own writes. A card can be moved under a still pointer (the carousel
-      // steps), so it is read each frame rather than trusted from the entry.
-      rect = host.getBoundingClientRect();
+      // own writes. The box is trusted from activate()/scroll/resize/focus
+      // unless a carousel step is running (a card can be moved under a still
+      // pointer) or the last step just ended; only then is it re-measured.
+      if (following || needsRead) {
+        rect = host.getBoundingClientRect();
+        needsRead = false;
+      }
+
+      if (!rect) {
+        return;
+      }
+
       const mx = clientX - rect.left - rect.width / 2;
       const my = clientY - rect.top - rect.height / 2;
 
@@ -70,6 +82,7 @@ export function RingHoverPointer() {
     function onStepEnd() {
       following = false;
       // One last read, so the glow lands under the pointer at the settled box.
+      needsRead = true;
       schedule();
     }
 

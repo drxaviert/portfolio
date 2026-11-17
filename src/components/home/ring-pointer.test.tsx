@@ -59,7 +59,7 @@ function setup() {
 }
 
 describe("ring glow follow", () => {
-  it("reads the box once at the start of the flush, before any style write", () => {
+  it("reads the box on entry, then writes without re-reading it", () => {
     const { host } = setup();
 
     act(() => {
@@ -71,12 +71,12 @@ describe("ring glow follow", () => {
         }),
       );
     });
+    // The entry measures the box once; the flush that follows only writes.
+    expect(log.filter((entry) => entry === "read")).toHaveLength(1);
     log.length = 0;
     flushFrame();
 
-    expect(log[0]).toBe("read");
-    expect(log.filter((entry) => entry === "read")).toHaveLength(1);
-    expect(log.slice(1)).toEqual(["write --ring-mx", "write --ring-my"]);
+    expect(log).toEqual(["write --ring-mx", "write --ring-my"]);
   });
 
   it("follows a card that moves under a still pointer while a step runs, then stops", () => {
