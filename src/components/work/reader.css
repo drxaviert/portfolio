@@ -185,7 +185,9 @@
     display: flex;
     position: absolute;
     z-index: 1;
-    inset-inline: 16px;
+    /* 16px stays the minimum, so nothing moves without an inset. */
+    inset-inline-start: max(16px, env(safe-area-inset-left));
+    inset-inline-end: max(16px, env(safe-area-inset-right));
     bottom: max(16px, env(safe-area-inset-bottom));
     justify-content: space-between;
     pointer-events: none;
