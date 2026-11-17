@@ -227,6 +227,12 @@
  * and unclipped (no-clip), so the shadow and the ring a card paints just outside
  * its box survive; the gradient's stops sit 12px in, on the row's own edges.
  *
+ * Only the left end fades: it melts the card a step pushes out. The right end
+ * is the crop the cards rest at (the last slot is drawn crisp there), so a fade
+ * over it would wash out cards that are fully visible at rest for the length of
+ * the step and pop back when the mask drops. A card entering past it is cut by
+ * that crop, and blurred, exactly as at rest.
+ *
  * The row's mask strength is `--car-rm`: the peek gives each edge card its own
  * mask (below) on `--car-fade`, and a run that turns onto the peek has to fade
  * the row's mask out while the cards' masks fade in, so the two are separate.
@@ -272,9 +278,7 @@
   --car-mask: linear-gradient(
     to right,
     rgb(0 0 0 / calc(1 - var(--car-rm))) 12px,
-    #000 calc(12px + var(--car-edge-w, 28px)),
-    #000 calc(100% - 12px - var(--car-edge-w, 28px)),
-    rgb(0 0 0 / calc(1 - var(--car-rm))) calc(100% - 12px)
+    #000 calc(12px + var(--car-edge-w, 28px))
   );
 
   -webkit-mask-image: var(--car-mask);
