@@ -102,11 +102,12 @@ function placeCard() {
   return card;
 }
 
-/** The root layout's nav, which the trap must cycle before the panel. */
+/** The root layout's nav, which the trap cycles after the panel. */
 function placeDock() {
   const dock = document.createElement("div");
   dock.dataset.navDock = "";
-  dock.innerHTML = '<a href="/" aria-label="Home">Home</a>';
+  dock.innerHTML =
+    '<a href="/" aria-label="Home">Home</a><a href="/play">Play</a>';
   document.body.append(dock);
 
   return dock;
@@ -162,7 +163,18 @@ afterEach(() => {
 });
 
 describe("ExpandShell focus containment", () => {
-  it("wraps Tab from the last rendered control, not the hidden one", async () => {
+  it("takes Tab off the focused title into the article, not the nav", async () => {
+    await renderShell();
+
+    document.getElementById("wd-study-title")!.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("link", { name: "Work" }),
+    );
+  });
+
+  it("takes Tab off the article's last control to the nav's first", async () => {
     await renderShell();
 
     screen.getByRole("link", { name: "Next project" }).focus();
@@ -173,26 +185,56 @@ describe("ExpandShell focus containment", () => {
     );
   });
 
-  it("takes Tab off the focused title to the first control", async () => {
+  it("wraps Tab off the nav's last control back to the article's first", async () => {
     await renderShell();
 
-    document.getElementById("wd-study-title")!.focus();
+    screen.getByRole("link", { name: "Play" }).focus();
     fireEvent.keyDown(document, { key: "Tab" });
 
     expect(document.activeElement).toBe(
-      screen.getByRole("link", { name: "Home" }),
+      screen.getByRole("link", { name: "Work" }),
     );
   });
 
-  it("wraps Shift+Tab from the focused title to the last rendered control", async () => {
+  it("wraps Shift+Tab off the focused title to the nav's last control", async () => {
     await renderShell();
 
     document.getElementById("wd-study-title")!.focus();
     fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
 
     expect(document.activeElement).toBe(
+      screen.getByRole("link", { name: "Play" }),
+    );
+  });
+
+  it("wraps Shift+Tab off the article's first control to the nav's last", async () => {
+    await renderShell();
+
+    screen.getByRole("link", { name: "Work" }).focus();
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("link", { name: "Play" }),
+    );
+  });
+
+  it("wraps Shift+Tab off the nav's first control to the article's last", async () => {
+    await renderShell();
+
+    screen.getByRole("link", { name: "Home" }).focus();
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+
+    expect(document.activeElement).toBe(
       screen.getByRole("link", { name: "Next project" }),
     );
+  });
+
+  it("leaves a Tab inside the article to the browser", async () => {
+    await renderShell();
+
+    screen.getByRole("link", { name: "Work" }).focus();
+
+    expect(fireEvent.keyDown(document, { key: "Tab" })).toBe(true);
   });
 
   it("inerts the homepage while the reader is open", async () => {

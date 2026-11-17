@@ -31,6 +31,23 @@ import "./nav-dock.css";
 const FADE_S = 0.06;
 const SNAP_PX = 0.5;
 
+/**
+ * A node's top in document space from layout alone. `offsetTop` ignores
+ * transforms, so the entrance's first-frame rise does not read as a position:
+ * the slot is still `translate: 0 7px` when the dock first measures it.
+ */
+function layoutTop(node: HTMLElement): number {
+  let top = 0;
+  let current: HTMLElement | null = node;
+
+  while (current) {
+    top += current.offsetTop;
+    current = current.offsetParent as HTMLElement | null;
+  }
+
+  return top;
+}
+
 type Flight = ReturnType<typeof motionAnimate>;
 
 /**
@@ -172,8 +189,8 @@ export function NavDock() {
       const slot = document.querySelector<HTMLElement>(SLOT_SELECTOR);
       if (!slot || stateRef.current !== "home" || flyingRef.current) return;
 
-      const slotTop = slot.getBoundingClientRect().top + window.scrollY;
-      const navTop = el.getBoundingClientRect().top + window.scrollY;
+      const slotTop = layoutTop(slot);
+      const navTop = layoutTop(el);
 
       if (Math.abs(slotTop - navTop) > SNAP_PX) {
         el.style.top = `${slotTop}px`;

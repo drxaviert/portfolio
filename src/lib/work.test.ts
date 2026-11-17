@@ -1,7 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { FEATURED_SLUG, getWork, listWork, nextWork } from "./work";
+import {
+  FEATURED_SLUG,
+  getWork,
+  listWork,
+  nextWork,
+  parseFrontmatter,
+} from "./work";
 
 const COVERS = ["tiles", "window", "phone"];
+
+describe("parseFrontmatter", () => {
+  const BODY = "---\ntitle: A study\nrole: Design\n---\n\n# Body\n";
+
+  it("reads a flat block", () => {
+    expect(parseFrontmatter(BODY)).toEqual({
+      title: "A study",
+      role: "Design",
+    });
+  });
+
+  it("reads a file saved with a UTF-8 BOM", () => {
+    expect(parseFrontmatter(`\uFEFF${BODY}`).title).toBe("A study");
+  });
+
+  it("reads CRLF line endings", () => {
+    const crlf = BODY.replace(/\n/g, "\r\n");
+
+    expect(parseFrontmatter(crlf).title).toBe("A study");
+  });
+
+  it("returns nothing when there is no block", () => {
+    expect(parseFrontmatter("# Body\n")).toEqual({});
+  });
+});
 
 describe("listWork", () => {
   it("returns the three case studies", () => {

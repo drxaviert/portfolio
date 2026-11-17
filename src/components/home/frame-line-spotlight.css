@@ -94,7 +94,10 @@
   opacity: calc(var(--frame-spot-opacity, 0.85) * var(--frame-spot-light, 0));
   pointer-events: none;
   transition: opacity var(--duration-short-4) var(--ease-emphasized-standard);
-  /* Pointer-driven layer: promoted once instead of on the first frame. */
+}
+
+/* Promote the pool only while it is following the pointer. */
+.frame-spot-root[data-pointer] .frame-spot-pool {
   will-change: transform;
 }
 

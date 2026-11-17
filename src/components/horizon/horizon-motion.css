@@ -173,6 +173,13 @@
   animation-play-state: paused;
 }
 
+/* The reader covers the page: hold the loop until it closes. */
+:root[data-overlay-open] .horizon-motion-drift,
+:root[data-overlay-open] .horizon-motion-breathe,
+:root[data-overlay-open] .horizon-motion-intensity {
+  animation-play-state: paused;
+}
+
 @keyframes horizon-drift-a {
   from {
     transform: translate3d(0, 0, 0);

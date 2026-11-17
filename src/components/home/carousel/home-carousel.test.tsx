@@ -438,11 +438,11 @@ describe("easing and one timeline", () => {
     expect(arriving).toBeDefined();
   });
 
-  it("the responsive preset sets both the duration and the curve, and the retarget curve stays", () => {
+  it("the responsive preset sets both the duration and the curve, and the retarget curve stays", async () => {
     window.history.pushState({}, "", "/?tune=1");
     render(<HomeCarousel items={ITEMS} />);
 
-    const duration = screen.getByLabelText(/Duration/);
+    const duration = await screen.findByLabelText(/Duration/);
     fireEvent.change(duration, { target: { value: "800" } });
     const first = host("Systems");
     fireEvent.keyDown(first, { key: "ArrowRight" });

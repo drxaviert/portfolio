@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { useTooltipWarm } from "@/components/nav/use-tooltip-warm";
 import { NavItems } from "./nav-items";
 import { RingLayers } from "./ring-hover";
+import "./ring-hover.css";
 
 /**
  * Home nav from the Figma 1440 frame (121:2253).

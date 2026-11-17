@@ -38,3 +38,15 @@
     transparent var(--card-fade-falloff)
   );
 }
+
+/*
+ * The card's title is a caption over its picture: three lines at most, the
+ * same clamp the carousel uses, so a long title never covers the shot.
+ */
+.card-title {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}

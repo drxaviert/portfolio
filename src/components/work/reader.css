@@ -356,6 +356,7 @@
   font-size: var(--text-base);
   line-height: 1.55;
   text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 
 .wd-intro-meta {
@@ -380,6 +381,7 @@
   font-size: var(--text-base);
   line-height: 1.55;
   text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 
 .wd-h2 {
@@ -421,6 +423,7 @@
   font-size: var(--text-base);
   line-height: 1.55;
   list-style: disc;
+  overflow-wrap: anywhere;
 }
 
 .wd-ol {
@@ -457,6 +460,7 @@
   color: var(--on-surface);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: var(--text-sm);
+  overflow-wrap: anywhere;
 }
 
 .wd-pre .wd-code {
@@ -502,6 +506,7 @@
   color: var(--on-surface-variant);
   font-size: var(--text-xs);
   line-height: 1.42;
+  overflow-wrap: anywhere;
 }
 
 /* Captions become sidenotes at 1024px and up. */
@@ -546,6 +551,7 @@
   font-size: var(--text-xs);
   line-height: 1.42;
   text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 
 .wd-note-num {
@@ -686,6 +692,7 @@
 
 .wd-table-fig {
   margin: 28px 0 0;
+  overflow-x: auto;
 }
 
 .wd-table {
@@ -707,6 +714,7 @@
   text-align: left;
   vertical-align: top;
   border-top: 1px solid var(--outline-variant);
+  overflow-wrap: anywhere;
 }
 
 .wd-table thead th {

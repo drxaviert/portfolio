@@ -4,8 +4,8 @@ Paste this into a fresh session. It supersedes the 2026-11-09 handoff.
 
 ## Repo state (verified 2026-11-17)
 
-| Item   | Value                                                                  |
-| ------ | ---------------------------------------------------------------------- |
+| Item   | Value                                                                   |
+| ------ | ----------------------------------------------------------------------- |
 | Local  | `C:\Users\Dat\orca\portfolio`, branch `main`, clean, synced with origin |
 | HEAD   | `b5cc189 Merge pull request #52 from drxaviert/polish/metadata-a11y`    |
 | Remote | `git@github.com:drxaviert/portfolio.git` (public, pushed)               |
@@ -64,9 +64,9 @@ Vercel project needs it for real OG/robots/sitemap URLs.
 | ------------------------------------------- | ------------------------- | --------- | ---------------------------------------------------------------------- |
 | `C:\Users\Dat\orca\portfolio`               | `main`                    | `b5cc189` | clean, synced                                                          |
 | `workspaces\portfolio\design-system`        | `drxaviert/design-system` | `c28714f` | 34 commits after #26, 35 unpushed, 184 behind; **parked by Dat, keep** |
-| `workspaces\portfolio\typography-lows`      | `fix/typography-lows`     | `b5cc189` | clean, no commits yet; T5 + T7-T12 in progress                          |
-| `workspaces\portfolio\reader-typography`    | `fix/reader-typography`   | `541e14b` | merged in #51; leftover worktree, removable                             |
-| `C:\Users\Dat\orca\portfolio-design-canvas` | `feat/design-canvas`      | `f43621d` | 30 ahead / 322 behind, unpushed; separate design-canvas project         |
+| `workspaces\portfolio\typography-lows`      | `fix/typography-lows`     | `b5cc189` | clean, no commits yet; T5 + T7-T12 in progress                         |
+| `workspaces\portfolio\reader-typography`    | `fix/reader-typography`   | `541e14b` | merged in #51; leftover worktree, removable                            |
+| `C:\Users\Dat\orca\portfolio-design-canvas` | `feat/design-canvas`      | `f43621d` | 30 ahead / 322 behind, unpushed; separate design-canvas project        |
 
 The design-system branch adds `/design-system` (redirects `/dev/system`) and the live procedural token
 engine. No PR is open yet.

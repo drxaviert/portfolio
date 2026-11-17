@@ -680,6 +680,8 @@ export function HorizonShader({
 
     const root = document.documentElement;
     const reduceQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    /** The reader sets this while it covers the page. */
+    const covered = () => root.dataset.overlayOpen === "true";
     let tokens = readTokens();
     let nightBlend = readNightBlend(canvas);
     let soft: SoftFocus = IDLE_SOFT;
@@ -844,6 +846,12 @@ export function HorizonShader({
     const tick = (timestamp: number) => {
       frame = 0;
 
+      // Covered by the reader: hold the frame, the way a hidden tab does.
+      if (covered()) {
+        lastTimestamp = null;
+        return;
+      }
+
       if (lastTimestamp !== null) {
         // A long gap means the tab was hidden or the loop was idle; the CSS
         // animation was frozen then too, so do not jump the shader clock.
@@ -869,7 +877,8 @@ export function HorizonShader({
     };
 
     const requestFrame = () => {
-      if (!frame && !document.hidden) frame = requestAnimationFrame(tick);
+      if (!frame && !document.hidden && !covered())
+        frame = requestAnimationFrame(tick);
     };
 
     /**
@@ -933,6 +942,7 @@ export function HorizonShader({
         "data-phase",
         "data-mode",
         "data-phase-switching",
+        "data-overlay-open",
         "class",
       ],
     });

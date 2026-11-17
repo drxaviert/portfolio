@@ -69,12 +69,15 @@ export function Intro({
       <h1
         id={titleId}
         tabIndex={-1}
+        dir="auto"
         className="wd-intro-title text-balance text-title-sm font-semibold md:text-title"
       >
         {meta.title}
       </h1>
-      <p className="wd-intro-subtitle">{meta.subtitle}</p>
-      <p className="wd-intro-meta">
+      <p className="wd-intro-subtitle" dir="auto">
+        {meta.subtitle}
+      </p>
+      <p className="wd-intro-meta" dir="auto">
         {meta.role} · {meta.year}
       </p>
     </header>
