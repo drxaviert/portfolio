@@ -116,12 +116,8 @@ export function FrameLineSpotlight() {
 
       if (originals.length < 4) return;
 
-      const rects = originals.map((element) =>
-        element.getBoundingClientRect(),
-      );
-      const visible = rects.filter(
-        (rect) => rect.width > 0 && rect.height > 0,
-      );
+      const rects = originals.map((element) => element.getBoundingClientRect());
+      const visible = rects.filter((rect) => rect.width > 0 && rect.height > 0);
       const verticals = visible.filter((rect) => rect.height > rect.width);
       const horizontals = visible.filter((rect) => rect.height <= rect.width);
       const ordered = [...verticals, ...horizontals];
@@ -203,9 +199,7 @@ export function FrameLineSpotlight() {
       const samples: LineSample[] = lines.map((line) => {
         const info = proximity(line, point);
         const near = info.within && info.distance <= PROXIMITY;
-        const weight = near
-          ? smoothstep(1 - info.distance / PROXIMITY)
-          : 0;
+        const weight = near ? smoothstep(1 - info.distance / PROXIMITY) : 0;
 
         return {
           line,
@@ -277,10 +271,7 @@ export function FrameLineSpotlight() {
             const falloff = smoothstep(
               Math.min(
                 1,
-                Math.max(
-                  0,
-                  (JUNCTION_SNAP - distance) / BLEND_SOFTNESS,
-                ),
+                Math.max(0, (JUNCTION_SNAP - distance) / BLEND_SOFTNESS),
               ),
             );
             const s = Math.min(samples[i].weight, samples[j].weight) * falloff;

@@ -312,8 +312,8 @@ describe("crossesRight", () => {
     expect(crossesRight({ from: pose(1052, 84), to: pose(869, 180) }, W)).toBe(
       false,
     );
-    expect(crossesRight({ from: pose(1052, 84.4), to: pose(1052, 84) }, W)).toBe(
-      false,
-    );
+    expect(
+      crossesRight({ from: pose(1052, 84.4), to: pose(1052, 84) }, W),
+    ).toBe(false);
   });
 });

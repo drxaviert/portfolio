@@ -119,9 +119,7 @@ export function useMorph(
   const router = useRouter();
   const reduce = useReducedMotion() ?? false;
   const [phase, setPhase] = useState<MorphPhase>(resting ? "open" : "opening");
-  const [reveal, setReveal] = useState<RevealState>(
-    resting ? "on" : "pending",
-  );
+  const [reveal, setReveal] = useState<RevealState>(resting ? "on" : "pending");
   const openingRef = useRef<Morph | null>(null);
   const startedRef = useRef(false);
   const closedRef = useRef(false);
@@ -291,8 +289,7 @@ export function useMorph(
       // The drawer is one surface: it closes into the card it was opened from,
       // whatever studies it showed on the way. The card-less exit is only for a
       // drawer whose origin card is not on screen any more.
-      const origin =
-        document.documentElement.dataset.drawerOrigin ?? slug;
+      const origin = document.documentElement.dataset.drawerOrigin ?? slug;
       const card = findCard(origin);
 
       // The nav returns on the same timing as whatever the panel does: the
@@ -300,13 +297,19 @@ export function useMorph(
       // (morph.ts) so a stopped frame loop cannot strand the reader over a blank
       // page: the route change is the promise that matters.
       const exitSeconds = reduce ? FADE_S : MORPH_CLOSE_S;
-      const navHome = landWithin(moveNav("home", reduce ? "fade" : "flip"), exitSeconds);
+      const navHome = landWithin(
+        moveNav("home", reduce ? "fade" : "flip"),
+        exitSeconds,
+      );
 
       if (reduce) {
         await Promise.all([
           landWithin(
-            animate(panel, { opacity: 0 }, { duration: FADE_S, ease: "easeOut" })
-              .finished,
+            animate(
+              panel,
+              { opacity: 0 },
+              { duration: FADE_S, ease: "easeOut" },
+            ).finished,
             exitSeconds,
           ),
           navHome,

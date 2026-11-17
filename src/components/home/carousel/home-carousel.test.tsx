@@ -569,7 +569,9 @@ describe("edge blur", () => {
     fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
 
     expect(recorded.some((r) => hasProp(r, "filter"))).toBe(false);
-    const ghost = container.querySelector<HTMLElement>(".car-slide[data-ghost]")!;
+    const ghost = container.querySelector<HTMLElement>(
+      ".car-slide[data-ghost]",
+    )!;
     expect(ghost).toHaveAttribute("data-cross-right");
     expect(ghost.querySelector("[data-cross-blur]")).not.toBeNull();
     // The right-most slot carries the layer too; the inner slots do not.

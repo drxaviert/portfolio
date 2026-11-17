@@ -10,8 +10,7 @@ export type WorkBody = { default: ComponentType<MDXProps> };
  * body through this map.
  */
 export const WORK_BODIES: Record<WorkSlug, () => Promise<WorkBody>> = {
-  "systems-in-motion": () =>
-    import("../../content/work/systems-in-motion.mdx"),
+  "systems-in-motion": () => import("../../content/work/systems-in-motion.mdx"),
   "title-sequence": () => import("../../content/work/title-sequence.mdx"),
   "type-in-motion": () => import("../../content/work/type-in-motion.mdx"),
 };

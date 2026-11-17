@@ -127,10 +127,14 @@ describe("hover peek under reduced motion", () => {
       expect(layer.style.opacity).toBe("1");
     }
     // The edge fade appears with the copy too, at full strength.
-    expect(container.querySelector<HTMLElement>(".car-row")!.style.getPropertyValue("--car-fade")).toBe("1");
     expect(
-      recorded.some((r) => layers.includes(r.target as HTMLElement)),
-    ).toBe(false);
+      container
+        .querySelector<HTMLElement>(".car-row")!
+        .style.getPropertyValue("--car-fade"),
+    ).toBe("1");
+    expect(recorded.some((r) => layers.includes(r.target as HTMLElement))).toBe(
+      false,
+    );
 
     expect(recorded.length).toBeGreaterThan(0);
     for (const r of recorded) {

@@ -9,12 +9,7 @@ export type Phase = "dawn" | "day" | "dusk" | "night";
  */
 export type DayPhase = "clock" | "dawn" | "day" | "dusk";
 
-export const DAY_PHASES: readonly DayPhase[] = [
-  "clock",
-  "dawn",
-  "day",
-  "dusk",
-];
+export const DAY_PHASES: readonly DayPhase[] = ["clock", "dawn", "day", "dusk"];
 
 /**
  * The stored choice keeps the original key so existing visitors are migrated
@@ -509,10 +504,7 @@ export function applyDayPhase(
  * Pins one phase on <html> for a dev preview, ignoring the clock. The mode is
  * derived from the phase so `data-mode` and `.dark` stay consistent.
  */
-export function pinPhase(
-  phase: Phase,
-  kind: PhaseSwitchKind = "click",
-): void {
+export function pinPhase(phase: Phase, kind: PhaseSwitchKind = "click"): void {
   const root = document.documentElement;
 
   // Remember the mode the pin is about to overwrite so unpin can restore it.
