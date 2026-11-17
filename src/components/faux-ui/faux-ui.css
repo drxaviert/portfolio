@@ -868,6 +868,15 @@
   animation-play-state: paused;
 }
 
+/* Same hold while the reader covers the page. Scoped to the covered `main` so
+   the reader's own hero keeps its loop. */
+:root[data-overlay-open] main .fu-shot [data-mode="loop"],
+:root[data-overlay-open] main .fu-shot [data-mode="loop"] *,
+:root[data-overlay-open] main .fu-shot [data-mode="loop"] *::before,
+:root[data-overlay-open] main .fu-shot [data-mode="loop"] *::after {
+  animation-play-state: paused;
+}
+
 /* ---------------------------------------------------------------- panel */
 
 /* Reduced motion: the same frames as Still, before the client can react. */

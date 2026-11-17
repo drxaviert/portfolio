@@ -51,7 +51,12 @@ export function ExpandShell({
   // focus trap and the backdrop hold keys and clicks in the meantime. A
   // reduced-motion fade has no morph to protect; a direct load starts open.
   const reduce = useReducedMotion() ?? false;
-  useOverlayBehaviour(panelRef, slug, phase === "open" || reduce);
+  useOverlayBehaviour(
+    panelRef,
+    slug,
+    phase === "open" || reduce,
+    phase === "open",
+  );
 
   // The inert boundary comes off with the same commit that sets the phase, so
   // the title can only take focus after React has rendered the open state.
@@ -101,6 +106,7 @@ function useOverlayBehaviour(
   panelRef: RefObject<HTMLElement | null>,
   slug: string,
   lockHome: boolean,
+  covered: boolean,
 ) {
   const inertRef = useRef<HTMLElement | null>(null);
 
@@ -136,6 +142,19 @@ function useOverlayBehaviour(
     background?.setAttribute("inert", "");
     inertRef.current = background;
   }, [lockHome]);
+
+  // The covered page's decoration (the ambient CSS loops and the shader) holds
+  // its frames until the reader closes; see horizon-motion.css and faux-ui.css.
+  useEffect(() => {
+    if (!covered) return;
+
+    const root = document.documentElement;
+    root.dataset.overlayOpen = "true";
+
+    return () => {
+      delete root.dataset.overlayOpen;
+    };
+  }, [covered]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
