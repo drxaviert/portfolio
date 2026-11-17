@@ -3,7 +3,7 @@ import { ExpandShell } from "@/components/work/expand-shell";
 import { mdxComponents } from "@/components/work/mdx-components";
 import { Reader } from "@/components/work/reader";
 import { WORK_BODIES } from "@/lib/work-bodies";
-import { getWork } from "@/lib/work";
+import { getWork, listWork } from "@/lib/work";
 
 /**
  * Soft navigation to /work/[slug]: the shared reader mounts over the live
@@ -11,6 +11,17 @@ import { getWork } from "@/lib/work";
  * the same URL renders `app/work/[slug]/page.tsx` instead.
  */
 export const instant = false;
+
+/**
+ * The studies are a fixed set, so the intercepted page can be generated for
+ * each slug just like the direct route. Without this it is a dynamic fallback:
+ * the link's prefetch only carries the shell and the first click has to fetch
+ * the article's RSC payload before the drawer can mount, which puts a server
+ * round trip in front of the morph.
+ */
+export function generateStaticParams() {
+  return listWork().map(({ slug }) => ({ slug }));
+}
 
 export default async function InterceptedWorkPage({
   params,
