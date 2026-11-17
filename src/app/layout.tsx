@@ -10,6 +10,7 @@ import "./globals.css";
 const workSans = Work_Sans({
   subsets: ["latin"],
   display: "swap",
+  style: ["normal", "italic"],
   variable: "--font-work-sans",
 });
 

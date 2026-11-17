@@ -30,14 +30,16 @@ Figma file `18bX1w3gLtGeKJ2KS2K2BT`. Sampled from the Design page sections: Dawn
 | `on-primary` | #FFFFFF | #FFFFFF | #FFFFFF | #0D0D0D |
 | `secondary` | #EDD8FC | #3093F8 | #F9E0C8 | #F73131 |
 | `tracker/0` | #FBF6FE | #F3F8FC | #FEF8F2 | #241D1C |
-| `tracker/1` | #F5EAFE | #E4EFF9 | #FCEEE1 | #342220 |
-| `tracker/2` | #EDD8FC | #CDE2F4 | #F9E0C8 | #4B2A25 |
+| `tracker/1` | #EEDBFC | #D5E7F6 | #F9DFC7 | #3F2623 |
+| `tracker/2` | #E9D0FC | #BFDAF1 | #F7D6B7 | #562E28 |
 | `tracker/3` | #E1C0FB | #AED0ED | #F5CCA6 | #6B352D |
 | `tracker/4` | #D19EF9 | #81B6E2 | #F0B075 | #9D4739 |
 | `toggle/track` | #E5E5E5 | #E5E5E5 | #E5E5E5 | #0D0D0D |
 | `toggle/selected` | #FFFFFF | #FFFFFF | #FFFFFF | #333333 |
 
-Light phases (Dawn, Day, Dusk) share the same surface/text shell; only `primary`, `secondary` and `tracker/*` differ. `primary` is the phase accent (tracker/4), `secondary` is tracker/2.
+Light phases (Dawn, Day, Dusk) share the same surface/text shell; only `primary`, `secondary` and `tracker/*` differ. `primary` is the phase accent.
+
+`tracker/0` is the empty cell: the card shows through. `tracker/1` and `tracker/2` are `color-mix(in oklab, …)` steps between it and the Figma stops at `tracker/3`–`4`, so a filled cell clears the card at roughly 1.3:1 without changing the ramp's hue. The mixes are in `globals.css`.
 
 ## Primitive tier
 
@@ -80,8 +82,8 @@ The ring surface uses `--radius-lg` outside and `calc(var(--radius-lg) - 1px)` f
 | Token | Value | Where |
 | --- | --- | --- |
 | `--text-xs` … `--text-4xl` | 0.75 / 0.875 / 1 / 1.125 / 1.25 / 1.5 / 1.875 / 2.25rem | body and UI steps |
-| `--text-title` | 2.5rem / 2.75rem, tracking -0.4px | highlight card title, ≥768 |
-| `--text-title-sm` | 2rem / 2.2rem, tracking -0.4px | highlight card title, 375 |
+| `--text-title` | 2.5rem / 1.1, tracking -0.01em | highlight card title, ≥768 |
+| `--text-title-sm` | 2rem / 1.1, tracking -0.01em | highlight card title, 375 |
 | `--font-sans` | Work Sans → system sans | whole app |
 
 The reader (`components/work/reader.css`, `scroll-ruler.css`) declares no px sizes: each role reads a

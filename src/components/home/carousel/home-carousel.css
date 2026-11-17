@@ -152,6 +152,11 @@
   right: 32px;
   bottom: 32px;
   z-index: 10;
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 /* Before the client has measured: slot boxes from the Figma ratios. */

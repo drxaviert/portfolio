@@ -67,7 +67,7 @@
  * hangs below the toggle, so the toggle's labels go above it and the row's own
  * labels go below. Home: the row is above, so the toggle's labels go below it.
  * The glyph's label keeps the reader's downward side. The toggle's widest label
- * right-aligns to its segment so it never runs past the panel.
+ * right-aligns to its segment so it never runs past the bar.
  */
 .wd-nav-dock:not([data-nav-state="reader"]) [data-mode-track] .segment-tooltip {
   top: calc(100% + 8px);
@@ -79,6 +79,12 @@
   bottom: calc(100% + 8px);
 }
 
+.wd-nav-dock [data-mode-track] .segment:last-child .segment-tooltip {
+  left: auto;
+  right: 0;
+  translate: none;
+}
+
 .wd-nav-dock[data-nav-state="reader"] .phase-row .segment-tooltip {
   top: calc(100% + 8px);
   bottom: auto;
@@ -88,15 +94,6 @@
   top: calc(100% + 8px);
   bottom: auto;
   margin-top: 0;
-}
-
-.wd-nav-dock[data-nav-state="reader"]
-  [data-mode-track]
-  .segment:last-child
-  .segment-tooltip {
-  left: auto;
-  right: 0;
-  translate: none;
 }
 
 /*
