@@ -240,6 +240,27 @@
   animation-delay: var(--soft-card-delay);
 }
 
+/*
+ * Blur entrance: a filter animation promotes the card to its own layer. Hiding
+ * that promotion behind the first blurred frame costs a re-layerise and a
+ * stutter, so ask for the layer up front. The hint lives only while the
+ * entrance runs: `data-entrance-played` is the same switch that cancels the
+ * animations at 1710ms (home-entrance.tsx), so the layer is dropped then and
+ * never outlives the sequence. Reduced motion never blurs, so it gets none.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-entrance-played])
+    [data-entrance="soft"][data-entrance-shipped]
+    .entrance-body,
+  :root:not([data-entrance-played]):has(
+      [data-entrance="soft"][data-entrance-shipped]
+    )
+    .wd-nav-dock[data-nav-state="home"]
+    > nav {
+    will-change: filter;
+  }
+}
+
 @keyframes entrance-soft-clear {
   from {
     opacity: 1;
