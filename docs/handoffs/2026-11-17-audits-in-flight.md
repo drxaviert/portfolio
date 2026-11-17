@@ -57,6 +57,12 @@ Each writes `docs/audits/2026-11-17-<name>.md` in the main checkout, uncommitted
   - remove the worktrees: typography-lows, reader-typography, polish-metadata, aquarium, html-in-canvas, compare-states, audit-invisible, fix-404-entrance, and the five audit-* worktrees.
 - Deferred: mobile carousel/nav-dock layout, nav placeholder buttons, carousel empty slots, nav label wrap, design-system branch PR, case-study content.
 
+## Vercel (2026-11-17, late)
+- The Vercel CLI is installed and logged in as drxaviert; the repo is linked (`.vercel`, gitignored).
+- NEXT_PUBLIC_SITE_URL (Production) = https://portfolio-peach-nu-xjkzhn6s2l.vercel.app. This is the public prod domain; `portfolio-dattran2.vercel.app` is behind Vercel SSO, so don't use it. Redeployed, and the live robots.txt and og:url are correct.
+- Dat will give a custom domain when everything is done. At that point, add it in Vercel, overwrite the variable with `vercel env add NEXT_PUBLIC_SITE_URL production --force`, and redeploy. (The guard blocks `vercel env rm`.)
+- In flight: worker ctx_39fa2e314e46 on two PRs: fix/breakui-leftovers (port 3123) and fix/site-url-fallback.
+
 ## Running now (historical — all finished)
 - `fix/audit-invisible` (ctx_bfb8535a8523, port 3120):
   - tuner out of prod, drawer focus order, nav CSS on all routes, pause WebGL behind the reader;
