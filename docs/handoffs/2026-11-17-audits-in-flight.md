@@ -48,7 +48,16 @@ Each writes `docs/audits/2026-11-17-<name>.md` in the main checkout, uncommitted
 - Do now: the invisible fixes, the 404 page with the Night body background, and the entrance LCP fix.
 - Deferred: focus-ring contrast, selected states, mobile carousel/nav-dock layout, nav placeholder buttons, design-system branch, case-study content.
 
-## Running now
+## DONE (end of 2026-11-17)
+- PR #55 merged (invisible fixes + break-ui defensive fixes).
+- PR #54 merged (themed navless 404/error, LCP 3.9s→1.4s on /). Main is at 0b35cc7 and CI is green.
+- Phase parity of the 404/error pages was verified across all modes and phases.
+- Left for Dat:
+  - set NEXT_PUBLIC_SITE_URL in Vercel;
+  - remove the worktrees: typography-lows, reader-typography, polish-metadata, aquarium, html-in-canvas, compare-states, audit-invisible, fix-404-entrance, and the five audit-* worktrees.
+- Deferred: mobile carousel/nav-dock layout, nav placeholder buttons, carousel empty slots, nav label wrap, design-system branch PR, case-study content.
+
+## Running now (historical — all finished)
 - `fix/audit-invisible` (ctx_bfb8535a8523, port 3120):
   - tuner out of prod, drawer focus order, nav CSS on all routes, pause WebGL behind the reader;
   - perf lows, `.gitattributes` LF;
@@ -56,7 +65,8 @@ Each writes `docs/audits/2026-11-17-<name>.md` in the main checkout, uncommitted
 - `fix/404-and-entrance` (ctx_dc1c201ac115, port 3121):
   - body background wins on every route, custom not-found/error page;
   - hero LCP paints immediately, with Lighthouse before/after.
-- Commit of audit reports + this handoff to main (ctx_e65e5b27de9e).
+- Audit reports + this handoff committed to main (6d13c5e). Note: the "Waiting on Dat" section above is stale — PR #53 is merged.
+- `preview/focus-selected-compare` (port 3122, branch pushed, no PR): dev-only page `/dev/compare-states` showing focus-ring options A–D and selected-state options A–D plus A+C (recommended) side by side in all phases, with measured ratios. **Decision: Dat keeps the current focus ring and selected states (no change).** The preview branch is unused; deleting it needs Dat's OK. The `compare-states` worktree is pending removal.
 - Dat still has to:
   - set NEXT_PUBLIC_SITE_URL in Vercel;
   - remove the finished worktrees (typography-lows, reader-typography, polish-metadata, aquarium, html-in-canvas, audit-prep-for-prod, audit-touch-a11y, audit-performance, audit-color, audit-break-ui). (ctx_6332305ffdaf): **still running**. If this session is gone, check them with `orca orchestration worker-list` or `inbox --terminal run:run_90f0a459a8ff`.
