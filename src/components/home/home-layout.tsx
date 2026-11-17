@@ -7,6 +7,7 @@ import { HomeEntrancePlayed } from "./home-entrance";
 import { EntranceGrain } from "./entrance-grain";
 import { HomeCarousel } from "./carousel/home-carousel";
 import type { CarouselItem } from "./carousel/home-carousel";
+import { EMPTY_WORK_LABEL } from "./empty-work";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
 import { RingHoverPointer } from "./ring-pointer";
@@ -152,7 +153,15 @@ export function HomeLayout({
             </EntranceCell>
           </div>
 
-          {items && !work ? (
+          {items && items.length === 0 ? (
+            // No studies yet: one line in the band's own height, in the same
+            // place the cards would be. No stand-in card, no empty slot.
+            <div className="flex h-[420px] items-center justify-center md:h-[560px] lg:h-[360px] xl:h-[416px]">
+              <p className="text-base text-on-surface-variant">
+                {EMPTY_WORK_LABEL}
+              </p>
+            </div>
+          ) : items && !work ? (
             <>
               {/* Below md the row is the stacked featured card and slivers,
                   exactly as before; the carousel is md and up. Both carry the

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { Cover } from "@/components/work/cover";
 import type { WorkMeta } from "@/lib/work";
+import { EMPTY_WORK_LABEL } from "./empty-work";
 import { EntranceCell } from "./entrance-cell";
 import type { EntranceVariant } from "./entrance-cell";
 import { RingLayers } from "./ring-hover";
@@ -62,7 +63,7 @@ const CARD_CLASS =
 
 /** Highlight card: the only card with a title. */
 export function ProjectCard({
-  title = "Project name",
+  title = EMPTY_WORK_LABEL,
   slug,
   scene,
   onOpen,
