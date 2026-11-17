@@ -413,7 +413,7 @@ export function NavItems() {
             ? "bg-surface-container text-on-surface"
             : "text-on-surface-variant",
         ].join(" ");
-        const ref = (node: HTMLAnchorElement | null) => {
+        const ref = (node: HTMLElement | null) => {
           itemRefs.current[index] = node;
         };
 
@@ -432,16 +432,17 @@ export function NavItems() {
             {link.label}
           </Link>
         ) : (
-          <a
+          <button
             key={link.label}
-            href="#"
+            type="button"
             ref={ref}
-            onClick={(event) => event.preventDefault()}
             onPointerEnter={(event) => enter(index, event)}
-            className={classes}
+            // Preflight already resets font, colour, background, border and
+            // padding; these three still differ from an anchor's UA style.
+            className={`${classes} appearance-none cursor-pointer text-start`}
           >
             {link.label}
-          </a>
+          </button>
         );
       })}
 
