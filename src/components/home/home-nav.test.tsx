@@ -52,17 +52,18 @@ describe("HomeNav", () => {
     );
   });
 
-  it("keeps Play and About as placeholder links", () => {
+  it("keeps Play and About as placeholder buttons", () => {
     renderNav();
 
-    // Main's Glide run needs focusable anchors; only Work routes today.
-    expect(screen.getByRole("link", { name: "Play" })).toHaveAttribute(
-      "href",
-      "#",
+    // Only Work routes today; the other labels stay focusable buttons so the
+    // Glide run has no dead anchor and nothing navigates to "#".
+    expect(screen.getByRole("button", { name: "Play" })).toHaveAttribute(
+      "type",
+      "button",
     );
-    expect(screen.getByRole("link", { name: "About" })).toHaveAttribute(
-      "href",
-      "#",
+    expect(screen.getByRole("button", { name: "About" })).toHaveAttribute(
+      "type",
+      "button",
     );
   });
 
