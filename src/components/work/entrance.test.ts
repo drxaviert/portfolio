@@ -103,21 +103,19 @@ describe("LCP block", () => {
     return rule!;
   }
 
-  it("rises without the fade or the defocus", () => {
+  it("keeps the full fade and defocus, fading from 0.01 so it counts for LCP", () => {
     // One of the first two paragraphs is the largest text above the fold on a
-    // direct load, so one of them is the LCP element: it must be painted at
-    // first paint, whichever the study's opening makes largest.
+    // direct load. Chrome ignores opacity 0, so the fade starts at 1%: unseen,
+    // but painted at first paint. The blur must still play (it was dropped).
     expect(css).toMatch(
-      /@keyframes wd-enter-rise \{\s*from \{\s*transform: translateY\(10px\);\s*\}\s*to \{\s*transform: none;/,
+      /@keyframes wd-enter-fade-lcp \{\s*from \{\s*opacity: 0\.01;\s*transform: translateY\(10px\);/,
     );
 
     const rule = firstParagraphRule();
-    expect(rule).toContain("wd-enter-rise");
-    expect(rule).not.toContain("wd-enter-fade");
-    expect(rule).not.toContain("wd-enter-defocus");
-    // It keeps its own beat on the shared clock.
-    expect(rule).toContain("var(--wd-enter-delay");
-    expect(rule).toContain("var(--wd-beat-lead");
+    expect(rule).toContain("wd-enter-fade-lcp");
+    expect(rule).toContain("wd-enter-defocus");
+    // Beat and curves come from the shared rule; only the name changes.
+    expect(rule).not.toMatch(/animation:/);
   });
 
   it("drops the rise under reduced motion", () => {

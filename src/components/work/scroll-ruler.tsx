@@ -142,9 +142,11 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
     const slot = trackRef.current?.children[tick] as HTMLElement | undefined;
     if (!nav || !slot) return null;
 
-    const top = nav.getBoundingClientRect().top;
-    const box = slot.getBoundingClientRect();
-    const centre = box.top + box.height / 2 - top;
+    // Layout offsets, not bounding rects: while the panel morphs in it is
+    // scaled, and a rect read then is short by that scale, so the bar landed
+    // off its tick and popped to the right one when the morph ended. The bar is
+    // positioned in the nav's own (unscaled) pixels, so measure in them.
+    const centre = slot.offsetTop + slot.offsetHeight / 2;
 
     return { lo: centre - 1, hi: centre + 1 };
   }, []);
@@ -252,6 +254,18 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
 
   useEffect(() => () => cancelAnimationFrame(flightRef.current), []);
 
+  /**
+   * The first measure runs before the ticks exist (`layout` is still null), so
+   * it has no slot to place the bar on and leaves it at the column's top edge
+   * until a later measure (fonts, the entrance settling) happens to run. The
+   * ticks arrive with the next commit; place the bar on them before that
+   * commit paints, so its first visible frame is already at the right tick.
+   */
+  useLayoutEffect(() => {
+    if (!layout || layout.ticks === 0) return;
+    moveIndicator(indicatorTickRef.current, false);
+  }, [layout, moveIndicator]);
+
   useEffect(() => {
     const scrollEl = document.getElementById(READER_SCROLL_ID);
     if (!scrollEl) return;
@@ -289,6 +303,15 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
       const max = scrollEl.scrollHeight - scrollEl.clientHeight;
       const scrollable = max > 1;
       const scrollRect = scrollEl.getBoundingClientRect();
+      // While the panel morphs it is scaled, and every rect read inside it is
+      // short by that scale. Divide it out so a measure taken mid-morph is the
+      // same one the settled layout gives, and nothing moves when it lands.
+      const scaleX = scrollEl.offsetWidth
+        ? scrollRect.width / scrollEl.offsetWidth
+        : 1;
+      const scaleY = scrollEl.offsetHeight
+        ? scrollRect.height / scrollEl.offsetHeight
+        : 1;
       const prose = scrollEl.querySelector<HTMLElement>(".wd-prose");
 
       // The ruler sits beside the text column, so it is placed from the
@@ -309,8 +332,9 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
             getComputedStyle(nav).getPropertyValue("--wd-ruler-width"),
           ) || RULER_WIDTH_FALLBACK;
         const room =
-          panel.getBoundingClientRect().right -
-          column.getBoundingClientRect().right;
+          (panel.getBoundingClientRect().right -
+            column.getBoundingClientRect().right) /
+          scaleX;
 
         // Centred in the gutter the panel leaves beside the column, never
         // closer than the minimum gap. The column is centred and capped, so its
@@ -331,9 +355,9 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
 
       const spans: BlockSpan[] = blocks.map((block) => {
         const box = block.getBoundingClientRect();
-        const offset = box.top - scrollRect.top + scrollEl.scrollTop;
+        const offset = (box.top - scrollRect.top) / scaleY + scrollEl.scrollTop;
 
-        return blockSpan(offset, box.height, clearanceOf(block));
+        return blockSpan(offset, box.height / scaleY, clearanceOf(block));
       });
 
       const used = new Set<string>();
@@ -349,7 +373,8 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
         used.add(id);
         sectionOf.set(heading, { id, label });
 
-        const top = heading.getBoundingClientRect().top - scrollRect.top;
+        const top =
+          (heading.getBoundingClientRect().top - scrollRect.top) / scaleY;
         const offset = top + scrollEl.scrollTop - clearanceOf(heading);
 
         crosses.push(Math.max(0, offset));
