@@ -1,0 +1,62 @@
+name: OG image
+
+# The site-wide Open Graph image is a screenshot of `/`, so it has to be
+# recaptured from the code that actually ships. A push to main builds the app,
+# captures the homepage in Day/Midday, and commits the PNG back when it changed.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    name: Capture the homepage card
+    runs-on: ubuntu-latest
+    # The refresh commit carries [skip ci] and is authored by the bot, so this
+    # job must ignore its own push or it would loop.
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      !contains(github.event.head_commit.message, '[skip ci]')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Capture the OG image
+        run: pnpm og:capture
+
+      - name: Commit the new card
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add src/app/opengraph-image.png
+
+          if git diff --cached --quiet; then
+            echo "The homepage screenshot did not change."
+            exit 0
+          fi
+
+          git commit -m "chore(og): refresh homepage screenshot [skip ci]"
+          git push

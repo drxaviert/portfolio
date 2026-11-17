@@ -25,8 +25,8 @@ export function workMetadata(slug: string): Metadata {
       title: meta.title,
       description: meta.summary,
       // Next replaces the whole openGraph object when a child defines one, so
-      // the site card from app/opengraph-image.tsx has to be named again.
-      images: [{ url: "/opengraph-image", width: 1200, height: 630 }],
+      // the site card from app/opengraph-image.png has to be named again.
+      images: [{ url: "/opengraph-image.png", width: 1200, height: 630 }],
     },
     twitter: {
       card: "summary_large_image",
