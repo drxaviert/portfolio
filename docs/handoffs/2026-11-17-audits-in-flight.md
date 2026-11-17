@@ -61,7 +61,7 @@ Each writes `docs/audits/2026-11-17-<name>.md` in the main checkout, uncommitted
 - The Vercel CLI is installed and logged in as drxaviert; the repo is linked (`.vercel`, gitignored).
 - NEXT_PUBLIC_SITE_URL (Production) = https://portfolio-peach-nu-xjkzhn6s2l.vercel.app. This is the public prod domain; `portfolio-dattran2.vercel.app` is behind Vercel SSO, so don't use it. Redeployed, and the live robots.txt and og:url are correct.
 - Dat will give a custom domain when everything is done. At that point, add it in Vercel, overwrite the variable with `vercel env add NEXT_PUBLIC_SITE_URL production --force`, and redeploy. (The guard blocks `vercel env rm`.)
-- In flight: worker ctx_39fa2e314e46 on two PRs: fix/breakui-leftovers (port 3123) and fix/site-url-fallback.
+- Still in flight: worker ctx_39fa2e314e46 is live in the `breakui-leftovers` worktree (uncommitted carousel/home-nav edits). No PR exists yet for `fix/breakui-leftovers` or `fix/site-url-fallback`; nothing merged.
 
 ## Running now (historical — all finished)
 - `fix/audit-invisible` (ctx_bfb8535a8523, port 3120):
@@ -79,10 +79,10 @@ Each writes `docs/audits/2026-11-17-<name>.md` in the main checkout, uncommitted
 - Shared brief (skips the owner's deliberate decisions): scratchpad `audit-common.md`. Its rules are restated inside each worker spec.
 
 ## Next
-1. When all five reports are in, write one combined, de-duplicated list at `docs/audits/2026-11-17-summary.md`, ranked by severity.
-2. Open one PR for the INVISIBLE fixes via a worker in a new child worktree.
-3. Present the VISIBLE fixes to Dat for approval. The mobile carousel and nav-dock items are design calls.
-4. Commit the audit reports to main.
+All audit work on main is done. Still open:
+- PRs for `fix/breakui-leftovers` and `fix/site-url-fallback` once the worker finishes (CI + diff review, then merge).
+- Deferred design calls: mobile carousel/nav-dock layout, nav placeholder buttons, carousel empty slots, nav label wrap, design-system branch PR, case-study content.
+- Worktree removal was blocked by the destructive-command guard (Dat runs it): audit-break-ui, audit-color, audit-invisible, audit-performance, audit-prep-for-prod, audit-touch-a11y, fix-404-entrance, typography-lows. `compare-states` has 1 commit not on any remote; check before removing. `breakui-leftovers` stays until its PRs merge.
 
 ## Gotchas
 - The bash guard blocks commands containing worktree `rm` text, even inside heredocs. Write worker specs to scratchpad files with the Write tool.
