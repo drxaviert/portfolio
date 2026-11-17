@@ -692,6 +692,7 @@
 
 .wd-table-fig {
   margin: 28px 0 0;
+  overflow-x: auto;
 }
 
 .wd-table {
@@ -713,6 +714,7 @@
   text-align: left;
   vertical-align: top;
   border-top: 1px solid var(--outline-variant);
+  overflow-wrap: anywhere;
 }
 
 .wd-table thead th {
