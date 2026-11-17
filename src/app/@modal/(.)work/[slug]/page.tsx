@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { ExpandShell } from "@/components/work/expand-shell";
 import { mdxComponents } from "@/components/work/mdx-components";
 import { Reader } from "@/components/work/reader";
 import { WORK_BODIES } from "@/lib/work-bodies";
 import { getWork, listWork } from "@/lib/work";
+import { workMetadata } from "@/lib/work-metadata";
 
 /**
  * Soft navigation to /work/[slug]: the shared reader mounts over the live
@@ -21,6 +23,16 @@ export const instant = false;
  */
 export function generateStaticParams() {
   return listWork().map(({ slug }) => ({ slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+
+  return workMetadata(slug);
 }
 
 export default async function InterceptedWorkPage({

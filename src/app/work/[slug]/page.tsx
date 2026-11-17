@@ -1,11 +1,13 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { HomeScreen } from "@/components/home/home-screen";
 import { ExpandShell } from "@/components/work/expand-shell";
 import { mdxComponents } from "@/components/work/mdx-components";
 import { Reader } from "@/components/work/reader";
 import { RouteStudy } from "@/components/work/route-study";
-import { WORK_BODIES } from "@/lib/work-bodies";
 import { getWork, listWork } from "@/lib/work";
+import { WORK_BODIES } from "@/lib/work-bodies";
+import { workMetadata } from "@/lib/work-metadata";
 
 // The reader needs the slug to exist at all, so there is no instant shell to
 // stream in ahead of it.
@@ -13,6 +15,16 @@ export const instant = false;
 
 export function generateStaticParams() {
   return listWork().map(({ slug }) => ({ slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+
+  return workMetadata(slug);
 }
 
 /**
