@@ -13,6 +13,16 @@ export const mdxComponents: MDXComponents = {
       {children}
     </a>
   ),
+  ul: ({ children }) => <ul className="wd-ul">{children}</ul>,
+  ol: ({ children }) => <ol className="wd-ol">{children}</ol>,
+  blockquote: ({ children }) => (
+    <blockquote className="wd-quote">{children}</blockquote>
+  ),
+  pre: ({ children }) => <pre className="wd-pre">{children}</pre>,
+  code: ({ children }) => <code className="wd-code">{children}</code>,
+  strong: ({ children }) => <strong className="wd-strong">{children}</strong>,
+  em: ({ children }) => <em className="wd-em">{children}</em>,
+  hr: () => <hr className="wd-hr" />,
   Note,
   Figure,
   Brief: BriefQuote,
