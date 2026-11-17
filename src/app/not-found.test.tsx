@@ -47,10 +47,11 @@ describe("not-found page", () => {
     ]);
   });
 
-  it("reserves the nav slot instead of drawing its own nav", () => {
+  it("draws no nav and reserves no space for one", () => {
     render(<NotFound />);
 
-    expect(document.querySelector("[data-nav-slot]")).toBeInTheDocument();
+    expect(document.querySelector("[data-message-screen]")).toBeInTheDocument();
+    expect(document.querySelector("[data-nav-slot]")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("navigation", { name: "Primary" }),
     ).not.toBeInTheDocument();

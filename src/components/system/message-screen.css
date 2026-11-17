@@ -1,0 +1,9 @@
+/*
+ * The boundary screens have no nav (Dat, 2026-11-17). The dock belongs to the
+ * root layout and cannot be removed from a page, so the screen hides it from
+ * here: every route that renders a MessageScreen carries the marker on its
+ * <main>, and the nav's display rule lives in nav-dock.css, untouched.
+ */
+:root:has([data-message-screen]) .wd-nav-dock {
+  display: none;
+}
