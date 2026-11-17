@@ -145,7 +145,7 @@ function useOverlayBehaviour(
       if (!root) return;
 
       // The nav is one element in the root layout, outside the panel; the
-      // reader's tab order is nav → content → back.
+      // reader's tab order runs title → article → nav, then wraps back.
       const dock = document.querySelector<HTMLElement>(DOCK_SELECTOR);
       const stops = (element: HTMLElement | null) =>
         element
@@ -158,33 +158,60 @@ function useOverlayBehaviour(
             )
           : [];
 
-      const nodes = [...stops(dock), ...stops(root)];
-      if (nodes.length === 0) return;
+      const panelStops = stops(root);
+      const dockStops = stops(dock);
 
-      const first = nodes[0];
-      const last = nodes[nodes.length - 1];
+      if (panelStops.length === 0 && dockStops.length === 0) return;
+
+      const panelFirst = panelStops[0];
+      const panelLast = panelStops[panelStops.length - 1];
+      const dockFirst = dockStops[0];
+      const dockLast = dockStops[dockStops.length - 1];
       const active = document.activeElement;
-      const inside =
-        active instanceof HTMLElement &&
-        (root.contains(active) || (dock?.contains(active) ?? false));
+      const inPanel = active instanceof HTMLElement && root.contains(active);
+      const inDock =
+        active instanceof HTMLElement && (dock?.contains(active) ?? false);
+      const inside = inPanel || inDock;
 
       // Open focuses the tabindex="-1" title, which is deliberately not in the
       // list. Sequential navigation from it restarts at the document in WebKit,
       // so an in-reader focus that is not a stop counts as the reader's edge.
       const stranded =
-        active instanceof HTMLElement && inside && !nodes.includes(active);
+        active instanceof HTMLElement &&
+        inside &&
+        !panelStops.includes(active) &&
+        !dockStops.includes(active);
 
       if (event.shiftKey) {
-        if (!inside || stranded || active === first) {
+        if (!inside || stranded) {
           event.preventDefault();
-          last.focus();
+          (dockLast ?? panelLast)?.focus();
+          return;
         }
+
+        if (inPanel && active === panelFirst) {
+          event.preventDefault();
+          (dockLast ?? panelLast)?.focus();
+        } else if (inDock && active === dockFirst) {
+          event.preventDefault();
+          panelLast?.focus();
+        }
+
         return;
       }
 
-      if (!inside || stranded || active === last) {
+      if (!inside || stranded) {
         event.preventDefault();
-        first.focus();
+        (panelFirst ?? dockFirst)?.focus();
+        return;
+      }
+
+      if (inPanel && active === panelLast) {
+        event.preventDefault();
+        (dockFirst ?? panelFirst)?.focus();
+      } else if (inDock && active === dockLast) {
+        event.preventDefault();
+        (panelFirst ?? dockFirst)?.focus();
       }
     }
 
