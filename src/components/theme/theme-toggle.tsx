@@ -812,6 +812,9 @@ export function ThemeToggle() {
   const focusInside = useRef(false);
   /** True while the pointer is over Day, the gap bridge, or the row. */
   const hoverRegion = useRef(false);
+  const bridgeRef = useRef<HTMLSpanElement>(null);
+  /** Waits for a crossfade to end before re-reading a swallowed leave. */
+  const switchObserver = useRef<MutationObserver | null>(null);
   const suppressFocusOpen = useRef(false);
   /** Only keyboard focus may hold the row open; pointer focus may not. */
   const inputModality = useRef<"pointer" | "keyboard">("pointer");
@@ -990,6 +993,8 @@ export function ThemeToggle() {
       if (enterTimer.current !== null) {
         window.clearTimeout(enterTimer.current);
       }
+
+      switchObserver.current?.disconnect();
     };
   }, []);
 
@@ -1307,6 +1312,55 @@ export function ThemeToggle() {
   }
 
   /**
+   * A leave swallowed during a crossfade gets no second event: if the pointer
+   * really left mid-switch, it is already outside when hit testing returns, so
+   * nothing fires again and the row would stay open. Once the switch ends,
+   * read :hover directly and close if the pointer is out of the hover region.
+   */
+  function recheckHoverAfterSwitch() {
+    if (switchObserver.current) {
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      if (isPhaseSwitching()) {
+        return;
+      }
+
+      observer.disconnect();
+      switchObserver.current = null;
+      // Hit testing (and :hover) come back a frame or two after the marker
+      // clears; a real enter in the meantime cancels the close anyway.
+      window.requestAnimationFrame(() =>
+        window.requestAnimationFrame(() => {
+          if (isPhaseSwitching()) {
+            recheckHoverAfterSwitch();
+            return;
+          }
+
+          const hovered = [dayRef.current, bridgeRef.current, rowRef.current]
+            .filter((node): node is HTMLElement => node !== null)
+            .some((node) => node.matches(":hover"));
+
+          if (!hovered) {
+            hoverRegion.current = false;
+
+            if (canHover()) {
+              scheduleClose();
+            }
+          }
+        }),
+      );
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-phase-switching"],
+    });
+    switchObserver.current = observer;
+  }
+
+  /**
    * The desktop host only tracks the pointer for blur/leave bookkeeping. The
    * hover region that holds the row open is Day plus the gap bridge plus the
    * row; entering any other segment must not cancel a pending close.
@@ -1318,16 +1372,22 @@ export function ThemeToggle() {
 
   function leaveHoverRegion() {
     // A crossfade hides the live page from hit tests for its length; the
-    // pointer has not really left, so keep the row and let the next real
-    // pointer event decide.
-    if (isPhaseSwitching()) return;
+    // pointer may not have really left, so keep the row and decide once hit
+    // testing is back.
+    if (isPhaseSwitching()) {
+      recheckHoverAfterSwitch();
+      return;
+    }
 
     hoverRegion.current = false;
     scheduleClose();
   }
 
   function onDesktopPointerLeave() {
-    if (isPhaseSwitching()) return;
+    if (isPhaseSwitching()) {
+      recheckHoverAfterSwitch();
+      return;
+    }
 
     hoverRegion.current = false;
 
@@ -1429,6 +1489,7 @@ export function ThemeToggle() {
             hovering, and keeps the whole journey one hover target. */}
         {rowOpen ? (
           <span
+            ref={bridgeRef}
             aria-hidden="true"
             className="absolute inset-x-0 -top-1 h-1"
             onPointerEnter={enterHoverRegion}

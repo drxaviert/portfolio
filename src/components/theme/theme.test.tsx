@@ -569,6 +569,36 @@ describe("ThemeToggle", () => {
     expect(window.localStorage.getItem(DAY_PHASE_STORAGE_KEY)).toBe("dusk");
   });
 
+  it("closes the Day row when the pointer left during a theme crossfade", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
+    mockHoverCanHover(true);
+    renderToggle();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    // The leave lands mid-crossfade, so it is held rather than acted on.
+    root().dataset.phaseSwitching = "click";
+    fireEvent.pointerOut(themeHost(), { relatedTarget: document.body });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "true");
+
+    // The crossfade ends with the pointer outside: no further pointer event
+    // arrives, so the toggle has to re-read hover itself.
+    await act(async () => {
+      delete root().dataset.phaseSwitching;
+      await Promise.resolve();
+    });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(phaseRow()).toHaveAttribute("data-visible", "false");
+  });
+
   it("opens the Day row on click and closes it after the pointer leaves", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 0, 1, 12, 0));
