@@ -41,9 +41,10 @@ function isCover(value: string | undefined): value is Cover {
 /**
  * Flat `key: value` frontmatter, split at the first colon so a value may
  * contain one. The content files are ours, so this stays deliberately small.
+ * A saved-with-BOM file is still frontmatter: the editor's mark is not content.
  */
-function parseFrontmatter(source: string): Record<string, string> {
-  const block = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(source);
+export function parseFrontmatter(source: string): Record<string, string> {
+  const block = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(source);
   if (!block) return {};
 
   const fields: Record<string, string> = {};
@@ -63,9 +64,20 @@ function readWork(slug: WorkSlug): WorkMeta {
   const file = path.join(CONTENT_DIR, `${slug}.mdx`);
   const fields = parseFrontmatter(fs.readFileSync(file, "utf8"));
   const { title, subtitle, year, role, summary, cover } = fields;
+  const missing = [
+    ["title", title],
+    ["subtitle", subtitle],
+    ["year", year],
+    ["role", role],
+    ["summary", summary],
+  ]
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
 
-  if (!title || !subtitle || !year || !role || !summary) {
-    throw new Error(`content/work/${slug}.mdx is missing a frontmatter field`);
+  if (missing.length > 0) {
+    throw new Error(
+      `content/work/${slug}.mdx is missing frontmatter: ${missing.join(", ")}`,
+    );
   }
 
   if (!isCover(cover)) {
