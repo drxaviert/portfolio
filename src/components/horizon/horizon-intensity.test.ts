@@ -49,10 +49,7 @@ describe("breathe intensity envelope", () => {
     // "expand": the breathe `to` state, where the scale is at its maximum.
     expect(breatheEnvelope(0, "expand")).toBe(0);
     expect(breatheEnvelope(1, "expand")).toBe(1);
-    expect(envelopeAt(PERIOD, "expand")).toBeCloseTo(
-      sampledPeak("expand"),
-      6,
-    );
+    expect(envelopeAt(PERIOD, "expand")).toBeCloseTo(sampledPeak("expand"), 6);
     expect(breatheAt(PERIOD).scale).toBeCloseTo(1 + SCALE, 6);
   });
 
@@ -63,10 +60,7 @@ describe("breathe intensity envelope", () => {
       // The 6s breathe keyframes, then the alternate iteration mirroring them.
       expect(envelopeAt(0, peak)).toBeCloseTo(peak === "core" ? 1 : 0, 6);
       expect(envelopeAt(PERIOD, peak)).toBeCloseTo(peak === "core" ? 0 : 1, 6);
-      expect(envelopeAt(PERIOD * 2, peak)).toBeCloseTo(
-        envelopeAt(0, peak),
-        6,
-      );
+      expect(envelopeAt(PERIOD * 2, peak)).toBeCloseTo(envelopeAt(0, peak), 6);
 
       // Strictly monotone between those two ends: no added wobble or period.
       let previous = envelopeAt(0, peak);
@@ -168,7 +162,8 @@ describe("CSS intensity layer", () => {
 
   it("turns the pulse off under reduced motion", () => {
     const reduced = css.slice(css.indexOf("Strength stays at 1"));
-    const rule = /\.horizon-motion-intensity \{[\s\S]*?\}/.exec(reduced)?.[0] ?? "";
+    const rule =
+      /\.horizon-motion-intensity \{[\s\S]*?\}/.exec(reduced)?.[0] ?? "";
 
     expect(rule).toContain("display: none");
   });

@@ -137,7 +137,6 @@ export function baseStrength({
   return base + (nightBase - base) * blend;
 }
 
-
 /**
  * The intensity multiplier for one blob: 1 + effectiveAmp * envelope, where
  * effectiveAmp is damped towards `amp * nightScale` as the phase fades to

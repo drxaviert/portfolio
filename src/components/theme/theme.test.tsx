@@ -528,9 +528,7 @@ describe("ThemeToggle", () => {
       screen.getByRole("button", { name: /Choose theme, currently Auto/ }),
     );
 
-    expect(
-      screen.getByRole("menuitemradio", { name: "Clock" }),
-    ).toBeChecked();
+    expect(screen.getByRole("menuitemradio", { name: "Clock" })).toBeChecked();
     expect(
       screen.getByRole("menuitemradio", { name: "Dawn" }),
     ).toBeInTheDocument();

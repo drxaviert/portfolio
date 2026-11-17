@@ -1,4 +1,12 @@
-﻿import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+﻿import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   applyDayPhase,
   applyMode,
@@ -159,9 +167,7 @@ describe("msUntilNextPhaseBoundary", () => {
 
   it("uses Day mode's 2:00 mirror boundary", () => {
     expect(msUntilNextPhaseBoundary(at(1, 0), "day")).toBe(60 * 60 * 1000);
-    expect(msUntilNextPhaseBoundary(at(2, 0), "day")).toBe(
-      6 * 60 * 60 * 1000,
-    );
+    expect(msUntilNextPhaseBoundary(at(2, 0), "day")).toBe(6 * 60 * 60 * 1000);
   });
 
   it("handles spring-forward", () => {

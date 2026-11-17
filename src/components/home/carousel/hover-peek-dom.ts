@@ -208,19 +208,19 @@ export function tweenPeek(
     duration:
       timing.run?.duration ??
       (turning ? Math.max(base * left, base * 0.35) : base),
-    easing:
-      timing.run?.easing ?? (turning ? TURN_EASING : PEEK_EASING),
+    easing: timing.run?.easing ?? (turning ? TURN_EASING : PEEK_EASING),
     fill: open ? ("forwards" as const) : ("none" as const),
   };
 
-  const runs = timing.cards === false
-    ? []
-    : cards.map((card, index) =>
-        card.el.animate(
-          { "--car-x": [`${fromCards[index]}px`, `${toX(index)}px`] },
-          options,
-        ),
-      );
+  const runs =
+    timing.cards === false
+      ? []
+      : cards.map((card, index) =>
+          card.el.animate(
+            { "--car-x": [`${fromCards[index]}px`, `${toX(index)}px`] },
+            options,
+          ),
+        );
   const prevRun = prev.animate(
     { "--car-x": [`${fromPrev.x}px`, `${toPrev.x}px`] },
     options,

@@ -4,15 +4,15 @@ Paste this into a fresh session instead of resuming the old 320k-token one.
 
 ## Repo state (verified 2026-11-09)
 
-| Item | Value |
-|---|---|
-| Local repo | `C:\Users\Dat\orca\portfolio` |
-| Branch | `main`, clean working tree |
-| HEAD | `38d9e8a chore: pin Node 24` |
-| Remote | `git@github.com:drxaviert/portfolio.git` (pushed) |
-| CI | First GitHub Actions run passed (install, lint, typecheck, test, build) |
-| Extra branch | `drxaviert/mobbin-nav-type-inspiration` |
-| Worktree | `C:\Users\Dat\orca\workspaces\portfolio\eagleray` on that branch, at `38d9e8a`, `pnpm install` done |
+| Item         | Value                                                                                               |
+| ------------ | --------------------------------------------------------------------------------------------------- |
+| Local repo   | `C:\Users\Dat\orca\portfolio`                                                                       |
+| Branch       | `main`, clean working tree                                                                          |
+| HEAD         | `38d9e8a chore: pin Node 24`                                                                        |
+| Remote       | `git@github.com:drxaviert/portfolio.git` (pushed)                                                   |
+| CI           | First GitHub Actions run passed (install, lint, typecheck, test, build)                             |
+| Extra branch | `drxaviert/mobbin-nav-type-inspiration`                                                             |
+| Worktree     | `C:\Users\Dat\orca\workspaces\portfolio\eagleray` on that branch, at `38d9e8a`, `pnpm install` done |
 
 Old experiment branches (`hero-ui`, `scaffold-app`, `scaffold-go`) were deleted; there is no other worktree.
 

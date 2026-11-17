@@ -273,7 +273,9 @@ describe("left hover peek", () => {
     expect(fadeOut.options.duration).toBe(350);
     act(() =>
       recorded
-        .filter((r) => r.target === prevCard(container) && "--car-x" in r.keyframes)
+        .filter(
+          (r) => r.target === prevCard(container) && "--car-x" in r.keyframes,
+        )
         .at(-1)!
         .onfinish?.(),
     );
@@ -605,7 +607,9 @@ describe("left hover peek", () => {
     expect(row(container)).not.toHaveAttribute("data-stepping");
     const glide = recorded
       .slice(mark)
-      .filter((r) => "--car-x" in r.keyframes && r.target !== prevCard(container));
+      .filter(
+        (r) => "--car-x" in r.keyframes && r.target !== prevCard(container),
+      );
     // Every card carries on from where it is drawn to its rest slot, on the
     // retarget curve: the run is turned round, not restarted.
     const restFor = [REST_X[1], REST_X[2], REST_X[3], REST_X[0]];
@@ -922,7 +926,10 @@ describe("left hover peek", () => {
     // The left end is not blurred as a whole card: the edge copy does it.
     expect(
       recorded.some(
-        (r) => r.target === leaving && !Array.isArray(r.keyframes) && "filter" in r.keyframes,
+        (r) =>
+          r.target === leaving &&
+          !Array.isArray(r.keyframes) &&
+          "filter" in r.keyframes,
       ),
     ).toBe(false);
 
@@ -960,14 +967,12 @@ describe("left hover peek", () => {
       const keys = fade.keyframes as unknown as Record<string, number>[];
       // No edge until the card reaches the column's edge, full one fade width
       // past it.
-      expect(keys.map((k) => [k.offset, k["--car-le"]])).toEqual(
-        [
-          [0, 0],
-          ...(from > 0 ? [[from / (from - to), 0]] : []),
-          [(from + fadeWidth) / (from - to), 1],
-          [1, 1],
-        ],
-      );
+      expect(keys.map((k) => [k.offset, k["--car-le"]])).toEqual([
+        [0, 0],
+        ...(from > 0 ? [[from / (from - to), 0]] : []),
+        [(from + fadeWidth) / (from - to), 1],
+        [1, 1],
+      ]);
       expect(el.querySelector("[data-peek-blur]")).toHaveAttribute(
         "data-edge",
         "left",
@@ -1015,9 +1020,9 @@ describe("left hover peek", () => {
       );
       for (let slot = 0; slot < 4; slot++) {
         const slide = card(container, slot);
-        expect(`${name} slot ${slot}: ${slide.style.getPropertyValue("--car-x")}`).toBe(
-          `${name} slot ${slot}: ${REST_X[slot]}px`,
-        );
+        expect(
+          `${name} slot ${slot}: ${slide.style.getPropertyValue("--car-x")}`,
+        ).toBe(`${name} slot ${slot}: ${REST_X[slot]}px`);
         // The right edge's hand-over is per run; nothing is left on a card.
         expect(slide.style.getPropertyValue("--car-rf")).toBe("");
       }
@@ -1066,9 +1071,7 @@ describe("left hover peek", () => {
     // The reported case: a pointer click on the peeked card.
     fireEvent.click(prevCard(container)!, { detail: 1 });
 
-    const runs = recorded
-      .slice(before)
-      .filter((r) => "--car-x" in r.keyframes);
+    const runs = recorded.slice(before).filter((r) => "--car-x" in r.keyframes);
     // One run per card, all created in this one task: the row cannot stagger.
     for (const el of cards) {
       expect(runs.filter((r) => r.target === el)).toHaveLength(1);
@@ -1183,9 +1186,7 @@ describe("left hover peek", () => {
         expect(layer.style.opacity).toBe("0");
       }
       // The close morph now finds the card at its rest box.
-      expect(findCard("systems-in-motion")!.left).toBe(
-        ROW.left + REST_X[0],
-      );
+      expect(findCard("systems-in-motion")!.left).toBe(ROW.left + REST_X[0]);
       unmount();
     }
   });
@@ -1713,10 +1714,10 @@ describe("peek css", () => {
     // ramp the card fades on (a share of it, the Peek blur width), so blurred
     // and sharp copies meet where the card is already solid.
     expect(css).toMatch(
-      /\.car-peek-blur\[data-edge="left"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*#000 0,\s*transparent calc\(var\(--peek-fade-left, 34px\) \* var\(--car-peek-ramp, 100\) \/ 100\)/,
+      /\.car-peek-blur\[data-edge="left"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*#000 0,\s*transparent\s+calc\(var\(--peek-fade-left, 34px\) \* var\(--car-peek-ramp, 100\) \/ 100\)/,
     );
     expect(css).toMatch(
-      /\.car-peek-blur\[data-edge="right"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to left,\s*#000 0,\s*transparent calc\(var\(--peek-fade-right, 33px\) \* var\(--car-peek-ramp, 100\) \/ 100\)/,
+      /\.car-peek-blur\[data-edge="right"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to left,\s*#000 0,\s*transparent\s+calc\(var\(--peek-fade-right, 33px\) \* var\(--car-peek-ramp, 100\) \/ 100\)/,
     );
     // Only while the peek is open is the filtered copy promoted.
     expect(css).toMatch(
@@ -1747,9 +1748,7 @@ describe("peek css", () => {
     // The box that grows carries the pad and its negative margin, and the host
     // sits back inside it, so the shadow fades but the card does not move. The
     // pad itself is the row's (the same reach the moving cards rely on).
-    expect(css).toMatch(
-      /\.car-row\s*\{[^}]*--car-shadow-pad:\s*8px/,
-    );
+    expect(css).toMatch(/\.car-row\s*\{[^}]*--car-shadow-pad:\s*8px/);
     expect(css).toMatch(
       /\.car-row\[data-peeking\] \.car-peek-edge \.car-frame,\s*\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] \.car-frame,\s*\.car-row\[data-peeking\] \.car-slide\[data-peek-out\] \.car-frame\s*\{\s*margin:\s*calc\(-1 \* var\(--car-shadow-pad\)\);\s*padding:\s*var\(--car-shadow-pad\)/,
     );
@@ -1781,7 +1780,9 @@ describe("peek css", () => {
     // the card actually crosses: `--car-cut` is the column's edge in the padded
     // frame (the row's x, then the pad), `--car-cross` the same edge in the
     // card's own box for the blur copy.
-    const block = css.match(/^\.car-slide\[data-edge-left\]\s*\{([^}]*)\}/m)![1];
+    const block = css.match(
+      /^\.car-slide\[data-edge-left\]\s*\{([^}]*)\}/m,
+    )![1];
     expect(block).toContain(
       "--car-cut: calc(var(--car-shadow-pad) - var(--car-x))",
     );
@@ -1798,7 +1799,7 @@ describe("peek css", () => {
     // The blur copy rides the same edge: dense at the column's line, thinning
     // out over the Peek blur width inward, so the fading band is the melted one.
     expect(css).toMatch(
-      /\.car-slide\[data-edge-left\] \.car-peek-blur\[data-edge="left"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*#000 var\(--car-cross\),\s*transparent\s*calc\(var\(--car-cross\) \+ var\(--peek-fade-left, 34px\) \* var\(--car-peek-ramp, 100\) \/ 100\)/,
+      /\.car-slide\[data-edge-left\] \.car-peek-blur\[data-edge="left"\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*#000 var\(--car-cross\),\s*transparent\s*calc\(\s*var\(--car-cross\) \+ var\(--peek-fade-left, 34px\)\s*\*\s*var\(--car-peek-ramp, 100\)\s*\/\s*100\s*\)/,
     );
     // The old anchor - the strength alone at the card's own drawn edge - is gone.
     expect(css).not.toMatch(/rgb\(0 0 0 \/ calc\(1 - var\(--car-le\)\)\)/);

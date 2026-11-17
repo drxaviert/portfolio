@@ -113,9 +113,9 @@ describe("shipped home entrance", () => {
     expect(hint).toContain(".wd-nav-dock");
     // And every selector in it is dropped by the same gate that ends the
     // animations, so no layer outlives the 1710ms sequence.
-    expect((hint!.match(/:root:not\(\[data-entrance-played\]\)/g) ?? []).length).toBe(
-      2,
-    );
+    expect(
+      (hint!.match(/:root:not\(\[data-entrance-played\]\)/g) ?? []).length,
+    ).toBe(2);
     // No unconditional will-change anywhere in the entrance stylesheet.
     expect((css.match(/will-change/g) ?? []).length).toBe(1);
   });

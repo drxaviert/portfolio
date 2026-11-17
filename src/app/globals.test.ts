@@ -7,7 +7,9 @@ const globals = read("src/app/globals.css");
 
 /** The declaration block of the file's forced-colors media query. */
 function forcedColorsBlock(css: string): string {
-  return css.match(/@media \(forced-colors: active\) \{([\s\S]*?)\r?\n\}/)?.[1] ?? "";
+  return (
+    css.match(/@media \(forced-colors: active\) \{([\s\S]*?)\r?\n\}/)?.[1] ?? ""
+  );
 }
 
 describe("global interaction rules", () => {
@@ -42,7 +44,9 @@ describe("global interaction rules", () => {
     }
     expect(reader).toMatch(/border: 1px solid CanvasText/);
 
-    const ruler = forcedColorsBlock(read("src/components/work/scroll-ruler.css"));
+    const ruler = forcedColorsBlock(
+      read("src/components/work/scroll-ruler.css"),
+    );
     expect(ruler).toContain(".wd-ruler-card-inner");
     expect(ruler).toMatch(/border: 1px solid CanvasText/);
   });

@@ -197,8 +197,7 @@ function useOverlayBehaviour(
   // study (study to study) keeps the origin.
   useEffect(
     () => () => {
-      const origin =
-        document.documentElement.dataset.drawerOrigin ?? slug;
+      const origin = document.documentElement.dataset.drawerOrigin ?? slug;
 
       returnTarget(origin)?.focus({ preventScroll: true });
 

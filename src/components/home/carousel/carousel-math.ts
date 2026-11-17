@@ -341,11 +341,7 @@ export function retarget(
       // past the edge - a push, not a shrink. It keeps the left-edge treatment
       // for the run (see playEntity), so its edge fades and blurs as it goes.
       out.push({
-        ...retargetTo(
-          main,
-          { x: -(main.from.w + g.gap), w: main.from.w },
-          0,
-        ),
+        ...retargetTo(main, { x: -(main.from.w + g.gap), w: main.from.w }, 0),
         edgeLeft: true,
       });
     } else {

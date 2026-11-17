@@ -65,14 +65,11 @@ describe("study hand-off", () => {
 
     await leaveForNextStudy();
 
-    expect(fade).toHaveBeenCalledWith(
-      [{ opacity: 1 }, { opacity: 0 }],
-      {
-        duration: PROGRESSION_EXIT_MS,
-        easing: "ease-in",
-        fill: "forwards",
-      },
-    );
+    expect(fade).toHaveBeenCalledWith([{ opacity: 1 }, { opacity: 0 }], {
+      duration: PROGRESSION_EXIT_MS,
+      easing: "ease-in",
+      fill: "forwards",
+    });
   });
 
   it("pushes the route before the fade ends, so the two overlap", async () => {

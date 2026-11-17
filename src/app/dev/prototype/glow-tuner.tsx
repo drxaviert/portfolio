@@ -531,9 +531,7 @@ export function GlowTuner() {
         `  --phase-auto-transition-duration: ${formatNumber(state.autoDuration)}ms;`,
         `  --phase-auto-transition-ease: ${state.autoEase};`,
         "}",
-        ...PHASES.map((entry) =>
-          phaseBlock(entry, state.phases[entry], true),
-        ),
+        ...PHASES.map((entry) => phaseBlock(entry, state.phases[entry], true)),
       ].join("\n\n"),
     [state],
   );
@@ -564,10 +562,9 @@ export function GlowTuner() {
 
   async function copyCss() {
     try {
-      const css = [
-        phaseBlock(phase, tokens),
-        globalBlock(tokens, state),
-      ].join("\n\n");
+      const css = [phaseBlock(phase, tokens), globalBlock(tokens, state)].join(
+        "\n\n",
+      );
 
       await navigator.clipboard.writeText(css);
       setCopied(true);
@@ -675,9 +672,7 @@ export function GlowTuner() {
               />
 
               <details className="glow-tuner-details">
-                <summary className="glow-tuner-summary">
-                  Blob geometry
-                </summary>
+                <summary className="glow-tuner-summary">Blob geometry</summary>
                 <div className="glow-tuner-stack">
                   <p className="glow-tuner-group">Blob 1</p>
                   <SliderRow
@@ -823,8 +818,7 @@ export function GlowTuner() {
 
                     if (next) {
                       previewStartPin.current =
-                        document.documentElement.dataset.phasePreview ===
-                        "true"
+                        document.documentElement.dataset.phasePreview === "true"
                           ? readActivePhase()
                           : null;
                     }

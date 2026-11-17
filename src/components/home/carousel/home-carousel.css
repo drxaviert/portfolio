@@ -325,14 +325,12 @@
 
   -webkit-mask-image: linear-gradient(
     to left,
-    rgb(0 0 0 / calc(1 - var(--car-fade) * var(--car-rf)))
-      var(--car-shadow-pad),
+    rgb(0 0 0 / calc(1 - var(--car-fade) * var(--car-rf))) var(--car-shadow-pad),
     #000 calc(var(--car-shadow-pad) + var(--peek-fade-right, 33px))
   );
   mask-image: linear-gradient(
     to left,
-    rgb(0 0 0 / calc(1 - var(--car-fade) * var(--car-rf)))
-      var(--car-shadow-pad),
+    rgb(0 0 0 / calc(1 - var(--car-fade) * var(--car-rf))) var(--car-shadow-pad),
     #000 calc(var(--car-shadow-pad) + var(--peek-fade-right, 33px))
   );
 }
@@ -402,13 +400,19 @@
     to right,
     #000 var(--car-cross),
     transparent
-      calc(var(--car-cross) + var(--peek-fade-left, 34px) * var(--car-peek-ramp, 100) / 100)
+      calc(
+        var(--car-cross) + var(--peek-fade-left, 34px) *
+          var(--car-peek-ramp, 100) / 100
+      )
   );
   mask-image: linear-gradient(
     to right,
     #000 var(--car-cross),
     transparent
-      calc(var(--car-cross) + var(--peek-fade-left, 34px) * var(--car-peek-ramp, 100) / 100)
+      calc(
+        var(--car-cross) + var(--peek-fade-left, 34px) *
+          var(--car-peek-ramp, 100) / 100
+      )
   );
 }
 
@@ -448,16 +452,23 @@
  * no filter (playEntity skips the whole-card blur for a card that crosses).
  */
 .car-row:is([data-stepping], [data-peeking], [data-mask])
-  .car-slide[data-cross-right]:not(.car-peek-edge, [data-peek-fade], [data-edge-blur]),
-.car-slide[data-cross-right][data-clipped]:not(.car-peek-edge, [data-peek-fade], [data-edge-blur]) {
+  .car-slide[data-cross-right]:not(
+    .car-peek-edge,
+    [data-peek-fade],
+    [data-edge-blur]
+  ),
+.car-slide[data-cross-right][data-clipped]:not(
+    .car-peek-edge,
+    [data-peek-fade],
+    [data-edge-blur]
+  ) {
   --car-xk: clamp(
     0px,
     100% - 24px - var(--car-r) - var(--car-cross-r),
     var(--peek-fade-right, 33px)
   );
   --car-xe: calc(
-    12px + var(--car-cross-r) +
-      max(0px, var(--car-shadow-pad) - var(--car-xk))
+    12px + var(--car-cross-r) + max(0px, var(--car-shadow-pad) - var(--car-xk))
   );
 
   -webkit-mask-image: linear-gradient(
@@ -584,12 +595,14 @@
   -webkit-mask-image: linear-gradient(
     to right,
     #000 0,
-    transparent calc(var(--peek-fade-left, 34px) * var(--car-peek-ramp, 100) / 100)
+    transparent
+      calc(var(--peek-fade-left, 34px) * var(--car-peek-ramp, 100) / 100)
   );
   mask-image: linear-gradient(
     to right,
     #000 0,
-    transparent calc(var(--peek-fade-left, 34px) * var(--car-peek-ramp, 100) / 100)
+    transparent
+      calc(var(--peek-fade-left, 34px) * var(--car-peek-ramp, 100) / 100)
   );
 }
 
@@ -597,12 +610,14 @@
   -webkit-mask-image: linear-gradient(
     to left,
     #000 0,
-    transparent calc(var(--peek-fade-right, 33px) * var(--car-peek-ramp, 100) / 100)
+    transparent
+      calc(var(--peek-fade-right, 33px) * var(--car-peek-ramp, 100) / 100)
   );
   mask-image: linear-gradient(
     to left,
     #000 0,
-    transparent calc(var(--peek-fade-right, 33px) * var(--car-peek-ramp, 100) / 100)
+    transparent
+      calc(var(--peek-fade-right, 33px) * var(--car-peek-ramp, 100) / 100)
   );
 }
 

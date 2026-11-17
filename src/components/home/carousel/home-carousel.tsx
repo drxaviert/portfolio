@@ -250,8 +250,7 @@ function Slide({
   // card, its ring and its shadow. The card that held the right edge before a
   // step keeps it while it leaves, so the two hand it over on one run, and a
   // card leaving through the left end takes the peek's left edge for its run.
-  const rightEdge =
-    !ghost && (slot === VISIBLE_SLOTS - 2 || peekOut);
+  const rightEdge = !ghost && (slot === VISIBLE_SLOTS - 2 || peekOut);
   // A card leaving through the left end is not the right edge this run, even
   // when its slot after the wrap is the right-most one (a short ring).
   const edgeBlur = peek || edgeLeft ? "left" : rightEdge ? "right" : null;
@@ -794,7 +793,9 @@ export function HomeCarousel({
       // seam copy, so the pair identifies it.
       const leaving =
         !entity.ghost &&
-        running.entities.some((other) => other.ghost && other.item === entity.item);
+        running.entities.some(
+          (other) => other.ghost && other.item === entity.item,
+        );
       const to = leaving
         ? entity.to
         : { x: dest.x + (visible ? shift : 0), w: dest.w };
@@ -918,7 +919,8 @@ export function HomeCarousel({
     // peek of its own (see glideTo).
     if (tween.current) {
       const want = hoverWant();
-      if (!tween.current.settling && want !== !!tween.current.peek) glideTo(want);
+      if (!tween.current.settling && want !== !!tween.current.peek)
+        glideTo(want);
       return;
     }
 
@@ -1073,10 +1075,7 @@ export function HomeCarousel({
     } else {
       row.dataset.stepping = "";
     }
-    const clock = row.animate(
-      { opacity: [1, 1] },
-      { duration: SETTLE_MS },
-    );
+    const clock = row.animate({ opacity: [1, 1] }, { duration: SETTLE_MS });
     const started: Tween = {
       entities: planned,
       t0: performance.now(),
@@ -1422,9 +1421,7 @@ export function HomeCarousel({
     // hard cut on the first frames, nor pops at the click.
     const fadeWidth = Math.max(
       8,
-      Math.round(
-        (Math.round(g.slots[VISIBLE_SLOTS - 1].w) * s.peekFade) / 100,
-      ),
+      Math.round((Math.round(g.slots[VISIBLE_SLOTS - 1].w) * s.peekFade) / 100),
     );
     for (const entity of leaving) {
       const el = elements.current.get(`m${entity.item}`);

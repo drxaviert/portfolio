@@ -58,9 +58,7 @@ export function registerNavDock(controls: NavDockControls): () => void {
 }
 
 /** The reader's close gesture, for the dock that sits outside the panel. */
-export function registerReaderClose(
-  close: (() => void) | null,
-): () => void {
+export function registerReaderClose(close: (() => void) | null): () => void {
   if (!close) {
     closeReaders.length = 0;
     return () => undefined;
