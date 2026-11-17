@@ -798,3 +798,15 @@
     color: var(--on-surface);
   }
 }
+
+/*
+ * Phase paint on the body, unlayered and at one element + one attribute of
+ * specificity. Next's built-in error and not-found paths stream their own
+ * unlayered `body { color: #000; background: #fff }`, which outranks anything
+ * inside @layer base; scoped this way the phase tokens win on every route,
+ * including those two, without depending on which stylesheet arrives last.
+ */
+html[data-phase] body {
+  background-color: var(--surface);
+  color: var(--on-surface);
+}

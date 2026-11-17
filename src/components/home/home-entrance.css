@@ -23,6 +23,10 @@
  * Variant timings (item = horizon order: nav, project, 3 slivers, top band)
  *   soft   veil 0-1400ms, cards 250 + item*60ms, 1100ms each      → ends 1710ms
  *
+ * The featured card (item 3) is the largest text on the first screen, so it
+ * starts visible and only rises; its fade and blur would hold the LCP element
+ * back. Every other card keeps the split.
+ *
  * The cards rest in their visible state, so a cancelled animation simply shows
  * the page. Only the veil starts hidden in CSS (it is an overlay); its
  * animation's first frame paints it over the page.
@@ -223,6 +227,25 @@
   animation-delay: calc(
     var(--soft-card-delay) + var(--entrance-h) * var(--soft-stagger)
   );
+}
+
+/*
+ * The featured card carries the largest text on the opening screen, so it is
+ * the LCP element on a phone. It keeps the beat and the rise, but starts
+ * visible and sharp: the fade and the blur would hold the title back until the
+ * end of a 1.1s animation. Everything else keeps the split entrance.
+ */
+[data-entrance="soft"] [data-entrance-item="3"] .entrance-body {
+  animation-name: entrance-soft-card-rise;
+}
+
+@keyframes entrance-soft-card-rise {
+  from {
+    translate: 0 var(--soft-rise, 6px);
+  }
+  to {
+    translate: 0 0;
+  }
 }
 
 /*
