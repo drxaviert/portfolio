@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   GLIDE_LEAD_SPRING,
   GLIDE_TRAIL_SPRING,
@@ -22,14 +22,19 @@ const LINKS = [
 ];
 
 const ITEM_CLASS = [
-  "nav-item relative flex h-8 items-center rounded-md px-2",
-  "text-base leading-5 font-medium",
+  "nav-item relative flex h-8 min-w-0 items-center rounded-md px-2",
+  "text-base leading-5 font-medium whitespace-nowrap",
   "outline-hidden focus-visible:outline-solid focus-visible:outline-2",
   "focus-visible:outline-offset-0 focus-visible:outline-primary",
 ].join(" ");
 
+/** Added only while a label does not fit (see useClippedLabels). */
+const CLIPPED_CLASS = "min-w-0 truncate";
+
+const NO_CLIPS: readonly number[] = [];
+
 const GLYPH_CLASS = [
-  "nav-glyph relative hidden size-8 items-center justify-center",
+  "nav-glyph relative hidden size-8 shrink-0 items-center justify-center",
   "rounded-md text-on-surface-variant md:flex",
   "outline-hidden focus-visible:outline-solid focus-visible:outline-2",
   "focus-visible:outline-offset-0 focus-visible:outline-primary",
@@ -373,6 +378,75 @@ function GlideCapsule({
 }
 
 /**
+ * The labels that no longer fit in their item, so only those get the clip that
+ * makes `text-overflow` draw the ellipsis. A clipped item rasterises its text
+ * differently from an unclipped one, so a label that fits keeps its exact
+ * resting pixels; the label still comes from its own width, and the capsule
+ * measures the item's real box either way.
+ */
+function useClippedLabels(
+  items: RefObject<(HTMLElement | null)[]>,
+  count: number,
+): readonly number[] {
+  const [clipped, setClipped] = useState<readonly number[]>(NO_CLIPS);
+
+  useLayoutEffect(() => {
+    let alive = true;
+
+    const check = () => {
+      if (!alive) return;
+
+      const next: number[] = [];
+      for (let index = 0; index < count; index += 1) {
+        const node = items.current[index];
+        if (!node) continue;
+
+        // The text's own width, which a clip does not shrink, against the room
+        // the item's padding leaves. Measuring the item's overflow instead
+        // would clear the clip that hides it and flip back every frame.
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        // jsdom has no Range metrics; the item's own scroll width is the same
+        // number there (and 0 either way, so nothing clips in tests).
+        const text =
+          typeof range.getBoundingClientRect === "function"
+            ? range.getBoundingClientRect().width
+            : node.scrollWidth;
+        const style = window.getComputedStyle(node);
+        const padding =
+          (Number.parseFloat(style.paddingLeft) || 0) +
+          (Number.parseFloat(style.paddingRight) || 0);
+        const room = node.clientWidth - padding;
+
+        if (text > room + 1) next.push(index);
+      }
+
+      setClipped((previous) =>
+        previous.length === next.length &&
+        previous.every((value, index) => value === next[index])
+          ? previous
+          : next,
+      );
+    };
+
+    const observer = new ResizeObserver(check);
+    for (const node of items.current) {
+      if (node) observer.observe(node);
+    }
+    // A font swap changes every label's width, and the observer cannot see it.
+    document.fonts?.ready.then(check);
+    check();
+
+    return () => {
+      alive = false;
+      observer.disconnect();
+    };
+  }, [items, count]);
+
+  return clipped;
+}
+
+/**
  * The whole interactive run: the three labels, the divider and the glyph,
  * inside one positioning box so a single capsule can travel between them all.
  *
@@ -382,6 +456,7 @@ function GlideCapsule({
 export function NavItems() {
   const itemRefs = useRef<(HTMLElement | null)[]>([]);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const clipped = useClippedLabels(itemRefs, LINKS.length);
 
   function enter(index: number, event: ReactPointerEvent<HTMLElement>) {
     if (event.pointerType === "touch") return;
@@ -391,7 +466,7 @@ export function NavItems() {
 
   return (
     <div
-      className="relative flex items-center"
+      className="relative flex min-w-0 items-center"
       onPointerLeave={() => {
         // A theme crossfade snapshots the page and the live document stops
         // receiving hit tests for its length, so this is not a real leave.
@@ -420,35 +495,48 @@ export function NavItems() {
         // "Work" is a real link home. In the reader, the nav's click capture
         // consumes it and plays the reverse morph; the placeholders keep
         // holding the page.
+        //
+        // A label longer than the bar allows gets an ellipsis instead of
+        // wrapping out of the 32px item; `aria-label` keeps the whole string.
+        // A label that fits stays bare text, so its resting pixels are the
+        // shipped ones.
+        const label = clipped.includes(index) ? (
+          <span className={CLIPPED_CLASS}>{link.label}</span>
+        ) : (
+          link.label
+        );
+
         return link.href ? (
           <Link
             key={link.label}
             href={link.href}
             ref={ref}
+            aria-label={link.label}
             aria-current={link.current ? "page" : undefined}
             onPointerEnter={(event) => enter(index, event)}
             className={`no-underline ${classes}`}
           >
-            {link.label}
+            {label}
           </Link>
         ) : (
           <button
             key={link.label}
             type="button"
             ref={ref}
+            aria-label={link.label}
             onPointerEnter={(event) => enter(index, event)}
             // Preflight already resets font, colour, background, border and
             // padding; these three still differ from an anchor's UA style.
             className={`${classes} appearance-none cursor-pointer text-start`}
           >
-            {link.label}
+            {label}
           </button>
         );
       })}
 
       <span
         aria-hidden="true"
-        className="mx-6 hidden h-5 w-px bg-outline-variant md:block"
+        className="mx-6 hidden h-5 w-px shrink-0 bg-outline-variant md:block"
       />
 
       {/*

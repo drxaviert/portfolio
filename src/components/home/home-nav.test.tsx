@@ -67,6 +67,26 @@ describe("HomeNav", () => {
     );
   });
 
+  it("keeps a label on one line and exposes its full text", () => {
+    renderNav();
+
+    for (const [role, name] of [
+      ["link", "Work"],
+      ["button", "Play"],
+      ["button", "About"],
+    ] as const) {
+      const control = screen.getByRole(role, { name });
+
+      // No wrap out of the 32px item, and a label that can give way with an
+      // ellipsis instead of widening the bar; the name is still the whole
+      // string for assistive tech. A label that fits carries no clip, so its
+      // resting pixels do not change either.
+      expect(control).toHaveClass("min-w-0", "whitespace-nowrap");
+      expect(control).toHaveAttribute("aria-label", name);
+      expect(control).not.toHaveClass("overflow-hidden");
+    }
+  });
+
   it("takes a 44px touch target for the labels and the orb", () => {
     renderNav();
 
