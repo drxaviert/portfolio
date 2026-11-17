@@ -667,18 +667,25 @@
  * The mask above leaves only the edge strip visible, but the blur is a filter on
  * a full copy of the card, and Chromium rasterizes all of it every frame while
  * the card's crop animates (a 750px copy for 33px of visible blur, on up to
- * three cards at once for a far click). Each wrapper is clipped to exactly the
- * strip its mask shows, so the filter only has that much to paint; nothing
- * visible changes.
+ * three cards at once for a far click). Each copy is clipped to exactly the
+ * strip its wrapper's mask shows, so the filter only has that much to paint;
+ * nothing visible changes.
+ *
+ * The clip sits on the blurred copy, not on the masked wrapper. On the wrapper
+ * (inside a card that carries the right edge's own mask) Chromium drew a 1px
+ * line of the blurred copy along the clip's edge, where the mask is clear: a
+ * hard seam that slid with the card and cut the blurred bleed of the inner
+ * blocks across the card's bottom. A clip on the filtered element clips its
+ * output, so the mask alone decides what shows.
  */
-.car-peek-blur[data-edge="left"] {
+.car-peek-blur[data-edge="left"] > .car-peek-blur-copy {
   clip-path: inset(
     0 calc(100% - var(--peek-fade-left, 34px) * var(--car-peek-ramp, 100) / 100)
       0 0
   );
 }
 
-.car-peek-blur[data-edge="right"] {
+.car-peek-blur[data-edge="right"] > .car-peek-blur-copy {
   clip-path: inset(
     0 0 0
       calc(
@@ -687,7 +694,7 @@
   );
 }
 
-.car-cross-blur {
+.car-cross-blur > .car-peek-blur-copy {
   clip-path: inset(
     0 0 0
       max(
