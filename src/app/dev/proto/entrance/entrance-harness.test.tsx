@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { EMPTY_WORK_LABEL } from "@/components/home/empty-work";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { EntranceHarness } from "./entrance-harness";
 
@@ -38,7 +39,7 @@ describe("entrance harness", () => {
     expect(document.querySelector("main")?.dataset.entrance).toBe("scale");
     expect(document.querySelectorAll("[data-entrance-item]")).toHaveLength(7);
     expect(
-      screen.getByRole("heading", { name: "Project name" }),
+      screen.getByRole("heading", { name: EMPTY_WORK_LABEL }),
     ).toBeInTheDocument();
   });
 

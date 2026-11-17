@@ -15,6 +15,8 @@
   --c3: 52;
   --cols: 444fr 120fr 52fr 52fr;
   --u: calc((100% - 36px) / (var(--c0) + var(--c1) + var(--c2) + var(--c3)));
+  /* The short run's centring offset: 0 for the full four-column band. */
+  --c-off: 0px;
   /* How far a card's shadow reaches past its box: the mask and clip boxes open
      out by this so the card's edge keeps its shadow while it moves or fades. */
   --car-shadow-pad: 8px;
@@ -58,6 +60,34 @@
   gap: 12px;
   visibility: hidden;
   pointer-events: none;
+}
+
+/*
+ * A run with fewer items than slots lays out only its own columns (slotCount in
+ * carousel-math.ts), at the Figma widths, centred in the row: no empty column is
+ * ever rendered. `--c-off` is the same centring for the pre-measure placement
+ * below, so the first frame already sits where the script will put it.
+ */
+.car-row[data-slots="1"] {
+  --cols: calc(var(--u) * var(--c0));
+  --c-off: calc((100% - var(--u) * var(--c0)) / 2);
+}
+
+.car-row[data-slots="2"] {
+  --cols: calc(var(--u) * var(--c0)) calc(var(--u) * var(--c1));
+  --c-off: calc((100% - (var(--u) * (var(--c0) + var(--c1)) + 12px)) / 2);
+}
+
+.car-row[data-slots="3"] {
+  --cols: calc(var(--u) * var(--c0)) calc(var(--u) * var(--c1))
+    calc(var(--u) * var(--c2));
+  --c-off: calc(
+    (100% - (var(--u) * (var(--c0) + var(--c1) + var(--c2)) + 24px)) / 2
+  );
+}
+
+.car-row[data-slots] .car-guide {
+  justify-content: center;
 }
 
 /*
@@ -161,21 +191,24 @@
 
 /* Before the client has measured: slot boxes from the Figma ratios. */
 .car-row:not([data-ready]) .car-slide[data-slot="0"] {
+  left: var(--c-off);
   width: calc(var(--u) * var(--c0));
 }
 
 .car-row:not([data-ready]) .car-slide[data-slot="1"] {
-  left: calc(var(--u) * var(--c0) + 12px);
+  left: calc(var(--c-off) + var(--u) * var(--c0) + 12px);
   width: calc(var(--u) * var(--c1));
 }
 
 .car-row:not([data-ready]) .car-slide[data-slot="2"] {
-  left: calc(var(--u) * (var(--c0) + var(--c1)) + 24px);
+  left: calc(var(--c-off) + var(--u) * (var(--c0) + var(--c1)) + 24px);
   width: calc(var(--u) * var(--c2));
 }
 
 .car-row:not([data-ready]) .car-slide[data-slot="3"] {
-  left: calc(var(--u) * (var(--c0) + var(--c1) + var(--c2)) + 36px);
+  left: calc(
+    var(--c-off) + var(--u) * (var(--c0) + var(--c1) + var(--c2)) + 36px
+  );
   width: calc(var(--u) * var(--c3));
 }
 

@@ -34,6 +34,7 @@ import {
   restEntities,
   retarget,
   sampleEntities,
+  slotCount,
   slotOf,
   slotOrder,
   slotPose,
@@ -177,12 +178,21 @@ function measureGeometry(
   const rowRect = row.getBoundingClientRect();
   if (rowRect.width === 0) return null;
 
-  const slots = Array.from(guide.children)
-    .slice(0, VISIBLE_SLOTS)
-    .map((cell) => {
-      const rect = cell.getBoundingClientRect();
-      return { x: rect.left - rowRect.left, w: rect.width };
-    });
+  const cells = Array.from(guide.children).map((cell) => {
+    const rect = cell.getBoundingClientRect();
+    return { x: rect.left - rowRect.left, w: rect.width };
+  });
+  // A run with fewer items than slots has fewer guide cells. The unused slots
+  // wait off the row, where no item is ever placed, so every pose still has a
+  // full set and nothing else has to know the run is short.
+  const offRow = {
+    x: rowRect.width + GAP,
+    w: cells[cells.length - 1]?.w ?? 0,
+  };
+  const slots = Array.from(
+    { length: VISIBLE_SLOTS },
+    (_, slot) => cells[slot] ?? offRow,
+  );
 
   return { slots, rowWidth: rowRect.width, gap: GAP };
 }
@@ -1754,6 +1764,7 @@ export function HomeCarousel({
   }
 
   const domOrder = slotOrder(n, domOffset);
+  const usedSlots = slotCount(n);
   // The card that held the peek's right edge when the running step started
   // keeps the treatment for the run and hands it over (set per step).
   const peekOutItem = peekOut ?? -1;
@@ -1782,12 +1793,16 @@ export function HomeCarousel({
         onKeyDown={onKeyDown}
         className="relative hidden md:block"
       >
-        <div ref={rowRef} className="car-row" style={rowStyle}>
+        <div
+          ref={rowRef}
+          className="car-row"
+          style={rowStyle}
+          data-slots={usedSlots < VISIBLE_SLOTS ? usedSlots : undefined}
+        >
           <div ref={guideRef} aria-hidden="true" className="car-guide">
-            <div />
-            <div />
-            <div />
-            <div />
+            {Array.from({ length: usedSlots }, (_, slot) => (
+              <div key={slot} />
+            ))}
           </div>
 
           {domOrder.map((index) => {

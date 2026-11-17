@@ -29,6 +29,15 @@ export function visibleItems(n: number, offset: number): number[] {
   return slotOrder(n, offset).slice(0, VISIBLE_SLOTS);
 }
 
+/**
+ * The columns a run lays out: one per item, never more than the four slots. A
+ * list with fewer items than slots keeps its cards at the Figma widths and
+ * centres them instead of leaving the unused columns empty.
+ */
+export function slotCount(n: number): number {
+  return Math.min(Math.max(n, 0), VISIBLE_SLOTS);
+}
+
 export function advance(offset: number, k: number, n: number): number {
   return mod(offset + k, n);
 }

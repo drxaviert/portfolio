@@ -1,4 +1,5 @@
 import type { CarouselItem } from "@/components/home/carousel/home-carousel";
+import { EMPTY_WORK_LABEL } from "@/components/home/empty-work";
 import { HomeLayout } from "@/components/home/home-layout";
 import { WarmReader } from "@/components/work/warm-reader";
 import { FEATURED_SLUG, getWork, listWork } from "@/lib/work";
@@ -18,8 +19,9 @@ import "@/components/home/home-entrance.css";
 export function HomeScreen() {
   const featured = getWork(FEATURED_SLUG);
 
-  // The featured study leads; the rest keep reading order. The placeholder
-  // closes the row until there is more to show.
+  // The featured study leads; the rest keep reading order. A list with studies
+  // closes its row with the placeholder; an empty one leaves the band to the
+  // empty state (home-layout.tsx) instead of a stand-in card.
   const works = listWork().sort(
     (a, b) =>
       Number(b.slug === FEATURED_SLUG) - Number(a.slug === FEATURED_SLUG),
@@ -31,7 +33,9 @@ export function HomeScreen() {
       title: work.title,
       cover: work.cover,
     })),
-    { kind: "placeholder", title: "More work soon" },
+    ...(works.length > 0
+      ? [{ kind: "placeholder" as const, title: EMPTY_WORK_LABEL }]
+      : []),
   ];
 
   return (

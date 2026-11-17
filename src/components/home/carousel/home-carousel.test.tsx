@@ -146,6 +146,23 @@ describe("HomeCarousel markup", () => {
 
     expect(recorded).toHaveLength(0);
   });
+
+  it("lays out only the columns its items fill", () => {
+    const { container, rerender } = render(
+      <HomeCarousel items={ITEMS.slice(0, 2)} />,
+    );
+
+    const row = container.querySelector(".car-row");
+    expect(row).toHaveAttribute("data-slots", "2");
+    expect(container.querySelectorAll(".car-guide > div")).toHaveLength(2);
+    expect(labels()).toEqual(["1 of 2: Systems", "2 of 2: Titles"]);
+
+    rerender(<HomeCarousel items={ITEMS} />);
+
+    // The full band is the shipped four-column grid, unchanged.
+    expect(row).not.toHaveAttribute("data-slots");
+    expect(container.querySelectorAll(".car-guide > div")).toHaveLength(4);
+  });
 });
 
 describe("clicks", () => {
