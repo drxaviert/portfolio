@@ -105,6 +105,8 @@ export function FrameLineSpotlight() {
     let reduced = reducedQuery.matches;
     /** Last opacity written to the root, so idle frames skip the style write. */
     let lastLight = "";
+    /** True while the pools are promoted for the pointer. */
+    let promoted = false;
 
     function measure() {
       if (window.innerWidth < 1440) return;
@@ -182,6 +184,9 @@ export function FrameLineSpotlight() {
         rootEl.style.setProperty("--frame-spot-light", "0");
       }
 
+      rootEl.removeAttribute("data-pointer");
+      promoted = false;
+
       for (const line of lines) {
         line.glow.style.setProperty("--frame-spot-light", "0");
       }
@@ -235,6 +240,11 @@ export function FrameLineSpotlight() {
       if (weightSum <= 0 || light <= 0) {
         clearLights();
         return;
+      }
+
+      if (!promoted) {
+        promoted = true;
+        rootEl.setAttribute("data-pointer", "");
       }
 
       lx /= weightSum;
