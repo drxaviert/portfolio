@@ -138,4 +138,19 @@ describe("shipped home entrance", () => {
     // One play per document.
     expect(css).toContain(":root[data-entrance-played]");
   });
+
+  it("starts the featured card visible so its title paints at once", () => {
+    // The featured card holds the largest text on a phone, so its title is the
+    // LCP element. It keeps the beat and the rise but is exempt from the fade
+    // and the blur, which would otherwise hold it until the animation ends.
+    expect(css).toMatch(
+      /\[data-entrance="soft"\] \[data-entrance-item="3"\] \.entrance-body \{\s*animation-name: entrance-soft-card-rise;/,
+    );
+
+    const frames =
+      css.match(/@keyframes entrance-soft-card-rise \{([\s\S]*?)\n\}/)?.[1] ??
+      "";
+    expect(frames).toContain("translate");
+    expect(frames).not.toMatch(/opacity|filter/);
+  });
 });

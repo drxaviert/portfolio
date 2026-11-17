@@ -18,6 +18,10 @@
  *   order    cover, title, subtitle, meta, then the body blocks
  *   cap      the first viewport (p1, p2, p3); everything below arrives with the
  *            last visible block
+ *   LCP      the first two paragraphs are the largest text above the fold on
+ *            a direct load, so they rise without the fade or the defocus and
+ *            are readable at first paint; the cover's media and the text after
+ *            them keep the blur
  *   cover    opacity + translate only, no filter on the large media
  *   window   480 + 800 = 1280ms from the reveal
  *   hand-off "Next project" mounts the next article `--wd-beat-lead` (120ms)
@@ -127,6 +131,27 @@
   --wd-enter-delay: 480ms;
 }
 
+/*
+ * The largest text above the fold on a direct load is one of the first two
+ * paragraphs, so one of them is the LCP element (which one depends on the
+ * study's opening). They keep their beat and their 10px rise, but start
+ * visible and sharp: the fade and the defocus would hold the LCP back for the
+ * whole 800ms. Everything after them keeps the split entrance.
+ */
+@keyframes wd-enter-rise {
+  from {
+    transform: translateY(10px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.wd-expand-layer[data-reveal="on"] .wd-prose > .wd-p:nth-of-type(-n + 2) {
+  animation: wd-enter-rise var(--wd-enter-duration) var(--wd-enter-ease)
+    calc(var(--wd-enter-delay, 0ms) + var(--wd-beat-lead, 0ms)) backwards;
+}
+
 /* The scroll ruler is the cascade's last group: it is never on screen while the
    panel is still hiding its content, and it arrives on the body's last beat. */
 .wd-expand-layer[data-reveal="pending"] .wd-ruler {
@@ -145,6 +170,11 @@
   .wd-expand-layer[data-reveal="on"]
     :is(.wd-intro-title, .wd-intro-subtitle, .wd-intro-meta, .wd-prose > *),
   .wd-expand-layer[data-reveal="on"] .wd-hero {
+    animation: none;
+  }
+
+  /* The LCP blocks' rise is transform motion, so it is dropped here too. */
+  .wd-expand-layer[data-reveal="on"] .wd-prose > .wd-p:nth-of-type(-n + 2) {
     animation: none;
   }
 

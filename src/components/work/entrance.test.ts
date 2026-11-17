@@ -90,3 +90,44 @@ describe("blur timing", () => {
     );
   });
 });
+
+describe("LCP block", () => {
+  /** The first two paragraphs' own rule. */
+  function firstParagraphRule(): string {
+    const rule = css.match(
+      /\.wd-expand-layer\[data-reveal="on"\] \.wd-prose > \.wd-p:nth-of-type\(-n \+ 2\) \{[^}]*\}/,
+    )?.[0];
+
+    expect(rule).toBeTruthy();
+
+    return rule!;
+  }
+
+  it("rises without the fade or the defocus", () => {
+    // One of the first two paragraphs is the largest text above the fold on a
+    // direct load, so one of them is the LCP element: it must be painted at
+    // first paint, whichever the study's opening makes largest.
+    expect(css).toMatch(
+      /@keyframes wd-enter-rise \{\s*from \{\s*transform: translateY\(10px\);\s*\}\s*to \{\s*transform: none;/,
+    );
+
+    const rule = firstParagraphRule();
+    expect(rule).toContain("wd-enter-rise");
+    expect(rule).not.toContain("wd-enter-fade");
+    expect(rule).not.toContain("wd-enter-defocus");
+    // It keeps its own beat on the shared clock.
+    expect(rule).toContain("var(--wd-enter-delay");
+    expect(rule).toContain("var(--wd-beat-lead");
+  });
+
+  it("drops the rise under reduced motion", () => {
+    const reduced =
+      css.match(
+        /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*)$/,
+      )?.[1] ?? "";
+
+    expect(reduced).toMatch(
+      /\.wd-expand-layer\[data-reveal="on"\] \.wd-prose > \.wd-p:nth-of-type\(-n \+ 2\) \{\s*animation: none;/,
+    );
+  });
+});
