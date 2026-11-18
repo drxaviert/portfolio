@@ -371,6 +371,7 @@ function Slide({
         href={`/work/${item.slug}`}
         prefetch={first ? true : undefined}
         data-work-card={first ? item.slug : undefined}
+        data-work-slug={item.slug}
         className={hostClass}
         onClick={(event) => onActivate(event, index)}
       >
