@@ -331,6 +331,27 @@ export function retarget(
     .map((item) => mod(slotOf(item, prevOffset, n) - k, n))
     .sort((a, b) => a - b);
 
+  // The cards a rightward step pushes out through the left end leave as one
+  // group: each moves by the same distance, the one that takes the last of them
+  // just past the edge. Sent each to just past the edge on its own, a wide card
+  // and the slim ones behind it travelled different distances in the same time,
+  // so the slim ones caught up and slid over the wide one, which read as cards
+  // cut off midway. A step of one has one leaving card, so it is unchanged.
+  const pushOut =
+    k > 0
+      ? Math.max(
+          0,
+          ...current
+            .filter((e) => {
+              if (current.filter((o) => o.item === e.item).length !== 1)
+                return false;
+              const unwrapped = slotOf(e.item, prevOffset, n) - k;
+              return unwrapped < 0 || unwrapped >= n;
+            })
+            .map((e) => e.from.x + e.from.w + g.gap),
+        )
+      : 0;
+
   for (let item = 0; item < n; item++) {
     const ents = current.filter((e) => e.item === item);
     const prevSlot = slotOf(item, prevOffset, n);
@@ -364,11 +385,12 @@ export function retarget(
     }
 
     if (k > 0) {
-      // A card leaving through the left end slides out at its own width, just
-      // past the edge - a push, not a shrink. It keeps the left-edge treatment
-      // for the run (see playEntity), so its edge fades and blurs as it goes.
+      // A card leaving through the left end slides out at its own width, with
+      // the rest of the leaving group (pushOut) - a push, not a shrink. It keeps
+      // the left-edge treatment for the run (see playEntity), so its edge fades
+      // and blurs as it goes.
       out.push({
-        ...retargetTo(main, { x: -(main.from.w + g.gap), w: main.from.w }, 0),
+        ...retargetTo(main, { x: main.from.x - pushOut, w: main.from.w }, 0),
         edgeLeft: true,
       });
     } else {

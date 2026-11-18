@@ -179,6 +179,23 @@ describe("wrap seam", () => {
     });
   });
 
+  it("pushes a far step's leaving cards out as one group, gaps kept", () => {
+    for (const k of [2, 3]) {
+      const planned = retarget(G, 4, 0, k, restEntities(G, 4, 0));
+      const leaving = planned
+        .filter((e) => e.edgeLeft)
+        .sort((a, b) => a.from.x - b.from.x);
+
+      expect(leaving).toHaveLength(k);
+      // Every leaving card travels as far as the card taking slot 0, so none
+      // catches up with (and slides over) the one ahead of it.
+      for (const e of leaving) expect(e.from.x - e.to.x).toBe(G.slots[k].x);
+      // The last of them ends just past the left edge.
+      const last = leaving.at(-1)!;
+      expect(last.to.x + last.to.w).toBe(-G.gap);
+    }
+  });
+
   it("moves everything else one slot forward with no copy", () => {
     const planned = retarget(G, 4, 0, 1, restEntities(G, 4, 0));
 
