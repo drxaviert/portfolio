@@ -313,6 +313,45 @@ export function retarget(
   const exit = k > 0 ? exitLeft(g) : offRight(g);
   const entry = k > 0 ? offRight(g) : exitLeft(g);
 
+  // A far step wraps several cards, each with a seam copy entering from the same
+  // point. On one start they would travel as a pile (their edges and shadows
+  // stacked, drawn twice) until they fan out. On a rightward run they queue
+  // instead, one column behind the other in landing order, so they keep the
+  // gap between them for the whole run. One copy (a step of one) is unchanged.
+  const entering = current
+    .map((e) => e.item)
+    .filter((item, index, all) => all.indexOf(item) === index)
+    .filter((item) => {
+      if (current.filter((e) => e.item === item).length >= 2) return false;
+      const unwrapped = slotOf(item, prevOffset, n) - k;
+      return (
+        (unwrapped < 0 || unwrapped >= n) && mod(unwrapped, n) < VISIBLE_SLOTS
+      );
+    })
+    .map((item) => mod(slotOf(item, prevOffset, n) - k, n))
+    .sort((a, b) => a - b);
+
+  // The cards a rightward step pushes out through the left end leave as one
+  // group: each moves by the same distance, the one that takes the last of them
+  // just past the edge. Sent each to just past the edge on its own, a wide card
+  // and the slim ones behind it travelled different distances in the same time,
+  // so the slim ones caught up and slid over the wide one, which read as cards
+  // cut off midway. A step of one has one leaving card, so it is unchanged.
+  const pushOut =
+    k > 0
+      ? Math.max(
+          0,
+          ...current
+            .filter((e) => {
+              if (current.filter((o) => o.item === e.item).length !== 1)
+                return false;
+              const unwrapped = slotOf(e.item, prevOffset, n) - k;
+              return unwrapped < 0 || unwrapped >= n;
+            })
+            .map((e) => e.from.x + e.from.w + g.gap),
+        )
+      : 0;
+
   for (let item = 0; item < n; item++) {
     const ents = current.filter((e) => e.item === item);
     const prevSlot = slotOf(item, prevOffset, n);
@@ -346,11 +385,12 @@ export function retarget(
     }
 
     if (k > 0) {
-      // A card leaving through the left end slides out at its own width, just
-      // past the edge - a push, not a shrink. It keeps the left-edge treatment
-      // for the run (see playEntity), so its edge fades and blurs as it goes.
+      // A card leaving through the left end slides out at its own width, with
+      // the rest of the leaving group (pushOut) - a push, not a shrink. It keeps
+      // the left-edge treatment for the run (see playEntity), so its edge fades
+      // and blurs as it goes.
       out.push({
-        ...retargetTo(main, { x: -(main.from.w + g.gap), w: main.from.w }, 0),
+        ...retargetTo(main, { x: main.from.x - pushOut, w: main.from.w }, 0),
         edgeLeft: true,
       });
     } else {
@@ -358,10 +398,11 @@ export function retarget(
     }
 
     if (visible) {
+      const queued = k > 0 ? entering.indexOf(dest) : 0;
       out.push({
         item,
         ghost: true,
-        from: entry,
+        from: { ...entry, x: entry.x + queued * (entry.w + g.gap) },
         to: destPose,
         fromWide: 0,
         toWide: wide,
@@ -415,6 +456,20 @@ export function crossesRight(
   rowWidth: number,
 ): boolean {
   return Math.max(e.from.x + e.from.w, e.to.x + e.to.w) > rowWidth + 0.5;
+}
+
+/**
+ * How much longer a step runs for each slot past the first. A step of two or
+ * three moves the incoming card 1.25x / 1.38x as far as a step of one in the
+ * same time, so its peak speed was that much higher and read as a lurch. At
+ * +15% per extra slot the far steps peak within ~10% of a one-slot step.
+ */
+export const FAR_STEP_STRETCH = 0.15;
+
+/** The run time of a step of `k` slots: one slot (either way) keeps `base`. */
+export function stepDuration(base: number, k: number): number {
+  const extra = Math.max(0, Math.abs(k) - 1);
+  return Math.round(base * (1 + FAR_STEP_STRETCH * extra));
 }
 
 export function lerp(a: number, b: number, t: number): number {

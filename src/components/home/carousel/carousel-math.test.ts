@@ -18,6 +18,7 @@ import {
   offRight,
   restEntities,
   retarget,
+  stepDuration,
   sampleEntities,
   slotCount,
   slotOf,
@@ -161,6 +162,46 @@ describe("wrap seam", () => {
     expect(ghost.from).toEqual(offRight(G));
     expect(ghost.to).toEqual(G.slots[3]);
     expect(planned.filter((e) => e.ghost)).toHaveLength(1);
+  });
+
+  it("queues the copies of a far step one column apart instead of piling them", () => {
+    const planned = retarget(G, 4, 0, 2, restEntities(G, 4, 0));
+    const ghosts = planned
+      .filter((e) => e.ghost)
+      .sort((a, b) => a.to.x - b.to.x);
+
+    expect(ghosts.map((e) => e.item)).toEqual([0, 1]);
+    // The copy landing nearest the front enters at the usual point; the next
+    // one waits a narrow column plus a gap behind it.
+    expect(ghosts[0].from).toEqual(offRight(G));
+    expect(ghosts[1].from).toEqual({
+      x: offRight(G).x + offRight(G).w + G.gap,
+      w: offRight(G).w,
+    });
+  });
+
+  it("pushes a far step's leaving cards out as one group, gaps kept", () => {
+    for (const k of [2, 3]) {
+      const planned = retarget(G, 4, 0, k, restEntities(G, 4, 0));
+      const leaving = planned
+        .filter((e) => e.edgeLeft)
+        .sort((a, b) => a.from.x - b.from.x);
+
+      expect(leaving).toHaveLength(k);
+      // Every leaving card travels as far as the card taking slot 0, so none
+      // catches up with (and slides over) the one ahead of it.
+      for (const e of leaving) expect(e.from.x - e.to.x).toBe(G.slots[k].x);
+      // The last of them ends just past the left edge.
+      const last = leaving.at(-1)!;
+      expect(last.to.x + last.to.w).toBe(-G.gap);
+    }
+  });
+
+  it("runs far steps longer, one-slot steps either way unchanged", () => {
+    expect(stepDuration(900, 1)).toBe(900);
+    expect(stepDuration(900, -1)).toBe(900);
+    expect(stepDuration(900, 2)).toBe(1035);
+    expect(stepDuration(900, 3)).toBe(1170);
   });
 
   it("moves everything else one slot forward with no copy", () => {

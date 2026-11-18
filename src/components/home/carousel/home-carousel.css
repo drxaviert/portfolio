@@ -174,6 +174,24 @@
   left: 0;
   height: 100%;
   width: var(--car-wide, 100%);
+
+  /* Nothing inside a card's content reads the step's custom properties, but
+     they inherit, and they change every frame a card moves: without this every
+     element of every content copy (the card, its blur copies, a far step's
+     seam copies) was restyled each frame. Pinning them here stops that at the
+     content's root. A property the content starts to read must leave this
+     list. */
+  --car-r: 0px;
+  --car-fade: 0;
+  --car-rf: 1;
+  --car-le: 0;
+  --car-lf: 0;
+  --car-cut: initial;
+  --car-cross: initial;
+  --car-cross-r: initial;
+  --car-xk: initial;
+  --car-xe: initial;
+  --car-xd: initial;
 }
 
 .car-title {
@@ -227,6 +245,12 @@
  * and unclipped (no-clip), so the shadow and the ring a card paints just outside
  * its box survive; the gradient's stops sit 12px in, on the row's own edges.
  *
+ * Only the left end fades: it melts the card a step pushes out. The right end
+ * is the crop the cards rest at (the last slot is drawn crisp there), so a fade
+ * over it would wash out cards that are fully visible at rest for the length of
+ * the step and pop back when the mask drops. A card entering past it is cut by
+ * that crop, and blurred, exactly as at rest.
+ *
  * The row's mask strength is `--car-rm`: the peek gives each edge card its own
  * mask (below) on `--car-fade`, and a run that turns onto the peek has to fade
  * the row's mask out while the cards' masks fade in, so the two are separate.
@@ -237,9 +261,12 @@
   initial-value: 0;
 }
 
+/* Read on the row only (its own mask below), so it does not inherit: an
+   inherited value that ramps restyles every element in the carousel each
+   frame. */
 @property --car-rm {
   syntax: "<number>";
-  inherits: true;
+  inherits: false;
   initial-value: 0;
 }
 
@@ -269,16 +296,20 @@
 
 .car-row[data-stepping],
 .car-row[data-mask] {
-  --car-mask: linear-gradient(
+  /* The gradient is written out on each mask-image, not held in a custom
+     property: an unregistered property inherits, and its value changes every
+     frame `--car-rm` ramps, so every element in the carousel (every card's
+     content and blur copies) was restyled each frame. */
+  -webkit-mask-image: linear-gradient(
     to right,
     rgb(0 0 0 / calc(1 - var(--car-rm))) 12px,
-    #000 calc(12px + var(--car-edge-w, 28px)),
-    #000 calc(100% - 12px - var(--car-edge-w, 28px)),
-    rgb(0 0 0 / calc(1 - var(--car-rm))) calc(100% - 12px)
+    #000 calc(12px + var(--car-edge-w, 28px))
   );
-
-  -webkit-mask-image: var(--car-mask);
-  mask-image: var(--car-mask);
+  mask-image: linear-gradient(
+    to right,
+    rgb(0 0 0 / calc(1 - var(--car-rm))) 12px,
+    #000 calc(12px + var(--car-edge-w, 28px))
+  );
   mask-repeat: no-repeat;
   mask-size: calc(100% + 24px) calc(100% + 24px);
   mask-position: -12px -12px;
@@ -563,6 +594,97 @@
   opacity: 1;
 }
 
+/*
+ * A step (not the peek) keeps the right end's melt on the card's face only.
+ * On the slide the mask faded the card's shadow with it, so under and around
+ * the card's bottom the shadow thinned out over the fade and read as a pale
+ * haze for the length of the step. So during a step:
+ *
+ * - the slide carries no mask; it is cropped at the column's edge, the way the
+ *   last slot is cropped at rest. The crop keeps a shadow pad past the card's
+ *   drawn edge until it starts to cross and closes onto the column's edge over
+ *   the same onset the melt uses, so nothing pops; top, bottom and left stay
+ *   open by the ring's reach.
+ * - the shadow moves off the host onto the frame's ::before (the drawn box,
+ *   unmasked), so it is cropped with the card and never faded.
+ * - the host carries the melt: the same column-anchored ramp, in the host's
+ *   own box (its right end is the drawn edge, so there is no crop to take
+ *   out). The fill, ring, content and the progressive blur copy fade on it.
+ *
+ * A card leaving through the left end keeps its own frame mask and shadow.
+ */
+.car-row[data-stepping]:not([data-peeking])
+  .car-slide[data-cross-right]:not(
+    .car-peek-edge,
+    [data-peek-fade],
+    [data-edge-blur]
+  ) {
+  --car-xd: clamp(
+    0px,
+    100% - var(--car-r) - var(--car-cross-r),
+    var(--car-shadow-pad)
+  );
+
+  -webkit-mask-image: none;
+  mask-image: none;
+  clip-path: inset(
+    -12px
+      calc(
+        100% - var(--car-cross-r) - var(--car-shadow-pad) + var(--car-xd)
+      ) -12px -12px
+  );
+}
+
+.car-row[data-stepping]:not([data-peeking])
+  .car-slide[data-cross-right]:not(
+    .car-peek-edge,
+    [data-peek-fade],
+    [data-edge-blur],
+    [data-edge-left]
+  )
+  .car-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0 var(--car-r) 0 0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  pointer-events: none;
+}
+
+.car-row[data-stepping]:not([data-peeking])
+  .car-slide[data-cross-right]:not(
+    .car-peek-edge,
+    [data-peek-fade],
+    [data-edge-blur],
+    [data-edge-left]
+  )
+  .car-host {
+  --car-xk: clamp(
+    0px,
+    100% - 24px - var(--car-cross-r),
+    var(--peek-fade-right, 33px)
+  );
+  --car-xe: calc(
+    12px + var(--car-cross-r) + max(0px, var(--car-shadow-pad) - var(--car-xk))
+  );
+
+  box-shadow: none;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 calc(var(--car-xe) - var(--car-xk)),
+    transparent var(--car-xe)
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 calc(var(--car-xe) - var(--car-xk)),
+    transparent var(--car-xe)
+  );
+  mask-repeat: no-repeat;
+  mask-size: calc(100% + 24px) calc(100% + 24px);
+  mask-position: -12px -12px;
+  mask-clip: no-clip;
+}
+
 /* During a step the row is clipped close to the column's edges, so a leaving
    or entering card does not show past it; the 4px outset is the ring's band and
    the shadow, so an edge card does not lose its border for the length of the
@@ -656,6 +778,48 @@
     #000 0,
     transparent
       calc(var(--peek-fade-right, 33px) * var(--car-peek-ramp, 100) / 100)
+  );
+}
+
+/*
+ * The mask above leaves only the edge strip visible, but the blur is a filter on
+ * a full copy of the card, and Chromium rasterizes all of it every frame while
+ * the card's crop animates (a 750px copy for 33px of visible blur, on up to
+ * three cards at once for a far click). Each copy is clipped to exactly the
+ * strip its wrapper's mask shows, so the filter only has that much to paint;
+ * nothing visible changes.
+ *
+ * The clip sits on the blurred copy, not on the masked wrapper. On the wrapper
+ * (inside a card that carries the right edge's own mask) Chromium drew a 1px
+ * line of the blurred copy along the clip's edge, where the mask is clear: a
+ * hard seam that slid with the card and cut the blurred bleed of the inner
+ * blocks across the card's bottom. A clip on the filtered element clips its
+ * output, so the mask alone decides what shows.
+ */
+.car-peek-blur[data-edge="left"] > .car-peek-blur-copy {
+  clip-path: inset(
+    0 calc(100% - var(--peek-fade-left, 34px) * var(--car-peek-ramp, 100) / 100)
+      0 0
+  );
+}
+
+.car-peek-blur[data-edge="right"] > .car-peek-blur-copy {
+  clip-path: inset(
+    0 0 0
+      calc(
+        100% - var(--peek-fade-right, 33px) * var(--car-peek-ramp, 100) / 100
+      )
+  );
+}
+
+.car-cross-blur > .car-peek-blur-copy {
+  clip-path: inset(
+    0 0 0
+      max(
+        0px,
+        var(--car-cross-r) - var(--peek-fade-right, 33px) *
+          var(--car-peek-ramp, 100) / 100
+      )
   );
 }
 

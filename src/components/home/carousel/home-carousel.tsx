@@ -33,6 +33,7 @@ import {
   keyStep,
   restEntities,
   retarget,
+  stepDuration,
   sampleEntities,
   slotCount,
   slotOf,
@@ -1133,6 +1134,8 @@ export function HomeCarousel({
 
     const { settings: s, reduce: reduced } = latest.current;
     const g = geometry.current;
+    // A far step covers more ground, so it runs longer on the same curve.
+    const duration = stepDuration(s.duration, k);
 
     focusFirst.current = viaKeyboard;
     offsetRef.current = next;
@@ -1361,7 +1364,7 @@ export function HomeCarousel({
 
       animations.push(
         ...playEntity(element, entity, {
-          duration: s.duration,
+          duration: duration,
           easing,
           timing,
           blur: {
@@ -1378,7 +1381,7 @@ export function HomeCarousel({
       row.dataset.peeking = "";
       row.dataset.mask = "";
       row.style.setProperty("--car-fade", String(fadeNow));
-      drivePeek(true, s.duration, easing);
+      drivePeek(true, duration, easing);
 
       // The right edge changes hands on this same run: the arriving card ramps
       // its fade and blur in from nothing, the leaving one ramps its own out
@@ -1390,7 +1393,7 @@ export function HomeCarousel({
         animations.push(
           inEl.animate(
             { "--car-rf": [0, 1] },
-            { duration: s.duration, easing, fill: "both" },
+            { duration: duration, easing, fill: "both" },
           ),
         );
       }
@@ -1403,7 +1406,7 @@ export function HomeCarousel({
         animations.push(
           outEl.animate(
             { "--car-rf": [outDrawn?.rf ?? 1, 0] },
-            { duration: s.duration, easing, fill: "both" },
+            { duration: duration, easing, fill: "both" },
           ),
         );
         const layer = outEl.querySelector<HTMLElement>("[data-peek-blur]");
@@ -1411,7 +1414,7 @@ export function HomeCarousel({
           animations.push(
             layer.animate(
               { opacity: [outDrawn?.blur ?? 1, 0] },
-              { duration: s.duration, easing, fill: "both" },
+              { duration: duration, easing, fill: "both" },
             ),
           );
         }
@@ -1430,7 +1433,7 @@ export function HomeCarousel({
             "--car-rm":
               index === 0 ? Math.max(maskNow, fadeNow, k.fade) : k.fade,
           })),
-          { duration: s.duration, easing: "linear", fill: "both" },
+          { duration: duration, easing: "linear", fill: "both" },
         ),
       );
     }
@@ -1453,7 +1456,7 @@ export function HomeCarousel({
       animations.push(
         el.animate(
           keys.map((k) => ({ offset: k.offset, "--car-le": k.value })),
-          { duration: s.duration, easing, fill: "both" },
+          { duration: duration, easing, fill: "both" },
         ),
       );
       const layer = el.querySelector<HTMLElement>("[data-peek-blur]");
@@ -1461,7 +1464,7 @@ export function HomeCarousel({
         animations.push(
           layer.animate(
             keys.map((k) => ({ offset: k.offset, opacity: k.value })),
-            { duration: s.duration, easing, fill: "both" },
+            { duration: duration, easing, fill: "both" },
           ),
         );
       }
@@ -1476,17 +1479,17 @@ export function HomeCarousel({
       animations.push(
         prevEl.animate(
           { "--car-x": [`${prevDrawn.x}px`, `${prevDrawn.outX}px`] },
-          { duration: s.duration, easing, fill: "both" },
+          { duration: duration, easing, fill: "both" },
         ),
       );
     }
 
     // One clock ends the step.
-    const clock = row.animate({ opacity: [1, 1] }, { duration: s.duration });
+    const clock = row.animate({ opacity: [1, 1] }, { duration });
     const started: Tween = {
       entities: planned,
       t0: now,
-      duration: s.duration,
+      duration,
       ease,
       timing,
       animations: [...animations, clock],

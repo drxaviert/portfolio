@@ -608,6 +608,35 @@ describe("edge blur", () => {
     );
   });
 
+  it("melts only the face of a card crossing the right end during a step, never its shadow", () => {
+    const css = readFileSync(
+      resolve(process.cwd(), "src/components/home/carousel/home-carousel.css"),
+      "utf8",
+    );
+    const rule = (target: string) =>
+      css.match(
+        new RegExp(
+          String.raw`\.car-row\[data-stepping\]:not\(\[data-peeking\]\)\s*\.car-slide\[data-cross-right\]:not\([^)]*\)` +
+            target +
+            String.raw`\s*\{([^}]*)\}`,
+        ),
+      )?.[1];
+
+    // The melt on the slide faded the card's shadow too, a pale haze under the
+    // card's bottom. The slide is cropped at the column's edge instead, the
+    // shadow sits unmasked on the frame, and the host carries the melt (its
+    // progressive blur copy rides inside it). The peek keeps its own melt.
+    expect(rule("")).toMatch(/mask-image:\s*none/);
+    expect(rule("")).toMatch(/clip-path:\s*inset\(/);
+    expect(rule(String.raw`\s*\.car-frame::before`)).toMatch(
+      /box-shadow:\s*var\(--shadow-card\)/,
+    );
+    const host = rule(String.raw`\s*\.car-host`);
+    expect(host).toMatch(/box-shadow:\s*none/);
+    expect(host).toMatch(/mask-image:\s*linear-gradient/);
+    expect(css).not.toMatch(/\.car-cross-blur\s*\{\s*display:\s*none/);
+  });
+
   it("caps the edge blur at 2.5px and promotes only the blurred cards, only during the step", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     const css = readFileSync(
