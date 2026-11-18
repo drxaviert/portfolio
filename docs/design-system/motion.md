@@ -7,7 +7,7 @@ The shipped motion of the theme toggle, the Day phase row, the home nav's Glide 
 - One curve family per job: `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) for entrances, `ease-in` (`--ease-accelerate`) for exits, `cubic-bezier(0.34, 1.3, 0.64, 1)` (`--ease-spring`) for the icon settle.
 - Calm and ambient entrances use `cubic-bezier(0.4, 0, 0.2, 1)` (`--ease-calm`): it leaves at zero velocity and settles on a long tail, so light and content arrive without anything launching.
 - A theme change is one crossfade of the whole page, not a colour transition per element: everything changes on the same frame because it is the same image pair.
-- The drawer flies on `cubic-bezier(0.32, 0.72, 0, 1)` (panel and nav together), its content cascades on `cubic-bezier(0.22, 1, 0.36, 1)`, and the blur resolving on top of that fade runs slower, on `cubic-bezier(0.25, 0.1, 0.25, 1)`.
+- The drawer opens on `cubic-bezier(0.25, 0.8, 0.25, 1)` (panel and nav together) and closes on `cubic-bezier(0.22, 1, 0.36, 1)`; its content cascades and the blur resolving on top of that fade both run on the open curve, while the nav's own default flight, with no drawer behind it, uses `cubic-bezier(0.32, 0.72, 0, 1)` (`morph.ts`).
 - Entrances stagger left to right; exits leave together. Nothing waits on the pointer.
 - Hover never restarts the entrance: it replays the icon settle once from its resting pose and ends at rest.
 - Reduced motion keeps the state change and drops the movement: one opacity fade, no icon motion.
