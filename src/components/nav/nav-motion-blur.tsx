@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 /**
  * Prototype: vertical motion blur on the nav during a drawer open or close.
@@ -15,28 +15,34 @@ import { useEffect, useSyncExternalStore } from "react";
  * the DOM every frame: no re-render, no state, one rect read and one attribute
  * write per frame.
  *
- * Modes: off | subtle (3px peak) | strong (6px peak), chosen with `?mb=` and by
- * the dev toggle. Skipped on reduced motion and on WebKit, whose SVG filter
- * path is too slow to sit on a per-frame animation.
+ * Strength is a peak in px (0–30). It comes from `?mb=<number>`, then from the
+ * last value kept in localStorage, then 3px; the dev panel's slider and number
+ * input write it live. Presets (off/subtle/strong/heavy) just move the slider.
+ * Skipped on reduced motion and on WebKit, whose SVG filter path is too slow
+ * to sit on a per-frame animation.
  */
-
-export type NavBlurMode = "off" | "subtle" | "strong";
 
 export const NAV_BLUR_FILTER_ID = "nav-mb";
 
-const PEAK: Record<Exclude<NavBlurMode, "off">, number> = {
-  subtle: 3,
-  strong: 6,
-};
+export const MIN_PEAK = 0;
+export const MAX_PEAK = 30;
+const DEFAULT_PEAK = 3;
+
+/** Presets: the buttons set the peak, they are not a separate mode. */
+const PRESETS = [
+  { label: "off", peak: 0 },
+  { label: "subtle", peak: 3 },
+  { label: "strong", peak: 6 },
+  { label: "heavy", peak: 12 },
+] as const;
 
 /**
- * stdDeviation px per px of vertical travel per 60Hz frame. The drawer's open
- * peaks near 45px/frame at the start of its 900ms flight and is still around
- * 22px/frame at half the travel, so this saturates the mode's peak for the fast
- * first half and lets go as the curve settles. (Strong touches its 6px peak only
- * on the fastest frames; subtle holds its 3px through mid-travel.)
+ * The velocity at which the blur reaches the chosen peak, in px per 60Hz frame:
+ * the speed the nav is still doing at half of the drawer's 900ms travel. Above
+ * it the blur stays at the peak, below it the blur tapers with the motion, so
+ * every peak from 0.5 to 30 is actually reached on a normal open and close.
  */
-const BLUR_PER_PX = 0.135;
+const REFERENCE_SPEED = 22;
 
 /** One 60Hz frame: velocities are normalised to it so 120Hz screens match. */
 const FRAME_MS = 1000 / 60;
@@ -48,26 +54,58 @@ const FRAME_MS = 1000 / 60;
  */
 const IDLE_SLACK_MS = 250;
 
-function isMode(value: string | null): value is NavBlurMode {
-  return value === "off" || value === "subtle" || value === "strong";
+const STORAGE_KEY = "nav-mb-peak";
+
+function clampPeak(value: number): number {
+  // Tenths: the slider moves in 0.5 steps, typing can be finer than that.
+  return Math.min(MAX_PEAK, Math.max(MIN_PEAK, Math.round(value * 10) / 10));
+}
+
+function parsePeak(raw: string | null): number | null {
+  if (raw === null || raw.trim() === "") return null;
+
+  const preset = PRESETS.find((entry) => entry.label === raw);
+  if (preset) return preset.peak;
+
+  const value = Number(raw);
+  return Number.isFinite(value) ? clampPeak(value) : null;
 }
 
 /**
- * The query string is read once and kept: opening a drawer rewrites the URL to
- * the study, and the mode must survive that.
+ * The query string and storage are read once and kept: opening a drawer
+ * rewrites the URL to the study, and the strength must survive that.
+ * Both are optional, so failures fall back to the default rather than throwing.
  */
-let fromQuery: NavBlurMode | null | undefined;
+let fromQuery: number | null | undefined;
+let fromStorage: number | null | undefined;
 let toggleQuery: boolean | undefined;
 
-function requestedMode(): NavBlurMode | null {
+function queryPeak(): number | null {
   if (typeof window === "undefined") return null;
 
   if (fromQuery === undefined) {
-    const value = new URLSearchParams(window.location.search).get("mb");
-    fromQuery = isMode(value) ? value : null;
+    fromQuery = parsePeak(
+      new URLSearchParams(window.location.search).get("mb"),
+    );
   }
 
   return fromQuery;
+}
+
+function storedPeak(): number | null {
+  if (typeof window === "undefined") return null;
+
+  if (fromStorage === undefined) {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      const value = raw === null ? Number.NaN : Number(raw);
+      fromStorage = Number.isFinite(value) ? clampPeak(value) : null;
+    } catch {
+      fromStorage = null;
+    }
+  }
+
+  return fromStorage;
 }
 
 function toggleRequested(): boolean {
@@ -104,36 +142,55 @@ function gaussianNode(): SVGFEGaussianBlurElement | null {
   );
 }
 
-/* ------------------------------ mode store ------------------------------ */
+/* ------------------------------ peak store ------------------------------ */
 
-/** What the toggle last picked, over any `?mb=`. Cleared only by a reload. */
-let override: NavBlurMode | null = null;
+/** What the panel last set, over `?mb=` and storage. Cleared only by a reload. */
+let override: number | null = null;
 const listeners = new Set<() => void>();
 
-export function getNavBlurMode(): NavBlurMode {
-  return override ?? requestedMode() ?? "subtle";
+export function getNavBlurPeak(): number {
+  return override ?? queryPeak() ?? storedPeak() ?? DEFAULT_PEAK;
 }
 
-function subscribeMode(listener: () => void) {
+function subscribePeak(listener: () => void) {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
 }
 
-export function setNavBlurMode(mode: NavBlurMode): void {
-  override = mode;
-  // Switching off mid-flight must not leave the filter stuck on.
-  if (mode === "off") endNavBlur();
+export function setNavBlurPeak(peak: number): void {
+  if (!Number.isFinite(peak)) return;
+
+  const next = clampPeak(peak);
+  override = next;
+
+  if (next === 0) {
+    // Switching off mid-flight must not leave the filter stuck on.
+    endNavBlur();
+  }
+
+  // A prototype preference, not app state: never let storage take the panel
+  // down with it (private mode, a blocked origin, a full quota).
+  try {
+    window.localStorage.setItem(STORAGE_KEY, String(next));
+  } catch {
+    // Keep the live value; only the memory across reloads is lost.
+  }
+
   listeners.forEach((listener) => listener());
 }
 
 /**
- * The mode is live, but the server cannot know `?mb=`: it renders the default
- * and the client corrects on hydration, exactly like use-reduced-motion.
+ * The peak is live, but the server cannot know `?mb=` or storage: it renders
+ * the default and the client corrects on hydration, like use-reduced-motion.
  */
-export function useNavBlurMode(): NavBlurMode {
-  return useSyncExternalStore(subscribeMode, getNavBlurMode, () => "subtle");
+export function useNavBlurPeak(): number {
+  return useSyncExternalStore(
+    subscribePeak,
+    getNavBlurPeak,
+    () => DEFAULT_PEAK,
+  );
 }
 
 /* ------------------------------ the loop ------------------------------ */
@@ -146,7 +203,7 @@ let gaussian: SVGFEGaussianBlurElement | null = null;
 
 /**
  * Drops the blur at once. Called when the flight settles, when the dock
- * unmounts, when the mode goes off, and by the loop's own deadline: a quick
+ * unmounts, when the peak goes to zero, and by the loop's own deadline: a quick
  * open→close interleaved with this can never leave the filter on.
  */
 export function endNavBlur(): void {
@@ -164,16 +221,37 @@ export function endNavBlur(): void {
 }
 
 /**
+ * The filter region, in the element's own user space, padded by the blur's own
+ * spread: a larger peak needs a taller region or the smear is cut off at the
+ * bar's edges. 32px is the floor that keeps the card's shadow inside.
+ */
+function setRegion(
+  size: { width: number; height: number },
+  peak: number,
+): void {
+  const filter = document.getElementById(NAV_BLUR_FILTER_ID);
+  if (!filter) return;
+
+  const pad = Math.max(32, Math.ceil(peak * 3.5));
+
+  filter.setAttribute("filterUnits", "userSpaceOnUse");
+  filter.setAttribute("x", String(-pad));
+  filter.setAttribute("y", String(-pad));
+  filter.setAttribute("width", String(Math.ceil(size.width + pad * 2)));
+  filter.setAttribute("height", String(Math.ceil(size.height + pad * 2)));
+}
+
+/**
  * Follow `element` for one flight of `durationSeconds` and paint its vertical
- * velocity into the shared filter. A no-op when the prototype is off, reduced
+ * velocity into the shared filter. A no-op when the peak is zero, reduced
  * motion is on, or the engine is WebKit.
  */
 export function beginNavBlur(
   element: HTMLElement,
   durationSeconds: number,
 ): void {
-  const mode = getNavBlurMode();
-  if (mode === "off" || prefersReducedMotion() || isWebKit()) return;
+  if (getNavBlurPeak() <= 0) return;
+  if (prefersReducedMotion() || isWebKit()) return;
 
   const node = gaussianNode();
   if (!node) return;
@@ -185,9 +263,15 @@ export function beginNavBlur(
 
   tracked = element;
   gaussian = node;
+
+  // One read for the start position and the region; the filter is applied
+  // only after the region is right for this peak, so nothing is clipped.
+  const start = element.getBoundingClientRect();
+  setRegion(start, getNavBlurPeak());
   element.style.filter = `url(#${NAV_BLUR_FILTER_ID})`;
 
-  let lastTop = element.getBoundingClientRect().top;
+  let regionPeak = getNavBlurPeak();
+  let lastTop = start.top;
   let lastNow = performance.now();
   const deadline = lastNow + durationSeconds * 1000 + IDLE_SLACK_MS;
 
@@ -202,9 +286,14 @@ export function beginNavBlur(
     lastTop = top;
     lastNow = now;
 
-    const active = getNavBlurMode();
-    const peak = active === "off" ? 0 : PEAK[active];
-    const deviation = Math.min(peak, speed * BLUR_PER_PX);
+    const peak = getNavBlurPeak();
+    if (peak !== regionPeak) {
+      // The slider moved mid-flight: the region has to grow with it.
+      regionPeak = peak;
+      setRegion(element.getBoundingClientRect(), peak);
+    }
+
+    const deviation = peak * Math.min(1, speed / REFERENCE_SPEED);
     node.setAttribute("stdDeviation", `0 ${deviation.toFixed(2)}`);
 
     if (now >= deadline) {
@@ -232,8 +321,8 @@ function Filter() {
     >
       <filter
         id={NAV_BLUR_FILTER_ID}
-        // Vertical blur only. The region is padded well past the bar so the
-        // blurred edges and the card's shadow are not clipped while it moves.
+        // Vertical blur only. The real region is written per flight by
+        // setRegion(), which grows with the peak; these are the at-rest values.
         x="-8%"
         y="-50%"
         width="116%"
@@ -246,12 +335,26 @@ function Filter() {
   );
 }
 
+const buttonStyle = {
+  padding: "5px 7px",
+  borderRadius: 5,
+  border: "1px solid rgba(250, 250, 250, 0.18)",
+  background: "transparent",
+  color: "#fafafa",
+  font: "inherit",
+  textTransform: "uppercase" as const,
+  cursor: "pointer",
+};
+
 /**
- * Prototype-only mode switch. Renders only with `?mbtoggle=1` or in dev, and
+ * Prototype-only strength panel. Renders only with `?mbtoggle=1` or in dev, and
  * sits above the nav's layer so it stays usable while the drawer is open.
  */
 function Toggle() {
-  const mode = useNavBlurMode();
+  const peak = useNavBlurPeak();
+  // The number field keeps the raw text while it is being edited, so typing
+  // "7." does not get rewritten to "7" under the caret.
+  const [draft, setDraft] = useState<string | null>(null);
   const visible = process.env.NODE_ENV !== "production";
 
   if (!visible && !toggleRequested()) return null;
@@ -264,46 +367,111 @@ function Toggle() {
         // Clear of Next's dev indicator, which owns the bottom-left corner.
         bottom: 56,
         zIndex: 80,
-        display: "flex",
-        alignItems: "center",
-        gap: 4,
-        padding: 4,
-        borderRadius: 8,
+        display: "grid",
+        gap: 7,
+        width: "min(312px, calc(100vw - 24px))",
+        padding: 8,
+        borderRadius: 10,
         border: "1px dashed #f0abfc",
-        background: "rgba(24, 24, 27, 0.92)",
+        background: "rgba(24, 24, 27, 0.94)",
         color: "#fafafa",
-        font: "500 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace",
-        letterSpacing: "0.04em",
+        font: "500 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace",
+        letterSpacing: "0.03em",
         pointerEvents: "auto",
       }}
       data-nav-mb-toggle=""
     >
-      <span style={{ padding: "0 4px", opacity: 0.7 }}>NAV MB</span>
-      {(["off", "subtle", "strong"] as const).map((value) => (
-        <button
-          key={value}
-          type="button"
-          onClick={() => setNavBlurMode(value)}
-          aria-pressed={mode === value}
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ opacity: 0.6, marginRight: 2 }}>NAV MB</span>
+        {PRESETS.map(({ label, peak: preset }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => {
+              setDraft(null);
+              setNavBlurPeak(preset);
+            }}
+            aria-pressed={peak === preset}
+            style={
+              peak === preset
+                ? { ...buttonStyle, background: "#f0abfc", color: "#18181b" }
+                : buttonStyle
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 8,
+        }}
+      >
+        <label htmlFor="nav-mb-peak">Blur peak</label>
+        <output
+          htmlFor="nav-mb-peak"
           style={{
-            padding: "5px 8px",
-            borderRadius: 5,
-            border: "1px solid rgba(250, 250, 250, 0.18)",
-            background: mode === value ? "#f0abfc" : "transparent",
-            color: mode === value ? "#18181b" : "#fafafa",
-            font: "inherit",
-            textTransform: "uppercase",
-            cursor: "pointer",
+            fontVariantNumeric: "tabular-nums",
+            opacity: 0.85,
           }}
         >
-          {value}
-        </button>
-      ))}
+          {peak.toFixed(1)}px
+        </output>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          id="nav-mb-peak"
+          type="range"
+          min={MIN_PEAK}
+          max={MAX_PEAK}
+          step={0.5}
+          value={peak}
+          onChange={(event) => setNavBlurPeak(Number(event.target.value))}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            height: 18,
+            accentColor: "#f0abfc",
+            cursor: "pointer",
+          }}
+        />
+        <input
+          type="number"
+          min={MIN_PEAK}
+          max={MAX_PEAK}
+          step={0.5}
+          inputMode="decimal"
+          aria-label="Blur peak, exact value in pixels"
+          value={draft ?? peak.toFixed(1)}
+          onChange={(event) => {
+            const raw = event.target.value;
+            setDraft(raw);
+            if (raw.trim() !== "") setNavBlurPeak(Number(raw));
+          }}
+          onBlur={() => setDraft(null)}
+          style={{
+            width: 60,
+            padding: "4px 6px",
+            borderRadius: 5,
+            border: "1px solid rgba(250, 250, 250, 0.18)",
+            background: "rgba(250, 250, 250, 0.06)",
+            color: "#fafafa",
+            font: "inherit",
+            fontVariantNumeric: "tabular-nums",
+            textAlign: "right",
+          }}
+        />
+      </div>
     </div>
   );
 }
 
-/** The blur layer: its hidden filter, the dev toggle, and the cleanup. */
+/** The blur layer: its hidden filter, the dev panel, and the cleanup. */
 export function NavMotionBlur() {
   // Unmounting the nav (or HMR) must not leave a filter behind.
   useEffect(() => endNavBlur, []);
