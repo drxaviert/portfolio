@@ -156,11 +156,11 @@ export function NavDock() {
       );
       flyingRef.current = flight;
 
-      // Prototype: rides the flight from its first painted frame to the moment
-      // it settles. It reads the bar's live velocity and paints a Y blur; it
-      // never changes the flight itself. Started after `animate` so the first
-      // read already includes the flight's own starting transform, and the
-      // state switch just before it does not read as a frame of travel.
+      // Rides the flight from its first painted frame to the moment it settles:
+      // it reads the bar's live velocity and paints a Y blur, and never changes
+      // the flight itself. Started after `animate` so the first read already
+      // includes the flight's own starting transform, and the state switch just
+      // before it does not read as a frame of travel.
       beginNavBlur(el, spec.duration);
 
       // A resize mid-flight lands the move, the way the panel's morph does.
