@@ -637,6 +637,35 @@ describe("edge blur", () => {
     expect(css).not.toMatch(/\.car-cross-blur\s*\{\s*display:\s*none/);
   });
 
+  it("fades a slim card's content at its right edge, the blur copies included", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    const css = readFileSync(
+      resolve(process.cwd(), "src/components/home/carousel/home-carousel.css"),
+      "utf8",
+    );
+
+    // The clip is the container the fade measures the drawn width against.
+    expect(css).toMatch(/\.car-clip\s*\{\s*container-type:\s*size;?\s*\}/);
+    const rule = css.match(/\.car-clip \.car-content\s*\{([^}]*)\}/)?.[1];
+    // 28px at most, zero once the card is drawn at the wide slot's width.
+    expect(rule).toMatch(
+      /--se-f:\s*clamp\(0px,\s*calc\(var\(--car-wide, 100cqw\) - 100cqw\),\s*28px\)/,
+    );
+    expect(rule).toMatch(/mask-image:\s*linear-gradient\(\s*to right,/);
+    expect(rule).toMatch(/transparent 100cqw\s*\)/);
+    expect(css).not.toMatch(/data-slim-edge/);
+
+    // The right edge's blur strip is a copy of the same content; it must sit
+    // under the same rule, or it paints the slice back over the fade.
+    const copy = container.querySelector(
+      ".car-slide:not([data-ghost]) [data-peek-blur] > .car-peek-blur-copy > .car-content",
+    );
+    expect(copy).not.toBeNull();
+    for (const content of container.querySelectorAll(".car-content")) {
+      expect(content.closest(".car-clip")).not.toBeNull();
+    }
+  });
+
   it("caps the edge blur at 2.5px and promotes only the blurred cards, only during the step", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     const css = readFileSync(

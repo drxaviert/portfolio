@@ -874,3 +874,37 @@
 .car-peek [data-car-title] {
   opacity: 0;
 }
+
+/*
+ * A slim card is the wide layout cropped to its box, so its content runs
+ * straight into the card's right edge and reads as a hard-cut slice. The
+ * content fades out over its last 28px (a smoothstep-eased mask).
+ *
+ * How much is set by how far the card is drawn narrower than the wide slot
+ * (`--car-wide` minus the clip's own width, read from the clip as a container),
+ * so it is full on a slim card, nothing on the wide one, and eases away over
+ * the last 28px of a card growing to wide. Nothing here is animated or written
+ * per frame.
+ *
+ * Every `.car-content` in the clip takes it, the edge-blur and seam copies
+ * included: the right edge's blur strip is a copy of the same content, and
+ * unmasked it painted the slice back over the fade.
+ */
+.car-clip {
+  container-type: size;
+}
+
+.car-clip .car-content {
+  --se-f: clamp(0px, calc(var(--car-wide, 100cqw) - 100cqw), 28px);
+  mask-image: linear-gradient(
+    to right,
+    #000 calc(100cqw - var(--se-f)),
+    rgb(0 0 0 / 0.942) calc(100cqw - var(--se-f) * 0.857),
+    rgb(0 0 0 / 0.781) calc(100cqw - var(--se-f) * 0.714),
+    rgb(0 0 0 / 0.566) calc(100cqw - var(--se-f) * 0.571),
+    rgb(0 0 0 / 0.344) calc(100cqw - var(--se-f) * 0.429),
+    rgb(0 0 0 / 0.131) calc(100cqw - var(--se-f) * 0.286),
+    rgb(0 0 0 / 0.029) calc(100cqw - var(--se-f) * 0.143),
+    transparent 100cqw
+  );
+}
