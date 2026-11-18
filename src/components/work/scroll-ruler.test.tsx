@@ -339,6 +339,28 @@ describe("ScrollRuler", () => {
     expect(ruler().style.getPropertyValue("--wd-ruler-right")).toBe("2px");
   });
 
+  it("stops measuring once the drawer starts closing", async () => {
+    // The close fades the ruler out; measuring through it forced a layout under
+    // a scaling panel and held the frame that had to start the fade.
+    const { panel } = mountStudy({ blocks: fourSections(), room: 209 });
+    const layer = document.createElement("div");
+    layer.className = "wd-expand-layer";
+    layer.dataset.phase = "closing";
+    document.body.append(layer);
+    layer.append(panel);
+
+    renderRuler("systems-in-motion");
+
+    // The same fixture writes 95.5px while open (see the fit test above).
+    await waitFor(() => expect(ruler()).toBeInTheDocument());
+    expect(ruler().style.getPropertyValue("--wd-ruler-right")).toBe("");
+    // Nothing measured means no ticks either: the ruler is already on its way
+    // out, and the next open remounts the reader and measures afresh.
+    expect(ruler()).not.toHaveAttribute("data-visible");
+
+    layer.remove();
+  });
+
   it("takes the ruler's width and clearance out of the fit", async () => {
     // 40px gap + 18px ruler + 16px clearance is the least it can hold.
     mountStudy({ blocks: fourSections(), room: 73 });

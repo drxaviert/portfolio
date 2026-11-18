@@ -64,12 +64,13 @@ describe("blur timing", () => {
     return rule![0];
   }
 
-  it("gives the defocus its own slower curve, apart from the fade", () => {
+  it("runs the defocus on the drawer's curve, through its own token", () => {
+    // One curve for the whole entrance now (carousel-step.ts, 900ms quick); the
+    // blur keeps its own token so a retune could still split it.
     expect(css).toMatch(
-      /--wd-enter-blur-ease: cubic-bezier\(0\.25, 0\.1, 0\.25, 1\);/,
+      /--wd-enter-blur-ease: cubic-bezier\(0\.25, 0\.8, 0\.25, 1\);/,
     );
 
-    // Opacity and the rise keep the pinned curve; only the blur moves.
     expect(textRule()).toMatch(
       /wd-enter-fade var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards/,
     );
@@ -78,9 +79,11 @@ describe("blur timing", () => {
     );
   });
 
-  it("starts the blur at 10px and resolves it to none", () => {
+  it("starts the blur at the panel's defocus strength and resolves it to none", () => {
+    // One value for the content and the scroll ruler (reader.css scales it).
+    expect(css).toMatch(/--wd-defocus-blur: 10px;/);
     expect(css).toMatch(
-      /@keyframes wd-enter-defocus \{\s*from \{\s*filter: blur\(10px\);\s*\}\s*to \{\s*filter: none;/,
+      /@keyframes wd-enter-defocus \{\s*from \{\s*filter: blur\(var\(--wd-defocus-blur, 10px\)\);\s*\}\s*to \{\s*filter: none;/,
     );
   });
 

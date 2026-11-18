@@ -36,9 +36,19 @@ export const SLOT_SELECTOR = "[data-nav-slot]";
 /** `flip` is the transform flight; `fade` is the reduced-motion / no-card path. */
 export type NavFlightMode = "flip" | "fade";
 
+/**
+ * A flight's timing. The drawer owns the curve and duration for every open and
+ * close (carousel-step.ts) and hands them over here, so the nav cannot drift
+ * away from the panel.
+ */
+export type NavFlightTiming = {
+  duration: number;
+  ease: [number, number, number, number] | "easeIn" | "easeOut";
+};
+
 type NavDockControls = {
-  toReader: (mode: NavFlightMode) => Promise<void>;
-  toHome: (mode: NavFlightMode) => Promise<void>;
+  toReader: (mode: NavFlightMode, timing?: NavFlightTiming) => Promise<void>;
+  toHome: (mode: NavFlightMode, timing?: NavFlightTiming) => Promise<void>;
 };
 
 let dock: NavDockControls | null = null;
@@ -80,8 +90,18 @@ export function requestReaderClose(): void {
   closeReaders[closeReaders.length - 1]?.();
 }
 
-export function moveNav(to: NavDockState, mode: NavFlightMode): Promise<void> {
+export function moveNav(
+  to: NavDockState,
+  mode: NavFlightMode,
+  timing?: NavFlightTiming,
+): Promise<void> {
   if (!dock) return Promise.resolve();
 
-  return to === "reader" ? dock.toReader(mode) : dock.toHome(mode);
+  // A dock handed no timing of its own flies on the pinned morph's, so the
+  // two-argument call stays the whole story unless a variant overrides it.
+  if (to === "reader") {
+    return timing ? dock.toReader(mode, timing) : dock.toReader(mode);
+  }
+
+  return timing ? dock.toHome(mode, timing) : dock.toHome(mode);
 }

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react";
+﻿import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Box } from "./morph";
@@ -6,6 +6,12 @@ import { flipFrom } from "./morph";
 import { ExpandShell } from "./expand-shell";
 import { findCard } from "./use-morph";
 import { registerNavDock } from "@/components/nav/nav-flight";
+import {
+  CAROUSEL_CLOSE_EASE,
+  CAROUSEL_CLOSE_S,
+  CAROUSEL_EASE,
+  CAROUSEL_OPEN_S,
+} from "./carousel-step";
 
 const mocks = vi.hoisted(() => ({
   animate: vi.fn(),
@@ -202,7 +208,7 @@ describe("ExpandShell", () => {
     expect(open[0][2]).toMatchObject({ duration: 0.12, ease: "easeOut" });
   });
 
-  it("starts the content entrance 300ms before the morph lands", async () => {
+  it("starts the content entrance 300ms before the 900ms flight lands", async () => {
     placeCard(CARD_A);
     mocks.animate.mockReturnValue({
       finished: new Promise(() => {}),
@@ -220,7 +226,7 @@ describe("ExpandShell", () => {
     expect(layerElement()).toHaveAttribute("data-reveal", "pending");
 
     act(() => {
-      vi.advanceTimersByTime(179);
+      vi.advanceTimersByTime(599);
     });
     expect(layerElement()).toHaveAttribute("data-reveal", "pending");
 
@@ -251,7 +257,7 @@ describe("ExpandShell", () => {
     );
 
     act(() => {
-      vi.advanceTimersByTime(180);
+      vi.advanceTimersByTime(600);
     });
 
     expect(layerElement()).toHaveAttribute("data-reveal", "on");
@@ -503,10 +509,16 @@ describe("ExpandShell", () => {
       ([element]) => element === panel,
     );
     expect(close?.[1]).toEqual({ opacity: 0, scale: 0.95 });
-    expect(close?.[2]).toMatchObject({ duration: 0.3, ease: "easeIn" });
+    expect(close?.[2]).toEqual({
+      duration: CAROUSEL_CLOSE_S,
+      ease: CAROUSEL_CLOSE_EASE,
+    });
     // Shrinks in place about the middle of the on-screen area.
     expect(panel.style.transformOrigin).toBe("512px 384px");
-    expect(toHome).toHaveBeenCalledWith("flip");
+    expect(toHome).toHaveBeenCalledWith("flip", {
+      duration: CAROUSEL_CLOSE_S,
+      ease: CAROUSEL_CLOSE_EASE,
+    });
 
     unregister();
   });
@@ -566,7 +578,8 @@ describe("ExpandShell", () => {
     });
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(320);
+      // The close is capped at the drawer's 350ms flight (morph.ts landWithin).
+      await vi.advanceTimersByTimeAsync(370);
     });
 
     expect(mocks.back).toHaveBeenCalledTimes(1);
@@ -680,5 +693,63 @@ describe("ExpandShell", () => {
     await waitFor(() => expect(panel.style.opacity).toBe("0"));
     expect(mocks.back).not.toHaveBeenCalled();
     expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it("opens the card morph on the carousel's 900ms and curve", () => {
+    placeCard(CARD_A);
+    mocks.animate.mockReturnValue({
+      finished: new Promise(() => {}),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    const panel = panelElement();
+
+    // The start pose is the card's: the panel FLIPs out of it, with no offset of
+    // the motion's own.
+    expect(panel.style.transform).toMatch(
+      new RegExp(`^translate\\(${CARD_A.left}px, ${CARD_A.top}px\\) scale\\(`),
+    );
+    const [, scaleX, scaleY] = panel.style.transform.match(
+      /scale\(([\d.]+), ([\d.]+)\)/,
+    )!;
+    expect(Number(scaleX)).toBeCloseTo(CARD_A.width / PANEL.width, 5);
+    expect(Number(scaleY)).toBeCloseTo(CARD_A.height / PANEL.height, 5);
+
+    const open = mocks.animate.mock.calls.filter(([el]) => el === panel);
+    expect(open).toHaveLength(1);
+    expect(open[0][1]).toEqual({ x: 0, y: 0, scaleX: 1, scaleY: 1 });
+    expect(open[0][2]).toEqual({
+      duration: CAROUSEL_OPEN_S,
+      ease: CAROUSEL_EASE,
+    });
+    // The shipped open is the carousel's step: 900ms, quick.
+    expect(open[0][2]).toMatchObject({ duration: 0.9 });
+  });
+
+  it("hands the nav the drawer's own flight, so the two stay in sync", () => {
+    const toReader = vi.fn(() => Promise.resolve());
+    const toHome = vi.fn(() => Promise.resolve());
+    const release = registerNavDock({ toReader, toHome });
+    placeCard(CARD_A);
+
+    render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    expect(toReader).toHaveBeenCalledWith("flip", {
+      duration: CAROUSEL_OPEN_S,
+      ease: CAROUSEL_EASE,
+    });
+
+    release();
   });
 });

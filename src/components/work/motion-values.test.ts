@@ -17,6 +17,7 @@ function read(name: string) {
 
 const shell = read("expand-shell.css");
 const reader = read("reader.css");
+const entrance = read("entrance.css");
 
 function reducedMotionBlock(css: string) {
   const at = css.indexOf("@media (prefers-reduced-motion: reduce)");
@@ -44,6 +45,44 @@ describe("drawer motion values", () => {
     expect(reader).toContain("transition: opacity var(--wd-actions-out);");
   });
 
+  it("blur-fades the scroll ruler with the phase, like the content's defocus", () => {
+    // The ruler is a sibling of the scroll column, so the column's entrance
+    // fade never covered it: it floated at opacity 1 over the whole morph and
+    // the whole close. It now rides the reader chrome's phase law, with the
+    // content's own defocus language added.
+    expect(reader).toMatch(
+      /\.wd-reader-actions,\s*\.wd-ruler \{\s*--wd-actions-in: 240ms cubic-bezier\(0\.23, 1, 0\.32, 1\);\s*--wd-actions-out: 140ms ease-in;\s*--wd-actions-reduced: 120ms ease-out;/,
+    );
+    // One blur value, scaled: the content's 10px would erase an 18px column.
+    expect(entrance).toMatch(/--wd-defocus-blur: 10px;/);
+    expect(entrance).toMatch(
+      /@keyframes wd-enter-defocus \{\s*from \{\s*filter: blur\(var\(--wd-defocus-blur, 10px\)\);/,
+    );
+    expect(reader).toMatch(
+      /--wd-ruler-blur: calc\(var\(--wd-defocus-blur, 10px\) \* 0\.4\);/,
+    );
+    // In: blurred and transparent, then settling to the identity, never blur(0).
+    expect(reader).toMatch(
+      /\[data-phase="opening"\] \.wd-ruler \{\s*opacity: 0;\s*filter: blur\(var\(--wd-ruler-blur\)\);\s*pointer-events: none;/,
+    );
+    expect(reader).toMatch(
+      /\[data-phase="open"\] \.wd-ruler \{\s*opacity: 1;\s*filter: none;\s*transition:\s*opacity var\(--wd-actions-in\),\s*filter var\(--wd-actions-in\);/,
+    );
+    // Out: its own 160ms ease-out, not the thumbs' 140ms ease-in.
+    expect(reader).toMatch(/--wd-ruler-out: 160ms ease-out;/);
+    expect(reader).toMatch(
+      /\[data-phase="closing"\] \.wd-ruler \{\s*opacity: 0;\s*filter: blur\(var\(--wd-ruler-blur\)\);\s*pointer-events: none;\s*transition:\s*opacity var\(--wd-ruler-out\),\s*filter var\(--wd-ruler-out\);/,
+    );
+    // Reduced motion: no blur in either state, and an opacity-only fade.
+    const reduced = reducedMotionBlock(reader);
+    expect(reduced).toMatch(
+      /\[data-phase="opening"\] \.wd-ruler,\s*\.wd-expand-layer\[data-phase="closing"\] \.wd-ruler \{\s*filter: none;/,
+    );
+    expect(reduced).toMatch(
+      /\[data-phase="open"\] \.wd-ruler,\s*\.wd-expand-layer\[data-phase="closing"\] \.wd-ruler \{\s*transition: opacity var\(--wd-actions-reduced\);/,
+    );
+  });
+
   it("restates the whole transition under reduced motion", () => {
     const reduced = reducedMotionBlock(shell);
 
@@ -64,16 +103,15 @@ describe("drawer motion values", () => {
   });
 
   it("runs the blur reveal on one even beat, in reading order", () => {
-    const entrance = read("entrance.css");
-
-    // The move and its curve; the defocus rides its own, slower curve.
+    // The move and the defocus share the drawer's curve and 900ms (carousel-
+    // step.ts); the beat below is what orders the cascade.
     expect(entrance).toMatch(
-      /--wd-enter-ease: cubic-bezier\(0\.22, 1, 0\.36, 1\);/,
+      /--wd-enter-ease: cubic-bezier\(0\.25, 0\.8, 0\.25, 1\);/,
     );
     expect(entrance).toMatch(
-      /--wd-enter-blur-ease: cubic-bezier\(0\.25, 0\.1, 0\.25, 1\);/,
+      /--wd-enter-blur-ease: cubic-bezier\(0\.25, 0\.8, 0\.25, 1\);/,
     );
-    expect(entrance).toMatch(/--wd-enter-duration: 800ms;/);
+    expect(entrance).toMatch(/--wd-enter-duration: 900ms;/);
     expect(entrance).toMatch(
       /@keyframes wd-enter-fade \{\s*from \{\s*opacity: 0;\s*transform: translateY\(10px\);\s*\}\s*to \{\s*opacity: 1;\s*transform: none;/,
     );
@@ -128,6 +166,35 @@ describe("drawer motion values", () => {
     expect(reduced).toMatch(
       /\.wd-reader-panel\[data-progression="lead"\] \.wd-reader-scroll \{\s*opacity: 1;\s*transition: none;/,
     );
+  });
+
+  it("runs the content entrance on the carousel's step", () => {
+    // The carousel's step: 900ms on "quick" (carousel-settings.ts), for the move
+    // and the defocus alike. Nothing else about the entrance changes: same
+    // keyframes, same beat.
+    expect(entrance).toMatch(
+      /\.wd-reader-panel \{\s*\/\*[^*]*\*\/\s*--wd-enter-ease: cubic-bezier\(0\.25, 0\.8, 0\.25, 1\);\s*--wd-enter-blur-ease: cubic-bezier\(0\.25, 0\.8, 0\.25, 1\);\s*--wd-enter-duration: 900ms;/,
+    );
+    // The move is still the rise + defocus pair, not a motion of its own.
+    expect(entrance).toMatch(
+      /@keyframes wd-enter-fade \{\s*from \{\s*opacity: 0;\s*transform: translateY\(10px\);/,
+    );
+    expect(entrance).toContain("@keyframes wd-enter-defocus");
+    expect(entrance).not.toContain("wd-enter-slide");
+    expect(entrance).not.toContain("translateX");
+    // No variant plumbing is left anywhere in the motion code.
+    expect(entrance).not.toContain("data-motion");
+  });
+
+  it("leaves the reduced-motion entrance untouched", () => {
+    const reduced = reducedMotionBlock(entrance);
+
+    // The drawer only sets custom properties, so the reduced rules
+    // (animation: none) still drop every per-block animation.
+    expect(reduced).toMatch(
+      /\.wd-expand-layer\[data-reveal="on"\]\s+:is\(\.wd-intro-title, \.wd-intro-subtitle, \.wd-intro-meta, \.wd-prose > \*\),\s*\.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{\s*animation: none;/,
+    );
+    expect(reduced).not.toContain("--wd-enter-duration");
   });
 
   it("opens the dock's last-mode tooltip inward instead of into the viewport edge", () => {
