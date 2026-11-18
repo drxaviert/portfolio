@@ -18,6 +18,7 @@ import {
   offRight,
   restEntities,
   retarget,
+  stepDuration,
   sampleEntities,
   slotCount,
   slotOf,
@@ -194,6 +195,13 @@ describe("wrap seam", () => {
       const last = leaving.at(-1)!;
       expect(last.to.x + last.to.w).toBe(-G.gap);
     }
+  });
+
+  it("runs far steps longer, one-slot steps either way unchanged", () => {
+    expect(stepDuration(900, 1)).toBe(900);
+    expect(stepDuration(900, -1)).toBe(900);
+    expect(stepDuration(900, 2)).toBe(1035);
+    expect(stepDuration(900, 3)).toBe(1170);
   });
 
   it("moves everything else one slot forward with no copy", () => {

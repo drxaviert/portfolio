@@ -458,6 +458,20 @@ export function crossesRight(
   return Math.max(e.from.x + e.from.w, e.to.x + e.to.w) > rowWidth + 0.5;
 }
 
+/**
+ * How much longer a step runs for each slot past the first. A step of two or
+ * three moves the incoming card 1.25x / 1.38x as far as a step of one in the
+ * same time, so its peak speed was that much higher and read as a lurch. At
+ * +15% per extra slot the far steps peak within ~10% of a one-slot step.
+ */
+export const FAR_STEP_STRETCH = 0.15;
+
+/** The run time of a step of `k` slots: one slot (either way) keeps `base`. */
+export function stepDuration(base: number, k: number): number {
+  const extra = Math.max(0, Math.abs(k) - 1);
+  return Math.round(base * (1 + FAR_STEP_STRETCH * extra));
+}
+
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
