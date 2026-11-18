@@ -1755,8 +1755,14 @@ describe("peek css", () => {
     expect(css).toMatch(
       /\.car-row\[data-peeking\] \.car-peek-edge \.car-host,\s*\.car-row\[data-peeking\] \.car-slide\[data-slot="2"\] \.car-host,\s*\.car-row\[data-peeking\] \.car-slide\[data-peek-out\] \.car-host\s*\{[^}]*position:\s*absolute;\s*inset:\s*var\(--car-shadow-pad\)/,
     );
-    // The shadow stays: the token is untouched and nothing drops it.
-    expect(css).not.toMatch(/box-shadow:\s*none/);
+    // The shadow stays: the token is untouched and nothing drops it. (A step
+    // moves a right-end card's shadow onto its frame, outside the peek.)
+    expect(
+      css.replace(
+        /\.car-row\[data-stepping\]:not\(\[data-peeking\]\)[^{]*\{[^}]*\}/g,
+        "",
+      ),
+    ).not.toMatch(/box-shadow:\s*none/);
 
     // The row and the copy carry no mask of their own while peeking, so nothing
     // is faded twice; the ring and the fill take the frame's one ramp.

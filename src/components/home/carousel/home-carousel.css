@@ -568,16 +568,23 @@
 }
 
 /*
- * A step (not the peek) crops the card crossing the right end at the column's
- * edge instead, the way the last slot is cropped at rest: no melt, no blur.
- * The melt faded the card's fill and its shadow together, which read as a pale
- * haze over and under the card's bottom for the length of the step.
+ * A step (not the peek) keeps the right end's melt on the card's face only.
+ * On the slide the mask faded the card's shadow with it, so under and around
+ * the card's bottom the shadow thinned out over the fade and read as a pale
+ * haze for the length of the step. So during a step:
  *
- * The crop follows the same onset as the melt did: while the card's drawn right
- * edge is still inside the column it keeps a shadow pad past it (its ring and
- * shadow show as at rest), and that pad closes onto the column's edge as the
- * card crosses, so nothing pops when it starts to cross or when it lands. Top,
- * bottom and left stay open by the ring's reach, so the bottom shadow is kept.
+ * - the slide carries no mask; it is cropped at the column's edge, the way the
+ *   last slot is cropped at rest. The crop keeps a shadow pad past the card's
+ *   drawn edge until it starts to cross and closes onto the column's edge over
+ *   the same onset the melt uses, so nothing pops; top, bottom and left stay
+ *   open by the ring's reach.
+ * - the shadow moves off the host onto the frame's ::before (the drawn box,
+ *   unmasked), so it is cropped with the card and never faded.
+ * - the host carries the melt: the same column-anchored ramp, in the host's
+ *   own box (its right end is the drawn edge, so there is no crop to take
+ *   out). The fill, ring, content and the progressive blur copy fade on it.
+ *
+ * A card leaving through the left end keeps its own frame mask and shadow.
  */
 .car-row[data-stepping]:not([data-peeking])
   .car-slide[data-cross-right]:not(
@@ -597,13 +604,58 @@
     -12px
       calc(
         100% - var(--car-cross-r) - var(--car-shadow-pad) + var(--car-xd)
-      )
-      -12px -12px
+      ) -12px -12px
   );
 }
 
-.car-row[data-stepping]:not([data-peeking]) .car-cross-blur {
-  display: none;
+.car-row[data-stepping]:not([data-peeking])
+  .car-slide[data-cross-right]:not(
+    .car-peek-edge,
+    [data-peek-fade],
+    [data-edge-blur],
+    [data-edge-left]
+  )
+  .car-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0 var(--car-r) 0 0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  pointer-events: none;
+}
+
+.car-row[data-stepping]:not([data-peeking])
+  .car-slide[data-cross-right]:not(
+    .car-peek-edge,
+    [data-peek-fade],
+    [data-edge-blur],
+    [data-edge-left]
+  )
+  .car-host {
+  --car-xk: clamp(
+    0px,
+    100% - 24px - var(--car-cross-r),
+    var(--peek-fade-right, 33px)
+  );
+  --car-xe: calc(
+    12px + var(--car-cross-r) + max(0px, var(--car-shadow-pad) - var(--car-xk))
+  );
+
+  box-shadow: none;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 calc(var(--car-xe) - var(--car-xk)),
+    transparent var(--car-xe)
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 calc(var(--car-xe) - var(--car-xk)),
+    transparent var(--car-xe)
+  );
+  mask-repeat: no-repeat;
+  mask-size: calc(100% + 24px) calc(100% + 24px);
+  mask-position: -12px -12px;
+  mask-clip: no-clip;
 }
 
 /* During a step the row is clipped close to the column's edges, so a leaving
