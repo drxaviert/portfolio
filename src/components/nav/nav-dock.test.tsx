@@ -41,6 +41,7 @@ beforeEach(() => {
   mocks.pathname = "/";
   mocks.animate.mockReset();
   mocks.animate.mockImplementation(animation);
+  window.history.replaceState({}, "", "/");
   // The reader lends the dock motion's animate; the dock itself does not
   // bundle it (that is what keeps motion out of the home route's first load).
   registerDockAnimate(mocks.animate as unknown as DockAnimate);
@@ -62,6 +63,7 @@ beforeEach(() => {
 
 afterEach(() => {
   registerReaderClose(null);
+  window.history.replaceState({}, "", "/");
   vi.unstubAllGlobals();
   document.body.innerHTML = "";
 });
@@ -191,6 +193,34 @@ describe("NavDock", () => {
     await waitFor(() =>
       expect(dock()).toHaveAttribute("data-nav-state", "reader"),
     );
+  });
+
+  it("flies on the timing the drawer hands it", async () => {
+    // The drawer owns its motion (useMorph) and hands the same curve and
+    // duration to the nav, so the two cannot drift apart.
+    const render_ = renderDock();
+    const timing = {
+      duration: 0.9,
+      ease: [0.25, 0.8, 0.25, 1] as [number, number, number, number],
+    };
+
+    await act(() => moveNav("reader", "flip", timing));
+
+    expect(mocks.animate.mock.calls.at(-1)?.[2]).toEqual(timing);
+    render_.unmount();
+  });
+
+  it("keeps the pinned timing for a flight no drawer drives", async () => {
+    // A Forward restore into a reader moves the dock with no panel behind it.
+    const render_ = renderDock();
+
+    await act(() => moveNav("reader", "flip"));
+
+    expect(mocks.animate.mock.calls.at(-1)?.[2]).toEqual({
+      duration: 0.48,
+      ease: [0.32, 0.72, 0, 1],
+    });
+    render_.unmount();
   });
 
   it("hangs the phase row on one shared gap in both docks", () => {

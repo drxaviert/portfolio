@@ -19,7 +19,11 @@ import {
   registerNavDock,
   requestReaderClose,
 } from "./nav-flight";
-import type { NavDockState, NavFlightMode } from "./nav-flight";
+import type {
+  NavDockState,
+  NavFlightMode,
+  NavFlightTiming,
+} from "./nav-flight";
 import {
   MORPH_CLOSE_S,
   MORPH_EASE,
@@ -77,100 +81,107 @@ export function NavDock() {
   const flyingRef = useRef<Flight | null>(null);
   const alignHomeRef = useRef<(() => void) | null>(null);
 
-  const fly = useCallback(async (to: NavDockState, mode: NavFlightMode) => {
-    const el = ref.current;
-    if (!el) return;
-    if (stateRef.current === to && !flyingRef.current) return;
+  const fly = useCallback(
+    async (to: NavDockState, mode: NavFlightMode, timing?: NavFlightTiming) => {
+      const el = ref.current;
+      if (!el) return;
+      if (stateRef.current === to && !flyingRef.current) return;
 
-    // Nothing has loaded the reader in this document, so there is no motion to
-    // fly with and no drawer to fly into: take the new place at once.
-    const animate = getDockAnimate();
-    if (!animate) {
-      el.style.removeProperty("top");
-      el.style.removeProperty("transform");
-      el.style.removeProperty("opacity");
-      el.dataset.navState = to;
-      stateRef.current = to;
-      if (to === "home") alignHomeRef.current?.();
-      return;
-    }
+      // Nothing has loaded the reader in this document, so there is no motion to
+      // fly with and no drawer to fly into: take the new place at once.
+      const animate = getDockAnimate();
+      if (!animate) {
+        el.style.removeProperty("top");
+        el.style.removeProperty("transform");
+        el.style.removeProperty("opacity");
+        el.dataset.navState = to;
+        stateRef.current = to;
+        if (to === "home") alignHomeRef.current?.();
+        return;
+      }
 
-    const from = el.getBoundingClientRect().top;
-    flyingRef.current?.stop();
-    flyingRef.current = null;
-
-    if (mode === "fade") {
-      const out = animate(
-        el,
-        { opacity: 0 },
-        { duration: FADE_S, ease: "easeOut" },
-      );
-      flyingRef.current = out;
-      await out.finished.catch(() => undefined);
-
-      el.style.removeProperty("top");
-      el.style.removeProperty("transform");
-      el.dataset.navState = to;
-      stateRef.current = to;
-
-      const fadeIn = animate(
-        el,
-        { opacity: 1 },
-        { duration: FADE_S, ease: "easeOut" },
-      );
-      flyingRef.current = fadeIn;
-      await fadeIn.finished.catch(() => undefined);
-
-      if (flyingRef.current !== fadeIn) return;
+      const from = el.getBoundingClientRect().top;
+      flyingRef.current?.stop();
       flyingRef.current = null;
+
+      if (mode === "fade") {
+        const out = animate(
+          el,
+          { opacity: 0 },
+          { duration: FADE_S, ease: "easeOut" },
+        );
+        flyingRef.current = out;
+        await out.finished.catch(() => undefined);
+
+        el.style.removeProperty("top");
+        el.style.removeProperty("transform");
+        el.dataset.navState = to;
+        stateRef.current = to;
+
+        const fadeIn = animate(
+          el,
+          { opacity: 1 },
+          { duration: FADE_S, ease: "easeOut" },
+        );
+        flyingRef.current = fadeIn;
+        await fadeIn.finished.catch(() => undefined);
+
+        if (flyingRef.current !== fadeIn) return;
+        flyingRef.current = null;
+        if (to === "home") alignHomeRef.current?.();
+        return;
+      }
+
+      // Switching state moves the element's CSS box; measure where it would
+      // paint untransformed, then start from where it appears right now.
+      el.style.removeProperty("top");
+      el.style.transform = "none";
+      el.dataset.navState = to;
+      stateRef.current = to;
+      const target = el.getBoundingClientRect().top;
+      const delta = from - target;
+
+      const fallback: NavFlightTiming =
+        to === "reader"
+          ? { duration: MORPH_OPEN_S, ease: MORPH_EASE }
+          : { duration: MORPH_CLOSE_S, ease: "easeIn" };
+
+      const flight = animate(
+        el,
+        { transform: [`translateY(${delta}px)`, "translateY(0px)"] },
+        timing ?? fallback,
+      );
+      flyingRef.current = flight;
+
+      // A resize mid-flight lands the move, the way the panel's morph does.
+      const finish = () => flight.complete();
+      window.addEventListener("resize", finish);
+      await flight.finished.catch(() => undefined);
+      window.removeEventListener("resize", finish);
+
+      if (flyingRef.current !== flight) return;
+
+      flyingRef.current = null;
+      el.style.removeProperty("transform");
       if (to === "home") alignHomeRef.current?.();
-      return;
-    }
 
-    // Switching state moves the element's CSS box; measure where it would
-    // paint untransformed, then start from where it appears right now.
-    el.style.removeProperty("top");
-    el.style.transform = "none";
-    el.dataset.navState = to;
-    stateRef.current = to;
-    const target = el.getBoundingClientRect().top;
-    const delta = from - target;
-
-    const flight = animate(
-      el,
-      { transform: [`translateY(${delta}px)`, "translateY(0px)"] },
-      {
-        duration: to === "reader" ? MORPH_OPEN_S : MORPH_CLOSE_S,
-        ease: to === "reader" ? MORPH_EASE : "easeIn",
-      },
-    );
-    flyingRef.current = flight;
-
-    // A resize mid-flight lands the move, the way the panel's morph does.
-    const finish = () => flight.complete();
-    window.addEventListener("resize", finish);
-    await flight.finished.catch(() => undefined);
-    window.removeEventListener("resize", finish);
-
-    if (flyingRef.current !== flight) return;
-
-    flyingRef.current = null;
-    el.style.removeProperty("transform");
-    if (to === "home") alignHomeRef.current?.();
-
-    // Motion writes the final keyframe as an inline style on the frame after
-    // `finished` resolves; clear it again so no identity transform lingers.
-    requestAnimationFrame(() => {
-      if (!flyingRef.current) el.style.removeProperty("transform");
-    });
-  }, []);
+      // Motion writes the final keyframe as an inline style on the frame after
+      // `finished` resolves; clear it again so no identity transform lingers.
+      requestAnimationFrame(() => {
+        if (!flyingRef.current) el.style.removeProperty("transform");
+      });
+    },
+    [],
+  );
 
   const toReader = useCallback(
-    (mode: NavFlightMode) => fly("reader", reduce ? "fade" : mode),
+    (mode: NavFlightMode, timing?: NavFlightTiming) =>
+      fly("reader", reduce ? "fade" : mode, timing),
     [fly, reduce],
   );
   const toHome = useCallback(
-    (mode: NavFlightMode) => fly("home", reduce ? "fade" : mode),
+    (mode: NavFlightMode, timing?: NavFlightTiming) =>
+      fly("home", reduce ? "fade" : mode, timing),
     [fly, reduce],
   );
 

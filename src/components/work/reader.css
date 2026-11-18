@@ -234,13 +234,53 @@
    the scroll column instead of floating over the open and close morphs. Until
    the fade has played they are present but invisible, so they take no clicks.
    Pinned values (F5), the scroll column's own law: the entrance curve in at
-   240ms, ease-in out at 140ms, 120ms ease-out under reduced motion. */
-.wd-reader-actions {
+   240ms, ease-in out at 140ms, 120ms ease-out under reduced motion.
+
+   The scroll ruler is chrome over the morph for the same reason, but it
+   defocuses as well as fades (its own rules below). It is a sibling of the
+   scroll column (reader.tsx), not inside it, so the column's entrance fade never
+   covered it: measured before this fix, the ruler was
+   painted at opacity 1 on every frame of the opening (17 of 18) and still at 1
+   through the whole close, from +18ms after Esc until the panel unmounted. A
+   leftover `.wd-ruler { animation: none }` in entrance.css's reduced-motion
+   block is what is left of the rule it used to have in the entrance cascade. */
+.wd-reader-actions,
+.wd-ruler {
   --wd-actions-in: 240ms cubic-bezier(0.23, 1, 0.32, 1);
   --wd-actions-out: 140ms ease-in;
   --wd-actions-reduced: 120ms ease-out;
 }
 
+/*
+ * The ruler's own exit beat: 160ms ease-out, which starts on the close's first
+ * frame and still lands well inside the 350ms close. It is its own value rather
+ * than the thumbs' 140ms ease-in because it is a column of ticks leaving with
+ * the content, and the hard start of `ease-in` reads as a delayed cut at this
+ * length.
+ *
+ * That first frame is why the measure now skips itself while the phase is
+ * `closing` (scroll-ruler.tsx): its forced layout was holding the frame that
+ * starts this transition, so the fade only began ~110ms in.
+ *
+ * The defocus is the content's, scaled down: the article's blocks melt in from
+ * `--wd-defocus-blur` (10px), but the ruler is an 18px column of 1px ticks, and
+ * 10px would erase the marks instead of softening them. 40% of it - 4px - melts
+ * the tick ends while each row stays legible.
+ */
+.wd-ruler {
+  --wd-ruler-out: 160ms ease-out;
+  --wd-ruler-blur: calc(var(--wd-defocus-blur, 10px) * 0.4);
+}
+
+/*
+ * A blur stops at its element's paint bounds only if something clips it: nothing
+ * between the ruler and the panel does (the ruler, its frame and the layer are
+ * `overflow: visible`; the panel's own `overflow: hidden` is the edge this must
+ * stay inside), so the ticks' bleed is painted rather than cut on both edges.
+ * It is still kept inside that edge by the fit measure, which places the column
+ * at least 16px clear of it (RULER_CLEARANCE, scroll-ruler.tsx) - 4px of bleed
+ * never reaches it.
+ */
 .wd-expand-layer[data-phase="opening"] .wd-reader-actions {
   opacity: 0;
   pointer-events: none;
@@ -255,6 +295,34 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--wd-actions-out);
+}
+
+.wd-expand-layer[data-phase="opening"] .wd-ruler {
+  opacity: 0;
+  filter: blur(var(--wd-ruler-blur));
+  pointer-events: none;
+}
+
+/*
+ * The ruler settles to `filter: none`, not `blur(0)`: the identity leaves no
+ * filtered layer promoted behind the open panel, and `none` interpolates from
+ * the blur as the identity, so the intro still melts.
+ */
+.wd-expand-layer[data-phase="open"] .wd-ruler {
+  opacity: 1;
+  filter: none;
+  transition:
+    opacity var(--wd-actions-in),
+    filter var(--wd-actions-in);
+}
+
+.wd-expand-layer[data-phase="closing"] .wd-ruler {
+  opacity: 0;
+  filter: blur(var(--wd-ruler-blur));
+  pointer-events: none;
+  transition:
+    opacity var(--wd-ruler-out),
+    filter var(--wd-ruler-out);
 }
 
 /* The container's `pointer-events: none` cannot beat the buttons' own `auto`. */
@@ -284,9 +352,23 @@
    * The thumb pair restates the whole transition, not just its duration: the
    * base close keeps `ease-in` for normal motion, and a duration-only override
    * would inherit it (T8 F1). Reduced close is 120ms ease-out.
+   *
+   * Reduced motion drops the ruler's defocus entirely: the blur is movement of
+   * a kind the design system does not keep, so the ruler's states carry no blur
+   * and its fade is opacity only, restated here.
    */
   .wd-expand-layer[data-phase="open"] .wd-reader-actions,
   .wd-expand-layer[data-phase="closing"] .wd-reader-actions {
+    transition: opacity var(--wd-actions-reduced);
+  }
+
+  .wd-expand-layer[data-phase="opening"] .wd-ruler,
+  .wd-expand-layer[data-phase="closing"] .wd-ruler {
+    filter: none;
+  }
+
+  .wd-expand-layer[data-phase="open"] .wd-ruler,
+  .wd-expand-layer[data-phase="closing"] .wd-ruler {
     transition: opacity var(--wd-actions-reduced);
   }
 }

@@ -16,17 +16,21 @@ import {
   landWithin,
   toBox,
   visibleCentre,
-  MORPH_CLOSE_S,
-  MORPH_EASE,
-  MORPH_OPEN_S,
 } from "./morph";
 import type { Box } from "./morph";
+import {
+  CAROUSEL_CLOSE_EASE,
+  CAROUSEL_CLOSE_S,
+  CAROUSEL_EASE,
+  CAROUSEL_OPEN_S,
+} from "./carousel-step";
 import {
   announceOverlayClosing,
   announceOverlayExit,
   announceOverlayOpened,
 } from "./overlay-exit";
 import { moveNav, registerDockAnimate } from "@/components/nav/nav-flight";
+import type { NavFlightTiming } from "@/components/nav/nav-flight";
 import { FEATURED_SLUG } from "@/lib/work-order";
 
 /**
@@ -45,11 +49,27 @@ type Morph = ReturnType<typeof animate>;
 
 export const FADE_S = 0.12;
 /**
- * The entrance starts this long before the morph lands, so reading does not
- * wait for it: 300ms into the 480ms open, which puts content on screen 180ms
- * earlier than the old 120ms lead.
+ * The content entrance starts this long before the panel lands, so reading does
+ * not wait for the flight: 300ms into the 900ms open.
  */
 const REVEAL_LEAD_S = 0.3;
+
+/**
+ * The drawer's motion, timed once. The shape never changes - the panel FLIPs out
+ * of the card, the content rises and defocuses, the nav flies between its two
+ * rows - and every part runs on the home carousel's step (carousel-step.ts): the
+ * open on its 900ms curve, the close on the run it gives an interrupted step.
+ * The nav is handed the same pair (nav-flight.ts) so it cannot drift from the
+ * panel.
+ */
+const OPEN_TIMING: NavFlightTiming = {
+  duration: CAROUSEL_OPEN_S,
+  ease: CAROUSEL_EASE,
+};
+const CLOSE_TIMING: NavFlightTiming = {
+  duration: CAROUSEL_CLOSE_S,
+  ease: CAROUSEL_CLOSE_EASE,
+};
 
 export function cardSelector(slug: string): string {
   return `[data-work-card="${slug}"]`;
@@ -114,10 +134,16 @@ export function useMorph(
      */
     resting?: boolean;
   } = {},
-): { phase: MorphPhase; reveal: RevealState; close: () => Promise<void> } {
+): {
+  phase: MorphPhase;
+  reveal: RevealState;
+  close: () => Promise<void>;
+} {
   const resting = options.resting ?? false;
   const router = useRouter();
   const reduce = useReducedMotion() ?? false;
+  const openTiming = OPEN_TIMING;
+  const closeTiming = CLOSE_TIMING;
   const [phase, setPhase] = useState<MorphPhase>(resting ? "open" : "opening");
   const [reveal, setReveal] = useState<RevealState>(resting ? "on" : "pending");
   const openingRef = useRef<Morph | null>(null);
@@ -232,6 +258,20 @@ export function useMorph(
       return;
     }
 
+    const openSeconds = openTiming.duration;
+
+    // The content starts arriving under the landing panel rather than after
+    // it, so the reader is readable at the moment the flight ends.
+    const releaseContent = () => {
+      revealTimerRef.current = window.setTimeout(
+        () => {
+          if (mountedRef.current) setReveal("on");
+        },
+        (openSeconds - REVEAL_LEAD_S) * 1000,
+      );
+    };
+
+    // The one open: the panel FLIPs out of the card it was opened from.
     const layout = layoutBox(panel);
 
     setPose(panel, flipFrom(card, layout));
@@ -239,24 +279,17 @@ export function useMorph(
     const morph = animate(
       panel,
       { x: 0, y: 0, scaleX: 1, scaleY: 1 },
-      { duration: MORPH_OPEN_S, ease: MORPH_EASE },
+      openTiming,
     );
     openingRef.current = morph;
     void morph.finished.then(settle);
 
-    // The nav is the same element on both sides: it flies from the homepage
-    // row into the panel's row with the morph, on the same curve.
-    void moveNav("reader", "flip");
+    // The nav is the same element on both sides: it flies from the homepage row
+    // into the panel's row with the morph, on the drawer's own timing.
+    void moveNav("reader", "flip", openTiming);
 
-    // The content starts arriving under the landing panel rather than after
-    // it, so the reader is readable at the moment the morph ends.
-    revealTimerRef.current = window.setTimeout(
-      () => {
-        if (mountedRef.current) setReveal("on");
-      },
-      (MORPH_OPEN_S - REVEAL_LEAD_S) * 1000,
-    );
-  }, [slug, reduce, resting, panelRef, settle]);
+    releaseContent();
+  }, [slug, reduce, resting, panelRef, settle, openTiming]);
 
   // A resize mid-morph jumps to the end; after that the panel is pure CSS, so
   // the new viewport just reflows it and close measures the card again.
@@ -296,9 +329,9 @@ export function useMorph(
       // close flight, or the 120ms fade. Both waits are capped at that timing
       // (morph.ts) so a stopped frame loop cannot strand the reader over a blank
       // page: the route change is the promise that matters.
-      const exitSeconds = reduce ? FADE_S : MORPH_CLOSE_S;
+      const exitSeconds = reduce ? FADE_S : closeTiming.duration;
       const navHome = landWithin(
-        moveNav("home", reduce ? "fade" : "flip"),
+        reduce ? moveNav("home", "fade") : moveNav("home", "flip", closeTiming),
         exitSeconds,
       );
 
@@ -320,11 +353,7 @@ export function useMorph(
         panel.style.transformOrigin = "left top";
         const pose = flipFrom(card, layoutBox(panel));
         await Promise.all([
-          landWithin(
-            animate(panel, pose, { duration: MORPH_CLOSE_S, ease: "easeIn" })
-              .finished,
-            exitSeconds,
-          ),
+          landWithin(animate(panel, pose, closeTiming).finished, exitSeconds),
           navHome,
         ]);
       } else {
@@ -337,11 +366,8 @@ export function useMorph(
         );
         await Promise.all([
           landWithin(
-            animate(
-              panel,
-              { opacity: 0, scale: CLOSE_SCALE },
-              { duration: MORPH_CLOSE_S, ease: "easeIn" },
-            ).finished,
+            animate(panel, { opacity: 0, scale: CLOSE_SCALE }, closeTiming)
+              .finished,
             exitSeconds,
           ),
           navHome,
@@ -367,7 +393,7 @@ export function useMorph(
     })();
 
     return closingRef.current;
-  }, [slug, reduce, panelRef, router, setPhase, clearRevealTimer]);
+  }, [slug, reduce, closeTiming, panelRef, router, setPhase, clearRevealTimer]);
 
   return { phase, reveal, close };
 }

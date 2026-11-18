@@ -14,8 +14,10 @@ export type Flip = {
 };
 
 /**
- * The one flight the panel and the nav dock share: the curve and the two
- * durations live here so a retune moves both, never one of them.
+ * The nav's own default flight, for the moves it makes with no drawer behind it
+ * (a Forward restore into a reader, a route change out of one). A drawer open or
+ * close always hands the dock the drawer's timing (use-morph.ts,
+ * carousel-step.ts), so these never drive the morph itself.
  */
 export const MORPH_EASE: [number, number, number, number] = [0.32, 0.72, 0, 1];
 export const MORPH_OPEN_S = 0.48;

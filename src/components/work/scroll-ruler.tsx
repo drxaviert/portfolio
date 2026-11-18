@@ -271,6 +271,8 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
     if (!scrollEl) return;
     scrollRef.current = scrollEl;
 
+    const layer = scrollEl.closest<HTMLElement>(".wd-expand-layer");
+
     let frame = 0;
 
     // Scroll fires far more often than a section can change, so the read is
@@ -300,6 +302,16 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
     };
 
     const measure = () => {
+      // A close takes the ruler out on its own fade, and nothing needs the
+      // geometry after that: the reader remounts for the next open and measures
+      // again. Measuring through the close is what broke the fade's first
+      // frame: the content entrance's last blocks are still ending, each
+      // `animationend` re-measured, and the forced layout that reads every block
+      // under a scaling panel (~72ms measured) held the frame that had to start
+      // the fade, so it only began ~110ms into a 160ms exit. Skipping the
+      // measure during `closing` leaves the fade to the phase rule (reader.css).
+      if (layer?.dataset.phase === "closing") return;
+
       const max = scrollEl.scrollHeight - scrollEl.clientHeight;
       const scrollable = max > 1;
       const scrollRect = scrollEl.getBoundingClientRect();
@@ -525,8 +537,21 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
 
     // While the panel morphs it is scaled, so a rect read now would be short.
     // The reveal is the first frame at its real size.
-    const layer = scrollEl.closest(".wd-expand-layer");
-    const reveal = new MutationObserver(measure);
+    //
+    // Read on the next frame, not in the mutation's own: the phase flip is also
+    // the frame that starts the ruler's blur-fade, and a forced layout here held
+    // that frame (~210ms measured at the landing beat),
+    // so the fade began late. One frame of stale geometry costs nothing - the
+    // measure taken mid-morph already divided the scale out and placed the ticks
+    // - and the correction lands before the fade is a third of the way in.
+    let phaseFrame = 0;
+    const reveal = new MutationObserver(() => {
+      if (phaseFrame) return;
+      phaseFrame = requestAnimationFrame(() => {
+        phaseFrame = 0;
+        measure();
+      });
+    });
     if (layer) {
       reveal.observe(layer, {
         attributes: true,
@@ -539,6 +564,7 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
     void document.fonts?.ready.then(measure);
 
     return () => {
+      if (phaseFrame) cancelAnimationFrame(phaseFrame);
       scrollEl.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", measure);
       scrollEl.removeEventListener("animationend", onEntranceEnd);

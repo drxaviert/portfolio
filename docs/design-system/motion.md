@@ -357,26 +357,30 @@ The row belongs to Day. It closes 100ms (`--duration-short-1`) after the pointer
 
 The intercepted reader is one fixed panel over the live homepage. On open it FLIPs out of the featured card, on close back into the card's live rect. Only `transform` and `opacity` animate; the panel keeps its final layout box the whole time, and the card → panel pose is measured once, before the first paint. A close that interrupts the open retargets from the current pose instead of restarting.
 
+The drawer's timing is the home carousel's step, read from its source (`carousel-settings.ts` / `easeSpec`) rather than written down: the open is 900ms on `cubic-bezier(0.25, 0.8, 0.25, 1)`, the close is the run the row gives an interrupted step, 350ms on `cubic-bezier(0.22, 1, 0.36, 1)`.
+
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
-| Card opened | panel `transform` | 480ms | 0 | `cubic-bezier(0.32, 0.72, 0, 1)` | card rect → panel box (`translate` + `scale`, origin top left) |
+| Card opened | panel `transform` | 900ms | 0 | `cubic-bezier(0.25, 0.8, 0.25, 1)` | card rect → panel box (`translate` + `scale`, origin top left) |
 | Study → study (no card) | panel | 0 | 0 | — | settles in place, no move |
-| Reverse morph | panel `transform` | 300ms | 0 | `ease-in` | current pose → the card's live rect |
+| Reverse morph | panel `transform` | 350ms | 0 | `cubic-bezier(0.22, 1, 0.36, 1)` | current pose → the card's live rect |
 | Reverse morph, or no card | panel `opacity` | 120ms | 0 | `ease-out` | 1 → 0 |
 | Opened, reduced motion | panel `opacity` | 120ms | 0 | `ease-out` | 0 → 1, `transform: none` |
-| Close interrupts the open | panel `transform` | 300ms | 0 | `ease-in` | retargeted from the live pose, never from zero |
+| Close interrupts the open | panel `transform` | 350ms | 0 | `cubic-bezier(0.22, 1, 0.36, 1)` | retargeted from the live pose, never from zero |
 | Resize mid-open | panel | — | — | — | completes the flight |
 | Backdrop in | `opacity` | 320ms | 0 | `ease-out` | 0 → 1 (0.4 black; 0.62 in Night) |
 | Backdrop out | `opacity` | 240ms | 0 | `ease-in` | 1 → 0 |
 | Content out on close | scroll column `opacity` | 140ms | 0 | `ease-in` | 1 → 0 |
 | Backdrop / content, reduced motion | `opacity` | 120ms | 0 | `ease-out` | 0 → 1 / 1 → 0 |
 
-- `src/components/work/morph.ts:20` — `MORPH_EASE` `cubic-bezier(0.32, 0.72, 0, 1)`
-- `src/components/work/morph.ts:21` — `MORPH_OPEN_S = 0.48`
-- `src/components/work/morph.ts:22` — `MORPH_CLOSE_S = 0.3`
-- `src/components/work/use-morph.ts:159` — the open flight, transform only
-- `src/components/work/use-morph.ts:218` — the reverse pose into the card's live rect
-- `src/components/work/use-morph.ts:31` — 120ms opacity path (`FADE_S`)
+- `src/components/work/carousel-step.ts:26` — `CAROUSEL_OPEN_S` = `DEFAULT_SETTINGS.duration / 1000` (900ms)
+- `src/components/work/carousel-step.ts:27` — `CAROUSEL_EASE`, parsed from `easeSpec` (`0.25, 0.8, 0.25, 1`)
+- `src/components/work/carousel-step.ts:37` — `CAROUSEL_CLOSE_S = 0.35` (the row's `SETTLE_MS`)
+- `src/components/work/carousel-step.ts:38` — `CAROUSEL_CLOSE_EASE` = `RETARGET_BEZIER` (`0.22, 1, 0.36, 1`)
+- `src/components/work/use-morph.ts:65` — the drawer's one open/close timing pair, handed to the panel and the nav
+- `src/components/work/use-morph.ts:279` — the open flight, transform only
+- `src/components/work/use-morph.ts:354` — the reverse pose into the card's live rect
+- `src/components/work/use-morph.ts:50` — 120ms opacity path (`FADE_S`)
 - `src/components/work/expand-shell.css:18` — backdrop in 320ms `ease-out`
 - `src/components/work/expand-shell.css:19` — backdrop out 240ms `ease-in`
 - `src/components/work/expand-shell.css:20` — content out 140ms `ease-in`
@@ -388,48 +392,77 @@ The one nav lives in the root layout and never remounts, so opening a study FLIP
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
-| Study opened | dock `transform` | 480ms | 0 | `cubic-bezier(0.32, 0.72, 0, 1)` | home top → reader top (`translateY` of the measured delta) |
-| Study closed | dock `transform` | 300ms | 0 | `ease-in` | reader top → home top |
+| Study opened | dock `transform` | 900ms | 0 | `cubic-bezier(0.25, 0.8, 0.25, 1)` | home top → reader top (`translateY` of the measured delta) |
+| Study closed | dock `transform` | 350ms | 0 | `cubic-bezier(0.22, 1, 0.36, 1)` | reader top → home top |
 | Reduced motion, or no card | dock `opacity` | 60ms out + 60ms in | 0 | `ease-out` | 1 → 0 → 1, no transform |
 | Study → study | dock | 0 | 0 | — | stays at the reader position |
 | Resize mid-flight | dock | — | — | — | lands the move |
 | Home rest, drifted | dock `top` | 0 | — | — | slot top when the CSS is off by > 0.5px |
+| Restore with no drawer | dock `transform` | 480ms open / 300ms close | 0 | `cubic-bezier(0.32, 0.72, 0, 1)` / `ease-in` | its own default, for the moves no panel drives (see `morph.ts`) |
 
-- `src/components/nav/nav-dock.tsx:111` — open 480 / close 300 on the panel's constants
+- `src/components/nav/nav-dock.tsx:144` — the timing the drawer hands over, used for every drawer flight
 - `src/components/nav/nav-dock.tsx:29` — 60ms half of the reduced-motion crossfade
 - `src/components/nav/nav-dock.tsx:109` — the `translateY` flight, measured from the live rect
 - `src/components/nav/nav-dock.tsx:119` — resize lands the flight
 - `src/components/nav/nav-dock.tsx:163` — 0.5px slot-drift correction
+- `src/components/work/morph.ts:16` — the nav's own default, used only with no drawer behind it
 - `src/components/nav/nav-dock.css:15` — home geometry
 - `src/components/nav/nav-dock.css:59` — reader top `panel inset + nav inset`
 
 ## Work drawer — content cascade
 
-The cascade is a handoff from the panel, not a second entrance: it is released at the reveal, 180ms into the 480ms open (300ms before the panel lands). Cover first, then the header, then the body, on one even 80ms beat.
+The cascade is a handoff from the panel, not a second entrance: it is released at the reveal, 600ms into the 900ms open (300ms before the panel lands). Cover first, then the header, then the body, on one even 80ms beat. The move and the defocus share the drawer's curve and duration; the defocus strength is one token, `--wd-defocus-blur` (10px).
 
 | Block | Starts at | Opacity + 10px rise | Defocus |
 | --- | --- | --- | --- |
-| Cover | 0ms | 800ms `cubic-bezier(0.22, 1, 0.36, 1)` | none |
-| Title | 80ms | same | 800ms `cubic-bezier(0.25, 0.1, 0.25, 1)`, `blur(10px)` → none |
+| Cover | 0ms | 900ms `cubic-bezier(0.25, 0.8, 0.25, 1)` | none |
+| Title | 80ms | same | 900ms, same curve, `blur(10px)` → none |
 | Subtitle | 160ms | same | same |
 | Meta | 240ms | same | same |
 | p1 | 320ms | same | same |
 | p2 | 400ms | same | same |
 | p3 and below | 480ms | same | same |
 
-Every block holds its start state (`backwards` fill), so nothing paints at its end state before its beat. The blur has its own longer curve: the fade is at 92% by 400ms while the defocus still measures 3.2px there, so the text resolves instead of snapping sharp. The cover carries no filter (blur on the large media was the one measured cost). The window ends 1280ms after the reveal, 1460ms after the click.
+Every block holds its start state (`backwards` fill), so nothing paints at its end state before its beat. The cover carries no filter (blur on the large media was the one measured cost). The keyframes are unchanged from the 800ms version: only the duration and the curve moved, so the cascade still resolves to `filter: none`.
 
-- `src/components/work/entrance.css:37` — fade curve `cubic-bezier(0.22, 1, 0.36, 1)`
-- `src/components/work/entrance.css:40` — defocus curve `cubic-bezier(0.25, 0.1, 0.25, 1)`
-- `src/components/work/entrance.css:41` — 800ms for both
-- `src/components/work/entrance.css:74` — `blur(10px)` start
-- `src/components/work/entrance.css:88` — two animations, fade then defocus
-- `src/components/work/entrance.css:93` — both ride the block's beat and the hand-off lead
-- `src/components/work/entrance.css:110` — 80ms beat, title
-- `src/components/work/entrance.css:130` — 480ms, p3 and below
-- `src/components/work/use-morph.ts:45` — `REVEAL_LEAD_S = 0.3`, the release 300ms before the morph lands
-- `src/components/work/use-morph.ts:238` — the reveal timer: `MORPH_OPEN_S − REVEAL_LEAD_S` (480 − 300)
+- `src/components/work/entrance.css:47` — `--wd-enter-ease` and `--wd-enter-blur-ease`, the drawer's curve for both
+- `src/components/work/entrance.css:49` — 900ms for both
+- `src/components/work/entrance.css:54` — `--wd-defocus-blur: 10px`
+- `src/components/work/entrance.css:81` — `blur(var(--wd-defocus-blur))` start
+- `src/components/work/entrance.css:95` — two animations, fade then defocus
+- `src/components/work/entrance.css:100` — both ride the block's beat and the hand-off lead
+- `src/components/work/entrance.css:117` — 80ms beat, title
+- `src/components/work/entrance.css:137` — 480ms, p3 and below
+- `src/components/work/use-morph.ts:55` — `REVEAL_LEAD_S = 0.3`, the release 300ms before the panel lands
+- `src/components/work/use-morph.ts:266` — the reveal timer: `CAROUSEL_OPEN_S − REVEAL_LEAD_S` (900 − 300)
 - `src/components/work/parts.tsx:415` — `--wd-beat-lead` on the incoming panel
+
+## Work reader — scroll ruler
+
+The ruler is chrome beside the article, not part of it: it is a sibling of the scroll column, so the column's own entrance and close fades never covered it. It rides the reader's phase law instead (the same one the thumb pair uses), and it defocuses as it comes and goes: opacity together with the content's blur, at 40% of the article's strength.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Panel lands (`open`) | ruler `opacity`, `filter` | 240ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 0 / `blur(4px)` → 1 / `none` |
+| Close starts (`closing`) | ruler `opacity`, `filter` | 160ms | 0 | `ease-out` | 1 / `none` → 0 / `blur(4px)` |
+| Opening / closing, reduced motion | `opacity` only | 120ms | 0 | `ease-out` | the same states, `filter: none` |
+
+The strength is the content's own token scaled: `--wd-ruler-blur: calc(var(--wd-defocus-blur, 10px) * 0.4)` = 4px. Ten pixels is right for a paragraph and erases an 18px column of 1px ticks; 4px melts the tick ends and keeps every row legible. At rest the rule is `filter: none`, not `blur(0)`, so no filtered layer stays promoted — `none` interpolates from the blur as the identity, so the intro still melts. Nothing clips the bleed: the ruler, its frame and the layer are `overflow: visible` with no `contain`, and the fit measure keeps the column 161px clear of the panel's clipped edge at 1280.
+
+Two implementation notes, both measured, both about the frame that starts a fade:
+
+- The phase flip is also the frame that starts the ruler's transitions, so nothing may hold it. The `data-phase` MutationObserver therefore measures on the **next** frame rather than in the mutation's own (a forced layout there held the landing frame ~210ms); the geometry from the mid-morph measure is already right, so the correction is sub-pixel.
+- For the same reason the ruler's measure **skips itself while the phase is `closing`**: the content entrance's last blocks are still ending when a close begins, each bubbling `animationend` re-measured, and that forced layout held the fade's first frame (~110ms of a 160ms exit). The next open remounts the reader and measures afresh.
+
+- `src/components/work/reader.css:271` — the ruler's own exit beat, `--wd-ruler-out: 160ms ease-out`
+- `src/components/work/reader.css:272` — `--wd-ruler-blur`, the 40% of `--wd-defocus-blur`
+- `src/components/work/reader.css:300` — opening: transparent and blurred
+- `src/components/work/reader.css:311` — open: settled to `filter: none`
+- `src/components/work/reader.css:319` — closing: the 160ms blur-fade
+- `src/components/work/reader.css:365` — reduced motion: `filter: none`, opacity only
+- `src/components/work/entrance.css:54` — `--wd-defocus-blur: 10px`, the one defocus strength
+- `src/components/work/scroll-ruler.tsx:313` — the close-time measure skip
+- `src/components/work/scroll-ruler.tsx:548` — the phase measure, deferred one frame
 
 ## Work reader — ruler indicator snap
 
