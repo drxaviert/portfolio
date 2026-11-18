@@ -362,7 +362,7 @@ The drawer's timing is the home carousel's step, read from its source (`carousel
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
 | Card opened | panel `transform` | 900ms | 0 | `cubic-bezier(0.25, 0.8, 0.25, 1)` | card rect → panel box (`translate` + `scale`, origin top left) |
-| Study → study (no card) | panel | 0 | 0 | — | settles in place, no move |
+| Study → study | panel, shadow, backdrop, nav | 0 | — | — | stay put; only the article swaps (see "Work drawer — study hand-off") |
 | Reverse morph | panel `transform` | 350ms | 0 | `cubic-bezier(0.22, 1, 0.36, 1)` | current pose → the card's live rect |
 | Reverse morph, or no card | panel `opacity` | 120ms | 0 | `ease-out` | 1 → 0 |
 | Opened, reduced motion | panel `opacity` | 120ms | 0 | `ease-out` | 0 → 1, `transform: none` |
@@ -430,37 +430,39 @@ Every block holds its start state (`backwards` fill), so nothing paints at its e
 - `src/components/work/entrance.css:54` — `--wd-defocus-blur: 10px`
 - `src/components/work/entrance.css:81` — `blur(var(--wd-defocus-blur))` start
 - `src/components/work/entrance.css:95` — two animations, fade then defocus
-- `src/components/work/entrance.css:100` — both ride the block's beat and the hand-off lead
+- `src/components/work/entrance.css:103` — both ride the block's beat, no head start
 - `src/components/work/entrance.css:117` — 80ms beat, title
 - `src/components/work/entrance.css:137` — 480ms, p3 and below
-- `src/components/work/use-morph.ts:55` — `REVEAL_LEAD_S = 0.3`, the release 300ms before the panel lands
-- `src/components/work/use-morph.ts:266` — the reveal timer: `CAROUSEL_OPEN_S − REVEAL_LEAD_S` (900 − 300)
-- `src/components/work/parts.tsx:415` — `--wd-beat-lead` on the incoming panel
+- `src/components/work/use-morph.ts:61` — `REVEAL_LEAD_S = 0.3`, the release 300ms before the panel lands
+- `src/components/work/use-morph.ts:323` — the reveal timer: `CAROUSEL_OPEN_S − REVEAL_LEAD_S` (900 − 300)
+- `src/components/work/use-morph.ts:276` — a study hand-off joins this cascade from its first frame
 
 ## Work reader — scroll ruler
 
-The ruler is chrome beside the article, not part of it: it is a sibling of the scroll column, so the column's own entrance and close fades never covered it. It rides the reader's phase law instead (the same one the thumb pair uses), and it defocuses as it comes and goes: opacity together with the content's blur, at 40% of the article's strength.
+The ruler is chrome beside the article, not part of it: it is a sibling of the scroll column, so the column's own entrance and close fades never covered it. It joins the content cascade instead of riding the phase law: held invisible while the content is pending, then the cascade's next beat, blurred at 8px and resolving as the last paragraph does.
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
-| Panel lands (`open`) | ruler `opacity`, `filter` | 240ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 0 / `blur(4px)` → 1 / `none` |
-| Close starts (`closing`) | ruler `opacity`, `filter` | 160ms | 0 | `ease-out` | 1 / `none` → 0 / `blur(4px)` |
-| Opening / closing, reduced motion | `opacity` only | 120ms | 0 | `ease-out` | the same states, `filter: none` |
+| Content released (`reveal`) | ruler `opacity`, `filter` | 900ms | 560ms | `cubic-bezier(0.25, 0.8, 0.25, 1)` | 0 / `blur(8px)` → 1 / `none` |
+| Close starts (`closing`) | ruler `opacity`, `filter` | 160ms | 0 | `ease-out` | 1 / `none` → 0 / `blur(8px)` |
+| Reveal / closing, reduced motion | `opacity` only | 120ms | 0 | `ease-out` | the same states, `filter: none` |
 
-The strength is the content's own token scaled: `--wd-ruler-blur: calc(var(--wd-defocus-blur, 10px) * 0.4)` = 4px. Ten pixels is right for a paragraph and erases an 18px column of 1px ticks; 4px melts the tick ends and keeps every row legible. At rest the rule is `filter: none`, not `blur(0)`, so no filtered layer stays promoted — `none` interpolates from the blur as the identity, so the intro still melts. Nothing clips the bleed: the ruler, its frame and the layer are `overflow: visible` with no `contain`, and the fit measure keeps the column 161px clear of the panel's clipped edge at 1280.
+The strength is its own token, `--wd-ruler-blur: 8px`: Dat chose a strength that visibly smears the ticks at the start, and the article's 10px is for paragraphs. At rest the rule is `filter: none`, not `blur(0)`, so no filtered layer stays promoted — `none` interpolates from the blur as the identity, so the intro still melts. Nothing clips the bleed: the ruler, its frame and the layer are `overflow: visible` with no `contain`, and the fit measure keeps the column 161px clear of the panel's clipped edge at 1280.
+
+The 560ms is `calc(480ms + 80ms)`: the last block's beat plus the same 80ms step, so the ruler is the next beat after the content rather than a fade of its own.
 
 Two implementation notes, both measured, both about the frame that starts a fade:
 
-- The phase flip is also the frame that starts the ruler's transitions, so nothing may hold it. The `data-phase` MutationObserver therefore measures on the **next** frame rather than in the mutation's own (a forced layout there held the landing frame ~210ms); the geometry from the mid-morph measure is already right, so the correction is sub-pixel.
+- The reveal change is also the frame that starts the ruler's transitions, so nothing may hold it. The `data-phase` MutationObserver therefore measures on the **next** frame rather than in the mutation's own (a forced layout there held the landing frame ~210ms); the geometry from the mid-morph measure is already right, so the correction is sub-pixel.
 - For the same reason the ruler's measure **skips itself while the phase is `closing`**: the content entrance's last blocks are still ending when a close begins, each bubbling `animationend` re-measured, and that forced layout held the fade's first frame (~110ms of a 160ms exit). The next open remounts the reader and measures afresh.
 
-- `src/components/work/reader.css:271` — the ruler's own exit beat, `--wd-ruler-out: 160ms ease-out`
-- `src/components/work/reader.css:272` — `--wd-ruler-blur`, the 40% of `--wd-defocus-blur`
-- `src/components/work/reader.css:300` — opening: transparent and blurred
-- `src/components/work/reader.css:311` — open: settled to `filter: none`
-- `src/components/work/reader.css:319` — closing: the 160ms blur-fade
-- `src/components/work/reader.css:365` — reduced motion: `filter: none`, opacity only
-- `src/components/work/entrance.css:54` — `--wd-defocus-blur: 10px`, the one defocus strength
+- `src/components/work/reader.css:292` — `--wd-ruler-blur: 8px`, the ticks' own defocus strength
+- `src/components/work/reader.css:295` — `--wd-ruler-enter-delay: calc(480ms + 80ms)`
+- `src/components/work/reader.css:328` — held: transparent and blurred while `pending` or `closing`
+- `src/components/work/reader.css:343` — the cascade's next beat: 900ms on the content's curve, settling to `filter: none`
+- `src/components/work/reader.css:352` — closing: the 160ms blur-fade
+- `src/components/work/reader.css:406` — reduced motion: `filter: none`, opacity only, no delay
+- `src/components/work/entrance.css:49` — `--wd-enter-duration: 900ms`, the beat it shares with the content
 - `src/components/work/scroll-ruler.tsx:313` — the close-time measure skip
 - `src/components/work/scroll-ruler.tsx:548` — the phase measure, deferred one frame
 
@@ -485,23 +487,42 @@ The mark is one element: its top edge is a `translateY` and its height a `scaleY
 
 ## Work drawer — study hand-off
 
-"Next project" is not a route swap with an empty beat: the outgoing article leaves on its own 140ms `ease-in` fade, the route is pushed 49ms into it, and the incoming entrance mounts 120ms in.
+"Next project" swaps the article, not the drawer. The outgoing article leaves on the reader's own 140ms `ease-in` fade and the route moves after it; the incoming mount joins the open drawer instead of rebuilding it. The panel, its shadow/elevation, the backdrop and the nav stay put — no FLIP, no close, no nav flight — and only the content changes: the scroll resets to the top and the article plays the drawer's own open cascade from its first frame (see "Work drawer — content cascade"). Back and Forward play the same swap for the same reason.
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
 | Next project | outgoing scroll column `opacity` | 140ms | 0 | `ease-in` | 1 → 0, held to the last frame |
-| Next project | route commit | — | 49ms (35% of 140) | — | push / replace lands inside the fade |
-| Incoming study | cascade | — | −120ms lead | — | the entrance's first paint is already ~55% in |
-| Reduced motion | — | 0 | 0 | — | one commit, no fade, no lead |
+| Next project | route | — | after the fade | — | push to `/work/<slug>`, with the entry's depth |
+| Incoming study | panel, shadow, backdrop, nav | 0 | — | — | stay exactly where they are |
+| Incoming study | content cascade | 900ms | 0 | `cubic-bezier(0.25, 0.8, 0.25, 1)` | the open's cover → title → meta → body cascade, same 80ms beats and 10px defocus |
+| Incoming study | scroll column `opacity` | 0 | — | — | held at 0 for the `pending` frame, then 1 while the cascade runs |
+| Incoming study | ruler `opacity`, `filter` | 900ms | 560ms | `cubic-bezier(0.25, 0.8, 0.25, 1)` | 0 / `blur(8px)` → 1 / `none`, the next beat after the last block |
+| Back / Forward | route | — | — | — | the previous study, through the same swap |
+| Close after a swap | panel `transform`, nav `transform` | 350ms | 0 | `cubic-bezier(0.22, 1, 0.36, 1)` | the study on screen's card, or the drawer's origin card |
+| Reduced motion | scroll column + ruler `opacity` | 120ms | 0 | `ease-out` | one opacity pass, `filter: none`, no transform |
 
-The lead is a module-level timestamp read once by the incoming mount and cleared: it expires after 900ms so a slow route can never leak it into a normal card open.
+The hand-off is a module flag, not the tree: the flag is set while any drawer is mounted, so the incoming mount knows it is the same drawer even when the route change was the browser's (Back/Forward). "Next project" also announces itself, because its click is where the incoming entry learns its history depth. Next keys the intercepted page by its slug, so the reader remounts either way; nothing else about the drawer does.
+
+- The release waits two frames. The first paints `data-reveal="pending"`, which is also the ruler's `opacity: 0 / blur(8px)` state; the second sets `data-reveal="on"` and the cascade starts. With one frame the mount and the release collapse into the same rendering update, the ruler has no before-change style to transition from, and it snaps in at full strength instead of taking its beat.
+- Each swap pushes its own entry carrying `workDepth`. Close goes back `depth + 1` entries in one step, so it lands on the homepage instead of reopening the previous study; Back returns to that study and replays this same swap.
+- Close picks the study on screen's card first and the drawer's origin second. A study reached by "Next project" usually has no card on the homepage (the carousel renders the current step), which is the origin-card fallback; a study that does have one closes into its own.
+- The backdrop never replays: `data-handoff` pins it at opacity 1 for the swap, so the layer mounting does not re-run its 320ms entrance under the panel's edge.
+- Reduced motion drops the fade-out wait and the cascade. The incoming column and ruler take one 120ms `ease-out` opacity pass with `filter: none`, so the swap is still a state change, not a movement.
 
 - `src/components/work/progression.ts:19` — `PROGRESSION_EXIT_MS = 140`
-- `src/components/work/progression.ts:21` — `PROGRESSION_LEAD_MS = 120`
-- `src/components/work/progression.ts:27` — `PUSH_RATIO = 0.35`
-- `src/components/work/progression.ts:29` — `LEAD_TTL_MS = 900`
-- `src/components/work/progression.ts:72` — the 140ms `ease-in` fade, `fill: forwards`
-- `src/components/work/parts.tsx:415` — the incoming panel's `--wd-beat-lead`
+- `src/components/work/progression.ts:44` — the drawer-session flag shared across the remount
+- `src/components/work/progression.ts:91` — the 140ms fade, then the route
+- `src/components/work/progression.ts:107` — the same fade for Back/Forward
+- `src/components/work/use-morph.ts:158` — the incoming mount reads the flag / announcement once
+- `src/components/work/use-morph.ts:276` — the hand-off branch: no FLIP, two-frame release
+- `src/components/work/use-morph.ts:387` — close: current study's card, then the origin
+- `src/components/work/use-morph.ts:456` — close: `depth + 1` entries back to the homepage
+- `src/components/work/expand-shell.tsx:55` — the flag is set for the session and cleared when the route leaves `/work/`
+- `src/components/work/expand-shell.tsx:114` — `data-handoff` on the layer
+- `src/components/work/expand-shell.css:94` — the backdrop held at 1 for the swap
+- `src/components/work/parts.tsx:365` — the click announces, then pushes with the depth
+- `src/components/work/entrance.css:103` — the cascade with no head start (900ms, the open's beat)
+- `src/components/work/reader.css:295` — `--wd-ruler-enter-delay: calc(480ms + 80ms)`, the 560ms beat
 
 ## Work drawer — geometry and popover sides
 
@@ -533,7 +554,7 @@ The progressive blur over the reader's top edge is six static `backdrop-filter` 
 | --- | --- |
 | Open | panel opacity 120ms `ease-out`, no transform; nav crossfades over 2 × 60ms; backdrop 120ms |
 | Cascade | `animation: none` on the cover and every text block; the scroll column is one 120ms opacity pass |
-| Hand-off | no fade and no wait; the incoming column skips its own fade (`data-progression="lead"`) |
+| Hand-off | no fade-out wait and no cascade; the incoming column and ruler take one 120ms `ease-out` opacity pass, `filter: none` |
 | Content out | 300ms on the close's retarget curve, 120ms `ease-out` reduced |
 | Thumb pair, rail | 120ms `ease-out`, visibility steps with the fade |
 | Picker row | existing rows: opacity only 120ms, no scale, no icon settle |
@@ -541,8 +562,8 @@ The progressive blur over the reader's top edge is six static `backdrop-filter` 
 
 - `src/components/work/blur-stack.tsx:4` — six bands
 - `src/components/work/blur-stack.css:96` — reduced-transparency / no-support fallback
-- `src/components/work/entrance.css:136` — reduced-motion `animation: none`
-- `src/components/work/entrance.css:157` — the hand-off column keeps `opacity: 1`
+- `src/components/work/entrance.css:171` — reduced-motion `animation: none`
+- `src/components/work/entrance.css:184` — the hand-off column's one 120ms opacity pass
 - `src/components/work/reader.css:253` — thumb-pair reduced path
 
 ## Reduced motion

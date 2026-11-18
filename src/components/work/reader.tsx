@@ -5,7 +5,6 @@ import {
   Hero,
   Intro,
   NextLink,
-  ProgressionLead,
   READER_SCROLL_ID,
   READER_TITLE_ID,
 } from "./parts";
@@ -41,8 +40,6 @@ export function Reader({ meta, children }: ReaderProps) {
       // behaviour without telling screen readers to hide everything else.
       aria-labelledby={READER_TITLE_ID}
     >
-      <ProgressionLead />
-
       <BlurStack height="calc(var(--wd-nav-inset) + var(--wd-nav-height))" />
 
       <div id={READER_SCROLL_ID} className="wd-reader-scroll">

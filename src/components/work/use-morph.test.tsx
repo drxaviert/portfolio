@@ -1,10 +1,15 @@
-﻿import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Box } from "./morph";
 import { flipFrom } from "./morph";
 import { ExpandShell } from "./expand-shell";
 import { findCard } from "./use-morph";
+import {
+  announceProgressionEntry,
+  clearProgressionEntry,
+  leaveDrawer,
+} from "./progression";
 import { registerNavDock } from "@/components/nav/nav-flight";
 import {
   CAROUSEL_CLOSE_EASE,
@@ -59,11 +64,15 @@ function toDomRect(box: Box): DOMRect {
 }
 
 /** A page card. Re-reading the rect on every call is what close depends on. */
-function placeCard(rect: Box) {
+function placeCard(rect: Box, slug = SLUG) {
   document.body.innerHTML = "";
 
+  return addCard(rect, slug);
+}
+
+function addCard(rect: Box, slug = SLUG) {
   const card = document.createElement("a");
-  card.dataset.workCard = SLUG;
+  card.dataset.workCard = slug;
 
   const title = document.createElement("h1");
   title.textContent = "Systems in motion";
@@ -111,6 +120,8 @@ beforeEach(() => {
   mocks.push.mockReset();
   mocks.replace.mockReset();
 
+  clearProgressionEntry();
+  leaveDrawer();
   window.history.replaceState({}, "", "/work/systems-in-motion");
 
   vi.stubGlobal(
@@ -438,6 +449,8 @@ describe("ExpandShell", () => {
     const restingOrigin = panelElement().style.transformOrigin;
     resting.unmount();
     document.body.innerHTML = "";
+    // A fresh open from the homepage, not a study swap.
+    leaveDrawer();
 
     placeCard(CARD_A);
     render(
@@ -619,6 +632,98 @@ describe("ExpandShell", () => {
     await waitFor(() => expect(panel.style.opacity).toBe("0"));
     const calls = mocks.animate.mock.calls.filter(([el]) => el === panel);
     expect(calls[calls.length - 1][1]).toMatchObject(flipFrom(CARD_A, PANEL));
+  });
+
+  it("joins the open drawer on a study hand-off instead of flying out of a card", async () => {
+    // The incoming study even has a card on screen: a hand-off must not use it.
+    placeCard(CARD_B, "title-sequence");
+    announceProgressionEntry(1);
+
+    render(
+      <ExpandShell slug="title-sequence">
+        <ReaderStub />
+      </ExpandShell>,
+    );
+
+    const layer = layerElement();
+
+    // Open from the first frame, with no morph and no nav flight.
+    expect(layer).toHaveAttribute("data-phase", "open");
+    expect(layer).toHaveAttribute("data-handoff");
+    expect(layer).toHaveAttribute("data-reveal", "pending");
+    expect(
+      mocks.animate.mock.calls.filter(([el]) => el === panelElement()),
+    ).toHaveLength(0);
+
+    // The entrance is released on the next frame, so `pending` paints first.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 90));
+    });
+
+    expect(layer).toHaveAttribute("data-reveal", "on");
+    expect(window.history.state?.workDepth).toBe(1);
+  });
+
+  it("closes into the current study's card when the homepage has one", async () => {
+    placeCard(CARD_A);
+    const first = render(
+      <ExpandShell slug={SLUG}>
+        <ReaderStub />
+      </ExpandShell>,
+    );
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+    first.unmount();
+
+    placeCard(CARD_B, "title-sequence");
+    announceProgressionEntry(1);
+
+    render(
+      <ExpandShell slug="title-sequence">
+        <ReaderStub />
+      </ExpandShell>,
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 90));
+    });
+
+    const panel = panelElement();
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
+
+    await waitFor(() => expect(panel.style.opacity).toBe("0"));
+    const calls = mocks.animate.mock.calls.filter(([el]) => el === panel);
+    expect(calls[calls.length - 1][1]).toMatchObject(flipFrom(CARD_B, PANEL));
+  });
+
+  it("returns to the homepage entry in one step from a switched study", async () => {
+    placeCard(CARD_A);
+    announceProgressionEntry(2);
+
+    render(
+      <ExpandShell slug="title-sequence">
+        <ReaderStub />
+      </ExpandShell>,
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 90));
+    });
+
+    const go = vi.spyOn(window.history, "go").mockImplementation(() => {});
+    window.history.replaceState(
+      { workOverlay: true, workOrigin: SLUG, workDepth: 2 },
+      "",
+      "/work/title-sequence",
+    );
+
+    fireEvent.click(
+      document.querySelector<HTMLElement>(".wd-expand-backdrop")!,
+    );
+
+    await waitFor(() => expect(go).toHaveBeenCalledWith(-3));
+    expect(mocks.back).not.toHaveBeenCalled();
   });
 
   it("flips a direct load of a card-less study into the featured card", async () => {

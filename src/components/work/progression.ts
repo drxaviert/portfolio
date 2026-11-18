@@ -3,68 +3,109 @@
 /**
  * The hand-off between one study and the next.
  *
- * "Next project" used to swap the article in one commit: the old body vanished
- * and the new body started at opacity 0, so the panel showed a frame or two of
- * bare surface. Now the outgoing article leaves on the reader's own close fade
- * (the 140ms ease-in on the scroll column), the route is pushed part-way into
- * it, and the incoming entrance mounts with its first 120ms already elapsed.
- * The exit is seen, the entry is already at ~55% when it paints, and the two
- * overlap: no frame has an empty panel with nothing entering.
+ * "Next project" swaps the article, not the drawer. The outgoing article leaves
+ * on the reader's own close fade (the 140ms ease-in on the scroll column) and
+ * the route moves once it is gone; the incoming mount keeps the panel, the
+ * backdrop and the nav in place and runs the same entrance the drawer plays on
+ * open - the wd-enter-fade + wd-enter-defocus cascade - from its first frame.
  *
- * The lead is a module-level timestamp, not React state: a study -> study
- * navigation remounts the whole reader shell, so nothing in the tree survives
- * the swap. It is read once by the incoming mount and cleared.
+ * The marker is module-level, not React state: a study -> study navigation
+ * remounts the whole reader shell (Next keys the intercepted page by its slug),
+ * so nothing in the tree survives the swap. It is peeked by the incoming mount
+ * and cleared once that mount has read it.
  */
 
+/** The outgoing article's fade; the reader's own close fade, in ms. */
 export const PROGRESSION_EXIT_MS = 140;
-/** How far into the incoming entrance its first paint lands. */
-export const PROGRESSION_LEAD_MS = 120;
 /**
- * Push the route this far into the fade. The commit then lands while the old
- * column is still faintly there, instead of cutting it at full strength (push
- * at 0) or showing an empty panel while the route loads (push after the fade).
+ * A marker this old means the navigation never landed. Don't leak it into a
+ * card open: the exit fade plus a slow route is still far inside this.
  */
-const PUSH_RATIO = 0.35;
-/** A lead this old means the navigation never landed; don't leak it into a card open. */
-const LEAD_TTL_MS = 900;
+const HANDOFF_TTL_MS = 1500;
 
-let entryAt: number | null = null;
+type Handoff = {
+  at: number;
+  /**
+   * The history depth the incoming entry should carry: how many studies have
+   * been opened on top of the entry the drawer was opened from. `null` for a
+   * Back/Forward, whose entry already carries its own depth.
+   */
+  depth: number | null;
+};
 
-/** The route is about to change: the next mount of the reader is a hand-off. */
-export function announceProgressionEntry() {
-  entryAt = performance.now();
+let handoff: Handoff | null = null;
+
+/**
+ * Whether a drawer is already on screen. A study -> study navigation remounts
+ * the reader, and the incoming mount has to know it is the same drawer even
+ * when the route change was the browser's (Back/Forward), not a click this
+ * module was told about.
+ */
+let drawerOpen = false;
+
+/** A shell mounted: from now until it closes, study swaps join the drawer. */
+export function enterDrawer() {
+  drawerOpen = true;
 }
 
-/** The incoming mount's head start in ms; 0 for every other way in. */
-export function peekProgressionLead(): number {
-  if (entryAt === null) return 0;
+/** The drawer closed (or left for the homepage): the next open flies again. */
+export function leaveDrawer() {
+  drawerOpen = false;
+}
 
-  if (performance.now() - entryAt > LEAD_TTL_MS) {
-    entryAt = null;
+export function isDrawerOpen() {
+  return drawerOpen;
+}
 
-    return 0;
+/** The route is about to change: the next mount of the reader joins the drawer. */
+export function announceProgressionEntry(depth: number | null = null) {
+  handoff = { at: performance.now(), depth };
+}
+
+/** The pending hand-off, if the next mount of the reader can still join it. */
+export function peekProgressionEntry(): { depth: number | null } | null {
+  if (!handoff) return null;
+
+  if (performance.now() - handoff.at > HANDOFF_TTL_MS) {
+    handoff = null;
+
+    return null;
   }
 
-  return PROGRESSION_LEAD_MS;
+  return { depth: handoff.depth };
 }
 
-export function clearProgressionLead() {
-  entryAt = null;
+/** The incoming mount has read the hand-off. */
+export function clearProgressionEntry() {
+  handoff = null;
 }
 
 /**
  * The outgoing article leaves the way it does on close: one 140ms ease-in
- * opacity fade on the scroll column. Resolves when the route should be pushed,
- * before the fade ends, so the incoming article is on screen while the old one
- * is still faint.
+ * opacity fade on the scroll column. Resolves once the fade is done, so the
+ * route moves onto a settled panel rather than cutting a half-faded article.
  *
- * Reduced motion has no fade and no wait: the content changes in one commit,
- * and the incoming column skips its own fade (the data attribute), so nothing
- * moves and no empty beat is added.
+ * Reduced motion has no fade and no wait: the content changes in one commit and
+ * the incoming column takes the 120ms opacity pass instead.
  */
 export async function leaveForNextStudy(): Promise<void> {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reduce) return;
+
+  fadeStudyOut();
+
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, PROGRESSION_EXIT_MS);
+  });
+}
+
+/**
+ * Fade the article that is on screen. The route commit may replace it before
+ * the fade ends (a Back/Forward fetch is not ours to hold), in which case the
+ * incoming entrance is the visible half of the swap.
+ */
+export function fadeStudyOut() {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
   const scroll = document.querySelector<HTMLElement>(".wd-reader-scroll");
 
@@ -73,9 +114,5 @@ export async function leaveForNextStudy(): Promise<void> {
     easing: "ease-in",
     // The navigation removes the element; keep the last frame until it does.
     fill: "forwards",
-  });
-
-  await new Promise((resolve) => {
-    window.setTimeout(resolve, Math.round(PROGRESSION_EXIT_MS * PUSH_RATIO));
   });
 }

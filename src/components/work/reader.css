@@ -346,9 +346,7 @@
   transition:
     opacity var(--wd-enter-duration) var(--wd-enter-blur-ease),
     filter var(--wd-enter-duration) var(--wd-enter-blur-ease);
-  transition-delay: calc(
-    var(--wd-ruler-enter-delay) + var(--wd-beat-lead, 0ms)
-  );
+  transition-delay: var(--wd-ruler-enter-delay);
 }
 
 .wd-expand-layer[data-phase="closing"] .wd-ruler {

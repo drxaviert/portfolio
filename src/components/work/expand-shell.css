@@ -86,6 +86,16 @@
   }
 }
 
+/*
+ * A study -> study swap is the same drawer under a new article: the layer is
+ * new, the overlay is not. The backdrop stays at full strength instead of
+ * replaying its entrance under the panel's edge.
+ */
+.wd-expand-layer[data-handoff]:not([data-phase="closing"]) .wd-expand-backdrop {
+  animation: none;
+  opacity: 1;
+}
+
 @keyframes wd-backdrop-out {
   from {
     opacity: 1;
