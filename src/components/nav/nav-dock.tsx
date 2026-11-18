@@ -29,6 +29,7 @@ import {
   MORPH_EASE,
   MORPH_OPEN_S,
 } from "@/components/work/morph";
+import { NavMotionBlur, beginNavBlur, endNavBlur } from "./nav-motion-blur";
 import "./nav-dock.css";
 
 /** Half of the 120ms reduced-motion crossfade. */
@@ -146,12 +147,21 @@ export function NavDock() {
           ? { duration: MORPH_OPEN_S, ease: MORPH_EASE }
           : { duration: MORPH_CLOSE_S, ease: "easeIn" };
 
+      const spec = timing ?? fallback;
+
       const flight = animate(
         el,
         { transform: [`translateY(${delta}px)`, "translateY(0px)"] },
-        timing ?? fallback,
+        spec,
       );
       flyingRef.current = flight;
+
+      // Rides the flight from its first painted frame to the moment it settles:
+      // it reads the bar's live velocity and paints a Y blur, and never changes
+      // the flight itself. Started after `animate` so the first read already
+      // includes the flight's own starting transform, and the state switch just
+      // before it does not read as a frame of travel.
+      beginNavBlur(el, spec.duration);
 
       // A resize mid-flight lands the move, the way the panel's morph does.
       const finish = () => flight.complete();
@@ -159,9 +169,11 @@ export function NavDock() {
       await flight.finished.catch(() => undefined);
       window.removeEventListener("resize", finish);
 
+      // An interrupted flight must not take the blur off its successor.
       if (flyingRef.current !== flight) return;
 
       flyingRef.current = null;
+      endNavBlur();
       el.style.removeProperty("transform");
       if (to === "home") alignHomeRef.current?.();
 
@@ -259,14 +271,17 @@ export function NavDock() {
   if (pathname.startsWith("/dev")) return null;
 
   return (
-    <div
-      ref={ref}
-      className="wd-nav-dock"
-      data-nav-dock=""
-      data-nav-state={initial}
-      onClickCapture={onClickCapture}
-    >
-      <HomeNav />
-    </div>
+    <>
+      <NavMotionBlur />
+      <div
+        ref={ref}
+        className="wd-nav-dock"
+        data-nav-dock=""
+        data-nav-state={initial}
+        onClickCapture={onClickCapture}
+      >
+        <HomeNav />
+      </div>
+    </>
   );
 }
