@@ -567,6 +567,45 @@
   opacity: 1;
 }
 
+/*
+ * A step (not the peek) crops the card crossing the right end at the column's
+ * edge instead, the way the last slot is cropped at rest: no melt, no blur.
+ * The melt faded the card's fill and its shadow together, which read as a pale
+ * haze over and under the card's bottom for the length of the step.
+ *
+ * The crop follows the same onset as the melt did: while the card's drawn right
+ * edge is still inside the column it keeps a shadow pad past it (its ring and
+ * shadow show as at rest), and that pad closes onto the column's edge as the
+ * card crosses, so nothing pops when it starts to cross or when it lands. Top,
+ * bottom and left stay open by the ring's reach, so the bottom shadow is kept.
+ */
+.car-row[data-stepping]:not([data-peeking])
+  .car-slide[data-cross-right]:not(
+    .car-peek-edge,
+    [data-peek-fade],
+    [data-edge-blur]
+  ) {
+  --car-xd: clamp(
+    0px,
+    100% - var(--car-r) - var(--car-cross-r),
+    var(--car-shadow-pad)
+  );
+
+  -webkit-mask-image: none;
+  mask-image: none;
+  clip-path: inset(
+    -12px
+      calc(
+        100% - var(--car-cross-r) - var(--car-shadow-pad) + var(--car-xd)
+      )
+      -12px -12px
+  );
+}
+
+.car-row[data-stepping]:not([data-peeking]) .car-cross-blur {
+  display: none;
+}
+
 /* During a step the row is clipped close to the column's edges, so a leaving
    or entering card does not show past it; the 4px outset is the ring's band and
    the shadow, so an edge card does not lose its border for the length of the

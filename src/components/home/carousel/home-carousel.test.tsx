@@ -608,6 +608,24 @@ describe("edge blur", () => {
     );
   });
 
+  it("crops a card crossing the right end during a step instead of melting it", () => {
+    const css = readFileSync(
+      resolve(process.cwd(), "src/components/home/carousel/home-carousel.css"),
+      "utf8",
+    );
+    const step = css.match(
+      /\.car-row\[data-stepping\]:not\(\[data-peeking\]\)\s*\.car-slide\[data-cross-right\][^{]*\{([^}]*)\}/,
+    );
+
+    // The melt faded the card and its shadow into a pale haze; a step crops at
+    // the column's edge like the last slot at rest. The peek keeps its melt.
+    expect(step?.[1]).toMatch(/mask-image:\s*none/);
+    expect(step?.[1]).toMatch(/clip-path:\s*inset\(/);
+    expect(css).toMatch(
+      /\.car-row\[data-stepping\]:not\(\[data-peeking\]\)\s*\.car-cross-blur\s*\{\s*display:\s*none/,
+    );
+  });
+
   it("caps the edge blur at 2.5px and promotes only the blurred cards, only during the step", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
     const css = readFileSync(
