@@ -495,6 +495,34 @@ describe("easing and one timeline", () => {
     window.removeEventListener(CAROUSEL_STEP_END, end);
   });
 
+  it("drops the hover ring for the length of a step, and not for keyboard focus", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    const row = container.querySelector<HTMLElement>(".car-row")!;
+    const css = readFileSync(
+      resolve(process.cwd(), "src/components/home/carousel/home-carousel.css"),
+      "utf8",
+    );
+
+    expect(row).not.toHaveAttribute("data-ring-quench");
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+    expect(row).toHaveAttribute("data-ring-quench");
+
+    finishStep();
+    expect(row).not.toHaveAttribute("data-ring-quench");
+
+    // The ring goes at once (no transition), the frame and the glow only, and a
+    // keyboard-focused host keeps its ring.
+    const rule = css.match(
+      /\.car-row\[data-ring-quench\]\s*([^{]*)\{([^}]*)\}/,
+    );
+    expect(rule?.[1]).toContain(":not(:focus-visible)");
+    expect(rule?.[1]).toContain(":not(:has(:focus-visible))");
+    expect(rule?.[1]).toMatch(/:is\(\.ring-frame, \.ring-glow\)/);
+    expect(rule?.[2]).toMatch(/transition:\s*none/);
+    expect(rule?.[2]).toMatch(/opacity:\s*0/);
+  });
+
   it("tells the page a step ended when the row unmounts mid-step", () => {
     const events: string[] = [];
     const start = () => events.push("start");
@@ -635,6 +663,35 @@ describe("edge blur", () => {
     expect(host).toMatch(/box-shadow:\s*none/);
     expect(host).toMatch(/mask-image:\s*linear-gradient/);
     expect(css).not.toMatch(/\.car-cross-blur\s*\{\s*display:\s*none/);
+  });
+
+  it("fades a slim card's content at its right edge, the blur copies included", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    const css = readFileSync(
+      resolve(process.cwd(), "src/components/home/carousel/home-carousel.css"),
+      "utf8",
+    );
+
+    // The clip is the container the fade measures the drawn width against.
+    expect(css).toMatch(/\.car-clip\s*\{\s*container-type:\s*size;?\s*\}/);
+    const rule = css.match(/\.car-clip \.car-content\s*\{([^}]*)\}/)?.[1];
+    // 28px at most, zero once the card is drawn at the wide slot's width.
+    expect(rule).toMatch(
+      /--se-f:\s*clamp\(0px,\s*calc\(var\(--car-wide, 100cqw\) - 100cqw\),\s*28px\)/,
+    );
+    expect(rule).toMatch(/mask-image:\s*linear-gradient\(\s*to right,/);
+    expect(rule).toMatch(/transparent 100cqw\s*\)/);
+    expect(css).not.toMatch(/data-slim-edge/);
+
+    // The right edge's blur strip is a copy of the same content; it must sit
+    // under the same rule, or it paints the slice back over the fade.
+    const copy = container.querySelector(
+      ".car-slide:not([data-ghost]) [data-peek-blur] > .car-peek-blur-copy > .car-content",
+    );
+    expect(copy).not.toBeNull();
+    for (const content of container.querySelectorAll(".car-content")) {
+      expect(content.closest(".car-clip")).not.toBeNull();
+    }
   });
 
   it("caps the edge blur at 2.5px and promotes only the blurred cards, only during the step", () => {
