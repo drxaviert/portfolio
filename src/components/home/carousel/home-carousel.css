@@ -174,6 +174,24 @@
   left: 0;
   height: 100%;
   width: var(--car-wide, 100%);
+
+  /* Nothing inside a card's content reads the step's custom properties, but
+     they inherit, and they change every frame a card moves: without this every
+     element of every content copy (the card, its blur copies, a far step's
+     seam copies) was restyled each frame. Pinning them here stops that at the
+     content's root. A property the content starts to read must leave this
+     list. */
+  --car-r: 0px;
+  --car-fade: 0;
+  --car-rf: 1;
+  --car-le: 0;
+  --car-lf: 0;
+  --car-cut: initial;
+  --car-cross: initial;
+  --car-cross-r: initial;
+  --car-xk: initial;
+  --car-xe: initial;
+  --car-xd: initial;
 }
 
 .car-title {
@@ -243,9 +261,12 @@
   initial-value: 0;
 }
 
+/* Read on the row only (its own mask below), so it does not inherit: an
+   inherited value that ramps restyles every element in the carousel each
+   frame. */
 @property --car-rm {
   syntax: "<number>";
-  inherits: true;
+  inherits: false;
   initial-value: 0;
 }
 
@@ -275,14 +296,20 @@
 
 .car-row[data-stepping],
 .car-row[data-mask] {
-  --car-mask: linear-gradient(
+  /* The gradient is written out on each mask-image, not held in a custom
+     property: an unregistered property inherits, and its value changes every
+     frame `--car-rm` ramps, so every element in the carousel (every card's
+     content and blur copies) was restyled each frame. */
+  -webkit-mask-image: linear-gradient(
     to right,
     rgb(0 0 0 / calc(1 - var(--car-rm))) 12px,
     #000 calc(12px + var(--car-edge-w, 28px))
   );
-
-  -webkit-mask-image: var(--car-mask);
-  mask-image: var(--car-mask);
+  mask-image: linear-gradient(
+    to right,
+    rgb(0 0 0 / calc(1 - var(--car-rm))) 12px,
+    #000 calc(12px + var(--car-edge-w, 28px))
+  );
   mask-repeat: no-repeat;
   mask-size: calc(100% + 24px) calc(100% + 24px);
   mask-position: -12px -12px;

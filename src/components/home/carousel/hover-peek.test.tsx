@@ -1691,9 +1691,33 @@ describe("peek css", () => {
     "utf8",
   );
 
+  it("keeps the step's per-frame properties from restyling card content", () => {
+    // The row's mask strength is read on the row only; inherited, a ramp
+    // restyled every element in the carousel each frame.
+    expect(css).toMatch(/@property --car-rm\s*\{[^}]*inherits:\s*false/);
+    expect(css).not.toContain("--car-mask");
+    // Card content reads none of them, so it pins them at its root.
+    const content = css.match(/\.car-content\s*\{[^}]*\}/)?.[0] ?? "";
+    for (const name of [
+      "--car-r",
+      "--car-fade",
+      "--car-rf",
+      "--car-le",
+      "--car-lf",
+      "--car-cut",
+      "--car-cross",
+      "--car-cross-r",
+      "--car-xk",
+      "--car-xe",
+      "--car-xd",
+    ]) {
+      expect(content).toMatch(new RegExp(`${name}:`));
+    }
+  });
+
   it("masks by alpha only, with no painted colour, and clips to the column", () => {
     expect(css).toMatch(
-      /\.car-row\[data-stepping\],\s*\.car-row\[data-mask\]\s*\{\s*--car-mask/,
+      /\.car-row\[data-stepping\],\s*\.car-row\[data-mask\]\s*\{[^}]*mask-image:\s*linear-gradient\(\s*to right,\s*rgb\(0 0 0 \/ calc\(1 - var\(--car-rm\)\)\) 12px/,
     );
     expect(css).toMatch(
       /\.car-row\[data-stepping\]\s*\{\s*clip-path:\s*inset\(-12px -4px\)/,
