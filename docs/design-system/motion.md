@@ -370,7 +370,7 @@ The drawer's timing is the home carousel's step, read from its source (`carousel
 | Resize mid-open | panel | — | — | — | completes the flight |
 | Backdrop in | `opacity` | 320ms | 0 | `ease-out` | 0 → 1 (0.4 black; 0.62 in Night) |
 | Backdrop out | `opacity` | 240ms | 0 | `ease-in` | 1 → 0 |
-| Content out on close | scroll column `opacity` | 140ms | 0 | `ease-in` | 1 → 0 |
+| Content out on close | scroll column `opacity` | 300ms (~86% of the close) | 0 | `cubic-bezier(0.22, 1, 0.36, 1)` | 1 → 0, tracking the panel's own shrink |
 | Backdrop / content, reduced motion | `opacity` | 120ms | 0 | `ease-out` | 0 → 1 / 1 → 0 |
 
 - `src/components/work/carousel-step.ts:26` — `CAROUSEL_OPEN_S` = `DEFAULT_SETTINGS.duration / 1000` (900ms)
@@ -383,7 +383,7 @@ The drawer's timing is the home carousel's step, read from its source (`carousel
 - `src/components/work/use-morph.ts:50` — 120ms opacity path (`FADE_S`)
 - `src/components/work/expand-shell.css:18` — backdrop in 320ms `ease-out`
 - `src/components/work/expand-shell.css:19` — backdrop out 240ms `ease-in`
-- `src/components/work/expand-shell.css:20` — content out 140ms `ease-in`
+- `src/components/work/expand-shell.css:20` — content out 300ms on the FLIP's retarget curve
 - `src/components/work/expand-shell.css:21` — reduced-motion 120ms `ease-out`
 
 ## Work drawer — nav dock
@@ -485,7 +485,7 @@ The mark is one element: its top edge is a `translateY` and its height a `scaleY
 
 ## Work drawer — study hand-off
 
-"Next project" is not a route swap with an empty beat: the outgoing article leaves on the reader's own 140ms close fade, the route is pushed 49ms into it, and the incoming entrance mounts 120ms in.
+"Next project" is not a route swap with an empty beat: the outgoing article leaves on its own 140ms `ease-in` fade, the route is pushed 49ms into it, and the incoming entrance mounts 120ms in.
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
@@ -534,7 +534,7 @@ The progressive blur over the reader's top edge is six static `backdrop-filter` 
 | Open | panel opacity 120ms `ease-out`, no transform; nav crossfades over 2 × 60ms; backdrop 120ms |
 | Cascade | `animation: none` on the cover and every text block; the scroll column is one 120ms opacity pass |
 | Hand-off | no fade and no wait; the incoming column skips its own fade (`data-progression="lead"`) |
-| Content out | 140ms `ease-in` on close, 120ms `ease-out` reduced |
+| Content out | 300ms on the close's retarget curve, 120ms `ease-out` reduced |
 | Thumb pair, rail | 120ms `ease-out`, visibility steps with the fade |
 | Picker row | existing rows: opacity only 120ms, no scale, no icon settle |
 | Ruler indicator | placed on the target tick in one write, no flight |

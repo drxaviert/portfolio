@@ -29,7 +29,9 @@ describe("drawer motion values", () => {
   it("pins the backdrop and content fades by name", () => {
     expect(shell).toMatch(/--wd-backdrop-in: 320ms ease-out;/);
     expect(shell).toMatch(/--wd-backdrop-out: 240ms ease-in;/);
-    expect(shell).toMatch(/--wd-content-out: 140ms ease-in;/);
+    expect(shell).toMatch(
+      /--wd-content-out: 300ms cubic-bezier\(0\.22, 1, 0\.36, 1\);/,
+    );
 
     expect(shell).toContain(
       "animation: wd-backdrop-in var(--wd-backdrop-in) both;",
