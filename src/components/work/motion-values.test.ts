@@ -29,7 +29,9 @@ describe("drawer motion values", () => {
   it("pins the backdrop and content fades by name", () => {
     expect(shell).toMatch(/--wd-backdrop-in: 320ms ease-out;/);
     expect(shell).toMatch(/--wd-backdrop-out: 240ms ease-in;/);
-    expect(shell).toMatch(/--wd-content-out: 140ms ease-in;/);
+    expect(shell).toMatch(
+      /--wd-content-out: 300ms cubic-bezier\(0\.22, 1, 0\.36, 1\);/,
+    );
 
     expect(shell).toContain(
       "animation: wd-backdrop-in var(--wd-backdrop-in) both;",
@@ -45,41 +47,39 @@ describe("drawer motion values", () => {
     expect(reader).toContain("transition: opacity var(--wd-actions-out);");
   });
 
-  it("blur-fades the scroll ruler with the phase, like the content's defocus", () => {
+  it("blur-fades the scroll ruler as the content cascade's next beat", () => {
     // The ruler is a sibling of the scroll column, so the column's entrance
     // fade never covered it: it floated at opacity 1 over the whole morph and
-    // the whole close. It now rides the reader chrome's phase law, with the
-    // content's own defocus language added.
+    // the whole close. It now joins the content cascade, blurred and on its
+    // clock, and leaves on the reader chrome's phase law.
     expect(reader).toMatch(
       /\.wd-reader-actions,\s*\.wd-ruler \{\s*--wd-actions-in: 240ms cubic-bezier\(0\.23, 1, 0\.32, 1\);\s*--wd-actions-out: 140ms ease-in;\s*--wd-actions-reduced: 120ms ease-out;/,
     );
-    // One blur value, scaled: the content's 10px would erase an 18px column.
-    expect(entrance).toMatch(/--wd-defocus-blur: 10px;/);
-    expect(entrance).toMatch(
-      /@keyframes wd-enter-defocus \{\s*from \{\s*filter: blur\(var\(--wd-defocus-blur, 10px\)\);/,
+    // 8px of its own: the article's 10px is for paragraphs, and Dat chose a
+    // strength that visibly smears the ticks at the start.
+    expect(reader).toMatch(/--wd-ruler-blur: 8px;/);
+    // The next 80ms step after the last content block's 480ms beat.
+    expect(reader).toMatch(/--wd-ruler-enter-delay: calc\(480ms \+ 80ms\);/);
+    // In: held invisible until the content is released, then the content's own
+    // duration and curve for the move and the defocus alike.
+    expect(reader).toMatch(
+      /\[data-reveal="pending"\] \.wd-ruler,\s*\.wd-expand-layer\[data-phase="closing"\] \.wd-ruler \{\s*opacity: 0;\s*filter: blur\(var\(--wd-ruler-blur\)\);\s*pointer-events: none;/,
     );
     expect(reader).toMatch(
-      /--wd-ruler-blur: calc\(var\(--wd-defocus-blur, 10px\) \* 0\.4\);/,
-    );
-    // In: blurred and transparent, then settling to the identity, never blur(0).
-    expect(reader).toMatch(
-      /\[data-phase="opening"\] \.wd-ruler \{\s*opacity: 0;\s*filter: blur\(var\(--wd-ruler-blur\)\);\s*pointer-events: none;/,
-    );
-    expect(reader).toMatch(
-      /\[data-phase="open"\] \.wd-ruler \{\s*opacity: 1;\s*filter: none;\s*transition:\s*opacity var\(--wd-actions-in\),\s*filter var\(--wd-actions-in\);/,
+      /\[data-reveal="on"\]:not\(\[data-phase="closing"\]\) \.wd-ruler \{\s*opacity: 1;\s*filter: none;\s*transition:\s*opacity var\(--wd-enter-duration\) var\(--wd-enter-blur-ease\),\s*filter var\(--wd-enter-duration\) var\(--wd-enter-blur-ease\);\s*transition-delay: calc\(\s*var\(--wd-ruler-enter-delay\) \+ var\(--wd-beat-lead, 0ms\)\s*\);/,
     );
     // Out: its own 160ms ease-out, not the thumbs' 140ms ease-in.
     expect(reader).toMatch(/--wd-ruler-out: 160ms ease-out;/);
     expect(reader).toMatch(
-      /\[data-phase="closing"\] \.wd-ruler \{\s*opacity: 0;\s*filter: blur\(var\(--wd-ruler-blur\)\);\s*pointer-events: none;\s*transition:\s*opacity var\(--wd-ruler-out\),\s*filter var\(--wd-ruler-out\);/,
+      /\[data-phase="closing"\] \.wd-ruler \{\s*transition:\s*opacity var\(--wd-ruler-out\),\s*filter var\(--wd-ruler-out\);/,
     );
-    // Reduced motion: no blur in either state, and an opacity-only fade.
+    // Reduced motion: no blur in either state, an opacity-only fade, no delay.
     const reduced = reducedMotionBlock(reader);
     expect(reduced).toMatch(
-      /\[data-phase="opening"\] \.wd-ruler,\s*\.wd-expand-layer\[data-phase="closing"\] \.wd-ruler \{\s*filter: none;/,
+      /\[data-reveal="pending"\] \.wd-ruler,\s*\.wd-expand-layer\[data-phase="closing"\] \.wd-ruler \{\s*filter: none;/,
     );
     expect(reduced).toMatch(
-      /\[data-phase="open"\] \.wd-ruler,\s*\.wd-expand-layer\[data-phase="closing"\] \.wd-ruler \{\s*transition: opacity var\(--wd-actions-reduced\);/,
+      /\[data-reveal="on"\]:not\(\[data-phase="closing"\]\) \.wd-ruler,\s*\.wd-expand-layer\[data-phase="closing"\] \.wd-ruler \{\s*transition: opacity var\(--wd-actions-reduced\);\s*transition-delay: 0s;/,
     );
   });
 

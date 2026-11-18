@@ -27,6 +27,25 @@
       var(--shadow-card),
       0 30px 70px -30px rgb(0 0 0 / 0.45);
   }
+
+  /*
+   * A close is the panel becoming the card, so its elevation crosses to the
+   * card's flat shadow over the same 350ms flight. The ambient 70px drop shadow
+   * is painted in the panel's own (scaled) space: squeezed to half size it turns
+   * into a hard dark band along the bottom edge - 120 grey against the page's
+   * dimmed 136 in day mode - and its negative spread cuts square-looking corners
+   * across the panel's radius. At rest, and through the whole open, nothing
+   * changes.
+   */
+  .wd-expand-layer[data-phase="closing"] .wd-reader-panel {
+    box-shadow: var(--shadow-card);
+  }
+}
+
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+  .wd-expand-layer[data-phase="closing"] .wd-reader-panel {
+    transition: box-shadow 350ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
 }
 
 .wd-reader-scroll {
@@ -262,14 +281,18 @@
  * `closing` (scroll-ruler.tsx): its forced layout was holding the frame that
  * starts this transition, so the fade only began ~110ms in.
  *
- * The defocus is the content's, scaled down: the article's blocks melt in from
- * `--wd-defocus-blur` (10px), but the ruler is an 18px column of 1px ticks, and
- * 10px would erase the marks instead of softening them. 40% of it - 4px - melts
- * the tick ends while each row stays legible.
+ * The blur is 8px: the ruler is a column of 1px ticks, so it needs its own
+ * strength rather than the article's 10px, and Dat's call is that the ticks may
+ * start unreadable as long as they resolve. The entrance is the content
+ * cascade's next beat and runs on the content's own defocus clock, so the
+ * strength shows for as long as a paragraph's does.
  */
 .wd-ruler {
   --wd-ruler-out: 160ms ease-out;
-  --wd-ruler-blur: calc(var(--wd-defocus-blur, 10px) * 0.4);
+  --wd-ruler-blur: 8px;
+  /* The last block's 480ms beat plus the same 80ms step (entrance.css), so the
+     ruler is the next beat after the content, not a fade of its own. */
+  --wd-ruler-enter-delay: calc(480ms + 80ms);
 }
 
 /*
@@ -278,7 +301,7 @@
  * `overflow: visible`; the panel's own `overflow: hidden` is the edge this must
  * stay inside), so the ticks' bleed is painted rather than cut on both edges.
  * It is still kept inside that edge by the fit measure, which places the column
- * at least 16px clear of it (RULER_CLEARANCE, scroll-ruler.tsx) - 4px of bleed
+ * at least 16px clear of it (RULER_CLEARANCE, scroll-ruler.tsx) - 8px of bleed
  * never reaches it.
  */
 .wd-expand-layer[data-phase="opening"] .wd-reader-actions {
@@ -297,29 +320,38 @@
   transition: opacity var(--wd-actions-out);
 }
 
-.wd-expand-layer[data-phase="opening"] .wd-ruler {
+/*
+ * The ruler is held invisible until the content is released, and whenever the
+ * drawer is leaving. It is not keyed on the phase: the cascade starts at the
+ * reveal, 300ms before the panel lands, and the ruler joins it there.
+ */
+.wd-expand-layer[data-reveal="pending"] .wd-ruler,
+.wd-expand-layer[data-phase="closing"] .wd-ruler {
   opacity: 0;
   filter: blur(var(--wd-ruler-blur));
   pointer-events: none;
 }
 
 /*
- * The ruler settles to `filter: none`, not `blur(0)`: the identity leaves no
- * filtered layer promoted behind the open panel, and `none` interpolates from
- * the blur as the identity, so the intro still melts.
+ * The entrance: the content cascade's next beat, on the content's own duration
+ * and curve for the move and the defocus alike (entrance.css: 900ms,
+ * cubic-bezier(0.25, 0.8, 0.25, 1)), so the ruler resolves as the last
+ * paragraph does. It settles to `filter: none`, not `blur(0)`: the identity
+ * leaves no filtered layer promoted, and `none` interpolates from the blur as
+ * the identity, so the intro still melts.
  */
-.wd-expand-layer[data-phase="open"] .wd-ruler {
+.wd-expand-layer[data-reveal="on"]:not([data-phase="closing"]) .wd-ruler {
   opacity: 1;
   filter: none;
   transition:
-    opacity var(--wd-actions-in),
-    filter var(--wd-actions-in);
+    opacity var(--wd-enter-duration) var(--wd-enter-blur-ease),
+    filter var(--wd-enter-duration) var(--wd-enter-blur-ease);
+  transition-delay: calc(
+    var(--wd-ruler-enter-delay) + var(--wd-beat-lead, 0ms)
+  );
 }
 
 .wd-expand-layer[data-phase="closing"] .wd-ruler {
-  opacity: 0;
-  filter: blur(var(--wd-ruler-blur));
-  pointer-events: none;
   transition:
     opacity var(--wd-ruler-out),
     filter var(--wd-ruler-out);
@@ -362,14 +394,19 @@
     transition: opacity var(--wd-actions-reduced);
   }
 
-  .wd-expand-layer[data-phase="opening"] .wd-ruler,
+  .wd-expand-layer[data-reveal="pending"] .wd-ruler,
   .wd-expand-layer[data-phase="closing"] .wd-ruler {
     filter: none;
   }
 
-  .wd-expand-layer[data-phase="open"] .wd-ruler,
+  /*
+   * No cascade under reduced motion: the ruler takes the same 120ms opacity
+   * pass as the rest of the content, with no blur and no beat delay.
+   */
+  .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"]) .wd-ruler,
   .wd-expand-layer[data-phase="closing"] .wd-ruler {
     transition: opacity var(--wd-actions-reduced);
+    transition-delay: 0s;
   }
 }
 

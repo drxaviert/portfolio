@@ -11,13 +11,15 @@
    *
    *   backdrop in   320ms ease-out   (entrance curve as ease-out)
    *   backdrop out  240ms ease-in
-   *   content out   140ms ease-in    (the entrance itself is the cascade in
-   *                                   entrance.css)
+   *   content out   300ms retarget   (the FLIP's own curve at ~86% of its run,
+   *                                   so the content is gone as the panel
+   *                                   lands; the entrance itself is the cascade
+   *                                   in entrance.css)
    *   reduced       120ms ease-out   (opacity only, no transforms)
    */
   --wd-backdrop-in: 320ms ease-out;
   --wd-backdrop-out: 240ms ease-in;
-  --wd-content-out: 140ms ease-in;
+  --wd-content-out: 300ms cubic-bezier(0.22, 1, 0.36, 1);
   --wd-fade-reduced: 120ms ease-out;
 
   position: fixed;
@@ -61,8 +63,15 @@
   pointer-events: none;
 }
 
-/* Content leaves over the first 140ms of the close. Its entrance is the reveal
-   state, not the phase, so it can start before the morph lands (entrance.css). */
+/* Content leaves with the panel, not before it: the FLIP's own retarget curve
+   at 300ms, ~86% of the 350ms close, so every frame's opacity tracks how far
+   the panel has shrunk and the reader is never a blank white surface while it
+   still moves. It is 0 a beat before the panel lands rather than exactly at the
+   landing: the transition starts on the first painted close frame, a frame or
+   two behind the FLIP's clock. No doubling risk either way - the panel keeps its
+   own opaque surface the whole way, so the card's content cannot show through.
+   Its entrance is the reveal state, not the phase, so it can start before the
+   morph lands (entrance.css). */
 .wd-expand-layer[data-phase="closing"] .wd-reader-scroll {
   opacity: 0;
   transition: opacity var(--wd-content-out);
