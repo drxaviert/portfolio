@@ -1,11 +1,10 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import {
   PROGRESSION_EXIT_MS,
-  PROGRESSION_LEAD_MS,
   announceProgressionEntry,
-  clearProgressionLead,
+  clearProgressionEntry,
   leaveForNextStudy,
-  peekProgressionLead,
+  peekProgressionEntry,
 } from "./progression";
 
 function motion(reduce: boolean) {
@@ -25,7 +24,7 @@ function motion(reduce: boolean) {
 }
 
 beforeEach(() => {
-  clearProgressionLead();
+  clearProgressionEntry();
   document.body.innerHTML = "";
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -36,26 +35,32 @@ afterEach(() => {
 });
 
 describe("study hand-off", () => {
-  it("offers a head start only to the mount that follows the hand-off", () => {
+  it("offers the drawer to the mount that follows the route change", () => {
     vi.spyOn(performance, "now").mockReturnValue(1000);
 
-    announceProgressionEntry();
-    expect(peekProgressionLead()).toBe(PROGRESSION_LEAD_MS);
+    announceProgressionEntry(1);
+    expect(peekProgressionEntry()).toEqual({ depth: 1 });
 
-    clearProgressionLead();
-    expect(peekProgressionLead()).toBe(0);
+    clearProgressionEntry();
+    expect(peekProgressionEntry()).toBeNull();
   });
 
-  it("expires a lead whose navigation never landed", () => {
+  it("carries no depth for a Back/Forward, whose entry already has one", () => {
+    announceProgressionEntry();
+
+    expect(peekProgressionEntry()).toEqual({ depth: null });
+  });
+
+  it("expires a hand-off whose navigation never landed", () => {
     const now = vi.spyOn(performance, "now").mockReturnValue(1000);
 
-    announceProgressionEntry();
-    now.mockReturnValue(1000 + 901);
+    announceProgressionEntry(1);
+    now.mockReturnValue(1000 + 1501);
 
-    expect(peekProgressionLead()).toBe(0);
+    expect(peekProgressionEntry()).toBeNull();
     // And it stays gone: a card open after the failed swap must not inherit it.
     now.mockReturnValue(1100);
-    expect(peekProgressionLead()).toBe(0);
+    expect(peekProgressionEntry()).toBeNull();
   });
 
   it("fades the outgoing column on the close curve", async () => {
@@ -72,24 +77,22 @@ describe("study hand-off", () => {
     });
   });
 
-  it("pushes the route before the fade ends, so the two overlap", async () => {
+  it("moves the route once the fade has left, not through the cut", async () => {
     motion(false);
     document.body.innerHTML = '<div class="wd-reader-scroll"></div>';
     vi.useFakeTimers();
 
-    let pushed = false;
+    let moved = false;
     const handoff = leaveForNextStudy().then(() => {
-      pushed = true;
+      moved = true;
     });
 
-    await vi.advanceTimersByTimeAsync(30);
-    expect(pushed).toBe(false);
+    await vi.advanceTimersByTimeAsync(PROGRESSION_EXIT_MS - 1);
+    expect(moved).toBe(false);
 
-    // Past the push point but still short of the 140ms fade: the route moves
-    // while the column is fading, not after it is empty.
-    await vi.advanceTimersByTimeAsync(40);
+    await vi.advanceTimersByTimeAsync(1);
     await handoff;
-    expect(pushed).toBe(true);
+    expect(moved).toBe(true);
   });
 
   it("keeps the reduced-motion swap motionless", async () => {
@@ -99,7 +102,7 @@ describe("study hand-off", () => {
 
     await leaveForNextStudy();
 
-    // No fade and no wait: the content changes in one commit.
+    // No fade and no wait: the incoming column takes the 120ms opacity pass.
     expect(fade).not.toHaveBeenCalled();
   });
 });

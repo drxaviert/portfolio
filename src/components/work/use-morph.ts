@@ -29,6 +29,12 @@ import {
   announceOverlayExit,
   announceOverlayOpened,
 } from "./overlay-exit";
+import {
+  clearProgressionEntry,
+  isDrawerOpen,
+  leaveDrawer,
+  peekProgressionEntry,
+} from "./progression";
 import { moveNav, registerDockAnimate } from "@/components/nav/nav-flight";
 import type { NavFlightTiming } from "@/components/nav/nav-flight";
 import { FEATURED_SLUG } from "@/lib/work-order";
@@ -137,6 +143,8 @@ export function useMorph(
 ): {
   phase: MorphPhase;
   reveal: RevealState;
+  /** This mount joined an open drawer: the panel is in place, only the content is new. */
+  handoff: boolean;
   close: () => Promise<void>;
 } {
   const resting = options.resting ?? false;
@@ -144,7 +152,23 @@ export function useMorph(
   const reduce = useReducedMotion() ?? false;
   const openTiming = OPEN_TIMING;
   const closeTiming = CLOSE_TIMING;
-  const [phase, setPhase] = useState<MorphPhase>(resting ? "open" : "opening");
+  // A study -> study mount is the same drawer: its panel is already open and
+  // the new article takes the open entrance from the first frame. Read once,
+  // before the first paint, because the layer's backdrop must not re-fade.
+  const [handoff] = useState(() => {
+    if (resting) return null;
+
+    const announced = peekProgressionEntry();
+    if (announced) return announced;
+
+    // A Back/Forward swaps the route without a click to announce it: if a
+    // drawer was already open, its replacement joins it.
+    return isDrawerOpen() ? { depth: null } : null;
+  });
+  const entering = handoff !== null;
+  const [phase, setPhase] = useState<MorphPhase>(
+    resting || entering ? "open" : "opening",
+  );
   const [reveal, setReveal] = useState<RevealState>(resting ? "on" : "pending");
   const openingRef = useRef<Morph | null>(null);
   const startedRef = useRef(false);
@@ -223,12 +247,46 @@ export function useMorph(
         typeof restored === "string"
           ? restored
           : (document.documentElement.dataset.drawerOrigin ?? slug);
+      // How many studies sit on top of the entry the drawer was opened from.
+      // Close needs it to land on that entry in one step, not on the study
+      // behind it.
+      const restoredDepth = window.history.state?.workDepth;
+      const depth =
+        handoff?.depth ??
+        (typeof restoredDepth === "number" ? restoredDepth : 0);
 
       document.documentElement.dataset.drawerOrigin = origin;
       window.history.replaceState(
-        { ...window.history.state, workOverlay: true, workOrigin: origin },
+        {
+          ...window.history.state,
+          workOverlay: true,
+          workOrigin: origin,
+          workDepth: depth,
+        },
         "",
       );
+    }
+
+    // The same drawer, showing another study. There is no card to fly out of
+    // and nothing to measure: the panel, its shadow, the backdrop and the nav
+    // stay exactly where they are. Only the content changes, and it takes the
+    // open's own entrance. The release waits for a painted `pending` frame: the
+    // blocks animate from their keyframes either way, but the ruler is a CSS
+    // transition and a brand-new element has no before-change style to leave.
+    if (handoff) {
+      clearProgressionEntry();
+
+      // Two frames, not one: the first paints `pending`, the second starts the
+      // entrance from it. The guard is a mounted check, not a cancel in the
+      // effect cleanup - development StrictMode runs that cleanup once on mount
+      // and would cancel the frame the reveal is waiting on.
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (mountedRef.current) settle();
+        });
+      });
+
+      return;
     }
 
     const panel = panelRef.current;
@@ -289,7 +347,7 @@ export function useMorph(
     void moveNav("reader", "flip", openTiming);
 
     releaseContent();
-  }, [slug, reduce, resting, panelRef, settle, openTiming]);
+  }, [slug, reduce, resting, panelRef, settle, openTiming, handoff]);
 
   // A resize mid-morph jumps to the end; after that the panel is pure CSS, so
   // the new viewport just reflows it and close measures the card again.
@@ -310,6 +368,7 @@ export function useMorph(
       if (closedRef.current) return;
 
       clearRevealTimer();
+      leaveDrawer();
       setPhase("closing");
       openingRef.current?.stop();
       // The card measured below must be at rest: the homepage behind puts itself
@@ -319,11 +378,13 @@ export function useMorph(
       const panel = panelRef.current;
       if (!panel) return;
 
-      // The drawer is one surface: it closes into the card it was opened from,
-      // whatever studies it showed on the way. The card-less exit is only for a
-      // drawer whose origin card is not on screen any more.
+      // The drawer keeps its one surface, but the card it closes into is the
+      // study on screen now: that is where the reader was. Only when this study
+      // has no card on the homepage (the carousel renders the current step, so
+      // a study reached by "Next project" usually has none) does it fall back to
+      // the card the drawer was opened from.
       const origin = document.documentElement.dataset.drawerOrigin ?? slug;
-      const card = findCard(origin);
+      const card = findCard(slug) ?? findCard(origin);
 
       // The nav returns on the same timing as whatever the panel does: the
       // close flight, or the 120ms fade. Both waits are capped at that timing
@@ -385,8 +446,18 @@ export function useMorph(
       // homepage); a direct load — or a reader opened over one — has no such
       // entry, so '/' replaces the study instead. Back from home must not
       // reopen the reader.
-      if (window.history.state?.workOverlay) router.back();
-      else {
+      if (window.history.state?.workOverlay) {
+        // Each "Next project" pushed its own entry, so the homepage is `depth`
+        // studies behind this one. Land on it in one step: router.back() would
+        // only reach the previous study and reopen the drawer there.
+        const depth = window.history.state?.workDepth;
+
+        if (typeof depth === "number" && depth > 0) {
+          window.history.go(-(depth + 1));
+        } else {
+          router.back();
+        }
+      } else {
         delete document.documentElement.dataset.readerEntry;
         router.replace("/");
       }
@@ -395,5 +466,5 @@ export function useMorph(
     return closingRef.current;
   }, [slug, reduce, closeTiming, panelRef, router, setPhase, clearRevealTimer]);
 
-  return { phase, reveal, close };
+  return { phase, reveal, handoff: entering, close };
 }

@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { getWork } from "@/lib/work";
-import { announceProgressionEntry, clearProgressionLead } from "./progression";
+import { clearProgressionEntry } from "./progression";
 import { READER_TITLE_ID, Reader } from "./reader";
 
 const { push, replace } = vi.hoisted(() => ({
@@ -49,7 +49,7 @@ function featured() {
 }
 
 beforeEach(() => {
-  clearProgressionLead();
+  clearProgressionEntry();
   push.mockReset();
   replace.mockReset();
   vi.stubGlobal(
@@ -111,7 +111,7 @@ describe("reader overlay", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("replaces history when the next study opens from the overlay", () => {
+  it("pushes the next study, so Back returns to this one", () => {
     renderReader(<p>Case-study body</p>);
 
     const next = screen.getByRole("link", {
@@ -119,7 +119,7 @@ describe("reader overlay", () => {
     });
 
     expect(next).toHaveAttribute("href", "/work/title-sequence");
-    expect(next).toHaveAttribute("data-replace", "true");
+    expect(next).toHaveAttribute("data-replace", "false");
   });
 
   it("hands the next study off on the close fade, not a hard cut", async () => {
@@ -139,21 +139,10 @@ describe("reader overlay", () => {
       }),
     );
 
-    // The route moves while the fade is still running.
     await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith("/work/title-sequence"),
+      expect(push).toHaveBeenCalledWith("/work/title-sequence"),
     );
-    expect(push).not.toHaveBeenCalled();
-  });
-
-  it("lands the next study's entrance part-way in", () => {
-    announceProgressionEntry();
-    renderReader(<p>Case-study body</p>);
-
-    const panel = document.querySelector<HTMLElement>(".wd-reader-panel");
-
-    expect(panel?.style.getPropertyValue("--wd-beat-lead")).toBe("-120ms");
-    expect(panel).toHaveAttribute("data-progression", "lead");
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("caps the body measure without narrowing the rest of the column", () => {

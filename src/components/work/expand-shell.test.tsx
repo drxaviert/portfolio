@@ -4,6 +4,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExpandShell } from "./expand-shell";
+import { clearProgressionEntry, leaveDrawer } from "./progression";
 
 const mocks = vi.hoisted(() => ({
   animate: vi.fn(),
@@ -146,6 +147,8 @@ beforeEach(() => {
   mocks.back.mockReset();
   mocks.push.mockReset();
 
+  clearProgressionEntry();
+  leaveDrawer();
   window.history.replaceState({ workOverlay: true }, "", `/work/${SLUG}`);
   stubMatchMedia();
   stubRenderedBoxes();

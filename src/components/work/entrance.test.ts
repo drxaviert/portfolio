@@ -23,7 +23,7 @@ function blockDelay(selector: string): number {
 /** The hero's animation-delay, in ms, off the reveal rule. */
 function heroDelay(): number {
   const rule = css.match(
-    /\.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{[^}]*animation-delay: calc\((\d+)ms/,
+    /\.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{[^}]*animation-delay: (?:calc\()?(\d+)ms/,
   );
 
   expect(rule).not.toBeNull();
@@ -89,7 +89,7 @@ describe("blur timing", () => {
 
   it("holds the blur on the same beat as the fade", () => {
     expect(textRule()).toMatch(
-      /animation-delay:\s*calc\(\s*var\(--wd-enter-delay, 0ms\) \+ var\(--wd-beat-lead, 0ms\)\s*\),\s*calc\(\s*var\(--wd-enter-delay, 0ms\) \+ var\(--wd-beat-lead, 0ms\)\s*\);/,
+      /animation-delay:\s*var\(--wd-enter-delay, 0ms\),\s*var\(--wd-enter-delay, 0ms\);/,
     );
   });
 });

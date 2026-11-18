@@ -4,6 +4,7 @@ import { useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef } from "react";
 import type { ReactNode, RefObject } from "react";
 import { cardElement, useMorph } from "./use-morph";
+import { enterDrawer, fadeStudyOut, leaveDrawer } from "./progression";
 import { READER_TITLE_ID } from "./parts";
 import {
   DOCK_SELECTOR,
@@ -33,7 +34,9 @@ export function ExpandShell({
   children: ReactNode;
 }) {
   const panelRef = useRef<HTMLElement | null>(null);
-  const { phase, reveal, close } = useMorph(slug, panelRef, { resting });
+  const { phase, reveal, handoff, close } = useMorph(slug, panelRef, {
+    resting,
+  });
 
   const setLayer = useCallback((layer: HTMLDivElement | null) => {
     panelRef.current =
@@ -44,6 +47,38 @@ export function ExpandShell({
   // nav through nav-flight (it lives in the root layout, outside this panel).
   useEscToClose(close);
   useEffect(() => registerReaderClose(close), [close]);
+
+  // The drawer is one session across study swaps. A Back/Forward replaces this
+  // shell without a click to announce anything, so the incoming mount reads
+  // this flag and joins the drawer instead of flying out of a card.
+  useEffect(() => {
+    enterDrawer();
+
+    return () => {
+      // The next study's shell reads the flag before this cleanup runs in the
+      // same commit, so the route is the safe test: a drawer that leaves to
+      // the homepage ends the session; a swap keeps it.
+      if (!window.location.pathname.startsWith("/work/")) leaveDrawer();
+    };
+  }, []);
+
+  // Back/Forward from one study to another: the article on screen leaves on
+  // the reader's close fade. The route commit is the router's and may land
+  // before that fade ends, in which case the entrance is the visible half of
+  // the swap. The incoming mount itself reads the open-drawer flag above.
+  useEffect(() => {
+    function onPopState() {
+      const next = window.location.pathname;
+
+      if (!next.startsWith("/work/") || next === `/work/${slug}`) return;
+
+      fadeStudyOut();
+    }
+
+    window.addEventListener("popstate", onPopState);
+
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [slug]);
 
   // The homepage goes inert once the morph has landed, not as it starts:
   // inertness is inherited, so flagging `main` restyles every homepage element
@@ -74,6 +109,9 @@ export function ExpandShell({
       className="wd-expand-layer"
       data-phase={phase}
       data-reveal={reveal}
+      // The layer is new, the drawer is not: keep the backdrop from fading in
+      // again on a study -> study swap.
+      data-handoff={handoff ? "" : undefined}
     >
       <div
         className="wd-expand-backdrop"
@@ -89,15 +127,20 @@ export function ExpandShell({
 }
 
 /** The control focus came from: its card, or the persistent nav with no card. */
-function returnTarget(slug: string): HTMLElement | null {
-  return (
+function returnTarget(slugs: string[]): HTMLElement | null {
+  for (const slug of slugs) {
     // The laid-out copy: focusing a copy with no box is a no-op and leaves
     // focus on the body.
-    cardElement(slug) ??
-    // A study opened from "Next project" has no card of its own; the nav's logo
-    // is the nearest thing a keyboard user met. It lives in the root layout's
-    // dock, not inside the homepage, so the fallback has to reach outside main.
-    document.querySelector<HTMLElement>(`${DOCK_SELECTOR} a[aria-label="Home"]`)
+    const card = cardElement(slug);
+    if (card) return card;
+  }
+
+  // A study opened from "Next project" usually has no card of its own; the nav's
+  // logo is the nearest thing a keyboard user met. It lives in the root
+  // layout's dock, not inside the homepage, so the fallback has to reach
+  // outside main.
+  return document.querySelector<HTMLElement>(
+    `${DOCK_SELECTOR} a[aria-label="Home"]`,
   );
 }
 
@@ -238,16 +281,22 @@ function useOverlayBehaviour(
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [panelRef]);
 
-  // Focus goes back to the card the drawer opened from, and once the drawer is
-  // gone the next one starts from whatever card it uses. Leaving for another
-  // study (study to study) keeps the origin.
+  // Focus goes back to the card the study closes into, and once the drawer is
+  // gone the next one starts from whatever card it uses. A study -> study swap
+  // is not a close: the drawer stays and its next reader takes focus itself.
   useEffect(
     () => () => {
+      const path = window.location.pathname;
+
+      if (path.startsWith("/work/") && path !== `/work/${slug}`) return;
+
       const origin = document.documentElement.dataset.drawerOrigin ?? slug;
 
-      returnTarget(origin)?.focus({ preventScroll: true });
+      // The study on screen first, then the one the drawer was opened from:
+      // close lands in the same card close picked.
+      returnTarget([slug, origin])?.focus({ preventScroll: true });
 
-      if (!window.location.pathname.startsWith("/work/")) {
+      if (!path.startsWith("/work/")) {
         delete document.documentElement.dataset.drawerOrigin;
       }
     },

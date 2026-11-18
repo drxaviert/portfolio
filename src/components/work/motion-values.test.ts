@@ -66,7 +66,7 @@ describe("drawer motion values", () => {
       /\[data-reveal="pending"\] \.wd-ruler,\s*\.wd-expand-layer\[data-phase="closing"\] \.wd-ruler \{\s*opacity: 0;\s*filter: blur\(var\(--wd-ruler-blur\)\);\s*pointer-events: none;/,
     );
     expect(reader).toMatch(
-      /\[data-reveal="on"\]:not\(\[data-phase="closing"\]\) \.wd-ruler \{\s*opacity: 1;\s*filter: none;\s*transition:\s*opacity var\(--wd-enter-duration\) var\(--wd-enter-blur-ease\),\s*filter var\(--wd-enter-duration\) var\(--wd-enter-blur-ease\);\s*transition-delay: calc\(\s*var\(--wd-ruler-enter-delay\) \+ var\(--wd-beat-lead, 0ms\)\s*\);/,
+      /\[data-reveal="on"\]:not\(\[data-phase="closing"\]\) \.wd-ruler \{\s*opacity: 1;\s*filter: none;\s*transition:\s*opacity var\(--wd-enter-duration\) var\(--wd-enter-blur-ease\),\s*filter var\(--wd-enter-duration\) var\(--wd-enter-blur-ease\);\s*transition-delay: var\(--wd-ruler-enter-delay\);/,
     );
     // Out: its own 160ms ease-out, not the thumbs' 140ms ease-in.
     expect(reader).toMatch(/--wd-ruler-out: 160ms ease-out;/);
@@ -137,7 +137,7 @@ describe("drawer motion values", () => {
     );
     // Cover: the first beat, the same timing, no filter.
     expect(entrance).toMatch(
-      /\.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{\s*animation: wd-enter-fade var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards;\s*animation-delay: calc\(0ms \+ var\(--wd-beat-lead, 0ms\)\);/,
+      /\.wd-expand-layer\[data-reveal="on"\] \.wd-hero \{\s*animation: wd-enter-fade var\(--wd-enter-duration\) var\(--wd-enter-ease\)\s*backwards;/,
     );
   });
 
@@ -148,23 +148,21 @@ describe("drawer motion values", () => {
     expect(entrance).not.toContain("wd-blur-in");
   });
 
-  it("starts a study-to-study entrance part-way in, on the same beat", () => {
+  it("plays the study-to-study entrance from its first frame", () => {
     const entrance = read("entrance.css");
 
-    // The lead rides on top of the beat; the beat itself is untouched.
+    // No head start: the incoming article takes the open's own beat whole.
+    expect(entrance).not.toContain("--wd-beat-lead");
     expect(entrance).toMatch(
-      /animation-delay:\s*calc\(\s*var\(--wd-enter-delay, 0ms\) \+ var\(--wd-beat-lead, 0ms\)\s*\)/,
-    );
-    expect(entrance).toContain(
-      "animation-delay: calc(0ms + var(--wd-beat-lead, 0ms));",
+      /animation-delay:\s*var\(--wd-enter-delay, 0ms\),\s*var\(--wd-enter-delay, 0ms\);/,
     );
   });
 
-  it("does not fade the incoming column in again after a hand-off", () => {
-    const reduced = reducedMotionBlock(read("entrance.css"));
+  it("keeps the hand-off backdrop from replaying its entrance", () => {
+    const shell = read("expand-shell.css");
 
-    expect(reduced).toMatch(
-      /\.wd-reader-panel\[data-progression="lead"\] \.wd-reader-scroll \{\s*opacity: 1;\s*transition: none;/,
+    expect(shell).toMatch(
+      /\.wd-expand-layer\[data-handoff\]:not\(\[data-phase="closing"\]\) \.wd-expand-backdrop \{\s*animation: none;\s*opacity: 1;/,
     );
   });
 
