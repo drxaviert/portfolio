@@ -27,6 +27,25 @@
       var(--shadow-card),
       0 30px 70px -30px rgb(0 0 0 / 0.45);
   }
+
+  /*
+   * A close is the panel becoming the card, so its elevation crosses to the
+   * card's flat shadow over the same 350ms flight. The ambient 70px drop shadow
+   * is painted in the panel's own (scaled) space: squeezed to half size its
+   * negative spread pulls the dark core tight against the bottom edge, which in
+   * day mode reads as a hard grey band (120 grey against the dimmed page's 136,
+   * measured mid-close) with square-looking corners cut across the panel's
+   * radius. At rest, and through the whole open, nothing changes.
+   */
+  .wd-expand-layer[data-phase="closing"] .wd-reader-panel {
+    box-shadow: var(--shadow-card);
+  }
+}
+
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+  .wd-expand-layer[data-phase="closing"] .wd-reader-panel {
+    transition: box-shadow 350ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
 }
 
 .wd-reader-scroll {
