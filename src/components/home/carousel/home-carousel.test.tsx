@@ -138,6 +138,16 @@ describe("HomeCarousel markup", () => {
     );
   });
 
+  it("marks every work card with its study for focus return", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+
+    expect(
+      [...container.querySelectorAll("[data-work-slug]")].map((element) =>
+        element.getAttribute("data-work-slug"),
+      ),
+    ).toEqual(["systems-in-motion", "title-sequence", "type-in-motion"]);
+  });
+
   it("does not move anything on its own", () => {
     vi.useFakeTimers();
     render(<HomeCarousel items={ITEMS} />);

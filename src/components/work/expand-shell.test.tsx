@@ -150,6 +150,7 @@ beforeEach(() => {
   clearProgressionEntry();
   leaveDrawer();
   window.history.replaceState({ workOverlay: true }, "", `/work/${SLUG}`);
+  delete document.documentElement.dataset.drawerOrigin;
   stubMatchMedia();
   stubRenderedBoxes();
 
@@ -387,5 +388,78 @@ describe("ExpandShell focus containment", () => {
     unmount();
 
     expect(document.activeElement).toBe(logo);
+  });
+
+  it("returns focus to the card of the study on screen after a next-project swap", async () => {
+    // The drawer opened from the featured card, then swapped to another study
+    // without closing; the origin it keeps for the reverse morph is not the
+    // card focus belongs to.
+    const opened = placeCard();
+    const shown = document.createElement("a");
+    shown.href = "/work/type-in-motion";
+    shown.dataset.workSlug = "type-in-motion";
+    document.body.append(shown);
+
+    document.documentElement.dataset.drawerOrigin = SLUG;
+    window.history.replaceState({ workOverlay: true }, "", "/");
+
+    const { unmount } = render(
+      <ExpandShell slug="type-in-motion">
+        <ReaderStub />
+      </ExpandShell>,
+    );
+    await waitFor(() =>
+      expect(panelLayer()).toHaveAttribute("data-phase", "open"),
+    );
+
+    unmount();
+
+    expect(document.activeElement).toBe(shown);
+    expect(document.activeElement).not.toBe(opened);
+  });
+
+  it("falls back to the opener's card when the shown study has no card", async () => {
+    const opened = placeCard();
+
+    document.documentElement.dataset.drawerOrigin = SLUG;
+    window.history.replaceState({ workOverlay: true }, "", "/");
+
+    const { unmount } = render(
+      <ExpandShell slug="type-in-motion">
+        <ReaderStub />
+      </ExpandShell>,
+    );
+    await waitFor(() =>
+      expect(panelLayer()).toHaveAttribute("data-phase", "open"),
+    );
+
+    unmount();
+
+    expect(document.activeElement).toBe(opened);
+  });
+
+  it("ignores a hidden card for the shown study", async () => {
+    const opened = placeCard();
+    const hidden = document.createElement("a");
+    hidden.href = "/work/type-in-motion";
+    hidden.dataset.workSlug = "type-in-motion";
+    hidden.style.visibility = "hidden";
+    document.body.append(hidden);
+
+    document.documentElement.dataset.drawerOrigin = SLUG;
+    window.history.replaceState({ workOverlay: true }, "", "/");
+
+    const { unmount } = render(
+      <ExpandShell slug="type-in-motion">
+        <ReaderStub />
+      </ExpandShell>,
+    );
+    await waitFor(() =>
+      expect(panelLayer()).toHaveAttribute("data-phase", "open"),
+    );
+
+    unmount();
+
+    expect(document.activeElement).toBe(opened);
   });
 });

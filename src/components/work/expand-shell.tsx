@@ -129,18 +129,37 @@ export function ExpandShell({
 /** The control focus came from: its card, or the persistent nav with no card. */
 function returnTarget(slugs: string[]): HTMLElement | null {
   for (const slug of slugs) {
-    // The laid-out copy: focusing a copy with no box is a no-op and leaves
-    // focus on the body.
-    const card = cardElement(slug);
+    // The card showing the study, then any laid-out copy carrying the morph
+    // hook: focusing a copy with no box is a no-op and leaves focus on the body.
+    const card = shownCard(slug) ?? cardElement(slug);
     if (card) return card;
   }
 
-  // A study opened from "Next project" usually has no card of its own; the nav's
-  // logo is the nearest thing a keyboard user met. It lives in the root
-  // layout's dock, not inside the homepage, so the fallback has to reach
-  // outside main.
+  // No card on screen for any of these studies: the nav's logo is the nearest
+  // thing a keyboard user met. It lives in the root layout's dock, not inside
+  // the homepage, so the fallback has to reach outside main.
   return document.querySelector<HTMLElement>(
     `${DOCK_SELECTOR} a[aria-label="Home"]`,
+  );
+}
+
+/**
+ * The card showing `slug` now. Every carousel card carries its study's slug,
+ * not only the featured one with the morph hook: after "next project" the
+ * study on screen is no longer the one with a card in the first slot. A card
+ * in the slots past the row's edge is hidden, so it cannot take focus.
+ */
+function shownCard(slug: string): HTMLElement | null {
+  const candidates = document.querySelectorAll<HTMLElement>(
+    `[data-work-card="${slug}"], [data-work-slug="${slug}"]`,
+  );
+
+  return (
+    Array.from(candidates).find(
+      (candidate) =>
+        candidate.getClientRects().length > 0 &&
+        window.getComputedStyle(candidate).visibility !== "hidden",
+    ) ?? null
   );
 }
 
@@ -281,9 +300,11 @@ function useOverlayBehaviour(
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [panelRef]);
 
-  // Focus goes back to the card the study closes into, and once the drawer is
-  // gone the next one starts from whatever card it uses. A study -> study swap
-  // is not a close: the drawer stays and its next reader takes focus itself.
+  // Focus goes back to the card of the study the drawer is showing, then to the
+  // card it was opened from: a "next project" swap changes what the drawer
+  // shows without changing the origin kept for the reverse morph. A study ->
+  // study swap is not a close: the drawer stays and its next reader takes focus
+  // itself.
   useEffect(
     () => () => {
       const path = window.location.pathname;
@@ -292,8 +313,7 @@ function useOverlayBehaviour(
 
       const origin = document.documentElement.dataset.drawerOrigin ?? slug;
 
-      // The study on screen first, then the one the drawer was opened from:
-      // close lands in the same card close picked.
+      // The study on screen first, then the one the drawer was opened from.
       returnTarget([slug, origin])?.focus({ preventScroll: true });
 
       if (!path.startsWith("/work/")) {
