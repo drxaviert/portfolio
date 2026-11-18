@@ -549,11 +549,23 @@ export function HomeCarousel({
     });
   }
 
+  // Tells the page a step started or ended, and marks the row for the length of
+  // it: the hover ring drops at once instead of retracting over the card's edge
+  // (`data-ring-quench`, home-carousel.css).
+  function announce(kind: "start" | "end") {
+    const row = rowRef.current;
+    if (row) {
+      if (kind === "start") row.dataset.ringQuench = "";
+      else delete row.dataset.ringQuench;
+    }
+    announceStep(kind);
+  }
+
   function cancelTween() {
     zone.current.dirty = true;
     held.current = null;
     const current = tween.current;
-    if (tween.current) announceStep("end");
+    if (tween.current) announce("end");
     tween.current = null;
     delete rowRef.current?.dataset.stepping;
     delete rowRef.current?.dataset.mask;
@@ -1112,7 +1124,7 @@ export function HomeCarousel({
     };
 
     tween.current = started;
-    announceStep("start");
+    announce("start");
     clock.onfinish = () => {
       if (tween.current === started) settle(true);
     };
@@ -1497,7 +1509,7 @@ export function HomeCarousel({
     };
 
     tween.current = started;
-    announceStep("start");
+    announce("start");
     clock.onfinish = () => {
       if (tween.current === started) settle(true);
     };
@@ -1607,7 +1619,7 @@ export function HomeCarousel({
   // the ring glow follows START/END and would otherwise schedule frames forever.
   useEffect(
     () => () => {
-      if (tween.current) announceStep("end");
+      if (tween.current) announce("end");
     },
     [],
   );

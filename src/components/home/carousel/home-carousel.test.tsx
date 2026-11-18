@@ -495,6 +495,34 @@ describe("easing and one timeline", () => {
     window.removeEventListener(CAROUSEL_STEP_END, end);
   });
 
+  it("drops the hover ring for the length of a step, and not for keyboard focus", () => {
+    const { container } = render(<HomeCarousel items={ITEMS} />);
+    const row = container.querySelector<HTMLElement>(".car-row")!;
+    const css = readFileSync(
+      resolve(process.cwd(), "src/components/home/carousel/home-carousel.css"),
+      "utf8",
+    );
+
+    expect(row).not.toHaveAttribute("data-ring-quench");
+
+    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
+    expect(row).toHaveAttribute("data-ring-quench");
+
+    finishStep();
+    expect(row).not.toHaveAttribute("data-ring-quench");
+
+    // The ring goes at once (no transition), the frame and the glow only, and a
+    // keyboard-focused host keeps its ring.
+    const rule = css.match(
+      /\.car-row\[data-ring-quench\]\s*([^{]*)\{([^}]*)\}/,
+    );
+    expect(rule?.[1]).toContain(":not(:focus-visible)");
+    expect(rule?.[1]).toContain(":not(:has(:focus-visible))");
+    expect(rule?.[1]).toMatch(/:is\(\.ring-frame, \.ring-glow\)/);
+    expect(rule?.[2]).toMatch(/transition:\s*none/);
+    expect(rule?.[2]).toMatch(/opacity:\s*0/);
+  });
+
   it("tells the page a step ended when the row unmounts mid-step", () => {
     const events: string[] = [];
     const start = () => events.push("start");

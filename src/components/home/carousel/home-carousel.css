@@ -908,3 +908,19 @@
     transparent 100cqw
   );
 }
+
+/*
+ * A click that starts a step marks the row `data-ring-quench` until it ends.
+ * The clicked card still carries its hover ring, and left to retract (a clip
+ * shrink with a delayed fade, ring-hover.css) it draws over the card's edge
+ * line, where the host's own 1px shadow ring already is: for about 100ms the
+ * edge stacked two 8% rings and read brighter than at rest. Dropping the ring
+ * at once leaves only the host's ring. Hover works as usual after the step.
+ * Keyboard-focused hosts keep their ring. Opacity only.
+ */
+.car-row[data-ring-quench]
+  .ring-host:not(:focus-visible):not(:has(:focus-visible))
+  :is(.ring-frame, .ring-glow) {
+  transition: none;
+  opacity: 0;
+}
