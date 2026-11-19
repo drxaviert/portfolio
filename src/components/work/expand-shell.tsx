@@ -2,7 +2,7 @@
 
 import { useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef } from "react";
-import type { ReactNode, RefObject } from "react";
+import type { ReactNode } from "react";
 import { cardElement, useMorph } from "./use-morph";
 import { enterDrawer, fadeStudyOut, leaveDrawer } from "./progression";
 import { READER_TITLE_ID } from "./parts";
@@ -10,12 +10,10 @@ import {
   DOCK_SELECTOR,
   registerReaderClose,
 } from "@/components/nav/nav-flight";
+import { sheetOrigin } from "@/lib/work-sheet-state";
 import { ReaderCloseProvider, useEscToClose } from "./reader-close";
+import { useOverlayBehaviour } from "./use-overlay-behaviour";
 import "./expand-shell.css";
-
-/** One tab stop selector for both roots: the nav dock and the panel. */
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 /**
  * The reader's shell over the homepage. The page passes its `<Reader>` in as
@@ -86,12 +84,29 @@ export function ExpandShell({
   // focus trap and the backdrop hold keys and clicks in the meantime. A
   // reduced-motion fade has no morph to protect; a direct load starts open.
   const reduce = useReducedMotion() ?? false;
-  useOverlayBehaviour(
-    panelRef,
-    slug,
-    phase === "open" || reduce,
-    phase === "open",
-  );
+  useOverlayBehaviour(panelRef, {
+    lockHome: phase === "open" || reduce,
+    covered: phase === "open",
+    // Focus goes back to the card of the study the drawer is showing, then to
+    // the card it was opened from: a "next project" swap changes what the
+    // drawer shows without changing the origin kept for the reverse morph. A
+    // study -> study swap is not a close: the drawer stays and its next reader
+    // takes focus itself.
+    returnFocus: () => {
+      const path = window.location.pathname;
+
+      if (path.startsWith("/work/") && path !== `/work/${slug}`) return;
+
+      const origin = document.documentElement.dataset.drawerOrigin ?? slug;
+
+      // The study on screen first, then the one the drawer was opened from.
+      returnTarget([slug, origin])?.focus({ preventScroll: true });
+
+      if (!path.startsWith("/work/")) {
+        delete document.documentElement.dataset.drawerOrigin;
+      }
+    },
+  });
 
   // The inert boundary comes off with the same commit that sets the phase, so
   // the title can only take focus after React has rendered the open state.
@@ -150,6 +165,11 @@ function returnTarget(slugs: string[]): HTMLElement | null {
  * in the slots past the row's edge is hidden, so it cannot take focus.
  */
 function shownCard(slug: string): HTMLElement | null {
+  // A reader opened from the work sheet returns to the sheet item it was
+  // clicked from, not to the homepage card that carries the same slug.
+  const fromSheet = sheetOrigin(slug);
+  if (fromSheet) return fromSheet;
+
   const candidates = document.querySelectorAll<HTMLElement>(
     `[data-work-card="${slug}"], [data-work-slug="${slug}"]`,
   );
@@ -160,166 +180,5 @@ function shownCard(slug: string): HTMLElement | null {
         candidate.getClientRects().length > 0 &&
         window.getComputedStyle(candidate).visibility !== "hidden",
     ) ?? null
-  );
-}
-
-/** Scroll lock, the focus trap and focus returning to the source card. */
-function useOverlayBehaviour(
-  panelRef: RefObject<HTMLElement | null>,
-  slug: string,
-  lockHome: boolean,
-  covered: boolean,
-) {
-  const inertRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    const body = document.body;
-    const overflow = body.style.overflow;
-    const paddingRight = body.style.paddingRight;
-    const gutter = window.innerWidth - document.documentElement.clientWidth;
-
-    body.style.overflow = "hidden";
-    if (gutter > 0) body.style.paddingRight = `${gutter}px`;
-
-    // The inert flag below is cleared here, not in its own effect: this cleanup
-    // runs before the focus return further down, so the card can take focus
-    // back once the overlay is unmounted.
-    return () => {
-      body.style.overflow = overflow;
-      body.style.paddingRight = paddingRight;
-      inertRef.current?.removeAttribute("inert");
-      inertRef.current = null;
-    };
-  }, []);
-
-  // The reader is the only thing on screen: the homepage behind it leaves the
-  // tab order and the accessibility tree, so no key or click can reach it.
-  // Latched: once set, it stays until unmount, so a close after the morph keeps
-  // the homepage inert to the end. A close that interrupts the morph never
-  // sets it.
-  useEffect(() => {
-    if (!lockHome || inertRef.current) return;
-
-    const background = document.querySelector<HTMLElement>("body > main");
-    background?.setAttribute("inert", "");
-    inertRef.current = background;
-  }, [lockHome]);
-
-  // The covered page's decoration (the ambient CSS loops and the shader) holds
-  // its frames until the reader closes; see horizon-motion.css and faux-ui.css.
-  useEffect(() => {
-    if (!covered) return;
-
-    const root = document.documentElement;
-    root.dataset.overlayOpen = "true";
-
-    return () => {
-      delete root.dataset.overlayOpen;
-    };
-  }, [covered]);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Tab") return;
-
-      const root = panelRef.current;
-      if (!root) return;
-
-      // The nav is one element in the root layout, outside the panel; the
-      // reader's tab order runs title → article → nav, then wraps back.
-      const dock = document.querySelector<HTMLElement>(DOCK_SELECTOR);
-      const stops = (element: HTMLElement | null) =>
-        element
-          ? [...element.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
-              // Unrendered nodes are not tab stops: the mobile actions stay in
-              // the DOM at 1024px and up, so without this the forward wrap keys
-              // off a control that cannot be reached.
-              (node) =>
-                !node.closest("[inert]") && node.getClientRects().length > 0,
-            )
-          : [];
-
-      const panelStops = stops(root);
-      const dockStops = stops(dock);
-
-      if (panelStops.length === 0 && dockStops.length === 0) return;
-
-      const panelFirst = panelStops[0];
-      const panelLast = panelStops[panelStops.length - 1];
-      const dockFirst = dockStops[0];
-      const dockLast = dockStops[dockStops.length - 1];
-      const active = document.activeElement;
-      const inPanel = active instanceof HTMLElement && root.contains(active);
-      const inDock =
-        active instanceof HTMLElement && (dock?.contains(active) ?? false);
-      const inside = inPanel || inDock;
-
-      // Open focuses the tabindex="-1" title, which is deliberately not in the
-      // list. Sequential navigation from it restarts at the document in WebKit,
-      // so an in-reader focus that is not a stop counts as the reader's edge.
-      const stranded =
-        active instanceof HTMLElement &&
-        inside &&
-        !panelStops.includes(active) &&
-        !dockStops.includes(active);
-
-      if (event.shiftKey) {
-        if (!inside || stranded) {
-          event.preventDefault();
-          (dockLast ?? panelLast)?.focus();
-          return;
-        }
-
-        if (inPanel && active === panelFirst) {
-          event.preventDefault();
-          (dockLast ?? panelLast)?.focus();
-        } else if (inDock && active === dockFirst) {
-          event.preventDefault();
-          panelLast?.focus();
-        }
-
-        return;
-      }
-
-      if (!inside || stranded) {
-        event.preventDefault();
-        (panelFirst ?? dockFirst)?.focus();
-        return;
-      }
-
-      if (inPanel && active === panelLast) {
-        event.preventDefault();
-        (dockFirst ?? panelFirst)?.focus();
-      } else if (inDock && active === dockLast) {
-        event.preventDefault();
-        (panelFirst ?? dockFirst)?.focus();
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [panelRef]);
-
-  // Focus goes back to the card of the study the drawer is showing, then to the
-  // card it was opened from: a "next project" swap changes what the drawer
-  // shows without changing the origin kept for the reverse morph. A study ->
-  // study swap is not a close: the drawer stays and its next reader takes focus
-  // itself.
-  useEffect(
-    () => () => {
-      const path = window.location.pathname;
-
-      if (path.startsWith("/work/") && path !== `/work/${slug}`) return;
-
-      const origin = document.documentElement.dataset.drawerOrigin ?? slug;
-
-      // The study on screen first, then the one the drawer was opened from.
-      returnTarget([slug, origin])?.focus({ preventScroll: true });
-
-      if (!path.startsWith("/work/")) {
-        delete document.documentElement.dataset.drawerOrigin;
-      }
-    },
-    [slug],
   );
 }

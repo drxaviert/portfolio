@@ -43,12 +43,12 @@ describe("HomeNav", () => {
     );
   });
 
-  it("links Work home", () => {
+  it("links Work to the work sheet", () => {
     renderNav();
 
     expect(screen.getByRole("link", { name: "Work" })).toHaveAttribute(
       "href",
-      "/",
+      "/work",
     );
   });
 

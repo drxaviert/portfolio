@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
 import nextConfig from "../../next.config";
 
-describe("work route redirects", () => {
-  it("sends /work to the homepage permanently, and only /work", async () => {
-    const redirects = await nextConfig.redirects?.();
+/**
+ * `/work` used to be a permanent redirect to `/`, because the site had no
+ * index. It is now the work sheet's own route, so nothing may send it away.
+ * `/work` renders the sheet: see ./page.test.tsx.
+ */
+describe("work route", () => {
+  it("does not redirect /work", async () => {
+    const redirects = (await nextConfig.redirects?.()) ?? [];
 
-    expect(redirects).toEqual([
-      { source: "/work", destination: "/", permanent: true },
-    ]);
-    // `/work/<slug>` is the study reader: no pattern may capture it.
-    expect(redirects?.[0]?.source).not.toMatch(/[:*(]/);
+    expect(redirects.map(({ source }) => source)).not.toContain("/work");
   });
 });

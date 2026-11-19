@@ -29,6 +29,10 @@ import {
   MORPH_EASE,
   MORPH_OPEN_S,
 } from "@/components/work/morph";
+import {
+  isWorkSheetMounted,
+  requestWorkSheetOpen,
+} from "@/lib/work-sheet-state";
 import { NavMotionBlur, beginNavBlur, endNavBlur } from "./nav-motion-blur";
 import "./nav-dock.css";
 
@@ -249,21 +253,38 @@ export function NavDock() {
   }, [readerRoute, toReader]);
 
   // Capture, not bubble: Next's Link starts routing in its own click handler,
-  // which would otherwise outrun the close.
+  // which would otherwise outrun the motions below.
   function onClickCapture(event: MouseEvent<HTMLDivElement>) {
-    if (stateRef.current !== "reader") return;
     if (event.defaultPrevented || event.button !== 0) return;
-    if (!hasReaderClose()) return;
 
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
       return;
     }
 
-    if (!(event.target as Element).closest('a[href="/"]')) return;
+    const target = event.target as Element;
 
-    event.preventDefault();
-    event.stopPropagation();
-    requestReaderClose();
+    // In the reader both nav routes home are a close: the logo returns to the
+    // homepage, and Work returns to the sheet when the reader was opened over
+    // it (or to the homepage when it was opened from a carousel card).
+    if (stateRef.current === "reader") {
+      if (!hasReaderClose()) return;
+      if (!target.closest('a[href="/"], a[href="/work"]')) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      requestReaderClose();
+
+      return;
+    }
+
+    // On the sheet, Work is the page already on screen: no navigation, no
+    // second rise. A sheet that is mid-close is called back instead.
+    if (pathname === "/work" && target.closest('a[href="/work"]')) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (isWorkSheetMounted()) requestWorkSheetOpen();
+    }
   }
 
   // The dock is the site's nav; the /dev prototype routes draw their own

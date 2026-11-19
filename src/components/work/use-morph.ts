@@ -37,6 +37,7 @@ import {
 } from "./progression";
 import { moveNav, registerDockAnimate } from "@/components/nav/nav-flight";
 import type { NavFlightTiming } from "@/components/nav/nav-flight";
+import { sheetOrigin } from "@/lib/work-sheet-state";
 import { FEATURED_SLUG } from "@/lib/work-order";
 
 /**
@@ -87,6 +88,12 @@ export function cardSelector(slug: string): string {
  * is the source a user saw and can return to.
  */
 export function cardElement(slug: string): HTMLElement | null {
+  // The sheet sits over the homepage and shows the same studies: when a reader
+  // was opened from a sheet item, the flight starts and ends there, not on the
+  // home card that happens to come first in the document.
+  const fromSheet = sheetOrigin(slug);
+  if (fromSheet) return fromSheet;
+
   const candidates = Array.from(
     document.querySelectorAll<HTMLElement>(cardSelector(slug)),
   );

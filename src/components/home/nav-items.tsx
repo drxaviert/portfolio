@@ -16,7 +16,7 @@ import { NavGlyphIcon } from "./nav-glyph-icon";
 import "./nav-items.css";
 
 const LINKS = [
-  { label: "Work", current: true, href: "/" },
+  { label: "Work", current: true, href: "/work" },
   { label: "Play", current: false },
   { label: "About", current: false },
 ];
@@ -492,9 +492,9 @@ export function NavItems() {
           itemRefs.current[index] = node;
         };
 
-        // "Work" is a real link home. In the reader, the nav's click capture
-        // consumes it and plays the reverse morph; the placeholders keep
-        // holding the page.
+        // "Work" opens the index sheet; the logo goes home. In the reader, the
+        // nav's click capture consumes both and plays the reverse morph; the
+        // placeholders keep holding the page.
         //
         // A label longer than the bar allows gets an ellipsis instead of
         // wrapping out of the 32px item; `aria-label` keeps the whole string.
