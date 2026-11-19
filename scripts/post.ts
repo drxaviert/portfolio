@@ -28,7 +28,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { promisify } from "node:util";
-import { put } from "@vercel/blob";
+import {
+  BlobAccessError,
+  BlobClientTokenExpiredError,
+  put,
+} from "@vercel/blob";
 import sharp from "sharp";
 import type {
   ImageMedia,
@@ -187,7 +191,9 @@ Options
   --help, -h            Show this help.
 
 Environment
-  BLOB_READ_WRITE_TOKEN must be set (see .env.local) unless --dry-run is used.
+  Blob auth comes from .env.blob (BLOB_STORE_ID + VERCEL_OIDC_TOKEN, pulled with
+  \`vercel env pull .env.blob --environment=production --yes\`) or from
+  BLOB_READ_WRITE_TOKEN in .env.local / the environment. Not needed with --dry-run.
   ffmpeg and ffprobe must be on PATH.
 `);
 }
@@ -214,8 +220,34 @@ function slugify(input: string, maxLength = 60): string {
 }
 
 function loadEnv(): void {
-  const envPath = path.join(ROOT, ".env.local");
-  if (existsSync(envPath)) process.loadEnvFile(envPath);
+  // `.env.blob` first: the freshly pulled OIDC token must win over a stale copy in
+  // `.env.local`, and process.loadEnvFile never overwrites an already-set variable.
+  for (const file of [".env.blob", ".env.local"]) {
+    const envPath = path.join(ROOT, file);
+    if (existsSync(envPath)) process.loadEnvFile(envPath);
+  }
+}
+
+const AUTH_HINT =
+  "Blob auth expired or missing: run  vercel env pull .env.blob --environment=production --yes";
+
+function hasBlobAuth(): boolean {
+  if (process.env.BLOB_READ_WRITE_TOKEN) return true;
+  return Boolean(process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN);
+}
+
+function isAuthError(error: unknown): boolean {
+  if (
+    error instanceof BlobAccessError ||
+    error instanceof BlobClientTokenExpiredError
+  ) {
+    return true;
+  }
+  const status = (error as { statusCode?: number }).statusCode;
+  if (status === 401 || status === 403) return true;
+  return /oidc|missing credentials|unauthorized|forbidden|\b(401|403)\b|token.*expired|expired.*token/i.test(
+    errorMessage(error),
+  );
 }
 
 function errorMessage(error: unknown): string {
@@ -246,14 +278,22 @@ async function publish(
     return `https://dry-run.invalid/${pathname}`;
   }
 
-  const blob = await put(pathname, body, {
-    access: "public",
-    addRandomSuffix: false,
-    cacheControlMaxAge: 31536000,
-    contentType,
-  });
-  console.log(`  upload   ${pathname} (${formatBytes(body.byteLength)})`);
-  return blob.url;
+  try {
+    const blob = await put(pathname, body, {
+      access: "public",
+      addRandomSuffix: false,
+      cacheControlMaxAge: 31536000,
+      contentType,
+    });
+    console.log(`  upload   ${pathname} (${formatBytes(body.byteLength)})`);
+    return blob.url;
+  } catch (error) {
+    if (isAuthError(error)) {
+      console.error(`\n${AUTH_HINT}\n  cause: ${errorMessage(error)}\n`);
+      throw new Error("blob upload was rejected (auth)");
+    }
+    throw error;
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -633,9 +673,11 @@ async function run(): Promise<number> {
 
   loadEnv();
 
-  if (!options.dryRun && !process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!options.dryRun && !hasBlobAuth()) {
     console.error(
-      "fail     BLOB_READ_WRITE_TOKEN is not set. Put it in .env.local or run with --dry-run.",
+      "fail     no Blob credentials: expected BLOB_STORE_ID + VERCEL_OIDC_TOKEN in .env.blob, or BLOB_READ_WRITE_TOKEN.\n" +
+        `         ${AUTH_HINT}\n` +
+        "         (--dry-run works without credentials.)",
     );
     return 1;
   }
