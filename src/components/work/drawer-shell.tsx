@@ -14,7 +14,7 @@ import {
   visibleCard,
   useDrawerMorph,
 } from "./use-morph";
-import { copyScrollOffsets, snapshotElement } from "./view-snapshot";
+import { readScrollOffsets, snapshotElement, writeScrollOffsets } from "./view-snapshot";
 import { useOverlayBehaviour } from "./use-overlay-behaviour";
 import { INDEX_TITLE_ID } from "./work-index";
 import "./drawer-shell.css";
@@ -70,7 +70,13 @@ export function DrawerShell({
   const [enteringKey, setEnteringKey] = useState<string | null>(null);
   const viewRef = useRef<HTMLDivElement | null>(null);
   const stackRef = useRef<HTMLDivElement | null>(null);
-  const exitRef = useRef<{ key: string; copy: HTMLElement | null } | null>(null);
+  const exitRef = useRef<{
+    key: string;
+    copy: HTMLElement | null;
+    scroll: number[];
+  } | null>(null);
+  /** Where the live view's scrollers were, last time they moved. */
+  const scrollRef = useRef<number[]>([]);
 
   // A pathname change is a content swap: keep the view that is on screen and
   // let the new one fade in under it. This is a *cross*-fade — the two views
@@ -79,30 +85,45 @@ export function DrawerShell({
   // slot, so the new study painted at opacity 1, faded out over 160ms, left the
   // panel empty, then faded back in. Adjusting state during render is React's
   // documented pattern for derived state; the DOM copy itself is taken by the
-  // layout-effect cleanup below, which runs while the old view is still painted.
+  // layout-effect cleanup below, before the next view paints.
   if (view.key !== pathname) {
     setView({ key: pathname, node: children });
     setEnteringKey(pathname);
   }
 
-  // Freeze the view that is about to go. A layout-effect cleanup runs before
-  // React mutates the DOM for the next commit, so this is the last moment the
-  // view on screen is still the old one — and the only moment a copy of it can
-  // be taken (the page under this layout is a router slot, so re-rendering its
-  // element would paint the new route instead).
+  // Freeze the view that is about to go, and remember where it was scrolled.
+  //
+  // The cleanup runs after React has already detached the old view (measured:
+  // `element.isConnected` is false, and a detached scroller reports 0), so the
+  // offsets cannot be read at swap time. They are tracked while the view is
+  // live instead: a capture listener picks up scrolls from the reader's or the
+  // index's own scroll box, and the last values travel with the copy.
   useLayoutEffect(() => {
     const element = viewRef.current;
     if (!element) return;
 
+    const remember = () => {
+      scrollRef.current = readScrollOffsets(element);
+    };
+
+    remember();
+    element.addEventListener("scroll", remember, {
+      capture: true,
+      passive: true,
+    });
+
     return () => {
+      element.removeEventListener("scroll", remember, { capture: true });
+
       // Same route means the drawer itself is going; there is no second view to
       // fade against.
       if (window.location.pathname === view.key) return;
 
-      exitRef.current = { key: view.key, copy: snapshotElement(element) };
-      if (exitRef.current.copy) {
-        copyScrollOffsets(element, exitRef.current.copy);
-      }
+      exitRef.current = {
+        key: view.key,
+        copy: snapshotElement(element),
+        scroll: scrollRef.current,
+      };
     };
   }, [view.key]);
 
@@ -119,6 +140,11 @@ export function DrawerShell({
 
     copy.setAttribute("data-leave", "");
     stack.append(copy);
+    // Only now does the copy have a layout box, so this is the first moment a
+    // scroll offset can be written without the browser clamping it to 0. It
+    // runs in a layout effect, before the frame paints, so the copy never shows
+    // its top for a frame.
+    writeScrollOffsets(copy, exit.scroll);
 
     const fade = copy.animate([{ opacity: 1 }, { opacity: 0 }], {
       duration: 160,

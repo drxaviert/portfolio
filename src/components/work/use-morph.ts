@@ -30,7 +30,7 @@ import {
 } from "./overlay-exit";
 import { DOCK_SELECTOR, SLOT_SELECTOR, moveNav, registerDockAnimate } from "@/components/nav/nav-flight";
 import type { NavFlightTiming } from "@/components/nav/nav-flight";
-import { copyScrollOffsets, snapshotElement } from "./view-snapshot";
+import { readScrollOffsets, snapshotElement, writeScrollOffsets } from "./view-snapshot";
 
 /**
  * The one drawer over every `/work*` URL: the panel, its backdrop and its two
@@ -536,13 +536,17 @@ export function useDrawerMorph(
     const copyPanel = copy.querySelector<HTMLElement>(".wd-reader-panel");
     if (!copyPanel) return Promise.resolve();
 
+    // Same order as the content swap: read while the source is still laid out,
+    // write after the copy is in the document, or the write clamps to 0.
+    const scroll = readScrollOffsets(layer);
+
     copy.setAttribute("data-exit-ghost", "");
     // The copy keeps the closing phase so the backdrop fades on its own rule,
     // and it must not catch a click while it is only a picture of the drawer.
     copy.dataset.phase = "closing";
     copy.style.pointerEvents = "none";
-    copyScrollOffsets(layer, copy);
     document.body.append(copy);
+    writeScrollOffsets(copy, scroll);
 
     let finish: () => void = () => undefined;
     const gone = new Promise<void>((resolve) => {

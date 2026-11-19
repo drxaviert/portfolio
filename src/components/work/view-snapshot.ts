@@ -36,22 +36,38 @@ export function snapshotElement<T extends HTMLElement>(element: T): T {
   return clone;
 }
 
+const SCROLLERS = ".wd-reader-scroll, .wd-index-scroll";
+
 /**
- * `cloneNode` copies the markup, not where each scroller was: put the reader's
- * and the index's scroll positions back so a copy never fades out from the top
- * of an article the visitor had scrolled.
+ * Where the reader's and the index's scrollers are, read from the live element.
+ * `cloneNode` copies the markup, not the scroll position, so the copy starts at
+ * the top unless these are carried across.
+ *
+ * Read while the source is still in the document: a scroller with no layout box
+ * reports `scrollTop` 0, so the same read after the swap would find nothing.
  */
-export function copyScrollOffsets(from: HTMLElement, to: HTMLElement): void {
-  const scrollers = (root: HTMLElement) => [
-    ...root.querySelectorAll<HTMLElement>(".wd-reader-scroll, .wd-index-scroll"),
-  ];
+export function readScrollOffsets(element: HTMLElement): number[] {
+  return Array.from(
+    element.querySelectorAll<HTMLElement>(SCROLLERS),
+    (node) => node.scrollTop,
+  );
+}
 
-  const source = scrollers(from);
-  const copy = scrollers(to);
+/**
+ * Put those positions on the copy. The copy must already be in the document:
+ * a detached scroller has a scroll height of 0, so the browser clamps every
+ * write back to 0 — which is why the cross-fade used to flash the top of a
+ * page the visitor had scrolled.
+ */
+export function writeScrollOffsets(
+  copy: HTMLElement,
+  offsets: readonly number[],
+): void {
+  const targets = copy.querySelectorAll<HTMLElement>(SCROLLERS);
 
-  source.forEach((node, index) => {
-    const target = copy[index];
+  offsets.forEach((top, index) => {
+    const target = targets[index];
 
-    if (target) target.scrollTop = node.scrollTop;
+    if (target) target.scrollTop = top;
   });
 }

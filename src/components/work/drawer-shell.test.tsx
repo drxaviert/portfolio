@@ -148,6 +148,63 @@ async function renderOpen(pathname = "/work", children: ReactNode = <Index />) {
 
 const nativeRect = HTMLElement.prototype.getBoundingClientRect;
 const nativeRects = Element.prototype.getClientRects;
+const nativeScrollTop = Object.getOwnPropertyDescriptor(
+  Element.prototype,
+  "scrollTop",
+)!;
+
+/**
+ * jsdom keeps whatever `scrollTop` you assign, even on a detached node. A
+ * browser clamps to the scrollable range, and an element with no layout box has
+ * a scroll height of 0, so a write made before the copy is in the document
+ * lands on 0 — the bug this models. Without it, the regression test below would
+ * pass on the old code.
+ */
+function modelBrowserScrolling() {
+  const offsets = new WeakMap<HTMLElement, number>();
+  const isScroller = (element: HTMLElement) =>
+    element.matches?.(".wd-reader-scroll, .wd-index-scroll") ?? false;
+  const range = (element: HTMLElement) =>
+    element.isConnected ? { height: 2000, view: 600 } : { height: 0, view: 0 };
+
+  Object.defineProperty(HTMLElement.prototype, "scrollTop", {
+    configurable: true,
+    get(this: HTMLElement) {
+      if (!isScroller(this)) return nativeScrollTop.get!.call(this);
+
+      const { height, view } = range(this);
+
+      return height === 0 ? 0 : Math.min(offsets.get(this) ?? 0, height - view);
+    },
+    set(this: HTMLElement, value: number) {
+      if (!isScroller(this)) {
+        nativeScrollTop.set!.call(this, value);
+
+        return;
+      }
+
+      const { height, view } = range(this);
+
+      offsets.set(
+        this,
+        height === 0 ? 0 : Math.max(0, Math.min(value, height - view)),
+      );
+    },
+  });
+}
+
+function ScrolledIndex() {
+  return (
+    <div>
+      <h1 id="wd-index-title" tabIndex={-1}>
+        Work
+      </h1>
+      <div className="wd-index-scroll">
+        <a href="/work/systems-in-motion">Systems in motion</a>
+      </div>
+    </div>
+  );
+}
 
 const RECT = {
   x: 0,
@@ -229,6 +286,7 @@ afterEach(() => {
   MotionGlobalConfig.instantAnimations = false;
   HTMLElement.prototype.getBoundingClientRect = nativeRect;
   Element.prototype.getClientRects = nativeRects;
+  delete (HTMLElement.prototype as { scrollTop?: unknown }).scrollTop;
   document.body.innerHTML = "";
   vi.unstubAllGlobals();
 });
@@ -321,6 +379,46 @@ describe("DrawerShell", () => {
     await waitFor(() =>
       expect(document.querySelectorAll(".wd-drawer-view")).toHaveLength(1),
     );
+
+    Element.prototype.animate = nativeAnimate;
+  });
+
+  it("keeps the scroll position on the copy it fades out", async () => {
+    // The copy is cloned after React detaches the old view, and a detached
+    // scroller reports 0, so the position has to be carried over rather than
+    // read at swap time. Model the browser's clamp for the test.
+    modelBrowserScrolling();
+
+    // Hold the copy's fade open, or it removes itself before the assertion.
+    const nativeAnimate = Element.prototype.animate;
+    Element.prototype.animate = vi.fn(() => ({
+      finished: new Promise<void>(() => {}),
+      cancel: vi.fn(),
+    })) as unknown as Element["animate"];
+
+    const view = await renderOpen("/work", <ScrolledIndex />);
+
+    const live = document.querySelector<HTMLElement>(".wd-index-scroll")!;
+    live.scrollTop = 900;
+    fireEvent.scroll(live);
+    expect(live.scrollTop).toBe(900);
+
+    mocks.pathname = STUDY;
+    window.history.replaceState({}, "", STUDY);
+    view.rerender(
+      <DrawerShell>
+        <Study />
+      </DrawerShell>,
+    );
+
+    const copy = document.querySelector<HTMLElement>(
+      ".wd-drawer-view[data-leave] .wd-index-scroll",
+    );
+
+    expect(copy).not.toBeNull();
+    // Written before the copy was in the document, this would be 0 — the flash
+    // of the top of the page the audit saw.
+    expect(copy!.scrollTop).toBe(900);
 
     Element.prototype.animate = nativeAnimate;
   });
