@@ -113,6 +113,16 @@ const CLOSE_TIMING: NavFlightTiming = {
  */
 const CLOSE_CAP_MS = CAROUSEL_CLOSE_S * 1000 + 260;
 
+/**
+ * How long a close waits for its route exit to land. The exit is only a
+ * request: a same-URL push can cancel it and a Back can land on another
+ * `/work` entry, leaving the shell closing while the route never leaves. The
+ * Navigation API reopens that state when it exists; without it - or if the
+ * exit is lost - the shell must not sit invisible behind a locked page, so
+ * after this it opens again.
+ */
+const EXIT_FALLBACK_MS = 1500;
+
 export function cardSelector(slug: string): string {
   return `[data-work-card="${slug}"]`;
 }
@@ -836,6 +846,38 @@ export function useDrawerMorph(
     return () => navigation.removeEventListener("navigate", onNavigate);
   }, [playBackExit, reenter]);
 
+  // Without the Navigation API there is no event for a same-URL push, so the
+  // click itself is the signal: a link back to this exact entry, while the
+  // drawer is closing, is the visitor reopening it. (A link to a different
+  // /work route re-renders the shell, and the route effect opens that entry.)
+  // The API is left as the only path where it exists.
+  useEffect(() => {
+    if ((window as unknown as { navigation?: unknown }).navigation) return;
+
+    function onClick(event: MouseEvent) {
+      if (event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const link = target.closest<HTMLAnchorElement>('a[href^="/work"]');
+      if (!link) return;
+
+      const m = machine.current;
+      if (m.phase !== "closing") return;
+      if (link.getAttribute("href") !== window.location.pathname) return;
+
+      reenter();
+    }
+
+    document.addEventListener("click", onClick, true);
+
+    return () => document.removeEventListener("click", onClick, true);
+  }, [reenter]);
+
   /**
    * Play the reverse morph, then ask the route to leave. There is no closed
    * latch: the hide closes the shell, and a navigation back into /work*
@@ -922,12 +964,26 @@ export function useDrawerMorph(
       } else {
         router.back();
       }
+
+      // The exit was only a request. If the route is still here after a
+      // moment it never left: without the Navigation API nothing else would
+      // reopen a same-URL push, and a Back can land on another /work entry.
+      // The drawer comes back rather than stay invisible behind a locked page.
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, EXIT_FALLBACK_MS);
+      });
+
+      if (m.generation !== generation) return;
+      if (m.hidden || m.phase !== "closing") return;
+      if (!window.location.pathname.startsWith("/work")) return;
+
+      reenter();
     })();
 
     m.closing = closing;
 
     return closing;
-  }, [commit, originBox, panelRef, reduce, router]);
+  }, [commit, originBox, panelRef, reduce, reenter, router]);
 
   return { phase, reveal, close, stepBack, originRef };
 }

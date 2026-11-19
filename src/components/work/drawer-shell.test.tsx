@@ -1157,10 +1157,12 @@ describe("DrawerShell", () => {
     };
   }
 
-  it("settles consistently through 200 random open/close storms", async () => {
-    // The Navigation API is how the shell hears a same-URL push (Work clicked
-    // while already on /work): it never changes the pathname, so jsdom needs a
-    // stand-in for the route's own signal.
+  /**
+   * One storm run. With the Navigation API, the same-URL push (Work clicked
+   * while already on /work) arrives as a navigate event; without it, the click
+   * is the only signal, so the run dispatches the same click the browser would.
+   */
+  async function runStorm(withNavigation: boolean) {
     type NavListener = (event: {
       navigationType: string;
       canIntercept: boolean;
@@ -1172,14 +1174,16 @@ describe("DrawerShell", () => {
 
     Object.defineProperty(window, "navigation", {
       configurable: true,
-      value: {
-        addEventListener: (type: string, listener: NavListener) => {
-          if (type === "navigate") navListeners.add(listener);
-        },
-        removeEventListener: (type: string, listener: NavListener) => {
-          if (type === "navigate") navListeners.delete(listener);
-        },
-      },
+      value: withNavigation
+        ? {
+            addEventListener: (type: string, listener: NavListener) => {
+              if (type === "navigate") navListeners.add(listener);
+            },
+            removeEventListener: (type: string, listener: NavListener) => {
+              if (type === "navigate") navListeners.delete(listener);
+            },
+          }
+        : undefined,
     });
 
     const fireNavigation = (pathname: string, navigationType = "push") => {
@@ -1191,6 +1195,16 @@ describe("DrawerShell", () => {
           intercept: () => undefined,
         });
       }
+    };
+
+    /** The visitor's click on a link into the drawer, without the API. */
+    const clickLink = (path: string) => {
+      const link = document.createElement("a");
+      link.setAttribute("href", path);
+      link.addEventListener("click", (event) => event.preventDefault());
+      document.body.append(link);
+      fireEvent.click(link);
+      link.remove();
     };
 
     const routes: Record<string, ReactNode> = {
@@ -1288,7 +1302,9 @@ describe("DrawerShell", () => {
       mocks.pathname = path;
       if (!same) window.history.replaceState({}, "", path);
       view.rerender(<CachedDrawer control={control}>{node}</CachedDrawer>);
-      fireNavigation(path);
+
+      if (withNavigation) fireNavigation(path);
+      else clickLink(path);
     };
 
     const settle = async () => {
@@ -1402,5 +1418,42 @@ describe("DrawerShell", () => {
     }
 
     delete (window as { navigation?: unknown }).navigation;
+  }
+
+  it("settles consistently through 200 random open/close storms", async () => {
+    await runStorm(true);
   }, 40_000);
+
+  it("settles through the storms without the Navigation API", async () => {
+    await runStorm(false);
+  }, 40_000);
+
+  it("reopens a close whose route exit never lands", async () => {
+    const entry = await renderCached();
+    vi.useFakeTimers();
+
+    // The router takes the exit request and nothing leaves.
+    mocks.back.mockImplementation(() => {});
+    mocks.replace.mockImplementation(() => {});
+    mocks.go.mockImplementation(() => {});
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    // The flight has landed and the shell is closing with the route still here.
+    expect(layerElement()).toHaveAttribute("data-phase", "closing");
+
+    // The exit fallback opens the drawer again: no invisible, locked shell.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(layerElement()).toHaveAttribute("data-phase", "open");
+    expect(panelElement().style.transform).toBe("");
+    expect(document.body.style.overflow).toBe("hidden");
+    expect(document.querySelector("body > main")).toHaveAttribute("inert");
+    expect(entry.control.current).not.toBeNull();
+  });
 });
