@@ -1,6 +1,6 @@
 "use client";
 
-import { animate, useReducedMotion } from "motion/react";
+import { animate, releaseElement, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -267,6 +267,14 @@ export function useDrawerMorph(
   const startedRef = useRef(false);
   const closedRef = useRef(false);
   const closingRef = useRef<Promise<void> | null>(null);
+  /** The close's panel flight, so reopening during it can stop it. */
+  const closingMorphRef = useRef<Morph | null>(null);
+  /**
+   * Which entry the shell is on. A close captures it; if the shell is re-armed
+   * before that close finishes, the close sees a new generation and stops
+   * instead of latching the next entry shut or navigating over it.
+   */
+  const generationRef = useRef(0);
   const revealTimerRef = useRef(0);
   const mountedRef = useRef(true);
   /** Pushes made inside the drawer, above the entry it opened on. */
@@ -324,6 +332,141 @@ export function useDrawerMorph(
   }, [panelRef, clearRevealTimer]);
 
   /**
+   * Put a shell that has closed (or is closing) back to the state of a first
+   * entry: the refs, the phase and the inline pose the close left behind. A
+   * caller that opens straight away sets `startedRef` back to true; the open
+   * effect needs it false so it measures this entry again.
+   *
+   * The generation is bumped here, after the close captured it: the stale
+   * close's continuation checks it and stops before it can latch the shell
+   * shut or navigate on top of the new entry.
+   */
+  const rearm = useCallback(() => {
+    generationRef.current += 1;
+
+    const panel = panelRef.current;
+    panel?.style.removeProperty("opacity");
+    panel?.style.removeProperty("transform");
+
+    closingMorphRef.current?.stop();
+    closingMorphRef.current = null;
+
+    closedRef.current = false;
+    closingRef.current = null;
+    openingRef.current = null;
+    startedRef.current = false;
+    clearRevealTimer();
+
+    // The new entry starts with none of the last one's history: no push was
+    // made inside it yet, and the last route is not behind it.
+    poppedRef.current = false;
+    previousKindRef.current = null;
+    routeRef.current = route;
+    slugRef.current = slug;
+
+    setReveal("pending");
+    setPhase("opening");
+  }, [panelRef, clearRevealTimer, route, slug]);
+
+  /** This entry's history state and what it was opened from. */
+  const initEntry = useCallback(() => {
+    inAppRef.current = window.history.state?.workOverlay === true;
+    depthRef.current = readDepth();
+    originRef.current = findOrigin(slug);
+    originKindRef.current = originRef.current
+      ? originRef.current === capsuleElement()
+        ? "capsule"
+        : "card"
+      : null;
+
+    if (inAppRef.current) {
+      window.history.replaceState(
+        {
+          ...window.history.state,
+          workOverlay: true,
+          workDepth: depthRef.current,
+        },
+        "",
+      );
+    }
+  }, [slug]);
+
+  /**
+   * The panel's flight to rest, from the box it has to leave.
+   *
+   * `entry` is a fresh one: the content is held back for the reveal near the
+   * landing, as an open always does. `resume` is a close that the visitor
+   * interrupted: the content is already on screen and stays, and the panel
+   * grows from where it visually is, so there is no jump.
+   */
+  const playOpen = useCallback(
+    (box: Box | null, mode: "entry" | "resume" = "entry") => {
+      const panel = panelRef.current;
+
+      if (!panel) {
+        settle();
+        return;
+      }
+
+      // Motion caches the transform values it last rendered on this element.
+      // A pose written straight to the style - and a close that ran on a ghost
+      // never touched this cache - is invisible to that cache, so the next
+      // animation can read identity, treat the target as a no-op and settle in
+      // a frame. Detach it so the flight reads the DOM again.
+      releaseElement(panel);
+
+      if (reduce) {
+        // A resumed close is already visible; do not blank it to fade it back.
+        if (mode === "entry") panel.style.opacity = "0";
+
+        const fade = animate(
+          panel,
+          { opacity: 1 },
+          { duration: FADE_S, ease: "easeOut" },
+        );
+        openingRef.current = fade;
+        void moveNav("reader", "fade");
+        void fade.finished.then(settle);
+        return;
+      }
+
+      if (!box) {
+        settle();
+        return;
+      }
+
+      if (mode === "entry") {
+        // The content starts arriving under the landing panel rather than after
+        // it, so the drawer is readable at the moment the flight ends.
+        revealTimerRef.current = window.setTimeout(
+          () => {
+            if (mountedRef.current) setReveal("on");
+          },
+          (OPEN_TIMING.duration - REVEAL_LEAD_S) * 1000,
+        );
+      } else {
+        clearRevealTimer();
+        setReveal("on");
+      }
+
+      setPose(panel, flipFrom(box, layoutBox(panel)));
+
+      const morph = animate(
+        panel,
+        { x: 0, y: 0, scaleX: 1, scaleY: 1 },
+        OPEN_TIMING,
+      );
+      openingRef.current = morph;
+      void morph.finished.then(settle);
+
+      // The nav is the same element on both sides: it flies from the homepage
+      // row into the drawer's row with the morph, on the drawer's own timing.
+      void moveNav("reader", "flip", OPEN_TIMING);
+    },
+    [panelRef, reduce, settle, clearRevealTimer],
+  );
+
+  /**
    * The cleanup every run of the open effect must leave behind: the router
    * hides this tree (instead of unmounting it) when the route leaves `/work*`,
    * and that is where the shell learns it has been away. Registered on every
@@ -347,55 +490,12 @@ export function useDrawerMorph(
     const reentered = leftRef.current;
     leftRef.current = false;
 
-    if (reentered) {
-      const panel = panelRef.current;
-
-      // The close left the panel transparent and posed on its origin; its
-      // inline styles would keep it there.
-      panel?.style.removeProperty("opacity");
-      panel?.style.removeProperty("transform");
-
-      closedRef.current = false;
-      closingRef.current = null;
-      openingRef.current = null;
-      startedRef.current = false;
-      clearRevealTimer();
-
-      // The new entry starts with none of the last one's history: no push was
-      // made inside it yet, and the last route is not behind it.
-      poppedRef.current = false;
-      previousKindRef.current = null;
-      routeRef.current = route;
-      slugRef.current = slug;
-
-      setReveal("pending");
-      setPhase("opening");
-    }
+    if (reentered) rearm();
 
     if (startedRef.current) return watchForHide();
     startedRef.current = true;
 
-    // The entry knows whether the app pushed it. A pushed entry is closed by
-    // stepping back through history; a document load is replaced by "/".
-    inAppRef.current = window.history.state?.workOverlay === true;
-    depthRef.current = readDepth();
-    originRef.current = findOrigin(slug);
-    originKindRef.current = originRef.current
-      ? originRef.current === capsuleElement()
-        ? "capsule"
-        : "card"
-      : null;
-
-    if (inAppRef.current) {
-      window.history.replaceState(
-        {
-          ...window.history.state,
-          workOverlay: true,
-          workDepth: depthRef.current,
-        },
-        "",
-      );
-    }
+    initEntry();
 
     // A direct load is not an in-app overlay: there is no entry behind it, so
     // close replaces this entry instead of going back through history. A
@@ -412,62 +512,29 @@ export function useDrawerMorph(
       return watchForHide();
     }
 
-    const panel = panelRef.current;
-    if (!panel) return watchForHide();
-
     const origin = originRef.current;
-
-    if (reduce) {
-      panel.style.opacity = "0";
-      const fade = animate(
-        panel,
-        { opacity: 1 },
-        { duration: FADE_S, ease: "easeOut" },
-      );
-      openingRef.current = fade;
-      void moveNav("reader", "fade");
-      void fade.finished.then(settle);
-      return watchForHide();
-    }
-
     // Nothing on screen to grow out of (no card, no nav): the panel is already
     // the destination, so it keeps its opaque surface and only the content is
-    // new. A fade here would show the homepage through the drawer.
-    if (!origin || !laidOut(origin)) {
-      settle();
-      return watchForHide();
-    }
+    // new. A fade there would show the homepage through the drawer.
+    const box = origin && laidOut(origin) ? toBox(origin.getBoundingClientRect()) : null;
 
-    const openSeconds = OPEN_TIMING.duration;
-
-    // The content starts arriving under the landing panel rather than after
-    // it, so the drawer is readable at the moment the flight ends.
-    revealTimerRef.current = window.setTimeout(
-      () => {
-        if (mountedRef.current) setReveal("on");
-      },
-      (openSeconds - REVEAL_LEAD_S) * 1000,
-    );
-
-    // The one open: the panel FLIPs out of the element it was opened from.
-    const layout = layoutBox(panel);
-
-    setPose(panel, flipFrom(toBox(origin.getBoundingClientRect()), layout));
-
-    const morph = animate(
-      panel,
-      { x: 0, y: 0, scaleX: 1, scaleY: 1 },
-      OPEN_TIMING,
-    );
-    openingRef.current = morph;
-    void morph.finished.then(settle);
-
-    // The nav is the same element on both sides: it flies from the homepage row
-    // into the drawer's row with the morph, on the drawer's own timing.
-    void moveNav("reader", "flip", OPEN_TIMING);
+    playOpen(box, "entry");
 
     return watchForHide();
-  }, [onIndex, panelRef, reduce, resting, settle, slug, route, clearRevealTimer, watchForHide]);
+  }, [
+    onIndex,
+    panelRef,
+    reduce,
+    resting,
+    settle,
+    slug,
+    route,
+    clearRevealTimer,
+    watchForHide,
+    rearm,
+    initEntry,
+    playOpen,
+  ]);
 
   // A resize mid-morph jumps to the end; after that the panel is pure CSS, so
   // the new viewport just reflows it and close measures the origin again.
@@ -487,6 +554,29 @@ export function useDrawerMorph(
   // index is genuinely what Back would land on.
   useEffect(() => {
     if (routeRef.current === route) return;
+
+    // The route changed while the drawer is closed or closing: this is a
+    // re-entry that never left `/work*` (reopened during the close flight, or
+    // the close had just finished). The stale close must not win, so cancel it
+    // and put the drawer back: a close still in flight is resumed from the box
+    // it is showing right now, a finished one opens from this entry's origin.
+    if (closingRef.current || closedRef.current) {
+      const panel = panelRef.current;
+      const flying = closingMorphRef.current !== null;
+      // Measure before the re-arm clears the close's inline pose.
+      const visual = flying && panel ? toBox(panel.getBoundingClientRect()) : null;
+
+      rearm();
+      startedRef.current = true;
+      initEntry();
+
+      const origin = originRef.current;
+      const entryBox =
+        origin && laidOut(origin) ? toBox(origin.getBoundingClientRect()) : null;
+
+      playOpen(flying ? visual : entryBox, flying ? "resume" : "entry");
+      return;
+    }
 
     const previous: "index" | "study" =
       routeRef.current === "/work" ? "index" : "study";
@@ -513,7 +603,7 @@ export function useDrawerMorph(
       },
       "",
     );
-  }, [route]);
+  }, [route, rearm, initEntry, playOpen, panelRef]);
 
   useEffect(() => {
     function onPopState() {
@@ -696,6 +786,11 @@ export function useDrawerMorph(
   const close = useCallback(() => {
     if (closingRef.current) return closingRef.current;
 
+    // The entry this close belongs to. A reopen during the flight re-arms the
+    // shell and bumps the generation, and this close then stops before it can
+    // touch the new entry.
+    const generation = generationRef.current;
+
     closingRef.current = (async () => {
       if (closedRef.current) return;
 
@@ -726,15 +821,12 @@ export function useDrawerMorph(
       );
 
       if (reduce) {
+        closingMorphRef.current = animate(panel, { opacity: 0 }, {
+          duration: FADE_S,
+          ease: "easeOut",
+        });
         await Promise.all([
-          landWithin(
-            animate(
-              panel,
-              { opacity: 0 },
-              { duration: FADE_S, ease: "easeOut" },
-            ).finished,
-            exitSeconds,
-          ),
+          landWithin(closingMorphRef.current.finished, exitSeconds),
           navHome,
         ]);
       } else if (box) {
@@ -742,8 +834,9 @@ export function useDrawerMorph(
         // origin must be that corner whatever state the panel was opened in.
         panel.style.transformOrigin = "left top";
         const pose = flipFrom(box, layoutBox(panel));
+        closingMorphRef.current = animate(panel, pose, CLOSE_TIMING);
         await Promise.all([
-          landWithin(animate(panel, pose, CLOSE_TIMING).finished, exitSeconds),
+          landWithin(closingMorphRef.current.finished, exitSeconds),
           navHome,
         ]);
       } else {
@@ -753,15 +846,22 @@ export function useDrawerMorph(
           panel.getBoundingClientRect(),
           { width: window.innerWidth, height: window.innerHeight },
         );
+        closingMorphRef.current = animate(
+          panel,
+          { opacity: 0, scale: CLOSE_SCALE },
+          CLOSE_TIMING,
+        );
         await Promise.all([
-          landWithin(
-            animate(panel, { opacity: 0, scale: CLOSE_SCALE }, CLOSE_TIMING)
-              .finished,
-            exitSeconds,
-          ),
+          landWithin(closingMorphRef.current.finished, exitSeconds),
           navHome,
         ]);
       }
+
+      closingMorphRef.current = null;
+
+      // The shell was re-armed while this flight ran: a new entry owns it now,
+      // so this close must not latch it shut or navigate away from it.
+      if (generation !== generationRef.current) return;
 
       closedRef.current = true;
       panel.style.removeProperty("transform");

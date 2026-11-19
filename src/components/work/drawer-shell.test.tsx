@@ -24,6 +24,7 @@ import { requestReaderClose } from "@/components/nav/nav-flight";
 
 const mocks = vi.hoisted(() => ({
   animate: vi.fn(),
+  releaseElement: vi.fn(),
   reduce: false,
   pathname: "/work",
   back: vi.fn(),
@@ -38,6 +39,8 @@ vi.mock("motion/react", async (importOriginal) => {
   return {
     ...actual,
     animate: mocks.animate as unknown as typeof actual.animate,
+    releaseElement:
+      mocks.releaseElement as unknown as typeof actual.releaseElement,
     useReducedMotion: () => mocks.reduce,
   };
 });
@@ -234,6 +237,7 @@ beforeEach(() => {
     complete: vi.fn(),
     stop: vi.fn(),
   });
+  mocks.releaseElement.mockReset();
   mocks.reduce = false;
   mocks.back.mockReset();
   mocks.push.mockReset();
@@ -1018,5 +1022,118 @@ describe("DrawerShell", () => {
     await expectReopenedFrom(CARD);
     // A new entry starts on its route's content, not on a copy of the old one.
     expect(document.querySelectorAll(".wd-drawer-view")).toHaveLength(1);
+  });
+
+  it("cancels a close that a reopen interrupts, and resumes from the panel's box", async () => {
+    const view = await renderOpen(STUDY, <Study />);
+
+    // Hold the close in flight.
+    mocks.animate.mockReturnValue({
+      finished: new Promise(() => {}),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(layerElement()).toHaveAttribute("data-phase", "closing");
+
+    // Mid-flight, the panel is a scaled box on screen, not its layout box.
+    const panel = panelElement();
+    Object.defineProperties(panel, {
+      offsetLeft: { configurable: true, value: PANEL.left },
+      offsetTop: { configurable: true, value: PANEL.top },
+      offsetWidth: { configurable: true, value: PANEL.width },
+      offsetHeight: { configurable: true, value: PANEL.height },
+    });
+    const mid: Box = { left: 300, top: 360, width: 600, height: 400 };
+    panel.getBoundingClientRect = () => toDomRect(mid);
+
+    // The visitor clicks nav Work before the flight lands: the new entry
+    // arrives without the tree ever leaving `/work*`.
+    mocks.pathname = "/work";
+    window.history.replaceState({}, "", "/work");
+    view.rerender(
+      <DrawerShell>
+        <Index />
+      </DrawerShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "opening"),
+    );
+
+    // It grows back from where it visually was, not from its layout box.
+    expect(panel.style.opacity).toBe("");
+    const pose = readPose(panel);
+    expect(pose.x).toBeCloseTo(mid.left - PANEL.left, 3);
+    expect(pose.y).toBeCloseTo(mid.top - PANEL.top, 3);
+    expect(pose.scaleX).toBeCloseTo(mid.width / PANEL.width, 5);
+    expect(pose.scaleY).toBeCloseTo(mid.height / PANEL.height, 5);
+
+    // The stale close stops at its generation: it never latches the new entry
+    // shut or navigates over it.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 380));
+    });
+    expect(mocks.back).not.toHaveBeenCalled();
+    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(mocks.go).not.toHaveBeenCalled();
+  });
+
+  it("reopens when a new entry lands after the close had finished", async () => {
+    const view = await renderOpen(STUDY, <Study />);
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(mocks.back).toHaveBeenCalled());
+    expect(layerElement()).toHaveAttribute("data-phase", "closing");
+
+    holdOpenMorph();
+    mocks.pathname = "/work";
+    window.history.replaceState({}, "", "/work");
+    view.rerender(
+      <DrawerShell>
+        <Index />
+      </DrawerShell>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "opening"),
+    );
+
+    // A finished close left no flight to resume, so it opens from this entry's
+    // origin like any first open.
+    const panel = panelElement();
+    expect(panel.style.opacity).toBe("");
+    expect(readPose(panel).scaleX).toBeCloseTo(CAPSULE.width / PANEL.width, 5);
+    expect(mocks.back).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-reads the pose from the DOM when a Back exit left the shell open but hidden", async () => {
+    const entry = await renderCached();
+    const panel = panelElement();
+
+    // Back out: the ghost draws the exit, the live shell is only hidden, so it
+    // still believes it is open when it comes back.
+    cacheDrawerAway(entry);
+    expect(layerElement()).toHaveAttribute("data-phase", "open");
+    expect(document.body.style.overflow).toBe("");
+
+    holdOpenMorph();
+    showDrawerAgain(entry, "/work");
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "opening"),
+    );
+
+    // Motion caches the transform values it last rendered, and the pose here
+    // was written straight to the style: the flight has to detach that cache
+    // and read the DOM, or it animates identity over identity and lands in a
+    // frame with no visible motion.
+    expect(mocks.releaseElement).toHaveBeenCalledWith(panel);
+    expect(panel.style.opacity).toBe("");
+    expect(readPose(panel).scaleX).toBeCloseTo(
+      CAPSULE.width / PANEL.width,
+      5,
+    );
   });
 });
