@@ -26,28 +26,27 @@ import {
 } from "./carousel-step";
 import {
   announceOverlayClosing,
-  announceOverlayExit,
   announceOverlayOpened,
 } from "./overlay-exit";
-import {
-  clearProgressionEntry,
-  isDrawerOpen,
-  leaveDrawer,
-  peekProgressionEntry,
-} from "./progression";
-import { moveNav, registerDockAnimate } from "@/components/nav/nav-flight";
+import { DOCK_SELECTOR, SLOT_SELECTOR, moveNav, registerDockAnimate } from "@/components/nav/nav-flight";
 import type { NavFlightTiming } from "@/components/nav/nav-flight";
-import { sheetOrigin } from "@/lib/work-sheet-state";
-import { FEATURED_SLUG } from "@/lib/work-order";
 
 /**
+ * The one drawer over every `/work*` URL: the panel, its backdrop and its two
+ * flights.
+ *
+ * Mounted once (the intercepted slot keys the drawer constantly), so the panel
+ * never remounts: a study, another study and the index are all the same panel,
+ * and only its content changes. The morph is therefore an opening and a closing
+ * and nothing else.
+ *
  * The dock's flights run on this module's motion, so it lends the function
  * before any of them can start. Keeping the import here — rather than in
  * nav-dock.tsx — is what keeps motion out of the home route's first-load JS.
  */
 registerDockAnimate(animate);
 
-export type MorphPhase = "opening" | "open" | "closing";
+export type DrawerPhase = "opening" | "open" | "closing";
 
 /** Content entrance: held while the panel morphs, released before it lands. */
 export type RevealState = "pending" | "on";
@@ -63,11 +62,11 @@ const REVEAL_LEAD_S = 0.3;
 
 /**
  * The drawer's motion, timed once. The shape never changes - the panel FLIPs out
- * of the card, the content rises and defocuses, the nav flies between its two
- * rows - and every part runs on the home carousel's step (carousel-step.ts): the
- * open on its 900ms curve, the close on the run it gives an interrupted step.
- * The nav is handed the same pair (nav-flight.ts) so it cannot drift from the
- * panel.
+ * of its origin, the content is revealed near the landing, the nav flies between
+ * its two rows - and every part runs on the home carousel's step
+ * (carousel-step.ts): the open on its 900ms curve, the close on the run it gives
+ * an interrupted step. The nav is handed the same pair (nav-flight.ts) so it
+ * cannot drift from the panel.
  */
 const OPEN_TIMING: NavFlightTiming = {
   duration: CAROUSEL_OPEN_S,
@@ -85,27 +84,69 @@ export function cardSelector(slug: string): string {
 /**
  * The card element for a study. Several copies can exist (the stacked card, the
  * carousel's cards); only the one that is laid out (display: none has no box)
- * is the source a user saw and can return to.
+ * is an origin a user saw and can return to.
  */
 export function cardElement(slug: string): HTMLElement | null {
-  // The sheet sits over the homepage and shows the same studies: when a reader
-  // was opened from a sheet item, the flight starts and ends there, not on the
-  // home card that happens to come first in the document.
-  const fromSheet = sheetOrigin(slug);
-  if (fromSheet) return fromSheet;
-
   const candidates = Array.from(
     document.querySelectorAll<HTMLElement>(cardSelector(slug)),
   );
 
   return (
-    candidates.find((candidate) => candidate.getClientRects().length > 0) ??
+    candidates.find(
+      (candidate) =>
+        candidate.getClientRects().length > 0 &&
+        window.getComputedStyle(candidate).visibility !== "hidden",
+    ) ??
     candidates[0] ??
     null
   );
 }
 
-/** The source card, measured now. Close calls this again for the live rect. */
+/** The nav's "Work" capsule: the drawer's origin when it opens on the index. */
+export function capsuleElement(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(
+    `${DOCK_SELECTOR} a[aria-label="Work"]`,
+  );
+}
+
+/**
+ * The capsule's box as it sits on the homepage, not as it sits in the drawer.
+ * While the drawer is open the nav has flown into its top row, so the capsule's
+ * live rect is far from the slot it came from; the dock's own home slot gives
+ * the offset back, and a close then lands where the nav will be once it has
+ * flown home.
+ */
+export function capsuleBox(): Box | null {
+  const capsule = capsuleElement();
+  if (!capsule) return null;
+
+  const box = toBox(capsule.getBoundingClientRect());
+  const dock = document.querySelector<HTMLElement>(DOCK_SELECTOR);
+  const slot = document.querySelector<HTMLElement>(SLOT_SELECTOR);
+
+  if (!dock || !slot) return box;
+
+  const home = slot.getBoundingClientRect().top - dock.getBoundingClientRect().top;
+
+  return home === 0 ? box : { ...box, top: box.top + home };
+}
+
+/**
+ * Where this drawer opened from, measured once: the study's card, or the nav's
+ * "Work" capsule when the drawer opened on the index. A study with no card on
+ * the homepage still leaves from the capsule: the drawer came from somewhere on
+ * screen, and the nav is what the visitor touched.
+ */
+export function findOrigin(slug: string | null): HTMLElement | null {
+  if (slug) {
+    const card = cardElement(slug);
+    if (card) return card;
+  }
+
+  return capsuleElement();
+}
+
+/** The source element, measured now. Close calls this again for the live rect. */
 export function findCard(slug: string): Box | null {
   const card = cardElement(slug);
 
@@ -136,53 +177,60 @@ function setPose(
   panel.style.transform = `translate(${pose.x}px, ${pose.y}px) scale(${pose.scaleX}, ${pose.scaleY})`;
 }
 
-export function useMorph(
-  slug: string,
-  panelRef: RefObject<HTMLElement | null>,
+/** The history depth of the drawer's current entry, when it carries one. */
+function readDepth(): number {
+  const depth = window.history.state?.workDepth;
+
+  return typeof depth === "number" ? depth : 0;
+}
+
+export function useDrawerMorph(
+  panelRef: { current: HTMLElement | null },
   options: {
+    /** The study on screen; null on the index. */
+    slug: string | null;
+    /** The pathname: a change inside the drawer is one more history entry. */
+    route: string;
     /**
-     * A direct load: the reader is already the destination, so it starts in its
+     * A direct load: the drawer is already the destination, so it starts in its
      * open resting state with no morph, and the entry is not the in-app overlay
-     * (closing replaces it instead of going back to a homepage entry).
+     * (closing replaces it instead of stepping back through history).
      */
     resting?: boolean;
-  } = {},
+  },
 ): {
-  phase: MorphPhase;
+  phase: DrawerPhase;
   reveal: RevealState;
-  /** This mount joined an open drawer: the panel is in place, only the content is new. */
-  handoff: boolean;
   close: () => Promise<void>;
+  stepBack: () => void;
+  /** What the drawer opened from, for the post-close focus return. */
+  originRef: RefObject<HTMLElement | null>;
 } {
-  const resting = options.resting ?? false;
+  const { slug, route, resting = false } = options;
   const router = useRouter();
   const reduce = useReducedMotion() ?? false;
-  const openTiming = OPEN_TIMING;
-  const closeTiming = CLOSE_TIMING;
-  // A study -> study mount is the same drawer: its panel is already open and
-  // the new article takes the open entrance from the first frame. Read once,
-  // before the first paint, because the layer's backdrop must not re-fade.
-  const [handoff] = useState(() => {
-    if (resting) return null;
+  const onIndex = route === "/work";
 
-    const announced = peekProgressionEntry();
-    if (announced) return announced;
-
-    // A Back/Forward swaps the route without a click to announce it: if a
-    // drawer was already open, its replacement joins it.
-    return isDrawerOpen() ? { depth: null } : null;
-  });
-  const entering = handoff !== null;
-  const [phase, setPhase] = useState<MorphPhase>(
-    resting || entering ? "open" : "opening",
-  );
+  const [phase, setPhase] = useState<DrawerPhase>(resting ? "open" : "opening");
   const [reveal, setReveal] = useState<RevealState>(resting ? "on" : "pending");
+  const originRef = useRef<HTMLElement | null>(null);
+  /** Whether the drawer grew out of a study's card or the nav's capsule. */
+  const originKindRef = useRef<"card" | "capsule" | null>(null);
   const openingRef = useRef<Morph | null>(null);
   const startedRef = useRef(false);
   const closedRef = useRef(false);
   const closingRef = useRef<Promise<void> | null>(null);
   const revealTimerRef = useRef(0);
   const mountedRef = useRef(true);
+  /** Pushes made inside the drawer, above the entry it opened on. */
+  const depthRef = useRef(0);
+  /** The drawer's entry is the app's own navigation, not a document load. */
+  const inAppRef = useRef(false);
+  /** The next route change is the browser's Back/Forward, not a push. */
+  const poppedRef = useRef(false);
+  const routeRef = useRef(route);
+  /** An index entry sits under the current project: Back reaches it. */
+  const indexBehindRef = useRef(onIndex);
 
   const clearRevealTimer = useCallback(() => {
     if (revealTimerRef.current) {
@@ -215,91 +263,54 @@ export function useMorph(
 
     setPhase("open");
     announceOverlayOpened();
-  }, [panelRef, setPhase, clearRevealTimer]);
+  }, [panelRef, clearRevealTimer]);
 
-  // Measure once, before the first paint, then animate from the card to the
+  // Measure once, before the first paint, then animate from the origin to the
   // panel's own layout box. Nothing here reads geometry after the morph.
   useLayoutEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
 
-    // A direct load is not an in-app overlay: there is no homepage entry behind
-    // it, so close replaces this entry instead of going back through history.
-    if (resting) {
-      // The homepage is mounted underneath and must be resting: mark the
-      // document before this commit paints, so its entrance never runs.
-      document.documentElement.dataset.entrancePlayed = "true";
-      // And remember that this document's entry is the study itself, so a
-      // reader opened over it (study to study) closes to '/' as well.
-      document.documentElement.dataset.readerEntry = "direct";
-      // Match the state a settled open morph leaves behind. The FLIP pose is
-      // measured from the panel's top-left corner, so a panel carrying the CSS
-      // default origin would shrink from its centre and land in the wrong place.
-      panelRef.current?.style.setProperty("transform-origin", "left top");
-      // The drawer is one surface: whatever study this is, it closes into a
-      // card. Its own if home has one, otherwise the featured study's.
-      document.documentElement.dataset.drawerOrigin = findCard(slug)
-        ? slug
-        : FEATURED_SLUG;
-      return;
-    }
+    // The entry knows whether the app pushed it. A pushed entry is closed by
+    // stepping back through history; a document load is replaced by "/".
+    inAppRef.current = window.history.state?.workOverlay === true;
+    depthRef.current = readDepth();
+    indexBehindRef.current = onIndex;
+    originRef.current = findOrigin(slug);
+    originKindRef.current = originRef.current
+      ? originRef.current === capsuleElement()
+        ? "capsule"
+        : "card"
+      : null;
 
-    // Only an entry reached from the homepage goes back to it.
-    if (document.documentElement.dataset.readerEntry !== "direct") {
-      // The drawer keeps the origin it opened from across study swaps and
-      // Back/Forward: a restored entry carries it in history state, a remount
-      // finds it on the document, otherwise this open is the origin.
-      const restored = window.history.state?.workOrigin;
-      const origin =
-        typeof restored === "string"
-          ? restored
-          : (document.documentElement.dataset.drawerOrigin ?? slug);
-      // How many studies sit on top of the entry the drawer was opened from.
-      // Close needs it to land on that entry in one step, not on the study
-      // behind it.
-      const restoredDepth = window.history.state?.workDepth;
-      const depth =
-        handoff?.depth ??
-        (typeof restoredDepth === "number" ? restoredDepth : 0);
-
-      document.documentElement.dataset.drawerOrigin = origin;
+    if (inAppRef.current) {
       window.history.replaceState(
         {
           ...window.history.state,
           workOverlay: true,
-          workOrigin: origin,
-          workDepth: depth,
+          workDepth: depthRef.current,
         },
         "",
       );
     }
 
-    // The same drawer, showing another study. There is no card to fly out of
-    // and nothing to measure: the panel, its shadow, the backdrop and the nav
-    // stay exactly where they are. Only the content changes, and it takes the
-    // open's own entrance. The release waits for a painted `pending` frame: the
-    // blocks animate from their keyframes either way, but the ruler is a CSS
-    // transition and a brand-new element has no before-change style to leave.
-    if (handoff) {
-      clearProgressionEntry();
-
-      // Two frames, not one: the first paints `pending`, the second starts the
-      // entrance from it. The guard is a mounted check, not a cancel in the
-      // effect cleanup - development StrictMode runs that cleanup once on mount
-      // and would cancel the frame the reveal is waiting on.
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          if (mountedRef.current) settle();
-        });
-      });
-
+    // A direct load is not an in-app overlay: there is no entry behind it, so
+    // close replaces this entry instead of going back through history.
+    if (resting) {
+      // The homepage is mounted underneath and must be resting: mark the
+      // document before this commit paints, so its entrance never runs.
+      document.documentElement.dataset.entrancePlayed = "true";
+      // Match the state a settled open morph leaves behind. The FLIP pose is
+      // measured from the panel's top-left corner, so a panel carrying the CSS
+      // default origin would shrink from its centre and land in the wrong place.
+      panelRef.current?.style.setProperty("transform-origin", "left top");
       return;
     }
 
     const panel = panelRef.current;
     if (!panel) return;
 
-    const card = findCard(slug);
+    const origin = originRef.current;
 
     if (reduce) {
       panel.style.opacity = "0";
@@ -314,50 +325,45 @@ export function useMorph(
       return;
     }
 
-    // "Next project" opens a study with no card to morph from. The panel is
-    // already the destination, so it keeps its opaque surface and only the new
-    // content changes: a fade here would show the homepage through the reader.
-    // The nav is already in the drawer's position, so it stays put.
-    if (!card) {
+    // Nothing on screen to grow out of (no card, no nav): the panel is already
+    // the destination, so it keeps its opaque surface and only the content is
+    // new. A fade here would show the homepage through the drawer.
+    if (!origin) {
       settle();
       return;
     }
 
-    const openSeconds = openTiming.duration;
+    const openSeconds = OPEN_TIMING.duration;
 
     // The content starts arriving under the landing panel rather than after
-    // it, so the reader is readable at the moment the flight ends.
-    const releaseContent = () => {
-      revealTimerRef.current = window.setTimeout(
-        () => {
-          if (mountedRef.current) setReveal("on");
-        },
-        (openSeconds - REVEAL_LEAD_S) * 1000,
-      );
-    };
+    // it, so the drawer is readable at the moment the flight ends.
+    revealTimerRef.current = window.setTimeout(
+      () => {
+        if (mountedRef.current) setReveal("on");
+      },
+      (openSeconds - REVEAL_LEAD_S) * 1000,
+    );
 
-    // The one open: the panel FLIPs out of the card it was opened from.
+    // The one open: the panel FLIPs out of the element it was opened from.
     const layout = layoutBox(panel);
 
-    setPose(panel, flipFrom(card, layout));
+    setPose(panel, flipFrom(toBox(origin.getBoundingClientRect()), layout));
 
     const morph = animate(
       panel,
       { x: 0, y: 0, scaleX: 1, scaleY: 1 },
-      openTiming,
+      OPEN_TIMING,
     );
     openingRef.current = morph;
     void morph.finished.then(settle);
 
     // The nav is the same element on both sides: it flies from the homepage row
-    // into the panel's row with the morph, on the drawer's own timing.
-    void moveNav("reader", "flip", openTiming);
-
-    releaseContent();
-  }, [slug, reduce, resting, panelRef, settle, openTiming, handoff]);
+    // into the drawer's row with the morph, on the drawer's own timing.
+    void moveNav("reader", "flip", OPEN_TIMING);
+  }, [onIndex, panelRef, reduce, resting, settle, slug]);
 
   // A resize mid-morph jumps to the end; after that the panel is pure CSS, so
-  // the new viewport just reflows it and close measures the card again.
+  // the new viewport just reflows it and close measures the origin again.
   useEffect(() => {
     if (phase !== "opening") return;
 
@@ -367,6 +373,57 @@ export function useMorph(
     return () => window.removeEventListener("resize", onResize);
   }, [phase]);
 
+  // Every client navigation inside the drawer is one more entry above the one
+  // it opened on, so close can reach the homepage in a single step. A Back or
+  // Forward restores the entry's own depth instead.
+  useEffect(() => {
+    if (routeRef.current === route) return;
+
+    routeRef.current = route;
+
+    if (poppedRef.current) {
+      poppedRef.current = false;
+      depthRef.current = readDepth();
+    } else {
+      depthRef.current += 1;
+    }
+
+    if (onIndex) indexBehindRef.current = true;
+
+    if (!inAppRef.current) return;
+
+    window.history.replaceState(
+      {
+        ...window.history.state,
+        workOverlay: true,
+        workDepth: depthRef.current,
+      },
+      "",
+    );
+  }, [onIndex, route]);
+
+  useEffect(() => {
+    function onPopState() {
+      poppedRef.current = true;
+    }
+
+    window.addEventListener("popstate", onPopState);
+
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  /**
+   * From a project to the index. The index went first when the drawer opened on
+   * it (or was visited since), so Back returns to it; otherwise this pushes it,
+   * and Back then returns to the project, exactly as the URL history says.
+   */
+  const stepBack = useCallback(() => {
+    if (!window.location.pathname.startsWith("/work/")) return;
+
+    if (indexBehindRef.current) router.back();
+    else router.push("/work");
+  }, [router]);
+
   /** Runs the reverse morph, then leaves the route. One flight at a time. */
   const close = useCallback(() => {
     if (closingRef.current) return closingRef.current;
@@ -375,31 +432,31 @@ export function useMorph(
       if (closedRef.current) return;
 
       clearRevealTimer();
-      leaveDrawer();
       setPhase("closing");
       openingRef.current?.stop();
-      // The card measured below must be at rest: the homepage behind puts itself
-      // back now, while the panel still covers it.
       announceOverlayClosing();
 
       const panel = panelRef.current;
       if (!panel) return;
 
-      // The drawer keeps its one surface, but the card it closes into is the
-      // study on screen now: that is where the reader was. Only when this study
-      // has no card on the homepage (the carousel renders the current step, so
-      // a study reached by "Next project" usually has none) does it fall back to
-      // the card the drawer was opened from.
-      const origin = document.documentElement.dataset.drawerOrigin ?? slug;
-      const card = findCard(slug) ?? findCard(origin);
+      // Measure the origin before the nav starts its own flight: the capsule's
+      // home position is derived from the dock's current (drawer) row, so the
+      // offset has to be read while the nav is still there.
+      const origin = originRef.current;
+      const box =
+        !origin || !origin.isConnected
+          ? null
+          : originKindRef.current === "capsule"
+            ? capsuleBox()
+            : toBox(origin.getBoundingClientRect());
 
       // The nav returns on the same timing as whatever the panel does: the
       // close flight, or the 120ms fade. Both waits are capped at that timing
-      // (morph.ts) so a stopped frame loop cannot strand the reader over a blank
+      // (morph.ts) so a stopped frame loop cannot strand the drawer over a blank
       // page: the route change is the promise that matters.
-      const exitSeconds = reduce ? FADE_S : closeTiming.duration;
+      const exitSeconds = reduce ? FADE_S : CLOSE_TIMING.duration;
       const navHome = landWithin(
-        reduce ? moveNav("home", "fade") : moveNav("home", "flip", closeTiming),
+        reduce ? moveNav("home", "fade") : moveNav("home", "flip", CLOSE_TIMING),
         exitSeconds,
       );
 
@@ -415,26 +472,25 @@ export function useMorph(
           ),
           navHome,
         ]);
-      } else if (card) {
-        // The pose maps the panel's top-left corner onto the card's: the origin
-        // must be that corner whatever state the panel was opened in.
+      } else if (box) {
+        // The pose maps the panel's top-left corner onto the origin's: the
+        // origin must be that corner whatever state the panel was opened in.
         panel.style.transformOrigin = "left top";
-        const pose = flipFrom(card, layoutBox(panel));
+        const pose = flipFrom(box, layoutBox(panel));
         await Promise.all([
-          landWithin(animate(panel, pose, closeTiming).finished, exitSeconds),
+          landWithin(animate(panel, pose, CLOSE_TIMING).finished, exitSeconds),
           navHome,
         ]);
       } else {
-        // No card to land on (a study with none, or a direct load behind):
-        // the close flight still runs, shrinking in place about the centre of
-        // what is actually on screen.
+        // Nothing to land on: the close flight still runs, shrinking in place
+        // about the centre of what is actually on screen.
         panel.style.transformOrigin = visibleCentre(
           panel.getBoundingClientRect(),
           { width: window.innerWidth, height: window.innerHeight },
         );
         await Promise.all([
           landWithin(
-            animate(panel, { opacity: 0, scale: CLOSE_SCALE }, closeTiming)
+            animate(panel, { opacity: 0, scale: CLOSE_SCALE }, CLOSE_TIMING)
               .finished,
             exitSeconds,
           ),
@@ -445,33 +501,24 @@ export function useMorph(
       closedRef.current = true;
       panel.style.removeProperty("transform");
       panel.style.opacity = "0";
-      announceOverlayExit();
 
-      if (window.location.pathname !== `/work/${slug}`) return;
+      if (!window.location.pathname.startsWith("/work")) return;
 
-      // An in-app overlay leaves through the entry it was opened from (the
-      // homepage); a direct load — or a reader opened over one — has no such
-      // entry, so '/' replaces the study instead. Back from home must not
-      // reopen the reader.
-      if (window.history.state?.workOverlay) {
-        // Each "Next project" pushed its own entry, so the homepage is `depth`
-        // studies behind this one. Land on it in one step: router.back() would
-        // only reach the previous study and reopen the drawer there.
-        const depth = window.history.state?.workDepth;
-
-        if (typeof depth === "number" && depth > 0) {
-          window.history.go(-(depth + 1));
-        } else {
-          router.back();
-        }
-      } else {
-        delete document.documentElement.dataset.readerEntry;
+      // The in-app drawer steps back to the homepage entry in one go: every
+      // navigation inside it pushed its own entry above that one. A direct load
+      // is the document's own entry and is replaced instead, so Back cannot
+      // reopen the drawer.
+      if (!inAppRef.current) {
         router.replace("/");
+      } else if (depthRef.current > 0) {
+        window.history.go(-(depthRef.current + 1));
+      } else {
+        router.back();
       }
     })();
 
     return closingRef.current;
-  }, [slug, reduce, closeTiming, panelRef, router, setPhase, clearRevealTimer]);
+  }, [reduce, router, panelRef, clearRevealTimer]);
 
-  return { phase, reveal, handoff: entering, close };
+  return { phase, reveal, close, stepBack, originRef };
 }

@@ -27,6 +27,7 @@ beforeEach(() => {
       dispatchEvent: vi.fn(),
     })),
   );
+  window.sessionStorage.clear();
 });
 
 afterEach(() => {
@@ -34,37 +35,22 @@ afterEach(() => {
 });
 
 describe("work index page", () => {
-  it("renders the sheet over the homepage", () => {
-    render(
+  it("renders the index, in the order the homepage leads with", () => {
+    const { container } = render(
       <ThemeProvider>
         <WorkIndexPage />
       </ThemeProvider>,
     );
 
-    const sheet = document.querySelector("[data-work-sheet]");
-    expect(sheet).toBeInTheDocument();
-    // The homepage is underneath, so the sheet closes onto it.
-    expect(document.querySelector("main[data-entrance]")).toBeInTheDocument();
-
-    // One sheet, never two: this page is the only renderer on `/work`.
-    expect(document.querySelectorAll("[data-work-sheet]")).toHaveLength(1);
-  });
-
-  it("lists every study in the sheet, with a link into it", () => {
-    render(
-      <ThemeProvider>
-        <WorkIndexPage />
-      </ThemeProvider>,
-    );
-
-    const sheet = document.querySelector<HTMLElement>("[data-work-sheet]")!;
     const links = [
-      ...sheet.querySelectorAll<HTMLAnchorElement>("a[href^='/work/']"),
+      ...container.querySelectorAll<HTMLAnchorElement>("a[href^='/work/']"),
     ];
 
     expect(links).toHaveLength(3);
     expect(links[0]).toHaveAttribute("href", "/work/systems-in-motion");
-    expect(links[0]).toHaveAttribute("data-work-card", "systems-in-motion");
+    // The drawer's panel is the layout's, so the page is only the content.
+    expect(container.querySelector(".wd-expand-layer")).toBeNull();
+    expect(container.querySelector("[data-work-card]")).toBeNull();
   });
 
   it("names the route Work", async () => {

@@ -12,7 +12,7 @@ import { useEffect } from "react";
  */
 const warmReader = () =>
   Promise.all([
-    import("./expand-shell"),
+    import("./drawer-shell"),
     import("./parts"),
     import("./reader-rail"),
     import("./scroll-ruler"),

@@ -48,10 +48,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({
   children,
-  modal,
 }: {
   children: ReactNode;
-  modal: ReactNode;
 }) {
   return (
     <html lang="en" className={workSans.variable} suppressHydrationWarning>
@@ -61,10 +59,9 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           {children}
-          {/* One nav for the whole site, between the page and the modal so it
-              comes before the reader in tab order. */}
+          {/* One nav for the whole site, after the page so the overlay's focus
+              trap can cycle from the panel into it. */}
           <NavDock />
-          {modal}
         </ThemeProvider>
       </body>
     </html>

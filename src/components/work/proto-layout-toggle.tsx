@@ -1,60 +1,116 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 /**
- * Prototype only: the sheet ships one layout once Dat picks it. Until then the
- * switcher reads `?layout=grid|list` (and the G / L keys) so the two can be
- * compared at any width and in either phase.
+ * Prototype only: the drawer ships one layout and one close behaviour once Dat
+ * picks them. Until then the switcher reads `?layout=grid|list` (keys G / L)
+ * and `?close=a|b` (keys A / B), so the two can be compared at any width and in
+ * either phase.
  *
- * The store is module-level so the URL, the keys and the control all agree
- * without a router navigation: changing the layout is not a page load.
+ * The stores are module-level so the URL, the keys and the controls all agree
+ * without a router navigation: changing a prototype option is not a page load.
  */
 
 export type ProtoLayout = "grid" | "list";
+/** A: Esc and the backdrop close the drawer. B: they step back to the index. */
+export type CloseBehaviour = "a" | "b";
 
-const KEY = "layout";
-const listeners = new Set<() => void>();
-let layout: ProtoLayout | null = null;
+function createParamStore<T extends string>(
+  key: string,
+  parse: (value: string | null) => T,
+  fallback: T,
+) {
+  let current: T | null = null;
+  const listeners = new Set<() => void>();
 
-function read(): ProtoLayout {
-  const value = new URL(window.location.href).searchParams.get(KEY);
+  function read(): T {
+    const fromUrl = new URL(window.location.href).searchParams.get(key);
 
-  return value === "list" ? "list" : "grid";
-}
+    if (fromUrl !== null) return parse(fromUrl);
 
-function getSnapshot(): ProtoLayout {
-  layout ??= read();
+    // A choice made in the drawer has to survive the next navigation, whose URL
+    // does not carry this query string: keep it for the tab. Prototype-only, and
+    // deleted with the rest of the switcher.
+    try {
+      return parse(window.sessionStorage?.getItem(`wd-proto-${key}`) ?? null);
+    } catch {
+      return fallback;
+    }
+  }
 
-  return layout;
-}
+  const STORAGE = `wd-proto-${key}`;
 
-/** The server cannot know the query string: it renders the default. */
-function getServerSnapshot(): ProtoLayout {
-  return "grid";
-}
+  function remember(next: T) {
+    try {
+      window.sessionStorage?.setItem(STORAGE, next);
+    } catch {
+      // Private mode or a full store: the in-memory value still holds.
+    }
+  }
 
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  window.addEventListener("popstate", listener);
+  // Read once, at module load on the client: a prototype option chosen on the
+  // homepage has to survive the navigation into the drawer.
+  if (typeof window !== "undefined") current = read();
 
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("popstate", listener);
+  function getSnapshot(): T {
+    current ??= read();
+
+    return current;
+  }
+
+  /** The server cannot know the query string: it renders the default. */
+  function getServerSnapshot(): T {
+    return fallback;
+  }
+
+  function subscribe(listener: () => void) {
+    listeners.add(listener);
+    window.addEventListener("popstate", listener);
+
+    return () => {
+      listeners.delete(listener);
+      window.removeEventListener("popstate", listener);
+    };
+  }
+
+  function set(next: T) {
+    if (current === next) return;
+
+    current = next;
+    remember(next);
+
+    const url = new URL(window.location.href);
+    url.searchParams.set(key, next);
+    window.history.replaceState(window.history.state, "", url);
+
+    for (const listener of listeners) listener();
+  }
+
+  return {
+    getSnapshot,
+    getServerSnapshot,
+    subscribe,
+    set,
+    get: () => current ?? read(),
   };
 }
 
-export function setProtoLayout(next: ProtoLayout) {
-  if (layout === next) return;
+const layoutStore = createParamStore<ProtoLayout>(
+  "layout",
+  (value) => (value === "list" ? "list" : "grid"),
+  "grid",
+);
 
-  layout = next;
+const closeStore = createParamStore<CloseBehaviour>(
+  "close",
+  (value) => (value === "b" ? "b" : "a"),
+  "a",
+);
 
-  const url = new URL(window.location.href);
-  url.searchParams.set(KEY, next);
-  window.history.replaceState(window.history.state, "", url);
-
-  for (const listener of listeners) listener();
-}
+export const setProtoLayout = layoutStore.set;
+export const setCloseBehaviour = closeStore.set;
+export const getCloseBehaviour = closeStore.get;
 
 function isTyping(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -65,9 +121,8 @@ function isTyping(target: EventTarget | null): boolean {
   );
 }
 
-export function useProtoLayout(): ProtoLayout {
-  const current = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-
+/** The G / L and A / B keys, for whichever options the sheet is showing. */
+function useProtoKeys() {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) {
@@ -76,48 +131,103 @@ export function useProtoLayout(): ProtoLayout {
 
       if (event.defaultPrevented || isTyping(event.target)) return;
 
-      if (event.key === "g" || event.key === "G") setProtoLayout("grid");
-      if (event.key === "l" || event.key === "L") setProtoLayout("list");
+      const key = event.key.toLowerCase();
+
+      if (key === "g") layoutStore.set("grid");
+      if (key === "l") layoutStore.set("list");
+      if (key === "a") closeStore.set("a");
+      if (key === "b") closeStore.set("b");
     }
 
     window.addEventListener("keydown", onKeyDown);
 
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
-
-  return current;
 }
 
-const OPTIONS: { value: ProtoLayout; label: string }[] = [
-  { value: "grid", label: "Grid" },
-  { value: "list", label: "List" },
-];
+export function useProtoLayout(): ProtoLayout {
+  useProtoKeys();
+
+  return useSyncExternalStore(
+    layoutStore.subscribe,
+    layoutStore.getSnapshot,
+    layoutStore.getServerSnapshot,
+  );
+}
+
+export function useCloseBehaviour(): CloseBehaviour {
+  useProtoKeys();
+
+  return useSyncExternalStore(
+    closeStore.subscribe,
+    closeStore.getSnapshot,
+    closeStore.getServerSnapshot,
+  );
+}
+
+function ToggleGroup<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (next: T) => void;
+}) {
+  return (
+    <div className="wd-proto-group">
+      <span className="wd-proto-label" aria-hidden="true">
+        {label}
+      </span>
+      <div className="wd-proto-toggle" role="group" aria-label={label}>
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={value === option.value}
+            onClick={() => onChange(option.value)}
+            className="wd-proto-option"
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /**
- * The switcher itself. Labelled as a prototype so nobody mistakes it for the
- * shipped control; it disappears with this file.
+ * The switcher itself. Two segmented controls, labelled as a prototype so
+ * nobody mistakes them for shipped UI; they disappear with this file.
  */
-export function ProtoLayoutToggle() {
+export function ProtoToggles() {
   const layout = useProtoLayout();
+  const close = useCloseBehaviour();
+  const chooseLayout = useCallback((next: ProtoLayout) => setProtoLayout(next), []);
+  const chooseClose = useCallback((next: CloseBehaviour) => setCloseBehaviour(next), []);
 
   return (
-    <div
-      className="wd-proto-toggle"
-      role="group"
-      aria-label="Prototype layout"
-      data-sheet-nodrag=""
-    >
-      {OPTIONS.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          aria-pressed={layout === option.value}
-          onClick={() => setProtoLayout(option.value)}
-          className="wd-proto-option"
-        >
-          {option.label}
-        </button>
-      ))}
+    <div className="wd-proto-toggles" data-drawer-chrome="">
+      <ToggleGroup
+        label="Prototype layout"
+        options={[
+          { value: "grid", label: "Grid" },
+          { value: "list", label: "List" },
+        ]}
+        value={layout}
+        onChange={chooseLayout}
+      />
+      <ToggleGroup
+        label="Prototype back"
+        options={[
+          { value: "a", label: "A" },
+          { value: "b", label: "B" },
+        ]}
+        value={close}
+        onChange={chooseClose}
+      />
     </div>
   );
 }

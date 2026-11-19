@@ -1,9 +1,8 @@
 import {
+  createEvent,
   fireEvent,
   render,
   screen,
-  waitFor,
-  within,
 } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -11,7 +10,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { getWork } from "@/lib/work";
-import { clearProgressionEntry } from "./progression";
 import { READER_TITLE_ID, Reader } from "./reader";
 
 const { push, replace } = vi.hoisted(() => ({
@@ -49,7 +47,6 @@ function featured() {
 }
 
 beforeEach(() => {
-  clearProgressionEntry();
   push.mockReset();
   replace.mockReset();
   vi.stubGlobal(
@@ -79,15 +76,14 @@ function renderReader(children: ReactNode) {
   );
 }
 
-describe("reader overlay", () => {
-  it("renders a labelled dialog without claiming to be aria-modal", () => {
+describe("reader content", () => {
+  it("is content only: the drawer's panel owns the dialog", () => {
     renderReader(<p>Case-study body</p>);
 
-    const dialog = screen.getByRole("dialog");
-    // The nav is the dialog's sibling in the root layout: aria-modal would
-    // remove it from the accessibility tree.
-    expect(dialog).not.toHaveAttribute("aria-modal");
-    expect(dialog).toHaveAttribute("aria-labelledby", READER_TITLE_ID);
+    // The panel, its role and its label belong to DrawerShell now; a study just
+    // fills it.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.getElementById(READER_TITLE_ID)).toBeInTheDocument();
   });
 
   it("anchors the ways-back rail to the whole column", () => {
@@ -101,17 +97,15 @@ describe("reader overlay", () => {
     expect(rail?.parentElement).toBe(column);
   });
 
-  it("does not render a second nav inside the panel", () => {
+  it("does not render a second nav inside the study", () => {
     renderReader(<p>Case-study body</p>);
 
-    const dialog = screen.getByRole("dialog");
-
     expect(
-      within(dialog).queryByRole("navigation", { name: "Primary" }),
+      screen.queryByRole("navigation", { name: "Primary" }),
     ).not.toBeInTheDocument();
   });
 
-  it("pushes the next study, so Back returns to this one", () => {
+  it("links the next study, so Back returns to this one", () => {
     renderReader(<p>Case-study body</p>);
 
     const next = screen.getByRole("link", {
@@ -122,27 +116,21 @@ describe("reader overlay", () => {
     expect(next).toHaveAttribute("data-replace", "false");
   });
 
-  it("hands the next study off on the close fade, not a hard cut", async () => {
+  it("does not intercept the next-study link", () => {
+    // The drawer stays and its content cross-fades (drawer-shell.tsx): the link
+    // is a plain push, with no fade of its own to schedule.
     const fade = vi.spyOn(Element.prototype, "animate");
     renderReader(<p>Case-study body</p>);
 
-    fireEvent.click(
-      screen.getByRole("link", { name: "Next project: The title sequence" }),
-    );
+    const next = screen.getByRole("link", {
+      name: "Next project: The title sequence",
+    });
+    const click = createEvent.click(next);
+    fireEvent(next, click);
 
-    expect(fade).toHaveBeenCalledWith(
-      [{ opacity: 1 }, { opacity: 0 }],
-      expect.objectContaining({
-        duration: 140,
-        easing: "ease-in",
-        fill: "forwards",
-      }),
-    );
-
-    await waitFor(() =>
-      expect(push).toHaveBeenCalledWith("/work/title-sequence"),
-    );
-    expect(replace).not.toHaveBeenCalled();
+    expect(click.defaultPrevented).toBe(false);
+    expect(fade).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
   });
 
   it("caps the body measure without narrowing the rest of the column", () => {

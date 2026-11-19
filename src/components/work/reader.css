@@ -1,52 +1,16 @@
 /*
- * The Margin reader: one fixed panel, one scroll container, a 550px measure
- * with notes and captions in the right margin from 1024px up, and 880px
- * figure breakouts from 768px up.
+ * The Margin reader: one scroll container, a 550px measure with notes and
+ * captions in the right margin from 1024px up, and 880px figure breakouts from
+ * 768px up.
  *
  * Geometry is CSS only. Container query units on the scroll container size the
  * breakouts, so they account for the panel inset and the scrollbar gutter
  * without any JavaScript measurement.
+ *
+ * The panel itself — its fixed box, inset, radius, shadow and dialog role — is
+ * the drawer's (drawer-shell.css): the same panel holds the index, so it cannot
+ * belong to a study's stylesheet.
  */
-
-/* The panel's inset and the nav's insets are root tokens (globals.css): the nav
-   dock in the root layout reads the same values. */
-.wd-reader-panel {
-  position: fixed;
-  inset: var(--wd-panel-inset);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--surface-container-low);
-  color: var(--on-surface);
-}
-
-@media (min-width: 768px) {
-  .wd-reader-panel {
-    border-radius: 12px;
-    box-shadow:
-      var(--shadow-card),
-      0 30px 70px -30px rgb(0 0 0 / 0.45);
-  }
-
-  /*
-   * A close is the panel becoming the card, so its elevation crosses to the
-   * card's flat shadow over the same 350ms flight. The ambient 70px drop shadow
-   * is painted in the panel's own (scaled) space: squeezed to half size it turns
-   * into a hard dark band along the bottom edge - 120 grey against the page's
-   * dimmed 136 in day mode - and its negative spread cuts square-looking corners
-   * across the panel's radius. At rest, and through the whole open, nothing
-   * changes.
-   */
-  .wd-expand-layer[data-phase="closing"] .wd-reader-panel {
-    box-shadow: var(--shadow-card);
-  }
-}
-
-@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
-  .wd-expand-layer[data-phase="closing"] .wd-reader-panel {
-    transition: box-shadow 350ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-}
 
 .wd-reader-scroll {
   flex: 1 1 auto;

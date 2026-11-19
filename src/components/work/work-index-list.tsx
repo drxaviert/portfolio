@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { Cover } from "@/components/work/cover";
-import { markSheetOrigin } from "@/lib/work-sheet-state";
 import type { WorkMeta } from "@/lib/work";
 
 /**
- * The sheet's index layout: one row per study, year · title · summary · role.
+ * The index's list layout: one row per study, year · title · summary · role.
  *
  * A cover preview sits in the row's reserved right-hand slot and fades in on
  * hover or keyboard focus. It is absolutely positioned and its slot is padding,
@@ -15,20 +14,14 @@ import type { WorkMeta } from "@/lib/work";
  */
 export function WorkIndexList({ works }: { works: WorkMeta[] }) {
   return (
-    <ul className="wd-index">
+    <ul className="wd-index-list">
       {works.map((work) => (
         <li key={work.slug}>
-          <Link
-            href={`/work/${work.slug}`}
-            className="wd-index-row"
-            data-work-card={work.slug}
-            data-work-slug={work.slug}
-            onClick={(event) => markSheetOrigin(event.currentTarget)}
-          >
+          <Link href={`/work/${work.slug}`} className="wd-index-row">
             <span className="wd-index-year">{work.year}</span>
 
             <span className="wd-index-main">
-              <span className="wd-index-title">{work.title}</span>
+              <span className="wd-index-title-row">{work.title}</span>
               <span className="wd-index-summary">{work.summary}</span>
             </span>
 

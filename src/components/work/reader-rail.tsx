@@ -4,17 +4,17 @@ import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import type { MouseEvent } from "react";
 import { READER_SCROLL_ID, READER_TITLE_ID } from "./parts";
-import { useReaderClose } from "./reader-close";
+import { useDrawerActions } from "./drawer-actions";
 import { useShowTop } from "./use-show-top";
 
 /**
- * The ways back, from inside the reader. Both placements share the same
- * behaviour: the desktop pair sits in the left margin, the thumb pair is fixed
- * to the bottom corners of the panel below 1024px.
+ * The ways back, from inside a study. Both placements share the same behaviour:
+ * the desktop pair sits in the left margin, the thumb pair is fixed to the
+ * bottom corners of the panel below 1024px.
  *
- * `onClose` is the overlay's reverse morph. `Reader` is server-rendered, so the
- * rail takes it from the shell's context when no prop is passed; on a direct
- * load there is no close, and the link navigates to `/` as a normal link.
+ * "← Work" steps the drawer back to the index (the drawer itself, not a new
+ * page), and the browser's Back does the same thing: the index is the drawer's
+ * own previous view. The panel never moves for it; only the content fades.
  */
 
 function ArrowIcon({ up = false }: { up?: boolean }) {
@@ -50,7 +50,7 @@ function useScrollEl(): HTMLElement | null {
 }
 
 /**
- * The reader is server-rendered, so the rail cannot hold a ref to the scroll
+ * The study is server-rendered, so the rail cannot hold a ref to the scroll
  * container. It reads the element from the document instead: the store never
  * changes, so one notification on subscribe is enough to re-read it once the
  * panel is in the DOM.
@@ -61,7 +61,7 @@ function subscribeToMount(onStoreChange: () => void) {
   return () => {};
 }
 
-/** Back to the top of the reader, then focus back on the title. */
+/** Back to the top of the study, then focus back on the title. */
 function scrollToTop(scrollEl: HTMLElement | null) {
   if (!scrollEl) return;
 
@@ -72,12 +72,12 @@ function scrollToTop(scrollEl: HTMLElement | null) {
 }
 
 /**
- * A close link leaves modified clicks (a new tab, a new window) to the browser,
- * the way the nav's logo and "Work" do.
+ * A "back" link is the drawer's own step back; modified clicks (a new tab, a
+ * new window) are left to the browser, the way the nav's logo and "Work" are.
  */
-function closeOnClick(close: (() => void) | undefined) {
+function stepBackOnClick(stepBack: (() => void) | undefined) {
   return (event: MouseEvent<HTMLAnchorElement>) => {
-    if (!close) return;
+    if (!stepBack) return;
     if (event.button !== 0) return;
 
     const modified =
@@ -85,7 +85,7 @@ function closeOnClick(close: (() => void) | undefined) {
     if (modified) return;
 
     event.preventDefault();
-    close();
+    stepBack();
   };
 }
 
@@ -117,15 +117,19 @@ function TopButton({
 }
 
 /** The desktop pair inside `.wd-rail`: sticky under the nav and near the foot. */
-export function ReaderRail({ onClose }: { onClose?: () => void }) {
-  const fromShell = useReaderClose();
-  const close = onClose ?? fromShell;
+export function ReaderRail({ onStepBack }: { onStepBack?: () => void }) {
+  const actions = useDrawerActions();
+  const stepBack = onStepBack ?? actions?.stepBack;
   const scrollEl = useScrollEl();
   const visible = useShowTop(scrollEl);
 
   return (
     <>
-      <Link href="/" className="wd-rail-work" onClick={closeOnClick(close)}>
+      <Link
+        href="/work"
+        className="wd-rail-work"
+        onClick={stepBackOnClick(stepBack)}
+      >
         <ArrowIcon />
         Work
       </Link>
@@ -141,19 +145,23 @@ export function ReaderRail({ onClose }: { onClose?: () => void }) {
 }
 
 /** The two 44px targets below 1024px: bottom left and bottom right. */
-export function ReaderMobileActions({ onClose }: { onClose?: () => void }) {
-  const fromShell = useReaderClose();
-  const close = onClose ?? fromShell;
+export function ReaderMobileActions({
+  onStepBack,
+}: {
+  onStepBack?: () => void;
+}) {
+  const actions = useDrawerActions();
+  const stepBack = onStepBack ?? actions?.stepBack;
   const scrollEl = useScrollEl();
   const visible = useShowTop(scrollEl);
 
   return (
     <div className="wd-reader-actions">
       <Link
-        href="/"
+        href="/work"
         aria-label="Back to work"
         className="wd-reader-action"
-        onClick={closeOnClick(close)}
+        onClick={stepBackOnClick(stepBack)}
       >
         <ArrowIcon />
       </Link>

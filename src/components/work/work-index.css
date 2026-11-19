@@ -1,0 +1,362 @@
+/*
+ * The index inside the drawer: the whole set of studies in the same panel the
+ * reader uses, under the same nav.
+ *
+ * The column mirrors the reader's own geometry — the nav's clearance at the
+ * top, the safe padding at the foot, one scroll container — but is wider,
+ * because this is a grid of cards rather than a 550px measure.
+ */
+
+.wd-index-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  container-type: inline-size;
+}
+
+.wd-index-column {
+  width: 100%;
+  max-width: 1184px;
+  margin-inline: auto;
+  /* Clears the header nav: its top inset, its bar and the shared gap. */
+  padding: calc(
+      var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
+    )
+    16px calc(64px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  .wd-index-column {
+    padding-inline: 32px;
+  }
+}
+
+/*
+ * The index arrives with the panel, on the drawer's reveal beat: held invisible
+ * while the panel is still travelling, then one opacity pass. No cascade here —
+ * the index is a list, not an article, and nothing should arrive block by block
+ * while the panel lands.
+ */
+.wd-expand-layer[data-reveal="pending"] .wd-index-scroll {
+  opacity: 0;
+  transition: none;
+}
+
+.wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
+  .wd-index-scroll {
+  opacity: 1;
+  transition: opacity 300ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
+    .wd-index-scroll {
+    transition: opacity var(--wd-fade-reduced);
+  }
+}
+
+/* ---------- Heading, and the two prototype switches ---------- */
+
+.wd-index-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+  padding-bottom: 24px;
+}
+
+.wd-index-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.wd-index-title {
+  margin: 0;
+  font-size: var(--text-title-sm);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  outline: none;
+}
+
+@media (min-width: 768px) {
+  .wd-index-title {
+    font-size: var(--text-title);
+  }
+}
+
+.wd-index-count {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--on-surface-variant);
+}
+
+.wd-proto-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.wd-proto-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wd-proto-label {
+  font-size: var(--text-xs);
+  color: var(--on-surface-variant);
+}
+
+.wd-proto-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  background: var(--toggle-track);
+}
+
+.wd-proto-option {
+  border: 0;
+  border-radius: calc(var(--radius-md) - 2px);
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--on-surface-variant);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  cursor: pointer;
+  appearance: none;
+  transition:
+    background-color var(--duration-short-3) var(--ease-decelerate),
+    color var(--duration-short-3) var(--ease-decelerate);
+}
+
+.wd-proto-option[aria-pressed="true"] {
+  background: var(--toggle-selected);
+  color: var(--on-surface);
+}
+
+.wd-proto-option:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* ---------- Card grid ---------- */
+
+.wd-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 640px) {
+  .wd-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .wd-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.wd-grid-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  color: inherit;
+  text-decoration: none;
+}
+
+.wd-grid-cover {
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--surface-container-high);
+}
+
+.wd-grid-cover > * {
+  height: 100%;
+}
+
+.wd-grid-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px 18px;
+}
+
+.wd-grid-title {
+  font-size: var(--text-lg);
+  line-height: 1.25;
+  font-weight: 500;
+  text-wrap: balance;
+}
+
+.wd-grid-sub {
+  font-size: var(--text-sm);
+  color: var(--on-surface-variant);
+}
+
+/* The cover grows inside its own box on hover: nothing outside the Figma card
+   changes size, and only a transform moves. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .wd-grid-cover [data-scene] {
+    transition: transform var(--duration-long-2) var(--ease-spring-follow);
+  }
+
+  .wd-grid-card:hover .wd-grid-cover [data-scene] {
+    transform: scale(1.02);
+  }
+}
+
+/* ---------- Index list ---------- */
+
+.wd-index-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wd-index-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: baseline;
+  padding: 18px 16px;
+  border-radius: var(--radius-lg);
+  color: inherit;
+  text-decoration: none;
+}
+
+.wd-index-year {
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--on-surface-variant);
+}
+
+.wd-index-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wd-index-title-row {
+  font-size: var(--text-xl);
+  line-height: 1.2;
+  font-weight: 500;
+  text-wrap: balance;
+}
+
+.wd-index-summary {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+  text-wrap: pretty;
+}
+
+.wd-index-role {
+  display: none;
+  font-size: var(--text-sm);
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .wd-index-row {
+    grid-template-columns: 5rem minmax(0, 1fr) 10rem;
+    align-items: center;
+  }
+
+  .wd-index-role {
+    display: block;
+    text-align: end;
+  }
+}
+
+/* The preview lives in the row's reserved right gutter: it is positioned, not
+   laid out, so showing it never moves the row. */
+.wd-index-preview {
+  display: none;
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: 180px;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-md);
+  background: var(--surface-container);
+  box-shadow: var(--shadow-card);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-50%) scale(0.98);
+}
+
+.wd-index-preview > * {
+  height: 100%;
+}
+
+@media (min-width: 1024px) {
+  .wd-index-preview {
+    display: block;
+  }
+
+  .wd-index-row {
+    padding-right: 212px;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .wd-index-row {
+    transition: background-color var(--duration-short-6) var(--ease-decelerate);
+  }
+
+  .wd-index-row:hover,
+  .wd-index-row:focus-visible {
+    background: var(--surface-container);
+  }
+
+  .wd-index-preview {
+    transition:
+      opacity var(--duration-short-6) var(--ease-decelerate),
+      transform var(--duration-short-6) var(--ease-decelerate);
+  }
+
+  .wd-index-row:hover .wd-index-preview,
+  .wd-index-row:focus-visible .wd-index-preview {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-index-preview,
+  .wd-index-row:hover .wd-index-preview,
+  .wd-index-row:focus-visible .wd-index-preview {
+    transform: translateY(-50%);
+  }
+}
+
+/* ---------- Forced colours ---------- */
+
+@media (forced-colors: active) {
+  .wd-grid-card,
+  .wd-index-preview {
+    border: 1px solid CanvasText;
+  }
+}

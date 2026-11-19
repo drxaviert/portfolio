@@ -29,10 +29,6 @@ import {
   MORPH_EASE,
   MORPH_OPEN_S,
 } from "@/components/work/morph";
-import {
-  isWorkSheetMounted,
-  requestWorkSheetOpen,
-} from "@/lib/work-sheet-state";
 import { NavMotionBlur, beginNavBlur, endNavBlur } from "./nav-motion-blur";
 import "./nav-dock.css";
 
@@ -75,7 +71,9 @@ export function NavDock() {
   const ref = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const pathname = usePathname();
-  const readerRoute = pathname.startsWith("/work/");
+  // `/work` and every study in it are one drawer: the nav sits in its row for
+  // all of them, and crosses that boundary once, not per URL.
+  const readerRoute = pathname === "/work" || pathname.startsWith("/work/");
   // Read once: later pathname changes must not snap the nav while a flight or
   // the reader owns it. The live state is the DOM attribute, which the flights
   // write directly.
@@ -263,27 +261,17 @@ export function NavDock() {
 
     const target = event.target as Element;
 
-    // In the reader both nav routes home are a close: the logo returns to the
-    // homepage, and Work returns to the sheet when the reader was opened over
-    // it (or to the homepage when it was opened from a carousel card).
+    // In the drawer the logo is the way home: it closes the whole drawer, with
+    // the reverse morph, instead of navigating behind it. "Work" is the drawer's
+    // own section: from a study it goes to the index (a normal link, which the
+    // shell cross-fades), and on the index it is the page already on screen.
     if (stateRef.current === "reader") {
+      if (!target.closest('a[href="/"]')) return;
       if (!hasReaderClose()) return;
-      if (!target.closest('a[href="/"], a[href="/work"]')) return;
 
       event.preventDefault();
       event.stopPropagation();
       requestReaderClose();
-
-      return;
-    }
-
-    // On the sheet, Work is the page already on screen: no navigation, no
-    // second rise. A sheet that is mid-close is called back instead.
-    if (pathname === "/work" && target.closest('a[href="/work"]')) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (isWorkSheetMounted()) requestWorkSheetOpen();
     }
   }
 
