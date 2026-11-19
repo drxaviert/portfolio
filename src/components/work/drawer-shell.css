@@ -161,6 +161,24 @@
   pointer-events: none;
 }
 
+/*
+ * A snapshot is a picture of the view it copied, not a re-render: its content
+ * must sit at the state it was in, not replay the reader's entrance. Both the
+ * copy and the Back ghost still live under a `data-reveal="on"` layer, so the
+ * entrance selectors in entrance.css match their blocks again and restart them
+ * at translateY(10px) + blur(10px) + opacity 0 - the copy's whole life for the
+ * 160ms swap, and the ghost's for its 350ms flight.
+ *
+ * Scoped to the content, never the snapshot itself: the copy's fade is a Web
+ * Animation on the view, and the ghost's backdrop fade and panel flight belong
+ * to the drawer's own close, so both still run.
+ */
+[data-leave] *,
+[data-exit-ghost] .wd-drawer-view * {
+  animation: none !important;
+  transition: none !important;
+}
+
 @keyframes wd-view-in {
   from {
     opacity: 0;

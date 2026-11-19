@@ -10,6 +10,8 @@ import {
   within,
 } from "@testing-library/react";
 import { MotionGlobalConfig } from "motion/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { DrawerShell } from "./drawer-shell";
@@ -381,6 +383,36 @@ describe("DrawerShell", () => {
     );
 
     Element.prototype.animate = nativeAnimate;
+  });
+
+  it("shows a snapshot's content at rest instead of replaying the entrance", () => {
+    // The copy and the ghost still sit under a `data-reveal="on"` layer, so the
+    // reader entrance matches their blocks again and restarts them blurred and
+    // 10px low. jsdom does not apply the imported stylesheet's cascade, so the
+    // rule is checked at the source, the same way home-nav.test.tsx checks its
+    // touch targets.
+    const css = readFileSync(
+      join(process.cwd(), "src", "components", "work", "drawer-shell.css"),
+      "utf8",
+    );
+
+    const rule = css.match(
+      /\[data-leave\] \*,\s*\[data-exit-ghost\] \.wd-drawer-view \*\s*\{([^}]*)\}/,
+    );
+
+    expect(rule).not.toBeNull();
+    expect(rule![1]).toMatch(/animation: none !important;/);
+    expect(rule![1]).toMatch(/transition: none !important;/);
+
+    // Only the content is neutralised. The copy's fade is a Web Animation on
+    // the view, and the ghost's backdrop fade and panel flight are the drawer's
+    // own close, so the containers keep their own rules.
+    expect(css).toMatch(
+      /\.wd-drawer-view\[data-leave\] \{[^}]*pointer-events: none;/,
+    );
+    expect(css).toMatch(
+      /\.wd-expand-layer\[data-phase="closing"\] \.wd-expand-backdrop \{[^}]*wd-backdrop-out/,
+    );
   });
 
   it("keeps the scroll position on the copy it fades out", async () => {
