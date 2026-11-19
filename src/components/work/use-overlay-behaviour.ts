@@ -79,6 +79,8 @@ function holdDecoration(): () => void {
 export function useOverlayBehaviour(
   panelRef: RefObject<HTMLElement | null>,
   options: {
+    /** Hold the page's scroll while the overlay is on screen. */
+    lockScroll: boolean;
     /** Take the homepage out of the tab order (the overlay owns the page). */
     lockHome: boolean;
     /** Hold the ambient background still. */
@@ -89,7 +91,13 @@ export function useOverlayBehaviour(
     returnFocus?: () => void;
   },
 ) {
-  const { lockHome, covered: holdFrames, trap = true, returnFocus } = options;
+  const {
+    lockScroll,
+    lockHome,
+    covered: holdFrames,
+    trap = true,
+    returnFocus,
+  } = options;
   const inertRef = useRef<HTMLElement | null>(null);
   const returnFocusRef = useRef(returnFocus);
 
@@ -99,13 +107,25 @@ export function useOverlayBehaviour(
     returnFocusRef.current = returnFocus;
   });
 
-  useEffect(() => lockPageScroll(), []);
+  // The lock follows the phase: the shell holds the page while it is on
+  // screen, and releases it the moment it is closed (including when a cached
+  // tree is hidden with the shell still believing it was open).
+  useEffect(() => {
+    if (!lockScroll) return;
+
+    return lockPageScroll();
+  }, [lockScroll]);
 
   // The homepage leaves the tab order and the accessibility tree once the
-  // overlay owns it. Latched: once set it stays until unmount, so a close that
-  // interrupts an opening animation keeps the background inert to the end.
+  // overlay owns it, and gets both back when the shell closes.
   useEffect(() => {
-    if (!lockHome || inertRef.current) return;
+    if (!lockHome) {
+      inertRef.current?.removeAttribute("inert");
+      inertRef.current = null;
+      return;
+    }
+
+    if (inertRef.current) return;
 
     const background = document.querySelector<HTMLElement>("body > main");
     background?.setAttribute("inert", "");

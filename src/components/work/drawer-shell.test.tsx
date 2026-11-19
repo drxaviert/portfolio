@@ -883,9 +883,11 @@ describe("DrawerShell", () => {
   }
 
   /** The route leaves `/work*`; the segment goes away with its state. */
-  function cacheDrawerAway(entry: CachedEntry) {
+  async function cacheDrawerAway(entry: CachedEntry) {
     window.history.replaceState({}, "", "/");
     act(() => entry.control.current?.setHidden(true));
+    // The hide settles its rendered phase just after the commit.
+    await act(async () => {});
   }
 
   /** The next entry renders the segment again, then shows it. */
@@ -965,7 +967,7 @@ describe("DrawerShell", () => {
     expect(layerElement()).toHaveAttribute("data-phase", "closing");
     expect(panelElement().style.opacity).toBe("0");
 
-    cacheDrawerAway(entry);
+    await cacheDrawerAway(entry);
     // The homepage is interactive again while the drawer is away.
     expect(document.body.style.overflow).toBe("");
 
@@ -982,7 +984,7 @@ describe("DrawerShell", () => {
     await waitFor(() => expect(mocks.back).toHaveBeenCalled());
     expect(layerElement()).toHaveAttribute("data-phase", "closing");
 
-    cacheDrawerAway(entry);
+    await cacheDrawerAway(entry);
     holdOpenMorph();
     showDrawerAgain(entry);
 
@@ -998,7 +1000,7 @@ describe("DrawerShell", () => {
     await waitFor(() => expect(mocks.back).toHaveBeenCalled());
     expect(layerElement()).toHaveAttribute("data-phase", "closing");
 
-    cacheDrawerAway(entry);
+    await cacheDrawerAway(entry);
     holdOpenMorph();
     showDrawerAgain(entry);
 
@@ -1012,7 +1014,7 @@ describe("DrawerShell", () => {
     // Index entry, closed from the nav's capsule.
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(mocks.back).toHaveBeenCalled());
-    cacheDrawerAway(entry);
+    await cacheDrawerAway(entry);
 
     holdOpenMorph();
     // The new entry is a study, pushed by the card: the reopened drawer has to
@@ -1112,10 +1114,10 @@ describe("DrawerShell", () => {
     const entry = await renderCached();
     const panel = panelElement();
 
-    // Back out: the ghost draws the exit, the live shell is only hidden, so it
-    // still believes it is open when it comes back.
-    cacheDrawerAway(entry);
-    expect(layerElement()).toHaveAttribute("data-phase", "open");
+    // Back out: the ghost draws the exit and the router hides the live shell.
+    // Hiding is a transition of its own: the shell is closed while it is away.
+    await cacheDrawerAway(entry);
+    expect(layerElement()).toHaveAttribute("data-phase", "closed");
     expect(document.body.style.overflow).toBe("");
 
     holdOpenMorph();
@@ -1136,4 +1138,269 @@ describe("DrawerShell", () => {
       5,
     );
   });
+
+  /**
+   * A small seeded generator: the same storms every run, so a failure names the
+   * sequence that broke.
+   */
+  function seeded(seed: number) {
+    let state = seed;
+
+    return () => {
+      state = (state + 0x6d2b79f5) | 0;
+      let t = state;
+
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  it("settles consistently through 200 random open/close storms", async () => {
+    // The Navigation API is how the shell hears a same-URL push (Work clicked
+    // while already on /work): it never changes the pathname, so jsdom needs a
+    // stand-in for the route's own signal.
+    type NavListener = (event: {
+      navigationType: string;
+      canIntercept: boolean;
+      destination: { url: string };
+      intercept: (options: { handler: () => Promise<void> }) => void;
+    }) => void;
+
+    const navListeners = new Set<NavListener>();
+
+    Object.defineProperty(window, "navigation", {
+      configurable: true,
+      value: {
+        addEventListener: (type: string, listener: NavListener) => {
+          if (type === "navigate") navListeners.add(listener);
+        },
+        removeEventListener: (type: string, listener: NavListener) => {
+          if (type === "navigate") navListeners.delete(listener);
+        },
+      },
+    });
+
+    const fireNavigation = (pathname: string, navigationType = "push") => {
+      for (const listener of [...navListeners]) {
+        listener({
+          navigationType,
+          canIntercept: true,
+          destination: { url: `${location.origin}${pathname}` },
+          intercept: () => undefined,
+        });
+      }
+    };
+
+    const routes: Record<string, ReactNode> = {
+      "/work": <Index />,
+      [STUDY]: <Study />,
+    };
+
+    const entry = await renderCached("/work");
+    const { view, control } = entry;
+
+    // The storm is about ordering, not wall-clock time: run its flights and
+    // deferred route changes on fake timers so 200 sequences stay quick.
+    vi.useFakeTimers();
+
+    // A flight that lands on the next tick, not in the same one: a click can
+    // arrive while a close is still flying, and the browser would not have
+    // navigated yet. Resolve on demand too, because stopping a flight finishes
+    // it (as motion does).
+    mocks.animate.mockImplementation(() => {
+      let land!: () => void;
+      const finished = new Promise<void>((resolve) => {
+        land = resolve;
+      });
+      const timer = window.setTimeout(() => land(), 0);
+
+      return {
+        finished,
+        complete: () => {
+          window.clearTimeout(timer);
+          land();
+        },
+        stop: () => {
+          window.clearTimeout(timer);
+          land();
+        },
+      };
+    });
+
+    let leaveTimer: number | null = null;
+    const cancelLeave = () => {
+      if (!leaveTimer) return;
+      window.clearTimeout(leaveTimer);
+      leaveTimer = null;
+    };
+    const leave = () => {
+      if (window.location.pathname.startsWith("/work")) {
+        window.history.replaceState({}, "", "/");
+      }
+      mocks.pathname = "/";
+      act(() => control.current?.setHidden(true));
+    };
+    // The mocked router navigates a beat later, as the real one does; a push
+    // into the drawer before it lands supersedes it (the storm's race).
+    const scheduleLeave = () => {
+      cancelLeave();
+      leaveTimer = window.setTimeout(() => {
+        leaveTimer = null;
+        leave();
+      }, 0);
+    };
+
+    mocks.back.mockImplementation(scheduleLeave);
+    mocks.replace.mockImplementation(scheduleLeave);
+    mocks.go.mockImplementation(scheduleLeave);
+
+    const hidden = () => {
+      const layer = document.querySelector<HTMLElement>(
+        ".wd-expand-layer:not([data-exit-ghost])",
+      );
+
+      return !layer || getComputedStyle(layer).display === "none";
+    };
+
+    const showTo = (path: string, node: ReactNode) => {
+      // Showing an already-visible drawer is not an event in the app, and it
+      // must not cancel a close's pending route: only a navigation does that.
+      if (!hidden()) return;
+
+      cancelLeave();
+      mocks.pathname = path;
+      window.history.replaceState({}, "", path);
+      view.rerender(<CachedDrawer control={control}>{node}</CachedDrawer>);
+      act(() => control.current?.setHidden(false));
+    };
+
+    const pushTo = (path: string, node: ReactNode) => {
+      cancelLeave();
+
+      if (hidden()) {
+        showTo(path, node);
+        return;
+      }
+
+      const same = path === window.location.pathname;
+      mocks.pathname = path;
+      if (!same) window.history.replaceState({}, "", path);
+      view.rerender(<CachedDrawer control={control}>{node}</CachedDrawer>);
+      fireNavigation(path);
+    };
+
+    const settle = async () => {
+      // Flights land on a timer, their completions and the deferred phase
+      // updates follow in microtasks: give the whole chain a few ticks.
+      for (let tick = 0; tick < 3; tick += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5);
+        });
+      }
+    };
+
+    const assertConsistent = (run: number) => {
+      const layer = document.querySelector<HTMLElement>(
+        ".wd-expand-layer:not([data-exit-ghost])",
+      );
+      const panel = document.querySelector<HTMLElement>(".wd-reader-panel");
+      const overflow = document.body.style.overflow;
+      const inert =
+        document.querySelector("body > main")?.hasAttribute("inert") ?? false;
+      const copies = document.querySelectorAll(
+        ".wd-drawer-view[data-leave]",
+      ).length;
+      const ghosts = document.querySelectorAll("[data-exit-ghost]").length;
+
+      // Nothing a transition started may outlive it.
+      expect({ run, copies, ghosts }).toEqual({ run, copies: 0, ghosts: 0 });
+
+      if (!layer || getComputedStyle(layer).display === "none") {
+        // Gone from the screen: the page is the visitor's again.
+        expect({ run, overflow, inert }).toEqual({
+          run,
+          overflow: "",
+          inert: false,
+        });
+        return;
+      }
+
+      // Still on screen: a fully open drawer, never a phase left behind.
+      expect({ run, phase: layer.dataset.phase }).toEqual({
+        run,
+        phase: "open",
+      });
+      expect({ run, overflow, inert }).toEqual({
+        run,
+        overflow: "hidden",
+        inert: true,
+      });
+      expect({ run, transform: panel?.style.transform ?? "" }).toEqual({
+        run,
+        transform: "",
+      });
+      expect(getComputedStyle(panel!).opacity).toBe("1");
+    };
+
+    const random = seeded(20261119);
+    const gaps = [0, 0, 1, 2, 4, 8];
+    const usable = ["esc", "backdrop", "work", "route", "back", "leave", "show"];
+
+    for (let run = 0; run < 200; run += 1) {
+      showTo("/work", routes["/work"]);
+      await settle();
+
+      const steps = 2 + Math.floor(random() * 5);
+
+      for (let step = 0; step < steps; step += 1) {
+        const action = usable[Math.floor(random() * usable.length)];
+        const gap = gaps[Math.floor(random() * gaps.length)];
+
+        // Every step, its timer and its route signal run inside one act, so a
+        // mocked router callback or a deferred re-entry lands inside it too.
+        await act(async () => {
+          if (gap > 0) {
+            await vi.advanceTimersByTimeAsync(gap);
+          }
+
+          if (action === "esc" || action === "backdrop") {
+            // A hidden tree has no listener and nothing to click: its effects
+            // are unmounted, so gestures only exist on a visible drawer.
+            if (hidden()) return;
+
+            if (action === "esc") {
+              fireEvent.keyDown(window, { key: "Escape" });
+            } else {
+              fireEvent.click(document.querySelector(".wd-expand-backdrop")!);
+            }
+          } else if (action === "work") {
+            // A Work click: the same URL, so only the navigation event says so.
+            pushTo("/work", routes["/work"]);
+          } else if (action === "route") {
+            const path = random() < 0.5 ? "/work" : STUDY;
+            pushTo(path, routes[path]);
+          } else if (action === "back") {
+            // The browser leaves /work*: the ghost flight, then the route goes.
+            fireNavigation("/", "traverse");
+            scheduleLeave();
+          } else if (action === "leave") {
+            scheduleLeave();
+          } else {
+            showTo("/work", routes["/work"]);
+          }
+        });
+
+        if (gap === 0) {
+          await act(async () => {});
+        }
+      }
+
+      await settle();
+      assertConsistent(run);
+    }
+
+    delete (window as { navigation?: unknown }).navigation;
+  }, 40_000);
 });

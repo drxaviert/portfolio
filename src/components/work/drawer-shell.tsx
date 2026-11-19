@@ -182,11 +182,14 @@ export function DrawerShell({
   useEffect(() => registerReaderClose(close), [close]);
 
   useOverlayBehaviour(panelRef, {
-    // The homepage goes inert once the morph has landed, not as it starts:
-    // inertness is inherited, so flagging `main` restyles every homepage
-    // element (~50ms at 4x CPU), and that belongs after the morph's first
-    // frames. The focus trap and the backdrop hold keys and clicks meanwhile.
-    lockHome: phase === "open" || reduce,
+    // The shell owns the page while it is on screen: the lock and the inert
+    // background are the phase, not separate latches. The homepage goes inert
+    // once the morph has landed, not as it starts: inertness is inherited, so
+    // flagging `main` restyles every homepage element (~50ms at 4x CPU), and
+    // that belongs after the morph's first frames. The focus trap and the
+    // backdrop hold keys and clicks meanwhile.
+    lockScroll: phase !== "closed",
+    lockHome: phase === "open" || phase === "closing" || reduce,
     covered: phase === "open",
     // Focus goes back to what the drawer grew out of: the card it opened from,
     // or the nav's Work item when it opened on the index. The page the drawer
