@@ -43,3 +43,9 @@ next-env.d.ts
 
 # superpowers
 .superpowers/
+
+# media pipeline: drop originals in media/inbox/, they are archived locally after ingest.
+# The JSON manifests in content/media/ are committed.
+media/inbox/*
+!media/inbox/.gitkeep
+media/archive/
