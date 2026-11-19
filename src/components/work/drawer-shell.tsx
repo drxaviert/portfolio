@@ -115,6 +115,12 @@ export function DrawerShell({
     return () => {
       element.removeEventListener("scroll", remember, { capture: true });
 
+      // Only a swap inside the drawer gets a copy. Leaving `/work*` (the drawer
+      // closing) or the shell being hidden after it closed is not a swap: a
+      // copy left behind then would fade over the next open, from a view the
+      // visitor has already left.
+      if (!window.location.pathname.startsWith("/work")) return;
+
       // Same route means the drawer itself is going; there is no second view to
       // fade against.
       if (window.location.pathname === view.key) return;

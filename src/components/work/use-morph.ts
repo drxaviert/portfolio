@@ -279,6 +279,12 @@ export function useDrawerMorph(
   const slugRef = useRef(slug);
   /** What the route before this entry in the drawer was. */
   const previousKindRef = useRef<"index" | "study" | null>(null);
+  /**
+   * The `/work*` tree is hidden, not unmounted, when the route leaves it, and
+   * shown again on the next entry with its state intact. This flags that the
+   * tree has been away, so the shell can re-arm instead of coming back shut.
+   */
+  const leftRef = useRef(false);
 
   useEffect(() => {
     slugRef.current = slug;
@@ -317,10 +323,56 @@ export function useDrawerMorph(
     announceOverlayOpened();
   }, [panelRef, clearRevealTimer]);
 
+  /**
+   * The cleanup every run of the open effect must leave behind: the router
+   * hides this tree (instead of unmounting it) when the route leaves `/work*`,
+   * and that is where the shell learns it has been away. Registered on every
+   * return path, because a resting direct load still leaves and comes back.
+   */
+  const watchForHide = useCallback(
+    () => () => {
+      if (!window.location.pathname.startsWith("/work")) leftRef.current = true;
+    },
+    [],
+  );
+
   // Measure once, before the first paint, then animate from the origin to the
   // panel's own layout box. Nothing here reads geometry after the morph.
   useLayoutEffect(() => {
-    if (startedRef.current) return;
+    // A hidden `/work` tree is shown again on the next entry with this same
+    // component instance, state and refs intact: the shell closed on the way
+    // out, so without this it would come back posed at its origin, invisible,
+    // with the homepage still scroll-locked. Re-arm it and run the open again,
+    // from whatever was clicked this time.
+    const reentered = leftRef.current;
+    leftRef.current = false;
+
+    if (reentered) {
+      const panel = panelRef.current;
+
+      // The close left the panel transparent and posed on its origin; its
+      // inline styles would keep it there.
+      panel?.style.removeProperty("opacity");
+      panel?.style.removeProperty("transform");
+
+      closedRef.current = false;
+      closingRef.current = null;
+      openingRef.current = null;
+      startedRef.current = false;
+      clearRevealTimer();
+
+      // The new entry starts with none of the last one's history: no push was
+      // made inside it yet, and the last route is not behind it.
+      poppedRef.current = false;
+      previousKindRef.current = null;
+      routeRef.current = route;
+      slugRef.current = slug;
+
+      setReveal("pending");
+      setPhase("opening");
+    }
+
+    if (startedRef.current) return watchForHide();
     startedRef.current = true;
 
     // The entry knows whether the app pushed it. A pushed entry is closed by
@@ -346,8 +398,10 @@ export function useDrawerMorph(
     }
 
     // A direct load is not an in-app overlay: there is no entry behind it, so
-    // close replaces this entry instead of going back through history.
-    if (resting) {
+    // close replaces this entry instead of going back through history. A
+    // re-entry is a client navigation even when the tree first arrived on a
+    // document load, so it takes the opening path below.
+    if (resting && !reentered) {
       // The homepage is mounted underneath and must be resting: mark the
       // document before this commit paints, so its entrance never runs.
       document.documentElement.dataset.entrancePlayed = "true";
@@ -355,11 +409,11 @@ export function useDrawerMorph(
       // measured from the panel's top-left corner, so a panel carrying the CSS
       // default origin would shrink from its centre and land in the wrong place.
       panelRef.current?.style.setProperty("transform-origin", "left top");
-      return;
+      return watchForHide();
     }
 
     const panel = panelRef.current;
-    if (!panel) return;
+    if (!panel) return watchForHide();
 
     const origin = originRef.current;
 
@@ -373,7 +427,7 @@ export function useDrawerMorph(
       openingRef.current = fade;
       void moveNav("reader", "fade");
       void fade.finished.then(settle);
-      return;
+      return watchForHide();
     }
 
     // Nothing on screen to grow out of (no card, no nav): the panel is already
@@ -381,7 +435,7 @@ export function useDrawerMorph(
     // new. A fade here would show the homepage through the drawer.
     if (!origin || !laidOut(origin)) {
       settle();
-      return;
+      return watchForHide();
     }
 
     const openSeconds = OPEN_TIMING.duration;
@@ -411,7 +465,9 @@ export function useDrawerMorph(
     // The nav is the same element on both sides: it flies from the homepage row
     // into the drawer's row with the morph, on the drawer's own timing.
     void moveNav("reader", "flip", OPEN_TIMING);
-  }, [onIndex, panelRef, reduce, resting, settle, slug]);
+
+    return watchForHide();
+  }, [onIndex, panelRef, reduce, resting, settle, slug, route, clearRevealTimer, watchForHide]);
 
   // A resize mid-morph jumps to the end; after that the panel is pure CSS, so
   // the new viewport just reflows it and close measures the origin again.

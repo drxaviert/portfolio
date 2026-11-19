@@ -13,12 +13,14 @@ import { MotionGlobalConfig } from "motion/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactNode } from "react";
+import { Activity, createRef, useImperativeHandle, useState } from "react";
+import type { ReactNode, RefObject } from "react";
 import { DrawerShell } from "./drawer-shell";
 import { setCloseBehaviour } from "./proto-layout-toggle";
 import { CAROUSEL_EASE, CAROUSEL_OPEN_S } from "./carousel-step";
 import { flipFrom } from "./morph";
 import type { Box } from "./morph";
+import { requestReaderClose } from "@/components/nav/nav-flight";
 
 const mocks = vi.hoisted(() => ({
   animate: vi.fn(),
@@ -824,5 +826,197 @@ describe("DrawerShell", () => {
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/work"));
     expect(mocks.back).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The router hides a route segment instead of unmounting it: React Activity
+   * keeps the DOM and every bit of state, tears the effects down while the
+   * segment is away, and runs them again when it is shown. That reuse is what
+   * made a closed drawer come back shut, so the cache is part of the test.
+   */
+  type CacheControl = { setHidden: (hidden: boolean) => void };
+
+  function CachedDrawer({
+    children,
+    control,
+  }: {
+    children: ReactNode;
+    control: RefObject<CacheControl | null>;
+  }) {
+    const [hidden, setHidden] = useState(false);
+
+    useImperativeHandle(control, () => ({ setHidden }), []);
+
+    return (
+      <Activity mode={hidden ? "hidden" : "visible"}>
+        <DrawerShell>{children}</DrawerShell>
+      </Activity>
+    );
+  }
+
+  type CachedEntry = {
+    view: ReturnType<typeof render>;
+    control: RefObject<CacheControl | null>;
+  };
+
+  async function renderCached(
+    pathname = "/work",
+    children: ReactNode = <Index />,
+  ): Promise<CachedEntry> {
+    mocks.pathname = pathname;
+    window.history.replaceState({ workOverlay: true }, "", pathname);
+
+    const control = createRef<CacheControl>();
+    const view = render(
+      <CachedDrawer control={control}>{children}</CachedDrawer>,
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "open"),
+    );
+
+    return { view, control };
+  }
+
+  /** The route leaves `/work*`; the segment goes away with its state. */
+  function cacheDrawerAway(entry: CachedEntry) {
+    window.history.replaceState({}, "", "/");
+    act(() => entry.control.current?.setHidden(true));
+  }
+
+  /** The next entry renders the segment again, then shows it. */
+  function showDrawerAgain(
+    entry: CachedEntry,
+    pathname = "/work",
+    children: ReactNode = <Index />,
+  ) {
+    mocks.pathname = pathname;
+    window.history.replaceState({}, "", pathname);
+    entry.view.rerender(
+      <CachedDrawer control={entry.control}>{children}</CachedDrawer>,
+    );
+    act(() => entry.control.current?.setHidden(false));
+  }
+
+  /** The panel's inline pose for a flight out of `origin`. CSSOM rounds it. */
+  function poseFrom(origin: Box) {
+    return flipFrom(origin, PANEL);
+  }
+
+  function readPose(panel: HTMLElement) {
+    const match = panel.style.transform.match(
+      /translate\((-?[\d.]+)px, (-?[\d.]+)px\) scale\((-?[\d.]+), (-?[\d.]+)\)/,
+    );
+
+    expect(match).not.toBeNull();
+
+    const [, x, y, scaleX, scaleY] = match!;
+
+    return {
+      x: Number(x),
+      y: Number(y),
+      scaleX: Number(scaleX),
+      scaleY: Number(scaleY),
+    };
+  }
+
+  /** Hold the reopen's flight so the pose it starts from can be read. */
+  function holdOpenMorph() {
+    mocks.animate.mockReturnValue({
+      finished: new Promise(() => {}),
+      complete: vi.fn(),
+      stop: vi.fn(),
+    });
+  }
+
+  /**
+   * A drawer that closed must not come back posed on its origin and invisible.
+   * The reopen runs the ordinary open from this entry's own origin, and the
+   * page lock comes back with it.
+   */
+  async function expectReopenedFrom(origin: Box) {
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "opening"),
+    );
+
+    const panel = panelElement();
+    const pose = poseFrom(origin);
+    const observed = readPose(panel);
+
+    expect(panel.style.opacity).toBe("");
+    expect(observed.x).toBeCloseTo(pose.x, 3);
+    expect(observed.y).toBeCloseTo(pose.y, 3);
+    expect(observed.scaleX).toBeCloseTo(pose.scaleX, 5);
+    expect(observed.scaleY).toBeCloseTo(pose.scaleY, 5);
+    expect(document.body.style.overflow).toBe("hidden");
+  }
+
+  it("reopens from the nav after an Esc close, instead of coming back shut", async () => {
+    const entry = await renderCached();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(mocks.back).toHaveBeenCalled());
+
+    // The shell is shut: posed on the capsule, transparent.
+    expect(layerElement()).toHaveAttribute("data-phase", "closing");
+    expect(panelElement().style.opacity).toBe("0");
+
+    cacheDrawerAway(entry);
+    // The homepage is interactive again while the drawer is away.
+    expect(document.body.style.overflow).toBe("");
+
+    holdOpenMorph();
+    showDrawerAgain(entry);
+
+    await expectReopenedFrom(CAPSULE);
+  });
+
+  it("reopens after a backdrop close", async () => {
+    const entry = await renderCached();
+
+    fireEvent.click(document.querySelector(".wd-expand-backdrop")!);
+    await waitFor(() => expect(mocks.back).toHaveBeenCalled());
+    expect(layerElement()).toHaveAttribute("data-phase", "closing");
+
+    cacheDrawerAway(entry);
+    holdOpenMorph();
+    showDrawerAgain(entry);
+
+    await expectReopenedFrom(CAPSULE);
+  });
+
+  it("reopens after the logo's close gesture", async () => {
+    const entry = await renderCached();
+
+    // The dock treats the logo as the reader's close: nav-dock.tsx hands
+    // `a[href="/"]` to the registered reader close.
+    act(() => requestReaderClose());
+    await waitFor(() => expect(mocks.back).toHaveBeenCalled());
+    expect(layerElement()).toHaveAttribute("data-phase", "closing");
+
+    cacheDrawerAway(entry);
+    holdOpenMorph();
+    showDrawerAgain(entry);
+
+    await expectReopenedFrom(CAPSULE);
+  });
+
+  it("flies in from the card clicked on the new entry, not the last origin", async () => {
+    placeCard();
+    const entry = await renderCached();
+
+    // Index entry, closed from the nav's capsule.
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(mocks.back).toHaveBeenCalled());
+    cacheDrawerAway(entry);
+
+    holdOpenMorph();
+    // The new entry is a study, pushed by the card: the reopened drawer has to
+    // grow out of the card, not out of the capsule the last entry used.
+    showDrawerAgain(entry, STUDY, <Study />);
+
+    await expectReopenedFrom(CARD);
+    // A new entry starts on its route's content, not on a copy of the old one.
+    expect(document.querySelectorAll(".wd-drawer-view")).toHaveLength(1);
   });
 });
