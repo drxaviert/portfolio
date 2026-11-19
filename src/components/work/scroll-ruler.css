@@ -90,6 +90,23 @@
   border-radius: 3px;
 }
 
+/*
+ * The pointer target, not the tick: 44px wide out into the gutter, and as tall
+ * as the section pitch allows. The ticks sit a 26px step apart at their
+ * closest, so a 44px-tall target would overlap its neighbour and send a click
+ * to the wrong section; 24px is the most that stays inside its own row and the
+ * WCAG 2.2 minimum. The visible tick is untouched.
+ */
+.wd-ruler-tick-section::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 44px;
+  height: max(100%, 24px);
+  translate: 0 -50%;
+}
+
 .wd-ruler-tick-section::after {
   content: "";
   position: absolute;

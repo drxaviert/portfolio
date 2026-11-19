@@ -34,13 +34,17 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+async function renderPage(layout?: string) {
+  const tree = await WorkIndexPage({
+    searchParams: Promise.resolve(layout === undefined ? {} : { layout }),
+  });
+
+  return render(<ThemeProvider>{tree}</ThemeProvider>);
+}
+
 describe("work index page", () => {
-  it("renders the index, in the order the homepage leads with", () => {
-    const { container } = render(
-      <ThemeProvider>
-        <WorkIndexPage />
-      </ThemeProvider>,
-    );
+  it("renders the index, in the order the homepage leads with", async () => {
+    const { container } = await renderPage();
 
     const links = [
       ...container.querySelectorAll<HTMLAnchorElement>("a[href^='/work/']"),
@@ -51,6 +55,19 @@ describe("work index page", () => {
     // The drawer's panel is the layout's, so the page is only the content.
     expect(container.querySelector(".wd-expand-layer")).toBeNull();
     expect(container.querySelector("[data-work-card]")).toBeNull();
+  });
+
+  it("renders the layout the URL asked for, before hydration", async () => {
+    // `?layout=list` has to be in the server's markup, or the grid paints first
+    // and flips. The page hands the value straight to the index.
+    const list = await renderPage("list");
+    expect(list.container.querySelector(".wd-index-list")).toBeInTheDocument();
+    expect(list.container.querySelector(".wd-grid")).toBeNull();
+    list.unmount();
+
+    const grid = await renderPage("grid");
+    expect(grid.container.querySelector(".wd-grid")).toBeInTheDocument();
+    expect(grid.container.querySelector(".wd-index-list")).toBeNull();
   });
 
   it("names the route Work", async () => {

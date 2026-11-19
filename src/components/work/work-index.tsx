@@ -3,7 +3,12 @@
 import { useLayoutEffect, useRef } from "react";
 import type { WorkMeta } from "@/lib/work";
 import { BlurStack } from "./blur-stack";
-import { ProtoToggles, useProtoLayout } from "./proto-layout-toggle";
+import {
+  ProtoToggles,
+  seedProtoLayout,
+  useProtoLayout,
+} from "./proto-layout-toggle";
+import type { ProtoLayout } from "./proto-layout-toggle";
 import { WorkGrid } from "./work-grid";
 import { WorkIndexList } from "./work-index-list";
 import "./work-index.css";
@@ -27,7 +32,18 @@ let indexScroll = 0;
  * The column mirrors the reader's own: the same nav clearance at the top, the
  * same safe bottom padding, and one scroll container of its own.
  */
-export function WorkIndex({ works }: { works: WorkMeta[] }) {
+export function WorkIndex({
+  works,
+  initialLayout = "grid",
+}: {
+  works: WorkMeta[];
+  /** The layout the server rendered, from `?layout=`. */
+  initialLayout?: ProtoLayout;
+}) {
+  // Before any read: the server rendered this layout, so hydration must start
+  // from the same value or the page flips grid -> list after paint.
+  seedProtoLayout(initialLayout);
+
   const layout = useProtoLayout();
   const scrollRef = useRef<HTMLDivElement | null>(null);
 

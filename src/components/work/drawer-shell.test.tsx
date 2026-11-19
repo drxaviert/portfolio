@@ -15,6 +15,7 @@ import type { ReactNode } from "react";
 import { DrawerShell } from "./drawer-shell";
 import { setCloseBehaviour } from "./proto-layout-toggle";
 import { CAROUSEL_EASE, CAROUSEL_OPEN_S } from "./carousel-step";
+import { flipFrom } from "./morph";
 import type { Box } from "./morph";
 
 const mocks = vi.hoisted(() => ({
@@ -183,9 +184,9 @@ beforeEach(() => {
   window.sessionStorage.clear();
   document.documentElement.removeAttribute("data-entrance-played");
 
-  // AnimatePresence only swaps its child once the exit has played; jsdom has
-  // no compositor, so let every animation land at once. The real durations are
-  // asserted where they are set (drawer-shell.tsx, motion-values.test.ts).
+  // Motion's own animations land at once: jsdom has no compositor. The swap's
+  // fades are CSS and Web Animations (see the cross-fade test, which runs with
+  // this off), and the real durations are asserted where they are set.
   MotionGlobalConfig.instantAnimations = true;
 
   vi.stubGlobal(
@@ -265,7 +266,24 @@ describe("DrawerShell", () => {
     expect(panelElement()).toBe(panel);
   });
 
-  it("cross-fades the content without moving the panel", async () => {
+  it("cross-fades: the old view stays, frozen, while the new one fades in", async () => {
+    // This test runs with Motion's instant animations OFF: the swap must not
+    // depend on a library animation landing, and the two views must coexist.
+    MotionGlobalConfig.instantAnimations = false;
+
+    // The copy's fade is a Web Animation; hold it open so the frozen view can be
+    // inspected the way a frame in a browser would show it.
+    const nativeAnimate = Element.prototype.animate;
+    let finish!: () => void;
+    Element.prototype.animate = vi.fn(() => ({
+      finished: new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+      cancel: vi.fn(),
+      play: vi.fn(),
+      pause: vi.fn(),
+    })) as unknown as Element["animate"];
+
     const view = await renderOpen();
     const panel = panelElement();
 
@@ -277,17 +295,89 @@ describe("DrawerShell", () => {
       </DrawerShell>,
     );
 
-    // mode="wait": the outgoing index stays mounted for its fade, and the same
-    // panel element carries both views.
-    expect(document.getElementById("wd-index-title")).toBeInTheDocument();
-    expect(panelElement()).toBe(panel);
+    const views = [...document.querySelectorAll<HTMLElement>(".wd-drawer-view")];
+    // Two views at once: the incoming one (fading in) and the outgoing copy.
+    expect(views).toHaveLength(2);
 
-    await waitFor(() =>
-      expect(document.getElementById("wd-study-title")).toBeInTheDocument(),
-    );
+    const [incoming, outgoing] = views;
 
+    expect(incoming).toHaveAttribute("data-enter");
+    expect(incoming.querySelector("h1")?.textContent).toBe("Systems in motion");
+    expect(outgoing).toHaveAttribute("data-leave");
+    // The copy is the view that was on screen: the index's own heading, not the
+    // new study's.
+    expect(outgoing.querySelector("h1")?.textContent).toBe("Work");
+    expect(outgoing.querySelector("#wd-study-title")).toBeNull();
+    // It is a picture: hidden from AT, inert, and it takes no clicks.
+    expect(outgoing).toHaveAttribute("aria-hidden", "true");
+    expect(outgoing).toHaveAttribute("inert");
+    expect(outgoing.querySelector("[id]")).toBeNull();
+    // The panel never moves.
     expect(panelElement()).toBe(panel);
     expect(panel.style.transform).toBe("");
+
+    act(() => finish());
+
+    await waitFor(() =>
+      expect(document.querySelectorAll(".wd-drawer-view")).toHaveLength(1),
+    );
+
+    Element.prototype.animate = nativeAnimate;
+  });
+
+  it("closes onto the visible card when the recorded one was hidden", async () => {
+    // 1280: the carousel's copy is the origin. Resized below 768, that copy is
+    // display:none and the stacked one is on screen; the close must find it,
+    // not the zero-size copy (which collapsed the panel into a point).
+    const carouselCard = placeCard(CARD);
+    carouselCard.setAttribute("data-unrendered", "");
+    const stacked = { left: 16, top: 180, width: 340, height: 420 };
+    placeCard(stacked);
+
+    await renderOpen(STUDY, <Study />);
+
+    fireEvent.click(document.querySelector(".wd-expand-backdrop")!);
+    await waitFor(() => expect(mocks.back).toHaveBeenCalled());
+
+    const panel = panelElement();
+    const close = mocks.animate.mock.calls.filter(([el]) => el === panel).at(-1)!;
+    const pose = close[1] as { scaleX: number };
+
+    expect(pose).toMatchObject(flipFrom(stacked, PANEL));
+    expect(pose.scaleX).toBeGreaterThan(0);
+    expect(pose.scaleX).toBeCloseTo(340 / PANEL.width, 5);
+  });
+
+  it("scales and fades when nothing is left to land on", async () => {
+    placeCard();
+    await renderOpen(STUDY, <Study />);
+
+    // Both the recorded card and the nav are gone (a route that took the
+    // homepage away, or a direct load with no nav).
+    document.querySelectorAll("[data-work-card], [data-nav-dock]").forEach((el) => el.remove());
+
+    fireEvent.click(document.querySelector(".wd-expand-backdrop")!);
+    await waitFor(() => expect(layerElement()).toHaveAttribute("data-phase", "closing"));
+
+    const panel = panelElement();
+    const close = mocks.animate.mock.calls.filter(([el]) => el === panel).at(-1)!;
+
+    expect(close[1]).toEqual({ opacity: 0, scale: 0.95 });
+  });
+
+  it("fades the panel out in 120ms under reduced motion", async () => {
+    placeCard();
+    mocks.reduce = true;
+    await renderOpen(STUDY, <Study />);
+
+    fireEvent.click(document.querySelector(".wd-expand-backdrop")!);
+    await waitFor(() => expect(mocks.back).toHaveBeenCalled());
+
+    const panel = panelElement();
+    const close = mocks.animate.mock.calls.filter(([el]) => el === panel).at(-1)!;
+
+    expect(close[1]).toEqual({ opacity: 0 });
+    expect(close[2]).toMatchObject({ duration: 0.12, ease: "easeOut" });
   });
 
   it("opens on the carousel's 900ms, from the card it was clicked", async () => {
@@ -509,5 +599,100 @@ describe("DrawerShell", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("link", { name: "Work" }),
     );
+  });
+
+  it("closes to the homepage entry after a chain of studies", async () => {
+    placeCard();
+    const view = await renderOpen("/work");
+
+    // index -> A -> B: two pushes above the entry the drawer opened on.
+    for (const route of [STUDY, "/work/title-sequence"]) {
+      mocks.pathname = route;
+      window.history.replaceState({ workOverlay: true }, "", route);
+      view.rerender(
+        <DrawerShell>
+          <Study />
+        </DrawerShell>,
+      );
+    }
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => expect(mocks.go).toHaveBeenCalledWith(-3));
+    expect(mocks.back).not.toHaveBeenCalled();
+  });
+
+  it("restores the entry's own depth on Back", async () => {
+    placeCard();
+    const view = await renderOpen("/work");
+
+    for (const route of [STUDY, "/work/title-sequence"]) {
+      mocks.pathname = route;
+      window.history.replaceState({ workOverlay: true }, "", route);
+      view.rerender(
+        <DrawerShell>
+          <Study />
+        </DrawerShell>,
+      );
+    }
+
+    // Back to a restored entry whose own depth is zero.
+    window.history.replaceState(
+      { workOverlay: true, workDepth: 0, workPrev: "index" },
+      "",
+      "/work/type-in-motion",
+    );
+    fireEvent.popState(window);
+    mocks.pathname = "/work/type-in-motion";
+    view.rerender(
+      <DrawerShell>
+        <Study />
+      </DrawerShell>,
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => expect(mocks.back).toHaveBeenCalledTimes(1));
+    expect(mocks.go).not.toHaveBeenCalled();
+  });
+
+  it("jumps an opening morph to its end on a resize", async () => {
+    placeCard();
+    const complete = vi.fn();
+    mocks.animate.mockReturnValue({
+      finished: new Promise(() => {}),
+      complete,
+      stop: vi.fn(),
+    });
+
+    renderDrawer(STUDY, <Study />);
+
+    expect(layerElement()).toHaveAttribute("data-phase", "opening");
+
+    fireEvent(window, new Event("resize"));
+
+    expect(complete).toHaveBeenCalled();
+  });
+
+  it("steps back to the index after Next project, not to the study behind it", async () => {
+    placeCard();
+    const view = await renderOpen("/work");
+    act(() => setCloseBehaviour("b"));
+
+    // index -> A -> B: the entry behind B is A, not the index.
+    for (const route of [STUDY, "/work/title-sequence"]) {
+      mocks.pathname = route;
+      window.history.replaceState({ workOverlay: true }, "", route);
+      view.rerender(
+        <DrawerShell>
+          <Study />
+        </DrawerShell>,
+      );
+    }
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/work"));
+    expect(mocks.back).not.toHaveBeenCalled();
   });
 });

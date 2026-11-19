@@ -107,16 +107,17 @@
   cursor: pointer;
 }
 
-/* The rail's labels keep their size; the target grows to the 24px floor
-   without moving the sticky box or the text inside it. */
+/* The rail's labels keep their size; the target grows to the 44px floor
+   without moving the sticky box or the text inside it. Both items are alone at
+   their ends of the rail, so the taller target has nothing to overlap. */
 .wd-rail-work::after,
 .wd-rail-top::after {
   content: "";
   position: absolute;
   top: 50%;
   left: 0;
-  width: 100%;
-  height: max(100%, 24px);
+  width: max(100%, 44px);
+  height: max(100%, 44px);
   translate: 0 -50%;
 }
 
@@ -949,6 +950,7 @@
 }
 
 .wd-nextlink-link {
+  position: relative;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -958,6 +960,14 @@
   font-size: var(--text-base);
   line-height: 1.4;
   text-decoration: none;
+}
+
+/* The row is 22px of text; the target reaches the 44px floor into the section's
+   own padding, so the line box, the arrow and the rule above do not move. */
+.wd-nextlink-link::after {
+  content: "";
+  position: absolute;
+  inset: -11px 0;
 }
 
 .wd-nextlink-link span:last-child {

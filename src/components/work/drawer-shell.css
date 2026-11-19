@@ -115,24 +115,56 @@
    two behind the FLIP's clock. No doubling risk either way - the panel keeps its
    own opaque surface the whole way, so the card's content cannot show through.
    Its entrance is the reveal state, not the phase, so it can start before the
-   morph lands (entrance.css). */
+   morph lands (entrance.css). A running swap animation is cancelled here: the
+   close owns the opacity from its first frame. */
 .wd-expand-layer[data-phase="closing"] .wd-drawer-view {
+  animation: none;
   opacity: 0;
   transition: opacity var(--wd-content-out);
 }
 
 /*
- * The view inside the panel: one flex column, so the content's own scroll box
- * (`.wd-reader-scroll`, `.wd-index-scroll`) fills the panel exactly as it did
- * when the reader owned the panel itself. Static, not relative: the reader's
- * absolutely positioned foot controls keep measuring against the panel.
+ * The view inside the panel: one flex column per view, stacked absolutely in a
+ * box that fills the panel, so the content's own scroll box (`.wd-reader-scroll`,
+ * `.wd-index-scroll`) keeps the geometry it had when the reader owned the panel.
+ * Two views exist only for the length of a swap.
  */
+.wd-drawer-stack {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .wd-drawer-view {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
-  height: 100%;
   min-height: 0;
+}
+
+/*
+ * The content swap: the outgoing view stays exactly where it was, over the
+ * incoming one, and fades out while the incoming fades in. Opacity only — the
+ * panel does not move and no frame is empty. 160ms out, 240ms in, on the
+ * drawer's own ease-out; reduced motion keeps the same fade, because it is the
+ * state change itself, not decoration.
+ */
+.wd-drawer-view[data-enter] {
+  animation: wd-view-in var(--duration-medium-1)
+    var(--ease-emphasized-decelerate) both;
+}
+
+.wd-drawer-view[data-leave] {
+  /* Painted over the incoming view, and out of reach while it goes. */
+  z-index: 1;
+  pointer-events: none;
+}
+
+@keyframes wd-view-in {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes wd-backdrop-in {

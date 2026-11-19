@@ -22,21 +22,38 @@ function createParamStore<T extends string>(
   fallback: T,
 ) {
   let current: T | null = null;
+  // What the server rendered, handed in by the page. The first client render
+  // (hydration) must return the same value or the markup flips after paint.
+  let seeded: T | null = null;
+  /** True once the visitor's own URL or tab has named a value. */
+  let explicit = false;
   const listeners = new Set<() => void>();
 
   function read(): T {
     const fromUrl = new URL(window.location.href).searchParams.get(key);
 
-    if (fromUrl !== null) return parse(fromUrl);
+    if (fromUrl !== null) {
+      explicit = true;
+
+      return parse(fromUrl);
+    }
 
     // A choice made in the drawer has to survive the next navigation, whose URL
     // does not carry this query string: keep it for the tab. Prototype-only, and
     // deleted with the rest of the switcher.
     try {
-      return parse(window.sessionStorage?.getItem(`wd-proto-${key}`) ?? null);
+      const stored = window.sessionStorage?.getItem(`wd-proto-${key}`);
+
+      if (stored !== null && stored !== undefined) {
+        explicit = true;
+
+        return parse(stored);
+      }
     } catch {
       return fallback;
     }
+
+    return fallback;
   }
 
   const STORAGE = `wd-proto-${key}`;
@@ -59,9 +76,22 @@ function createParamStore<T extends string>(
     return current;
   }
 
-  /** The server cannot know the query string: it renders the default. */
+  /**
+   * The value the route rendered on the server (the page reads `searchParams`
+   * before it renders the index). Seeding keeps hydration in step with the
+   * server's markup; it also settles the client's first render while the
+   * visitor has not named a value of their own (no URL param, nothing in the
+   * tab), so a render outside hydration — a test, a fresh client mount — paints
+   * the same layout the server did.
+   */
   function getServerSnapshot(): T {
-    return fallback;
+    return seeded ?? fallback;
+  }
+
+  function seed(next: T) {
+    seeded = next;
+
+    if (!explicit) current = next;
   }
 
   function subscribe(listener: () => void) {
@@ -92,6 +122,7 @@ function createParamStore<T extends string>(
     getServerSnapshot,
     subscribe,
     set,
+    seed,
     get: () => current ?? read(),
   };
 }
@@ -111,6 +142,12 @@ const closeStore = createParamStore<CloseBehaviour>(
 export const setProtoLayout = layoutStore.set;
 export const setCloseBehaviour = closeStore.set;
 export const getCloseBehaviour = closeStore.get;
+/**
+ * The layout the route asked for, read from `searchParams` on the server so the
+ * HTML already contains it. Called during render, before anything reads the
+ * store.
+ */
+export const seedProtoLayout = layoutStore.seed;
 
 function isTyping(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;

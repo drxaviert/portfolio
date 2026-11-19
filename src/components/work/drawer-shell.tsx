@@ -1,17 +1,29 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { registerReaderClose } from "@/components/nav/nav-flight";
+import { DOCK_SELECTOR, registerReaderClose } from "@/components/nav/nav-flight";
 import { DrawerActionsProvider, useEscToClose } from "./drawer-actions";
 import { READER_TITLE_ID } from "./parts";
 import { useCloseBehaviour } from "./proto-layout-toggle";
-import { capsuleElement, cardElement, useDrawerMorph } from "./use-morph";
+import {
+  capsuleElement,
+  laidOut,
+  visibleCard,
+  useDrawerMorph,
+} from "./use-morph";
+import { copyScrollOffsets, snapshotElement } from "./view-snapshot";
 import { useOverlayBehaviour } from "./use-overlay-behaviour";
 import { INDEX_TITLE_ID } from "./work-index";
 import "./drawer-shell.css";
+
+/**
+ * One view inside the panel: the route it belongs to and the children it was
+ * rendered with. Held as a snapshot so a swap always paints two distinct views.
+ */
+type DrawerEntry = { key: string; node: ReactNode };
 
 /**
  * The one drawer: `/work` and every `/work/<slug>` are this panel.
@@ -47,6 +59,85 @@ export function DrawerShell({
   const closeBehaviour = useCloseBehaviour();
   const titleId = onIndex ? INDEX_TITLE_ID : READER_TITLE_ID;
 
+  // The view on screen (its route and the children it was rendered with), plus
+  // the copy a swap leaves behind. The copy is a DOM snapshot, not a re-render:
+  // the page under this layout is a router slot that paints the new route's
+  // content in place, so re-rendering the old element would freeze nothing.
+  const [view, setView] = useState<DrawerEntry>({
+    key: pathname,
+    node: children,
+  });
+  const [enteringKey, setEnteringKey] = useState<string | null>(null);
+  const viewRef = useRef<HTMLDivElement | null>(null);
+  const stackRef = useRef<HTMLDivElement | null>(null);
+  const exitRef = useRef<{ key: string; copy: HTMLElement | null } | null>(null);
+
+  // A pathname change is a content swap: keep the view that is on screen and
+  // let the new one fade in under it. This is a *cross*-fade — the two views
+  // overlap, the panel keeps its box, and no frame is empty. AnimatePresence in
+  // mode="wait" could not do it here: the exiting child was the same router
+  // slot, so the new study painted at opacity 1, faded out over 160ms, left the
+  // panel empty, then faded back in. Adjusting state during render is React's
+  // documented pattern for derived state; the DOM copy itself is taken by the
+  // layout-effect cleanup below, which runs while the old view is still painted.
+  if (view.key !== pathname) {
+    setView({ key: pathname, node: children });
+    setEnteringKey(pathname);
+  }
+
+  // Freeze the view that is about to go. A layout-effect cleanup runs before
+  // React mutates the DOM for the next commit, so this is the last moment the
+  // view on screen is still the old one — and the only moment a copy of it can
+  // be taken (the page under this layout is a router slot, so re-rendering its
+  // element would paint the new route instead).
+  useLayoutEffect(() => {
+    const element = viewRef.current;
+    if (!element) return;
+
+    return () => {
+      // Same route means the drawer itself is going; there is no second view to
+      // fade against.
+      if (window.location.pathname === view.key) return;
+
+      exitRef.current = { key: view.key, copy: snapshotElement(element) };
+      if (exitRef.current.copy) {
+        copyScrollOffsets(element, exitRef.current.copy);
+      }
+    };
+  }, [view.key]);
+
+  // The copy is placed after the commit and fades out on its own clock; the
+  // incoming view's fade is the `data-enter` animation in the stylesheet.
+  useLayoutEffect(() => {
+    const exit = exitRef.current;
+    exitRef.current = null;
+
+    const stack = stackRef.current;
+    const copy = exit?.copy;
+
+    if (!stack || !copy) return;
+
+    copy.setAttribute("data-leave", "");
+    stack.append(copy);
+
+    const fade = copy.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: 160,
+      easing: "cubic-bezier(0.23, 1, 0.32, 1)",
+      fill: "forwards",
+    });
+
+    const done = () => copy.remove();
+    const timer = window.setTimeout(done, 600);
+
+    void fade.finished.then(done, done);
+
+    return () => {
+      window.clearTimeout(timer);
+      fade.cancel();
+      done();
+    };
+  }, [view.key]);
+
   // Esc, the backdrop and the logo are one gesture. Under A they close the
   // drawer from anywhere; under B a project steps back to the index first, and
   // a second press closes it.
@@ -69,35 +160,39 @@ export function DrawerShell({
     // or the nav's Work item when it opened on the index. The page the drawer
     // grew out of can be replaced (or kept hidden) by the route change itself,
     // so the return is one frame late and falls back to the same study's card on
-    // the page that is back, then to the nav.
+    // the page that is back, then to the nav — never the body.
     returnFocus: () => {
       const origin = originRef.current;
 
       requestAnimationFrame(() => {
         // Development Strict Mode runs this cleanup once on mount, with the
         // drawer still on screen; only a drawer that has really left gives
-        // focus back. A closed drawer is kept, hidden, by the router.
+        // focus back. A closed drawer is kept, hidden, by the router, and the
+        // Back exit's copy is only a picture of one.
         const onScreen = [
-          ...document.querySelectorAll(".wd-expand-layer"),
+          ...document.querySelectorAll(
+            ".wd-expand-layer:not([data-exit-ghost])",
+          ),
         ].some((layer) => layer.getClientRects().length > 0);
 
         if (onScreen) return;
 
-        if (origin && origin.getClientRects().length > 0) {
-          origin.focus({ preventScroll: true });
+        const target =
+          (origin && laidOut(origin) ? origin : null) ??
+          (slug ? visibleCard(slug) : null) ??
+          capsuleElement() ??
+          document.querySelector<HTMLElement>(
+            `${DOCK_SELECTOR} a[aria-label="Home"]`,
+          );
 
-          return;
-        }
-
-        const card = slug ? cardElement(slug) : null;
-        (card ?? capsuleElement())?.focus({ preventScroll: true });
+        target?.focus({ preventScroll: true });
       });
     },
   });
 
   // The content's first heading takes focus when the drawer lands, and again
   // whenever the content swaps, so a keyboard user is never left on a node that
-  // has just been unmounted.
+  // has just been unmounted (the outgoing copy is inert and about to go).
   const focusTitle = useCallback(() => {
     requestAnimationFrame(() => {
       panelRef.current
@@ -110,7 +205,7 @@ export function DrawerShell({
     if (phase !== "open") return;
 
     focusTitle();
-  }, [focusTitle, phase]);
+  }, [focusTitle, phase, view.key]);
 
   return (
     <div
@@ -141,30 +236,21 @@ export function DrawerShell({
           aria-labelledby={titleId}
         >
           <DrawerActionsProvider close={close} stepBack={stepBack}>
-            <AnimatePresence
-              mode="wait"
-              initial={false}
-              onExitComplete={focusTitle}
-            >
-              <motion.div
-                key={pathname}
+            <div className="wd-drawer-stack" ref={stackRef}>
+              <div
+                key={view.key}
+                ref={viewRef}
                 className="wd-drawer-view"
-                initial={{ opacity: 0 }}
-                animate={{
-                  opacity: 1,
-                  transition: { duration: 0.24, ease: [0.23, 1, 0.32, 1] },
-                }}
-                exit={{
-                  // Out quicker than in: the old content is on its way out and
-                  // the new one has the room. Opacity only — the panel never
-                  // moves, and reduced motion keeps this same fade.
-                  opacity: 0,
-                  transition: { duration: 0.16, ease: [0.23, 1, 0.32, 1] },
+                data-enter={enteringKey === view.key ? "" : undefined}
+                onAnimationEnd={(event) => {
+                  if (event.animationName !== "wd-view-in") return;
+
+                  setEnteringKey((key) => (key === view.key ? null : key));
                 }}
               >
-                {children}
-              </motion.div>
-            </AnimatePresence>
+                {view.node}
+              </div>
+            </div>
           </DrawerActionsProvider>
         </div>
       </div>

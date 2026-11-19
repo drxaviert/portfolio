@@ -30,6 +30,7 @@ import {
 } from "./overlay-exit";
 import { DOCK_SELECTOR, SLOT_SELECTOR, moveNav, registerDockAnimate } from "@/components/nav/nav-flight";
 import type { NavFlightTiming } from "@/components/nav/nav-flight";
+import { copyScrollOffsets, snapshotElement } from "./view-snapshot";
 
 /**
  * The one drawer over every `/work*` URL: the panel, its backdrop and its two
@@ -47,6 +48,30 @@ import type { NavFlightTiming } from "@/components/nav/nav-flight";
 registerDockAnimate(animate);
 
 export type DrawerPhase = "opening" | "open" | "closing";
+
+/**
+ * The slice of the Navigation API this file uses. Chrome and Safari ship it;
+ * Firefox does not, so a missing `window.navigation` simply leaves Back without
+ * the reverse flight (the route still changes, as it always did).
+ */
+type NavigationApi = {
+  addEventListener: (
+    type: "navigate",
+    handler: (event: NavigationEvent) => void,
+  ) => void;
+  removeEventListener: (
+    type: "navigate",
+    handler: (event: NavigationEvent) => void,
+  ) => void;
+};
+
+type NavigationEvent = {
+  navigationType: string;
+  canIntercept: boolean;
+  destination: { url: string };
+  intercept: (options: { handler: () => Promise<void> }) => void;
+};
+
 
 /** Content entrance: held while the panel morphs, released before it lands. */
 export type RevealState = "pending" | "on";
@@ -77,29 +102,50 @@ const CLOSE_TIMING: NavFlightTiming = {
   ease: CAROUSEL_CLOSE_EASE,
 };
 
+/**
+ * How long a copy may stay on screen when the frame loop stalls: the close
+ * flight plus a frame of slack.
+ */
+const CLOSE_CAP_MS = CAROUSEL_CLOSE_S * 1000 + 260;
+
 export function cardSelector(slug: string): string {
   return `[data-work-card="${slug}"]`;
 }
 
 /**
+ * Whether an element is actually on screen with a box: laid out (not
+ * `display: none`), not `visibility: hidden`, and not zero-sized. A card can be
+ * in the DOM and painted nowhere — a resize across the stacked/carousel
+ * breakpoint swaps which copy is on screen — and a 0x0 origin is a collapse to
+ * a point, not a morph.
+ */
+export function laidOut(element: HTMLElement): boolean {
+  if (element.getClientRects().length === 0) return false;
+  if (window.getComputedStyle(element).visibility === "hidden") return false;
+
+  const rect = element.getBoundingClientRect();
+
+  return rect.width > 0 && rect.height > 0;
+}
+
+/**
  * The card element for a study. Several copies can exist (the stacked card, the
- * carousel's cards); only the one that is laid out (display: none has no box)
- * is an origin a user saw and can return to.
+ * carousel's cards). The laid-out one is preferred; a no-layout DOM (jsdom, and
+ * the carousel's own measuring) still gets the first copy.
  */
 export function cardElement(slug: string): HTMLElement | null {
   const candidates = Array.from(
     document.querySelectorAll<HTMLElement>(cardSelector(slug)),
   );
 
-  return (
-    candidates.find(
-      (candidate) =>
-        candidate.getClientRects().length > 0 &&
-        window.getComputedStyle(candidate).visibility !== "hidden",
-    ) ??
-    candidates[0] ??
-    null
-  );
+  return candidates.find(laidOut) ?? candidates[0] ?? null;
+}
+
+/** The card for `slug` that is on screen right now, or nothing. */
+export function visibleCard(slug: string): HTMLElement | null {
+  return Array.from(
+    document.querySelectorAll<HTMLElement>(cardSelector(slug)),
+  ).find(laidOut) ?? null;
 }
 
 /** The nav's "Work" capsule: the drawer's origin when it opens on the index. */
@@ -132,14 +178,15 @@ export function capsuleBox(): Box | null {
 }
 
 /**
- * Where this drawer opened from, measured once: the study's card, or the nav's
- * "Work" capsule when the drawer opened on the index. A study with no card on
- * the homepage still leaves from the capsule: the drawer came from somewhere on
- * screen, and the nav is what the visitor touched.
+ * Where this drawer opened from: the study's card, or the nav's "Work" capsule
+ * when the drawer opened on the index. Only an element with a box counts — a
+ * hidden copy of the card is not somewhere a morph can land — and a study with
+ * no card on screen still leaves from the capsule: the drawer came from
+ * somewhere on screen, and the nav is what the visitor touched.
  */
 export function findOrigin(slug: string | null): HTMLElement | null {
   if (slug) {
-    const card = cardElement(slug);
+    const card = visibleCard(slug);
     if (card) return card;
   }
 
@@ -229,8 +276,13 @@ export function useDrawerMorph(
   /** The next route change is the browser's Back/Forward, not a push. */
   const poppedRef = useRef(false);
   const routeRef = useRef(route);
-  /** An index entry sits under the current project: Back reaches it. */
-  const indexBehindRef = useRef(onIndex);
+  const slugRef = useRef(slug);
+  /** What the route before this entry in the drawer was. */
+  const previousKindRef = useRef<"index" | "study" | null>(null);
+
+  useEffect(() => {
+    slugRef.current = slug;
+  }, [slug]);
 
   const clearRevealTimer = useCallback(() => {
     if (revealTimerRef.current) {
@@ -275,7 +327,6 @@ export function useDrawerMorph(
     // stepping back through history; a document load is replaced by "/".
     inAppRef.current = window.history.state?.workOverlay === true;
     depthRef.current = readDepth();
-    indexBehindRef.current = onIndex;
     originRef.current = findOrigin(slug);
     originKindRef.current = originRef.current
       ? originRef.current === capsuleElement()
@@ -328,7 +379,7 @@ export function useDrawerMorph(
     // Nothing on screen to grow out of (no card, no nav): the panel is already
     // the destination, so it keeps its opaque surface and only the content is
     // new. A fade here would show the homepage through the drawer.
-    if (!origin) {
+    if (!origin || !laidOut(origin)) {
       settle();
       return;
     }
@@ -375,20 +426,25 @@ export function useDrawerMorph(
 
   // Every client navigation inside the drawer is one more entry above the one
   // it opened on, so close can reach the homepage in a single step. A Back or
-  // Forward restores the entry's own depth instead.
+  // Forward restores the entry's own depth instead. Each entry also records
+  // what the entry *behind* it is, so a step back only uses history when the
+  // index is genuinely what Back would land on.
   useEffect(() => {
     if (routeRef.current === route) return;
 
+    const previous: "index" | "study" =
+      routeRef.current === "/work" ? "index" : "study";
+
     routeRef.current = route;
+    previousKindRef.current = previous;
 
     if (poppedRef.current) {
       poppedRef.current = false;
       depthRef.current = readDepth();
+      previousKindRef.current = window.history.state?.workPrev ?? null;
     } else {
       depthRef.current += 1;
     }
-
-    if (onIndex) indexBehindRef.current = true;
 
     if (!inAppRef.current) return;
 
@@ -397,10 +453,11 @@ export function useDrawerMorph(
         ...window.history.state,
         workOverlay: true,
         workDepth: depthRef.current,
+        workPrev: previous,
       },
       "",
     );
-  }, [onIndex, route]);
+  }, [route]);
 
   useEffect(() => {
     function onPopState() {
@@ -412,17 +469,168 @@ export function useDrawerMorph(
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
+  // (The Back exit is registered below, once `originBox` exists.)
+
+
   /**
-   * From a project to the index. The index went first when the drawer opened on
-   * it (or was visited since), so Back returns to it; otherwise this pushes it,
-   * and Back then returns to the project, exactly as the URL history says.
+   * From a project to the index. Only an entry whose own previous entry is the
+   * index can step back to it with history; after "Next project" the entry
+   * behind is another study, so Back would land there instead of on the index —
+   * the index is pushed in that case. The same rule serves Esc and the backdrop
+   * under close=B: they call this.
    */
   const stepBack = useCallback(() => {
     if (!window.location.pathname.startsWith("/work/")) return;
 
-    if (indexBehindRef.current) router.back();
+    if (window.history.state?.workPrev === "index") router.back();
     else router.push("/work");
   }, [router]);
+
+  /**
+   * The live box of what the drawer grew out of, resolved again at close. The
+   * element recorded at open may have gone, or been hidden by a resize across
+   * the stacked/carousel breakpoint; a card that is on screen now wins, then the
+   * nav's capsule. Nothing means the close takes the scale-and-fade path rather
+   * than collapsing the panel into a zero-size point.
+   */
+  const originBox = useCallback((): Box | null => {
+    const stored = originRef.current;
+
+    if (stored && laidOut(stored)) {
+      return originKindRef.current === "capsule"
+        ? capsuleBox()
+        : toBox(stored.getBoundingClientRect());
+    }
+
+    const again = findOrigin(slugRef.current);
+    if (!again || !laidOut(again)) return null;
+
+    const box =
+      again === capsuleElement()
+        ? capsuleBox()
+        : toBox(again.getBoundingClientRect());
+
+    return box && box.width > 0 && box.height > 0 ? box : null;
+  }, []);
+
+  /**
+   * Browser Back out of the drawer. The router owns the commit — by the time a
+   * popstate lands the URL has already left `/work*` and React is about to
+   * unmount the panel — so the reverse morph runs on a copy: the layer is
+   * cloned while it is still on screen, the copy flies to the origin (or fades
+   * and shrinks when there is none), and the real tree goes as it must.
+   *
+   * Resolves when the copy is gone (or at the cap), so a Navigation API
+   * interception can hold the route until the flight has played.
+   */
+  const playBackExit = useCallback((): Promise<void> => {
+    if (closedRef.current || closingRef.current) return Promise.resolve();
+
+    const panel = panelRef.current;
+    const layer = panel?.closest<HTMLElement>(".wd-expand-layer");
+    if (!panel || !layer || layer.dataset.exitGhost !== undefined) {
+      return Promise.resolve();
+    }
+
+    const copy = snapshotElement(layer);
+    const copyPanel = copy.querySelector<HTMLElement>(".wd-reader-panel");
+    if (!copyPanel) return Promise.resolve();
+
+    copy.setAttribute("data-exit-ghost", "");
+    // The copy keeps the closing phase so the backdrop fades on its own rule,
+    // and it must not catch a click while it is only a picture of the drawer.
+    copy.dataset.phase = "closing";
+    copy.style.pointerEvents = "none";
+    copyScrollOffsets(layer, copy);
+    document.body.append(copy);
+
+    let finish: () => void = () => undefined;
+    const gone = new Promise<void>((resolve) => {
+      finish = () => {
+        window.clearTimeout(cap);
+        resolve();
+      };
+    });
+    const remove = () => {
+      copy.remove();
+      finish();
+    };
+    const cap = window.setTimeout(remove, CLOSE_CAP_MS);
+
+    if (reduce) {
+      void animate(
+        copyPanel,
+        { opacity: 0 },
+        { duration: FADE_S, ease: "easeOut" },
+      )
+        .finished.then(remove, remove)
+        .catch(() => undefined);
+
+      return gone;
+    }
+
+    const box = originBox();
+
+    if (box) {
+      copyPanel.style.transformOrigin = "left top";
+      void animate(
+        copyPanel,
+        flipFrom(box, layoutBox(copyPanel)),
+        CLOSE_TIMING,
+      )
+        .finished.then(remove, remove)
+        .catch(() => undefined);
+
+      return gone;
+    }
+
+    copyPanel.style.transformOrigin = visibleCentre(
+      copyPanel.getBoundingClientRect(),
+      { width: window.innerWidth, height: window.innerHeight },
+    );
+    void animate(copyPanel, { opacity: 0, scale: CLOSE_SCALE }, CLOSE_TIMING)
+      .finished.then(remove, remove)
+      .catch(() => undefined);
+
+    return gone;
+  }, [originBox, panelRef, reduce]);
+
+  // The exit on Back is intercepted with the Navigation API, because a popstate
+  // listener cannot do it: Next's own listener runs first in the same dispatch
+  // and unmounts the drawer, which removes ours before the browser reaches it
+  // (the DOM spec skips listeners removed mid-dispatch). Intercepting a
+  // traversal holds the URL and the commit until the copy has flown, then the
+  // browser updates history and the router takes over as usual.
+  useEffect(() => {
+    const navigation = (window as unknown as { navigation?: NavigationApi })
+      .navigation;
+
+    if (!navigation) return;
+
+    function onNavigate(event: NavigationEvent) {
+      if (event.navigationType !== "traverse" || !event.canIntercept) return;
+
+      const destination = new URL(event.destination.url);
+      if (destination.pathname.startsWith("/work")) return;
+
+      const exit = playBackExit();
+      event.intercept({ handler: () => exit });
+    }
+
+    navigation.addEventListener("navigate", onNavigate);
+
+    return () => navigation.removeEventListener("navigate", onNavigate);
+  }, [playBackExit]);
+
+  useEffect(() => {
+    function onPopState() {
+      poppedRef.current = true;
+    }
+
+    window.addEventListener("popstate", onPopState);
+
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   /** Runs the reverse morph, then leaves the route. One flight at a time. */
   const close = useCallback(() => {
@@ -441,14 +649,11 @@ export function useDrawerMorph(
 
       // Measure the origin before the nav starts its own flight: the capsule's
       // home position is derived from the dock's current (drawer) row, so the
-      // offset has to be read while the nav is still there.
-      const origin = originRef.current;
-      const box =
-        !origin || !origin.isConnected
-          ? null
-          : originKindRef.current === "capsule"
-            ? capsuleBox()
-            : toBox(origin.getBoundingClientRect());
+      // offset has to be read while the nav is still there. The origin is
+      // re-checked now, not trusted from the open: a resize can hide the copy
+      // that was on screen (the stacked card and the carousel swap at 768), and
+      // a 0x0 origin would collapse the panel into a point.
+      const box = originBox();
 
       // The nav returns on the same timing as whatever the panel does: the
       // close flight, or the 120ms fade. Both waits are capped at that timing
@@ -518,7 +723,7 @@ export function useDrawerMorph(
     })();
 
     return closingRef.current;
-  }, [reduce, router, panelRef, clearRevealTimer]);
+  }, [reduce, router, panelRef, clearRevealTimer, originBox]);
 
   return { phase, reveal, close, stepBack, originRef };
 }
