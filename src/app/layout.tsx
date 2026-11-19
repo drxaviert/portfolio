@@ -2,10 +2,13 @@ import type { Metadata, Viewport } from "next";
 import { Work_Sans } from "next/font/google";
 import type { ReactNode } from "react";
 import { NavDock } from "@/components/nav/nav-dock";
+import { TypeScaleSwitcher } from "@/components/proto/type-scale-switcher";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
+import { TYPE_SCALE_INIT_SCRIPT } from "@/lib/type-scale";
 import "./globals.css";
+import "./proto-type-scale.css";
 
 const workSans = Work_Sans({
   subsets: ["latin"],
@@ -57,6 +60,7 @@ export default function RootLayout({
     <html lang="en" className={workSans.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: TYPE_SCALE_INIT_SCRIPT }} />
       </head>
       <body>
         <ThemeProvider>
@@ -65,6 +69,7 @@ export default function RootLayout({
               comes before the reader in tab order. */}
           <NavDock />
           {modal}
+          <TypeScaleSwitcher />
         </ThemeProvider>
       </body>
     </html>

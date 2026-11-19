@@ -1,0 +1,322 @@
+﻿/*
+ * TYPE-SCALE COMPARISON PROTOTYPE - removable.
+ *
+ * The switcher writes `data-type-scale` on <html>. "current" has no rules, so
+ * the site is byte-for-byte the same as main; every other id reassigns the
+ * existing `--text-*` tokens from one role table (`--ts-*` below) and patches
+ * the roles that use literal sizes or literal leading.
+ *
+ * Role table (px size / px line-height / tracking; "keep" = the site's own):
+ *
+ *   role                 current    m3          radix       tailwind   primer     apple
+ *   page/reader title    40/44     36/44       35/40       36/40      40/55      34/41
+ *   page/reader title-sm 32/35.2   32/40       35/40       30/36      32/48      28/34
+ *   card title           40/44     24/32       28/36       24/32      32/48      28/34
+ *   card title-sm        32/35.2   22/28       24/30       20/28      20/32.5    22/28
+ *   reader h2            18/1.3    22/28       18/26       18/28      20/32.5    20/25
+ *   body                 16/1.55   16/24 +.5   16/24       16/24      16/24      17/22
+ *   small body           14/1.5    14/20 +.25  14/20       14/20      14/21      15/20
+ *   UI label             16/20     14/20 +.1   14/20       14/20      16/24      17/22
+ *   caption/meta         12/1.42   12/16       12/16 +.0025em 12/16    12/15      12/16
+ *
+ * Tracking: only the M3 and Radix cells above carry a scale value. Where a
+ * scale does not define tracking for the chosen role, the site's own tracking
+ * is kept (display/card titles -0.01em, everything else normal). Kickers and
+ * table heads keep their literal 0.09em / 0.06em because that tracking is part
+ * of the component, not the scale.
+ */
+
+/* ---------- Scale role tables ---------- */
+
+html[data-type-scale="m3"] {
+  --ts-display-size: 36px;
+  --ts-display-lh: 44px;
+  --ts-display-ls: -0.01em;
+  --ts-display-sm-size: 32px;
+  --ts-display-sm-lh: 40px;
+  --ts-display-sm-ls: -0.01em;
+  --ts-title-size: 24px;
+  --ts-title-lh: 32px;
+  --ts-title-ls: -0.01em;
+  --ts-title-sm-size: 22px;
+  --ts-title-sm-lh: 28px;
+  --ts-title-sm-ls: -0.01em;
+  --ts-heading-size: 22px;
+  --ts-heading-lh: 28px;
+  --ts-heading-ls: 0;
+  --ts-body-size: 16px;
+  --ts-body-lh: 24px;
+  --ts-body-ls: 0.5px;
+  --ts-body-sm-size: 14px;
+  --ts-body-sm-lh: 20px;
+  --ts-body-sm-ls: 0.25px;
+  --ts-label-size: 14px;
+  --ts-label-lh: 20px;
+  --ts-label-ls: 0.1px;
+  --ts-caption-size: 12px;
+  --ts-caption-lh: 16px;
+}
+
+html[data-type-scale="radix"] {
+  --ts-display-size: 35px;
+  --ts-display-lh: 40px;
+  --ts-display-ls: -0.01em;
+  --ts-display-sm-size: 35px;
+  --ts-display-sm-lh: 40px;
+  --ts-display-sm-ls: -0.01em;
+  --ts-title-size: 28px;
+  --ts-title-lh: 36px;
+  --ts-title-ls: -0.0075em;
+  --ts-title-sm-size: 24px;
+  --ts-title-sm-lh: 30px;
+  --ts-title-sm-ls: -0.00625em;
+  --ts-heading-size: 18px;
+  --ts-heading-lh: 26px;
+  --ts-heading-ls: -0.0025em;
+  --ts-body-size: 16px;
+  --ts-body-lh: 24px;
+  --ts-body-ls: 0;
+  --ts-body-sm-size: 14px;
+  --ts-body-sm-lh: 20px;
+  --ts-body-sm-ls: 0;
+  --ts-label-size: 14px;
+  --ts-label-lh: 20px;
+  --ts-label-ls: 0;
+  --ts-caption-size: 12px;
+  --ts-caption-lh: 16px;
+}
+
+html[data-type-scale="tailwind"] {
+  --ts-display-size: 36px;
+  --ts-display-lh: 40px;
+  --ts-display-ls: -0.01em;
+  --ts-display-sm-size: 30px;
+  --ts-display-sm-lh: 36px;
+  --ts-display-sm-ls: -0.01em;
+  --ts-title-size: 24px;
+  --ts-title-lh: 32px;
+  --ts-title-ls: -0.01em;
+  --ts-title-sm-size: 20px;
+  --ts-title-sm-lh: 28px;
+  --ts-title-sm-ls: -0.01em;
+  --ts-heading-size: 18px;
+  --ts-heading-lh: 28px;
+  --ts-heading-ls: 0;
+  --ts-body-size: 16px;
+  --ts-body-lh: 24px;
+  --ts-body-ls: 0;
+  --ts-body-sm-size: 14px;
+  --ts-body-sm-lh: 20px;
+  --ts-body-sm-ls: 0;
+  --ts-label-size: 14px;
+  --ts-label-lh: 20px;
+  --ts-label-ls: 0;
+  --ts-caption-size: 12px;
+  --ts-caption-lh: 16px;
+}
+
+html[data-type-scale="primer"] {
+  --ts-display-size: 40px;
+  --ts-display-lh: 55px;
+  --ts-display-ls: -0.01em;
+  --ts-display-sm-size: 32px;
+  --ts-display-sm-lh: 48px;
+  --ts-display-sm-ls: -0.01em;
+  --ts-title-size: 32px;
+  --ts-title-lh: 48px;
+  --ts-title-ls: -0.01em;
+  --ts-title-sm-size: 20px;
+  --ts-title-sm-lh: 32.5px;
+  --ts-title-sm-ls: -0.01em;
+  --ts-heading-size: 20px;
+  --ts-heading-lh: 32.5px;
+  --ts-heading-ls: 0;
+  --ts-body-size: 16px;
+  --ts-body-lh: 24px;
+  --ts-body-ls: 0;
+  --ts-body-sm-size: 14px;
+  --ts-body-sm-lh: 21px;
+  --ts-body-sm-ls: 0;
+  --ts-label-size: 16px;
+  --ts-label-lh: 24px;
+  --ts-label-ls: 0;
+  --ts-caption-size: 12px;
+  --ts-caption-lh: 15px;
+}
+
+html[data-type-scale="apple"] {
+  --ts-display-size: 34px;
+  --ts-display-lh: 41px;
+  --ts-display-ls: -0.01em;
+  --ts-display-sm-size: 28px;
+  --ts-display-sm-lh: 34px;
+  --ts-display-sm-ls: -0.01em;
+  --ts-title-size: 28px;
+  --ts-title-lh: 34px;
+  --ts-title-ls: -0.01em;
+  --ts-title-sm-size: 22px;
+  --ts-title-sm-lh: 28px;
+  --ts-title-sm-ls: -0.01em;
+  --ts-heading-size: 20px;
+  --ts-heading-lh: 25px;
+  --ts-heading-ls: 0;
+  --ts-body-size: 17px;
+  --ts-body-lh: 22px;
+  --ts-body-ls: 0;
+  --ts-body-sm-size: 15px;
+  --ts-body-sm-lh: 20px;
+  --ts-body-sm-ls: 0;
+  --ts-label-size: 17px;
+  --ts-label-lh: 22px;
+  --ts-label-ls: 0;
+  --ts-caption-size: 12px;
+  --ts-caption-lh: 16px;
+}
+
+/* ---------- Reassign the existing tokens ---------- */
+
+html[data-type-scale]:not([data-type-scale="current"]) {
+  --text-xs: var(--ts-caption-size);
+  --text-xs--line-height: var(--ts-caption-lh);
+  --text-sm: var(--ts-body-sm-size);
+  --text-sm--line-height: var(--ts-body-sm-lh);
+  --text-base: var(--ts-body-size);
+  --text-base--line-height: var(--ts-body-lh);
+  --text-lg: var(--ts-heading-size);
+  --text-lg--line-height: var(--ts-heading-lh);
+  --text-xl: var(--ts-title-size);
+  --text-xl--line-height: var(--ts-title-lh);
+  --text-2xl: var(--ts-title-sm-size);
+  --text-2xl--line-height: var(--ts-title-sm-lh);
+  --text-3xl: var(--ts-display-sm-size);
+  --text-3xl--line-height: var(--ts-display-sm-lh);
+  --text-4xl: var(--ts-display-size);
+  --text-4xl--line-height: var(--ts-display-lh);
+  --text-title: var(--ts-display-size);
+  --text-title--line-height: var(--ts-display-lh);
+  --text-title--letter-spacing: var(--ts-display-ls);
+  --text-title-sm: var(--ts-display-sm-size);
+  --text-title-sm--line-height: var(--ts-display-sm-lh);
+  --text-title-sm--letter-spacing: var(--ts-display-sm-ls);
+}
+
+/* ---------- Roles that use literals or their own leading ---------- */
+
+/* Cards use the display tokens today but read as titles, not page titles. */
+html[data-type-scale]:not([data-type-scale="current"])
+  :is(.card-title, .car-title) {
+  font-size: var(--ts-title-sm-size);
+  line-height: var(--ts-title-sm-lh);
+  letter-spacing: var(--ts-title-sm-ls);
+}
+
+@media (min-width: 768px) {
+  html[data-type-scale]:not([data-type-scale="current"])
+    :is(.card-title, .car-title) {
+    font-size: var(--ts-title-size);
+    line-height: var(--ts-title-lh);
+    letter-spacing: var(--ts-title-ls);
+  }
+}
+
+/* Nav labels and the theme menu rows are labels, not body copy. */
+html[data-type-scale]:not([data-type-scale="current"])
+  :is(.nav-item, [role="menuitemradio"]) {
+  font-size: var(--ts-label-size);
+  line-height: var(--ts-label-lh);
+  letter-spacing: var(--ts-label-ls);
+}
+
+/* Reader body copy, which owns its 1.55 leading. */
+html[data-type-scale]:not([data-type-scale="current"])
+  :is(.wd-p, .wd-intro-subtitle, .wd-ul, .wd-ol, .wd-quote, .wd-nextlink-link) {
+  line-height: var(--ts-body-lh);
+  letter-spacing: var(--ts-body-ls);
+}
+
+/* Reader section headings. */
+html[data-type-scale]:not([data-type-scale="current"]) .wd-h2 {
+  line-height: var(--ts-heading-lh);
+  letter-spacing: var(--ts-heading-ls);
+}
+
+/* Code, pre and tables. */
+html[data-type-scale]:not([data-type-scale="current"])
+  :is(.wd-code, .wd-pre, .wd-table) {
+  line-height: var(--ts-body-sm-lh);
+  letter-spacing: var(--ts-body-sm-ls);
+}
+
+/* Captions, meta, rail, chips, tooltips. Literal tracking stays. */
+html[data-type-scale]:not([data-type-scale="current"])
+  :is(
+    .wd-kicker,
+    .wd-intro-meta,
+    .wd-caption,
+    .wd-caption-margin,
+    .wd-margin-note,
+    .wd-rail-work,
+    .wd-rail-top,
+    .wd-step-tab,
+    .wd-step-replay,
+    .wd-table caption,
+    .wd-table th,
+    .wd-ruler-card-title,
+    .wd-ruler-card-body,
+    .nav-tooltip,
+    .segment-tooltip
+  ) {
+  line-height: var(--ts-caption-lh);
+}
+
+/* ---------- Switcher (fixed, bottom-left) ---------- */
+
+.type-scale-switcher {
+  position: fixed;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: var(--type-scale-bottom, max(12px, env(safe-area-inset-bottom)));
+  z-index: 70;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: calc(100vw - 24px);
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-low);
+  box-shadow: var(--shadow-card);
+  color: var(--on-surface);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.type-scale-switcher button {
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 5px);
+  background: transparent;
+  color: var(--on-surface-variant);
+  font: inherit;
+  cursor: pointer;
+}
+
+.type-scale-switcher button:hover {
+  color: var(--on-surface);
+}
+
+.type-scale-switcher button[aria-pressed="true"] {
+  background: var(--toggle-selected);
+  color: var(--on-surface);
+}
+
+.type-scale-switcher button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .type-scale-switcher button {
+    transition: color var(--duration-short-3) var(--ease-decelerate);
+  }
+}
