@@ -475,6 +475,14 @@ async function processVideo(
   const probe = await probeVideo(job.file);
   const size = videoTargetSize(probe.width, probe.height);
 
+  // Check the poster timestamp before encoding: a bad value should fail fast instead of
+  // after a slow encode, and before any upload has happened.
+  if (options.posterAt >= probe.duration) {
+    throw new Error(
+      `--poster-at ${options.posterAt} is past the ${probe.duration.toFixed(2)}s duration`,
+    );
+  }
+
   console.log(
     `  info     ${probe.width}x${probe.height} · ${probe.duration.toFixed(2)}s · audio: ${probe.hasAudio ? "yes" : "no"} → ${size.width}x${size.height}`,
   );
@@ -549,12 +557,6 @@ async function processVideo(
     };
   }
 
-  if (options.posterAt >= probe.duration) {
-    throw new Error(
-      `--poster-at ${options.posterAt} is past the ${probe.duration.toFixed(2)}s duration`,
-    );
-  }
-
   const posterPng = path.join(workDir, "poster.png");
   await runFfmpeg([
     "-ss",
@@ -610,7 +612,9 @@ async function processVideo(
       ),
     },
     duration: Number(probe.duration.toFixed(2)),
-    hasAudio: probe.hasAudio,
+    // The manifest describes the encode, not the source: without --audio the MP4 has
+    // no audio stream even when the original did.
+    hasAudio: options.audio && probe.hasAudio,
   };
 }
 
