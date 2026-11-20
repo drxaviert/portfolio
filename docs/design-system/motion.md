@@ -1,6 +1,6 @@
 # Design system motion — 2026-11-13
 
-The shipped motion of the theme toggle, the Day phase row, the home nav's Glide capsule and the Work drawer, recorded from the code (toggle and nav from PR #12, `5bbfba9` / `d574d89`; drawer at `98b6429`; the shipped drawer, its close rules and the index layout switch approved at `cb6785a`, 2026-11-19, in the last two sections). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
+The shipped motion of the theme toggle, the Day phase row, the home nav's Glide capsule and the Work drawer, recorded from the code (toggle and nav from PR #12, `5bbfba9` / `d574d89`; drawer at `98b6429`; the shipped drawer, its close rules and the index layout switch approved at `cb6785a`, 2026-11-19, in the last two sections; the drawer close was later retuned to 300ms on `ease` in PR #80, and the nav motion blur added in PR #68). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
 
 ## Principles
 
@@ -443,6 +443,20 @@ Every block holds its start state (`backwards` fill), so nothing paints at its e
 - `src/components/work/use-morph.ts:61` — `REVEAL_LEAD_S = 0.3`, the release 300ms before the panel lands
 - `src/components/work/use-morph.ts:323` — the reveal timer: `CAROUSEL_OPEN_S − REVEAL_LEAD_S` (900 − 300)
 - `src/components/work/use-morph.ts:276` — a study hand-off joins this cascade from its first frame
+
+## Nav motion blur
+
+Approved in PR #68. A vertical-only blur on the nav dock while it flies between the homepage row and the drawer's row, on drawer enter and exit. It is a layer on top of the flight: timing, easing, distance and resting position are untouched, and the filter is removed at rest.
+
+| Item | Value |
+| --- | --- |
+| Peak | `PEAK_PX = 4` (`stdDeviation` `0 <px>`, Y only) |
+| Strength | `4 × min(1, speed / REFERENCE_SPEED)`, clamped to `4px` at and above the reference speed |
+| `REFERENCE_SPEED` | `22` px per 60Hz frame, the nav's speed at half the drawer's travel |
+| Speed | the dock's live vertical velocity from `getBoundingClientRect().top` each frame, normalised to 60Hz so 120Hz screens match |
+| Off | reduced motion; WebKit (including every iOS browser); the filter is cleared when the flight settles, on unmount, or `250ms` after the handed duration |
+
+- `src/components/nav/nav-motion-blur.tsx` — `PEAK_PX`, `REFERENCE_SPEED`, the per-frame loop
 
 ## Work reader — scroll ruler
 
