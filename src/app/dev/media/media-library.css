@@ -1,0 +1,68 @@
+/*
+ * The dev media library. Tokens only: the card surface and shadow come from
+ * Tailwind utilities; this file owns the thumbnail frame and the two states a
+ * utility cannot express, pointer-only hover and a focus ring inside the
+ * clipped card.
+ */
+
+.mlib-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background-color: var(--surface-container-highest);
+}
+
+.mlib-thumb-img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--duration-long-2) var(--ease-spring-follow);
+}
+
+/* The card clips its thumbnail, so the ring has to sit inside the frame. */
+.mlib-thumb:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -4px;
+}
+
+.mlib-button {
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--duration-short-6) var(--ease-decelerate);
+}
+
+.mlib-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/*
+ * Hover is a pointer affordance only: on a touch screen a tapped card would
+ * otherwise hold its hover state until the next tap. The selected filter is
+ * excluded, so its raised fill stays put.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .mlib-button:not([aria-pressed="true"]):hover {
+    background-color: var(--surface-container-high);
+  }
+
+  .mlib-thumb:hover .mlib-thumb-img {
+    transform: scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mlib-button,
+  .mlib-thumb-img {
+    transition: none;
+  }
+
+  .mlib-thumb:hover .mlib-thumb-img {
+    transform: none;
+  }
+}
