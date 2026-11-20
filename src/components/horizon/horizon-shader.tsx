@@ -846,23 +846,24 @@ export function HorizonShader({
     const tick = (timestamp: number) => {
       frame = 0;
 
-      // Covered by the reader: hold the frame, the way a hidden tab does.
-      if (covered()) {
-        lastTimestamp = null;
-        return;
-      }
+      // Covered by the drawer: hold the frame, the way a hidden tab does. A
+      // token change still draws its one frame (requestFrame lets that through
+      // even while covered), so a phase switch under the drawer does not leave
+      // the strip beside the panel in the old palette.
+      const coveredNow = covered();
 
-      if (lastTimestamp !== null) {
+      if (lastTimestamp !== null && !coveredNow) {
         // A long gap means the tab was hidden or the loop was idle; the CSS
         // animation was frozen then too, so do not jump the shader clock.
         clock += Math.min(Math.max((timestamp - lastTimestamp) / 1000, 0), 0.1);
       }
 
-      lastTimestamp = timestamp;
+      lastTimestamp = coveredNow ? null : timestamp;
       resize();
       draw();
 
       const animating =
+        !coveredNow &&
         !document.hidden &&
         !reduceQuery.matches &&
         paramsRef.current.motion !== "none";
@@ -877,8 +878,9 @@ export function HorizonShader({
     };
 
     const requestFrame = () => {
-      if (!frame && !document.hidden && !covered())
-        frame = requestAnimationFrame(tick);
+      // Covered, only a frame something asked for is drawn: a token or
+      // parameter change. The ambient loop stays stopped.
+      if (!frame && !document.hidden) frame = requestAnimationFrame(tick);
     };
 
     /**

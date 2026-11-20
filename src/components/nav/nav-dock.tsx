@@ -71,7 +71,9 @@ export function NavDock() {
   const ref = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const pathname = usePathname();
-  const readerRoute = pathname.startsWith("/work/");
+  // `/work` and every study in it are one drawer: the nav sits in its row for
+  // all of them, and crosses that boundary once, not per URL.
+  const readerRoute = pathname === "/work" || pathname.startsWith("/work/");
   // Read once: later pathname changes must not snap the nav while a flight or
   // the reader owns it. The live state is the DOM attribute, which the flights
   // write directly.
@@ -249,21 +251,28 @@ export function NavDock() {
   }, [readerRoute, toReader]);
 
   // Capture, not bubble: Next's Link starts routing in its own click handler,
-  // which would otherwise outrun the close.
+  // which would otherwise outrun the motions below.
   function onClickCapture(event: MouseEvent<HTMLDivElement>) {
-    if (stateRef.current !== "reader") return;
     if (event.defaultPrevented || event.button !== 0) return;
-    if (!hasReaderClose()) return;
 
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
       return;
     }
 
-    if (!(event.target as Element).closest('a[href="/"]')) return;
+    const target = event.target as Element;
 
-    event.preventDefault();
-    event.stopPropagation();
-    requestReaderClose();
+    // In the drawer the logo is the way home: it closes the whole drawer, with
+    // the reverse morph, instead of navigating behind it. "Work" is the drawer's
+    // own section: from a study it goes to the index (a normal link, which the
+    // shell cross-fades), and on the index it is the page already on screen.
+    if (stateRef.current === "reader") {
+      if (!target.closest('a[href="/"]')) return;
+      if (!hasReaderClose()) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      requestReaderClose();
+    }
   }
 
   // The dock is the site's nav; the /dev prototype routes draw their own

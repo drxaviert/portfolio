@@ -15,7 +15,7 @@ function read(name: string) {
   );
 }
 
-const shell = read("expand-shell.css");
+const shell = read("drawer-shell.css");
 const reader = read("reader.css");
 const entrance = read("entrance.css");
 
@@ -158,12 +158,20 @@ describe("drawer motion values", () => {
     );
   });
 
-  it("keeps the hand-off backdrop from replaying its entrance", () => {
-    const shell = read("expand-shell.css");
+  it("keeps the content swap as an opacity fade at the shell's own layer", () => {
+    const index = read("work-index.css");
 
-    expect(shell).toMatch(
-      /\.wd-expand-layer\[data-handoff\]:not\(\[data-phase="closing"\]\) \.wd-expand-backdrop \{\s*animation: none;\s*opacity: 1;/,
+    // The index is held invisible while the panel travels, then fades once on
+    // the drawer's reveal — no cascade, and no movement.
+    expect(index).toMatch(
+      /\[data-reveal="pending"\] \.wd-index-scroll \{\s*opacity: 0;\s*transition: none;/,
     );
+    expect(index).toMatch(
+      /\[data-reveal="on"\]:not\(\[data-phase="closing"\]\)\s*\.wd-index-scroll \{\s*opacity: 1;\s*transition: opacity 300ms cubic-bezier\(0\.23, 1, 0\.32, 1\);/,
+    );
+    // Reduced motion keeps the fade, at the drawer's 120ms.
+    const reduced = reducedMotionBlock(index);
+    expect(reduced).toContain("transition: opacity var(--wd-fade-reduced);");
   });
 
   it("runs the content entrance on the carousel's step", () => {

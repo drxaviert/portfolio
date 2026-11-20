@@ -1,11 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useRef } from "react";
-import type { MouseEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { WorkMeta } from "@/lib/work";
-import { announceProgressionEntry, leaveForNextStudy } from "./progression";
 
 /**
  * The Margin layout's parts. The media slots live in `media-parts.tsx`, which
@@ -196,34 +193,8 @@ export function DecisionTable({ rows }: { rows: DecisionRow[] }) {
 }
 
 export function NextLink({ next }: { next: WorkMeta }) {
-  const router = useRouter();
-  const committed = useRef(false);
-
-  async function onClick(event: MouseEvent<HTMLAnchorElement>) {
-    // Modified clicks, middle clicks and anything already handled keep the
-    // browser's own behaviour.
-    if (event.defaultPrevented || event.button !== 0) return;
-
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-      return;
-    }
-
-    event.preventDefault();
-    if (committed.current) return;
-
-    committed.current = true;
-
-    // The article leaves on the close fade; then the route moves and the
-    // incoming mount joins the same drawer with the open's entrance. The entry
-    // keeps a depth so a close can return to the homepage in one step and a
-    // Back can return to this study.
-    const depth = window.history.state?.workDepth;
-    announceProgressionEntry((typeof depth === "number" ? depth : 0) + 1);
-    await leaveForNextStudy();
-
-    router.push(`/work/${next.slug}`);
-  }
-
+  // A plain push: the drawer stays and its content cross-fades to the next
+  // study (drawer-shell.tsx). Back returns to this one.
   return (
     <section className="wd-nextlink" aria-labelledby="wd-nextlink-title">
       <p className="wd-kicker" id="wd-nextlink-title">
@@ -233,7 +204,6 @@ export function NextLink({ next }: { next: WorkMeta }) {
         href={`/work/${next.slug}`}
         className="wd-nextlink-link"
         aria-label={`Next project: ${next.title}`}
-        onClick={onClick}
       >
         <span>{next.title}</span>
         {/* Drawn, not typed: Work Sans does have U+2192, but Google's three

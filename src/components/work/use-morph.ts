@@ -1,6 +1,6 @@
 "use client";
 
-import { animate, useReducedMotion } from "motion/react";
+import { animate, releaseElement, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -26,27 +26,57 @@ import {
 } from "./carousel-step";
 import {
   announceOverlayClosing,
-  announceOverlayExit,
   announceOverlayOpened,
 } from "./overlay-exit";
-import {
-  clearProgressionEntry,
-  isDrawerOpen,
-  leaveDrawer,
-  peekProgressionEntry,
-} from "./progression";
-import { moveNav, registerDockAnimate } from "@/components/nav/nav-flight";
+import { DOCK_SELECTOR, SLOT_SELECTOR, moveNav, registerDockAnimate } from "@/components/nav/nav-flight";
 import type { NavFlightTiming } from "@/components/nav/nav-flight";
-import { FEATURED_SLUG } from "@/lib/work-order";
+import { readScrollOffsets, snapshotElement, writeScrollOffsets } from "./view-snapshot";
 
 /**
+ * The one drawer over every `/work*` URL: the panel, its backdrop and its two
+ * flights.
+ *
+ * Mounted once (the intercepted slot keys the drawer constantly), so the panel
+ * never remounts: a study, another study and the index are all the same panel,
+ * and only its content changes. The morph is therefore an opening and a closing
+ * and nothing else.
+ *
  * The dock's flights run on this module's motion, so it lends the function
  * before any of them can start. Keeping the import here — rather than in
  * nav-dock.tsx — is what keeps motion out of the home route's first-load JS.
  */
 registerDockAnimate(animate);
 
-export type MorphPhase = "opening" | "open" | "closing";
+/**
+ * The drawer's phase. `closed` is the shell not on screen (the router hides a
+ * cached tree and the phase says so); the other three are the visible states,
+ * and the open/close flights are the only way between them.
+ */
+export type DrawerPhase = "closed" | "opening" | "open" | "closing";
+
+/**
+ * The slice of the Navigation API this file uses. Chrome and Safari ship it;
+ * Firefox does not, so a missing `window.navigation` simply leaves Back without
+ * the reverse flight (the route still changes, as it always did).
+ */
+type NavigationApi = {
+  addEventListener: (
+    type: "navigate",
+    handler: (event: NavigationEvent) => void,
+  ) => void;
+  removeEventListener: (
+    type: "navigate",
+    handler: (event: NavigationEvent) => void,
+  ) => void;
+};
+
+type NavigationEvent = {
+  navigationType: string;
+  canIntercept: boolean;
+  destination: { url: string };
+  intercept: (options: { handler: () => Promise<void> }) => void;
+};
+
 
 /** Content entrance: held while the panel morphs, released before it lands. */
 export type RevealState = "pending" | "on";
@@ -62,11 +92,11 @@ const REVEAL_LEAD_S = 0.3;
 
 /**
  * The drawer's motion, timed once. The shape never changes - the panel FLIPs out
- * of the card, the content rises and defocuses, the nav flies between its two
- * rows - and every part runs on the home carousel's step (carousel-step.ts): the
- * open on its 900ms curve, the close on the run it gives an interrupted step.
- * The nav is handed the same pair (nav-flight.ts) so it cannot drift from the
- * panel.
+ * of its origin, the content is revealed near the landing, the nav flies between
+ * its two rows - and every part runs on the home carousel's step
+ * (carousel-step.ts): the open on its 900ms curve, the close on the run it gives
+ * an interrupted step. The nav is handed the same pair (nav-flight.ts) so it
+ * cannot drift from the panel.
  */
 const OPEN_TIMING: NavFlightTiming = {
   duration: CAROUSEL_OPEN_S,
@@ -77,28 +107,98 @@ const CLOSE_TIMING: NavFlightTiming = {
   ease: CAROUSEL_CLOSE_EASE,
 };
 
+/**
+ * How long a copy may stay on screen when the frame loop stalls: the close
+ * flight plus a frame of slack.
+ */
+const CLOSE_CAP_MS = CAROUSEL_CLOSE_S * 1000 + 260;
+
 export function cardSelector(slug: string): string {
   return `[data-work-card="${slug}"]`;
 }
 
 /**
+ * Whether an element is actually on screen with a box: laid out (not
+ * `display: none`), not `visibility: hidden`, and not zero-sized. A card can be
+ * in the DOM and painted nowhere — a resize across the stacked/carousel
+ * breakpoint swaps which copy is on screen — and a 0x0 origin is a collapse to
+ * a point, not a morph.
+ */
+export function laidOut(element: HTMLElement): boolean {
+  if (element.getClientRects().length === 0) return false;
+  if (window.getComputedStyle(element).visibility === "hidden") return false;
+
+  const rect = element.getBoundingClientRect();
+
+  return rect.width > 0 && rect.height > 0;
+}
+
+/**
  * The card element for a study. Several copies can exist (the stacked card, the
- * carousel's cards); only the one that is laid out (display: none has no box)
- * is the source a user saw and can return to.
+ * carousel's cards). The laid-out one is preferred; a no-layout DOM (jsdom, and
+ * the carousel's own measuring) still gets the first copy.
  */
 export function cardElement(slug: string): HTMLElement | null {
   const candidates = Array.from(
     document.querySelectorAll<HTMLElement>(cardSelector(slug)),
   );
 
-  return (
-    candidates.find((candidate) => candidate.getClientRects().length > 0) ??
-    candidates[0] ??
-    null
+  return candidates.find(laidOut) ?? candidates[0] ?? null;
+}
+
+/** The card for `slug` that is on screen right now, or nothing. */
+export function visibleCard(slug: string): HTMLElement | null {
+  return Array.from(
+    document.querySelectorAll<HTMLElement>(cardSelector(slug)),
+  ).find(laidOut) ?? null;
+}
+
+/** The nav's "Work" capsule: the drawer's origin when it opens on the index. */
+export function capsuleElement(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(
+    `${DOCK_SELECTOR} a[aria-label="Work"]`,
   );
 }
 
-/** The source card, measured now. Close calls this again for the live rect. */
+/**
+ * The capsule's box as it sits on the homepage, not as it sits in the drawer.
+ * While the drawer is open the nav has flown into its top row, so the capsule's
+ * live rect is far from the slot it came from; the dock's own home slot gives
+ * the offset back, and a close then lands where the nav will be once it has
+ * flown home.
+ */
+export function capsuleBox(): Box | null {
+  const capsule = capsuleElement();
+  if (!capsule) return null;
+
+  const box = toBox(capsule.getBoundingClientRect());
+  const dock = document.querySelector<HTMLElement>(DOCK_SELECTOR);
+  const slot = document.querySelector<HTMLElement>(SLOT_SELECTOR);
+
+  if (!dock || !slot) return box;
+
+  const home = slot.getBoundingClientRect().top - dock.getBoundingClientRect().top;
+
+  return home === 0 ? box : { ...box, top: box.top + home };
+}
+
+/**
+ * Where this drawer opened from: the study's card, or the nav's "Work" capsule
+ * when the drawer opened on the index. Only an element with a box counts — a
+ * hidden copy of the card is not somewhere a morph can land — and a study with
+ * no card on screen still leaves from the capsule: the drawer came from
+ * somewhere on screen, and the nav is what the visitor touched.
+ */
+export function findOrigin(slug: string | null): HTMLElement | null {
+  if (slug) {
+    const card = visibleCard(slug);
+    if (card) return card;
+  }
+
+  return capsuleElement();
+}
+
+/** The source element, measured now. Close calls this again for the live rect. */
 export function findCard(slug: string): Box | null {
   const card = cardElement(slug);
 
@@ -129,60 +229,94 @@ function setPose(
   panel.style.transform = `translate(${pose.x}px, ${pose.y}px) scale(${pose.scaleX}, ${pose.scaleY})`;
 }
 
-export function useMorph(
-  slug: string,
-  panelRef: RefObject<HTMLElement | null>,
+/** The history depth of the drawer's current entry, when it carries one. */
+function readDepth(): number {
+  const depth = window.history.state?.workDepth;
+
+  return typeof depth === "number" ? depth : 0;
+}
+
+export function useDrawerMorph(
+  panelRef: { current: HTMLElement | null },
   options: {
+    /** The study on screen; null on the index. */
+    slug: string | null;
+    /** The pathname: a change inside the drawer is one more history entry. */
+    route: string;
     /**
-     * A direct load: the reader is already the destination, so it starts in its
+     * A direct load: the drawer is already the destination, so it starts in its
      * open resting state with no morph, and the entry is not the in-app overlay
-     * (closing replaces it instead of going back to a homepage entry).
+     * (closing replaces it instead of stepping back through history).
      */
     resting?: boolean;
-  } = {},
+  },
 ): {
-  phase: MorphPhase;
+  phase: DrawerPhase;
   reveal: RevealState;
-  /** This mount joined an open drawer: the panel is in place, only the content is new. */
-  handoff: boolean;
   close: () => Promise<void>;
+  stepBack: () => void;
+  /** What the drawer opened from, for the post-close focus return. */
+  originRef: RefObject<HTMLElement | null>;
 } {
-  const resting = options.resting ?? false;
+  const { slug, route, resting = false } = options;
   const router = useRouter();
   const reduce = useReducedMotion() ?? false;
-  const openTiming = OPEN_TIMING;
-  const closeTiming = CLOSE_TIMING;
-  // A study -> study mount is the same drawer: its panel is already open and
-  // the new article takes the open entrance from the first frame. Read once,
-  // before the first paint, because the layer's backdrop must not re-fade.
-  const [handoff] = useState(() => {
-    if (resting) return null;
 
-    const announced = peekProgressionEntry();
-    if (announced) return announced;
-
-    // A Back/Forward swaps the route without a click to announce it: if a
-    // drawer was already open, its replacement joins it.
-    return isDrawerOpen() ? { depth: null } : null;
-  });
-  const entering = handoff !== null;
-  const [phase, setPhase] = useState<MorphPhase>(
-    resting || entering ? "open" : "opening",
-  );
-  const [reveal, setReveal] = useState<RevealState>(resting ? "on" : "pending");
-  const openingRef = useRef<Morph | null>(null);
-  const startedRef = useRef(false);
-  const closedRef = useRef(false);
-  const closingRef = useRef<Promise<void> | null>(null);
-  const revealTimerRef = useRef(0);
+  /** The element the drawer grew out of, for the post-close focus return. */
+  const originRef = useRef<HTMLElement | null>(null);
   const mountedRef = useRef(true);
 
-  const clearRevealTimer = useCallback(() => {
-    if (revealTimerRef.current) {
-      window.clearTimeout(revealTimerRef.current);
-      revealTimerRef.current = 0;
-    }
-  }, []);
+  /** This entry's history state and what it grew out of. */
+  type Entry = {
+    inApp: boolean;
+    depth: number;
+    origin: HTMLElement | null;
+    kind: "card" | "capsule" | null;
+  };
+
+  /**
+   * The whole lifecycle in one place: the phase, the generation that owns it,
+   * the flight that is running, the close a second close shares, the reveal
+   * timer, and the entry's history and origin.
+   *
+   * Every transition goes through `commit`, which bumps the generation and
+   * stops the running flight. An async completion commits only when its own
+   * generation is still current, so an abandoned transition leaves nothing
+   * behind: the new transition owns the shell from the moment it starts. The
+   * phase is never a latch another transition has to clear.
+   */
+  type Machine = {
+    phase: DrawerPhase;
+    /** The router hid this tree; the next show opens a new entry. */
+    hidden: boolean;
+    generation: number;
+    flight: Morph | null;
+    closing: Promise<void> | null;
+    revealTimer: number;
+    entry: Entry;
+  };
+
+  const initialPhase: DrawerPhase = resting ? "open" : "closed";
+
+  const machine = useRef<Machine>({
+    phase: initialPhase,
+    hidden: false,
+    generation: 0,
+    flight: null,
+    closing: null,
+    revealTimer: 0,
+    entry: { inApp: false, depth: 0, origin: null, kind: null },
+  });
+  const [phase, setPhase] = useState<DrawerPhase>(initialPhase);
+  const [reveal, setReveal] = useState<RevealState>(resting ? "on" : "pending");
+  const restingRef = useRef(false);
+
+  /** The route this entry is on, and whether the next change is Back/Forward. */
+  const historyRef = useRef<{
+    route: string;
+    popped: boolean;
+    prev: "index" | "study" | null;
+  }>({ route, popped: false, prev: null });
 
   // Development StrictMode re-runs effects on mount (setup, cleanup, setup).
   // The entrance timer must survive that: an earlier version cleared it in the
@@ -196,275 +330,651 @@ export function useMorph(
     };
   }, []);
 
-  const settle = useCallback(() => {
-    if (closedRef.current) return;
+  /**
+   * The one transition. It owns the generation, the phase and the flight:
+   * every caller that starts a new state of the shell goes through here, and
+   * whatever was running is cancelled by the bump before it can commit.
+   */
+  const commit = useCallback(
+    (next: DrawerPhase, revealNext?: RevealState) => {
+      const m = machine.current;
 
-    clearRevealTimer();
-    setReveal("on");
+      m.generation += 1;
+      m.flight?.stop();
+      m.flight = null;
+      m.closing = null;
 
-    const panel = panelRef.current;
-    panel?.style.removeProperty("transform");
-    panel?.style.removeProperty("opacity");
+      if (m.revealTimer) {
+        window.clearTimeout(m.revealTimer);
+        m.revealTimer = 0;
+      }
 
-    setPhase("open");
-    announceOverlayOpened();
-  }, [panelRef, setPhase, clearRevealTimer]);
+      m.phase = next;
+      setPhase(next);
 
-  // Measure once, before the first paint, then animate from the card to the
-  // panel's own layout box. Nothing here reads geometry after the morph.
-  useLayoutEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
+      if (revealNext) setReveal(revealNext);
 
-    // A direct load is not an in-app overlay: there is no homepage entry behind
-    // it, so close replaces this entry instead of going back through history.
-    if (resting) {
-      // The homepage is mounted underneath and must be resting: mark the
-      // document before this commit paints, so its entrance never runs.
-      document.documentElement.dataset.entrancePlayed = "true";
-      // And remember that this document's entry is the study itself, so a
-      // reader opened over it (study to study) closes to '/' as well.
-      document.documentElement.dataset.readerEntry = "direct";
-      // Match the state a settled open morph leaves behind. The FLIP pose is
-      // measured from the panel's top-left corner, so a panel carrying the CSS
-      // default origin would shrink from its centre and land in the wrong place.
-      panelRef.current?.style.setProperty("transform-origin", "left top");
-      // The drawer is one surface: whatever study this is, it closes into a
-      // card. Its own if home has one, otherwise the featured study's.
-      document.documentElement.dataset.drawerOrigin = findCard(slug)
-        ? slug
-        : FEATURED_SLUG;
-      return;
-    }
+      return m.generation;
+    },
+    [],
+  );
 
-    // Only an entry reached from the homepage goes back to it.
-    if (document.documentElement.dataset.readerEntry !== "direct") {
-      // The drawer keeps the origin it opened from across study swaps and
-      // Back/Forward: a restored entry carries it in history state, a remount
-      // finds it on the document, otherwise this open is the origin.
-      const restored = window.history.state?.workOrigin;
-      const origin =
-        typeof restored === "string"
-          ? restored
-          : (document.documentElement.dataset.drawerOrigin ?? slug);
-      // How many studies sit on top of the entry the drawer was opened from.
-      // Close needs it to land on that entry in one step, not on the study
-      // behind it.
-      const restoredDepth = window.history.state?.workDepth;
-      const depth =
-        handoff?.depth ??
-        (typeof restoredDepth === "number" ? restoredDepth : 0);
+  /** This entry's history state and what it grew out of. */
+  const readEntry = useCallback((): Entry => {
+    const inApp = window.history.state?.workOverlay === true;
+    const depth = readDepth();
+    const origin = findOrigin(slug);
+    const kind = origin
+      ? origin === capsuleElement()
+        ? "capsule"
+        : "card"
+      : null;
 
-      document.documentElement.dataset.drawerOrigin = origin;
+    if (inApp) {
       window.history.replaceState(
         {
           ...window.history.state,
           workOverlay: true,
-          workOrigin: origin,
           workDepth: depth,
         },
         "",
       );
     }
 
-    // The same drawer, showing another study. There is no card to fly out of
-    // and nothing to measure: the panel, its shadow, the backdrop and the nav
-    // stay exactly where they are. Only the content changes, and it takes the
-    // open's own entrance. The release waits for a painted `pending` frame: the
-    // blocks animate from their keyframes either way, but the ruler is a CSS
-    // transition and a brand-new element has no before-change style to leave.
-    if (handoff) {
-      clearProgressionEntry();
+    return { inApp, depth, origin, kind };
+  }, [slug]);
 
-      // Two frames, not one: the first paints `pending`, the second starts the
-      // entrance from it. The guard is a mounted check, not a cancel in the
-      // effect cleanup - development StrictMode runs that cleanup once on mount
-      // and would cancel the frame the reveal is waiting on.
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          if (mountedRef.current) settle();
-        });
-      });
+  /** The open is over: the panel is at rest and the content is readable. */
+  const commitOpen = useCallback(
+    (generation: number) => {
+      const m = machine.current;
 
-      return;
-    }
+      if (m.generation !== generation) return;
 
-    const panel = panelRef.current;
-    if (!panel) return;
+      if (m.revealTimer) {
+        window.clearTimeout(m.revealTimer);
+        m.revealTimer = 0;
+      }
 
-    const card = findCard(slug);
+      m.flight = null;
+      m.phase = "open";
+      setPhase("open");
+      setReveal("on");
 
-    if (reduce) {
-      panel.style.opacity = "0";
-      const fade = animate(
+      const panel = panelRef.current;
+      panel?.style.removeProperty("transform");
+      panel?.style.removeProperty("opacity");
+
+      announceOverlayOpened();
+    },
+    [panelRef],
+  );
+
+  /**
+   * Fly the panel to rest from `box`, under `generation`. A resume continues
+   * from the box the close was showing; an entry starts from its origin.
+   */
+  const flyOpen = useCallback(
+    (generation: number, box: Box | null, mode: "entry" | "resume") => {
+      const m = machine.current;
+      const panel = panelRef.current;
+
+      if (!panel) {
+        commitOpen(generation);
+        return;
+      }
+
+      // Motion caches the transform values it last rendered on this element.
+      // A pose written straight to the style - and a close that ran on a ghost
+      // never touched this cache - is invisible to that cache, so the next
+      // animation can read identity, treat the target as a no-op and settle in
+      // a frame. Detach it so the flight reads the DOM again.
+      releaseElement(panel);
+
+      if (reduce) {
+        // A resumed close is already visible; do not blank it to fade it back.
+        if (mode === "entry") panel.style.opacity = "0";
+
+        const flight = animate(
+          panel,
+          { opacity: 1 },
+          { duration: FADE_S, ease: "easeOut" },
+        );
+        m.flight = flight;
+        void flight.finished.then(() => commitOpen(generation));
+        void moveNav("reader", "fade");
+        return;
+      }
+
+      if (!box) {
+        commitOpen(generation);
+        return;
+      }
+
+      if (mode === "entry") {
+        // The content starts arriving under the landing panel rather than after
+        // it, so the drawer is readable at the moment the flight ends.
+        m.revealTimer = window.setTimeout(
+          () => {
+            if (m.generation === generation && mountedRef.current) {
+              setReveal("on");
+            }
+          },
+          (OPEN_TIMING.duration - REVEAL_LEAD_S) * 1000,
+        );
+      } else {
+        setReveal("on");
+      }
+
+      setPose(panel, flipFrom(box, layoutBox(panel)));
+
+      const flight = animate(
         panel,
-        { opacity: 1 },
-        { duration: FADE_S, ease: "easeOut" },
+        { x: 0, y: 0, scaleX: 1, scaleY: 1 },
+        OPEN_TIMING,
       );
-      openingRef.current = fade;
-      void moveNav("reader", "fade");
-      void fade.finished.then(settle);
-      return;
-    }
+      m.flight = flight;
+      void flight.finished.then(() => commitOpen(generation));
 
-    // "Next project" opens a study with no card to morph from. The panel is
-    // already the destination, so it keeps its opaque surface and only the new
-    // content changes: a fade here would show the homepage through the reader.
-    // The nav is already in the drawer's position, so it stays put.
-    if (!card) {
-      settle();
-      return;
-    }
+      // The nav is the same element on both sides: it flies from the homepage
+      // row into the drawer's row with the morph, on the drawer's own timing.
+      void moveNav("reader", "flip", OPEN_TIMING);
+    },
+    [panelRef, reduce, commitOpen],
+  );
 
-    const openSeconds = openTiming.duration;
+  /**
+   * Open this entry. `resume` is a close the visitor interrupted: the panel
+   * grows from the box it is showing, and the content stays. `entry` is a
+   * fresh one: it starts from whatever was clicked and its content arrives on
+   * the reveal near the landing.
+   */
+  const enter = useCallback(
+    (mode: "entry" | "resume", visual: Box | null = null) => {
+      const m = machine.current;
+      const entry = readEntry();
+      m.hidden = false;
+      m.entry = entry;
+      originRef.current = entry.origin;
 
-    // The content starts arriving under the landing panel rather than after
-    // it, so the reader is readable at the moment the flight ends.
-    const releaseContent = () => {
-      revealTimerRef.current = window.setTimeout(
-        () => {
-          if (mountedRef.current) setReveal("on");
-        },
-        (openSeconds - REVEAL_LEAD_S) * 1000,
+      // The close's inline pose (and its transparent end state) belongs to the
+      // abandoned transition; this one starts from a measured box instead.
+      const panel = panelRef.current;
+      panel?.style.removeProperty("opacity");
+      panel?.style.removeProperty("transform");
+
+      historyRef.current.route = route;
+      historyRef.current.popped = false;
+      historyRef.current.prev = null;
+
+      const generation = commit(
+        "opening",
+        mode === "entry" ? "pending" : "on",
       );
-    };
+      const box =
+        visual ??
+        (entry.origin && laidOut(entry.origin)
+          ? toBox(entry.origin.getBoundingClientRect())
+          : null);
 
-    // The one open: the panel FLIPs out of the card it was opened from.
-    const layout = layoutBox(panel);
+      flyOpen(generation, box, mode);
+    },
+    [commit, flyOpen, panelRef, readEntry, route],
+  );
 
-    setPose(panel, flipFrom(card, layout));
+  /**
+   * A new entry arrived while the shell was closing or closed (a click during
+   * the close flight, a route change back into `/work*`). The generation bump
+   * abandons the close; a close still flying is resumed from the panel's
+   * current box, a finished one opens from this entry's origin.
+   */
+  const reenter = useCallback(() => {
+    const m = machine.current;
+    const panel = panelRef.current;
+    const flying = m.phase === "closing" && m.flight !== null;
 
-    const morph = animate(
-      panel,
-      { x: 0, y: 0, scaleX: 1, scaleY: 1 },
-      openTiming,
+    enter(
+      flying ? "resume" : "entry",
+      flying && panel ? toBox(panel.getBoundingClientRect()) : null,
     );
-    openingRef.current = morph;
-    void morph.finished.then(settle);
+  }, [enter, panelRef]);
 
-    // The nav is the same element on both sides: it flies from the homepage row
-    // into the panel's row with the morph, on the drawer's own timing.
-    void moveNav("reader", "flip", openTiming);
+  /**
+   * The router hid this tree: the shell is closed until the next show opens
+   * it. The tree is shown again with its state intact (React Activity keeps
+   * it), so the phase has to say the shell is off screen any more.
+   */
+  const watchForHide = useCallback(
+    () => () => {
+      if (window.location.pathname.startsWith("/work")) return;
 
-    releaseContent();
-  }, [slug, reduce, resting, panelRef, settle, openTiming, handoff]);
+      const m = machine.current;
+
+      // The flag is what the next show reads, synchronously: a microtask is
+      // too late if the visitor is already coming back. A layout-effect cleanup
+      // also runs inside React's commit, where scheduling an update is not
+      // allowed, so the rendered phase catches up just after it.
+      m.hidden = true;
+      queueMicrotask(() => {
+        if (window.location.pathname.startsWith("/work")) return;
+        if (m.phase === "closed") return;
+
+        m.phase = "closed";
+        setPhase("closed");
+      });
+    },
+    [],
+  );
+
+  /** A direct load's resting state: no flight, the homepage never enters. */
+  const markResting = useCallback(() => {
+    document.documentElement.dataset.entrancePlayed = "true";
+    // The FLIP pose is measured from the panel's top-left corner, so a panel
+    // carrying the CSS default origin would shrink from its centre and land in
+    // the wrong place.
+    panelRef.current?.style.setProperty("transform-origin", "left top");
+  }, [panelRef]);
+
+  // The entry itself. A hidden tree is shown with the phase saying "closed",
+  // so it opens this entry; a direct load rests; StrictMode's second setup
+  // finds the phase already opening.
+  useLayoutEffect(() => {
+    const m = machine.current;
+
+    if (m.hidden || m.phase === "closed") {
+      enter("entry");
+    } else if (resting && !restingRef.current) {
+      restingRef.current = true;
+      m.entry = readEntry();
+      originRef.current = m.entry.origin;
+      markResting();
+    } else if (m.phase === "open") {
+      // The open can complete while the tree is hidden (a Back during the
+      // flight): the panel ref is gone then, so the pose it left is settled
+      // here, on the show, where an open shell means "at rest".
+      const panel = panelRef.current;
+      panel?.style.removeProperty("transform");
+      panel?.style.removeProperty("opacity");
+    }
+
+    return watchForHide();
+  }, [enter, markResting, panelRef, readEntry, resting, watchForHide]);
 
   // A resize mid-morph jumps to the end; after that the panel is pure CSS, so
-  // the new viewport just reflows it and close measures the card again.
+  // the new viewport just reflows it and close measures the origin again.
   useEffect(() => {
     if (phase !== "opening") return;
 
-    const onResize = () => openingRef.current?.complete();
+    const onResize = () => machine.current.flight?.complete();
     window.addEventListener("resize", onResize);
 
     return () => window.removeEventListener("resize", onResize);
   }, [phase]);
 
-  /** Runs the reverse morph, then leaves the route. One flight at a time. */
+  // A route change while the drawer is closed or closing is a re-entry that
+  // never left `/work*` (the visitor came back before the close landed): the
+  // new entry opens. Otherwise it is a navigation inside the drawer: count its
+  // depth and record what the entry behind it is, for stepBack.
+  useEffect(() => {
+    const history = historyRef.current;
+    if (history.route === route) return;
+
+    const m = machine.current;
+
+    if (m.phase === "closing" || m.phase === "closed") {
+      reenter();
+      return;
+    }
+
+    const previous: "index" | "study" =
+      history.route === "/work" ? "index" : "study";
+
+    history.route = route;
+    history.prev = previous;
+
+    if (history.popped) {
+      history.popped = false;
+      m.entry.depth = readDepth();
+      history.prev = window.history.state?.workPrev ?? null;
+    } else {
+      m.entry.depth += 1;
+    }
+
+    if (!m.entry.inApp) return;
+
+    window.history.replaceState(
+      {
+        ...window.history.state,
+        workOverlay: true,
+        workDepth: m.entry.depth,
+        workPrev: previous,
+      },
+      "",
+    );
+  }, [route, reenter]);
+
+  useEffect(() => {
+    function onPopState() {
+      historyRef.current.popped = true;
+    }
+
+    window.addEventListener("popstate", onPopState);
+
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  /**
+   * From a project to the index. Only an entry whose own previous entry is the
+   * index can step back to it with history; after "Next project" the entry
+   * behind is another study, so Back would land there instead of on the index —
+   * the index is pushed in that case. Esc and the backdrop on a project call
+   * this.
+   */
+  const stepBack = useCallback(() => {
+    if (!window.location.pathname.startsWith("/work/")) return;
+
+    if (window.history.state?.workPrev === "index") router.back();
+    else router.push("/work");
+  }, [router]);
+
+  /**
+   * The live box of what the drawer grew out of, resolved again at close. The
+   * element recorded at open may have gone, or been hidden by a resize across
+   * the stacked/carousel breakpoint; a card that is on screen now wins, then the
+   * nav's capsule. Nothing means the close takes the scale-and-fade path rather
+   * than collapsing the panel into a zero-size point.
+   */
+  const originBox = useCallback((): Box | null => {
+    const entry = machine.current.entry;
+
+    if (entry.origin && laidOut(entry.origin)) {
+      return entry.kind === "capsule"
+        ? capsuleBox()
+        : toBox(entry.origin.getBoundingClientRect());
+    }
+
+    const again = findOrigin(slug);
+    if (!again || !laidOut(again)) return null;
+
+    const box =
+      again === capsuleElement()
+        ? capsuleBox()
+        : toBox(again.getBoundingClientRect());
+
+    return box && box.width > 0 && box.height > 0 ? box : null;
+  }, [slug]);
+
+  /**
+   * Browser Back out of the drawer. The router owns the commit — by the time a
+   * popstate lands the URL has already left `/work*` and React is about to
+   * unmount the panel — so the reverse morph runs on a copy: the layer is
+   * cloned while it is still on screen, the copy flies to the origin (or fades
+   * and shrinks when there is none), and the real tree goes as it must.
+   *
+   * Resolves when the copy is gone (or at the cap), so a Navigation API
+   * interception can hold the route until the flight has played.
+   */
+  const playBackExit = useCallback((): Promise<void> => {
+    const m = machine.current;
+    if (m.phase !== "open" && m.phase !== "opening") return Promise.resolve();
+
+    const panel = panelRef.current;
+    const layer = panel?.closest<HTMLElement>(".wd-expand-layer");
+    if (!panel || !layer || layer.dataset.exitGhost !== undefined) {
+      return Promise.resolve();
+    }
+
+    const copy = snapshotElement(layer);
+    const copyPanel = copy.querySelector<HTMLElement>(".wd-reader-panel");
+    if (!copyPanel) return Promise.resolve();
+
+    // Same order as the content swap: read while the source is still laid out,
+    // write after the copy is in the document, or the write clamps to 0.
+    const scroll = readScrollOffsets(layer);
+
+    copy.setAttribute("data-exit-ghost", "");
+    // The copy keeps the closing phase so the backdrop fades on its own rule,
+    // and it must not catch a click while it is only a picture of the drawer.
+    copy.dataset.phase = "closing";
+    copy.style.pointerEvents = "none";
+    document.body.append(copy);
+    writeScrollOffsets(copy, scroll);
+
+    let finish: () => void = () => undefined;
+    const gone = new Promise<void>((resolve) => {
+      finish = () => {
+        window.clearTimeout(cap);
+        resolve();
+      };
+    });
+    const remove = () => {
+      copy.remove();
+      finish();
+    };
+    const cap = window.setTimeout(remove, CLOSE_CAP_MS);
+
+    if (reduce) {
+      void animate(
+        copyPanel,
+        { opacity: 0 },
+        { duration: FADE_S, ease: "easeOut" },
+      )
+        .finished.then(remove, remove)
+        .catch(() => undefined);
+
+      return gone;
+    }
+
+    const box = originBox();
+
+    if (box) {
+      copyPanel.style.transformOrigin = "left top";
+      void animate(
+        copyPanel,
+        flipFrom(box, layoutBox(copyPanel)),
+        CLOSE_TIMING,
+      )
+        .finished.then(remove, remove)
+        .catch(() => undefined);
+
+      return gone;
+    }
+
+    copyPanel.style.transformOrigin = visibleCentre(
+      copyPanel.getBoundingClientRect(),
+      { width: window.innerWidth, height: window.innerHeight },
+    );
+    void animate(copyPanel, { opacity: 0, scale: CLOSE_SCALE }, CLOSE_TIMING)
+      .finished.then(remove, remove)
+      .catch(() => undefined);
+
+    return gone;
+  }, [originBox, panelRef, reduce]);
+
+  // Navigation is the route's own signal, and the only one that fires for a
+  // same-URL push (clicking Work while already on /work), which never changes
+  // the pathname. A traversal leaving /work* flies the ghost; a navigation
+  // into /work* while the drawer is not open is the visitor coming back.
+  useEffect(() => {
+    const navigation = (window as unknown as { navigation?: NavigationApi })
+      .navigation;
+
+    if (!navigation) return;
+
+    function onNavigate(event: NavigationEvent) {
+      const destination = new URL(event.destination.url);
+      const m = machine.current;
+
+      if (!destination.pathname.startsWith("/work")) {
+        if (event.navigationType !== "traverse" || !event.canIntercept) return;
+
+        const exit = playBackExit();
+        event.intercept({ handler: () => exit });
+        return;
+      }
+
+      if (m.phase === "opening" || m.phase === "open") return;
+
+      // A different /work route re-renders the shell and the route effect
+      // opens that entry; a same-URL push fires no route change at all, so it
+      // is handled here. The event runs inside the router's own history write
+      // (Next syncs history from an insertion effect), where a React update is
+      // not allowed: let the commit finish first.
+      if (destination.pathname !== window.location.pathname) return;
+
+      queueMicrotask(() => {
+        const current = machine.current;
+        if (current.phase === "opening" || current.phase === "open") return;
+        if (!window.location.pathname.startsWith("/work")) return;
+
+        reenter();
+      });
+    }
+
+    navigation.addEventListener("navigate", onNavigate);
+
+    return () => navigation.removeEventListener("navigate", onNavigate);
+  }, [playBackExit, reenter]);
+
+  // Without the Navigation API there is no event for a same-URL push, so the
+  // click itself is the signal: a link back to this exact entry, while the
+  // drawer is closing, is the visitor reopening it. (A link to a different
+  // /work route re-renders the shell, and the route effect opens that entry.)
+  // The API is left as the only path where it exists.
+  useEffect(() => {
+    if ((window as unknown as { navigation?: unknown }).navigation) return;
+
+    function onClick(event: MouseEvent) {
+      if (event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const link = target.closest<HTMLAnchorElement>('a[href^="/work"]');
+      if (!link) return;
+
+      const m = machine.current;
+      // Closing, or closed but still on screen while a slow (or lost) route
+      // exit lands: either way this click is the re-entry.
+      const closedOnScreen = m.phase === "closed" && !m.hidden;
+      if (m.phase !== "closing" && !closedOnScreen) return;
+      if (link.getAttribute("href") !== window.location.pathname) return;
+
+      reenter();
+    }
+
+    document.addEventListener("click", onClick, true);
+
+    return () => document.removeEventListener("click", onClick, true);
+  }, [reenter]);
+
+  /**
+   * Play the reverse morph, then settle closed and ask the route to leave. The
+   * shell is off the screen when the flight ends, whatever the router does
+   * next: a slow exit lands later, a cancelled one never does, and only a real
+   * re-entry signal (a click, or the route coming back) opens it again.
+   */
   const close = useCallback(() => {
-    if (closingRef.current) return closingRef.current;
+    const m = machine.current;
 
-    closingRef.current = (async () => {
-      if (closedRef.current) return;
+    if (m.closing) return m.closing;
+    // A hidden shell cannot close: it is not on screen, and the next show opens
+    // the new entry. (Its effects are unmounted, so nothing can call this, but
+    // the state machine should not depend on that.)
+    if (m.hidden) return Promise.resolve();
+    if (m.phase !== "opening" && m.phase !== "open") return Promise.resolve();
 
-      clearRevealTimer();
-      leaveDrawer();
-      setPhase("closing");
-      openingRef.current?.stop();
-      // The card measured below must be at rest: the homepage behind puts itself
-      // back now, while the panel still covers it.
-      announceOverlayClosing();
+    const generation = commit("closing");
+    announceOverlayClosing();
 
-      const panel = panelRef.current;
-      if (!panel) return;
+    const panel = panelRef.current;
+    const box = originBox();
 
-      // The drawer keeps its one surface, but the card it closes into is the
-      // study on screen now: that is where the reader was. Only when this study
-      // has no card on the homepage (the carousel renders the current step, so
-      // a study reached by "Next project" usually has none) does it fall back to
-      // the card the drawer was opened from.
-      const origin = document.documentElement.dataset.drawerOrigin ?? slug;
-      const card = findCard(slug) ?? findCard(origin);
+    // The nav returns on the same timing as whatever the panel does: the close
+    // flight, or the 120ms fade. Both waits are capped at that timing (morph.ts)
+    // so a stopped frame loop cannot strand the drawer over a blank page: the
+    // route change is the promise that matters.
+    const exitSeconds = reduce ? FADE_S : CLOSE_TIMING.duration;
+    const navHome = landWithin(
+      reduce ? moveNav("home", "fade") : moveNav("home", "flip", CLOSE_TIMING),
+      exitSeconds,
+    );
 
-      // The nav returns on the same timing as whatever the panel does: the
-      // close flight, or the 120ms fade. Both waits are capped at that timing
-      // (morph.ts) so a stopped frame loop cannot strand the reader over a blank
-      // page: the route change is the promise that matters.
-      const exitSeconds = reduce ? FADE_S : closeTiming.duration;
-      const navHome = landWithin(
-        reduce ? moveNav("home", "fade") : moveNav("home", "flip", closeTiming),
-        exitSeconds,
-      );
+    const closing = (async () => {
+      if (!panel) {
+        // Nothing to fly: the shell is still closed, never left mid-flight.
+        commit("closed");
+        return;
+      }
 
       if (reduce) {
-        await Promise.all([
-          landWithin(
-            animate(
-              panel,
-              { opacity: 0 },
-              { duration: FADE_S, ease: "easeOut" },
-            ).finished,
-            exitSeconds,
-          ),
-          navHome,
-        ]);
-      } else if (card) {
-        // The pose maps the panel's top-left corner onto the card's: the origin
-        // must be that corner whatever state the panel was opened in.
+        m.flight = animate(panel, { opacity: 0 }, {
+          duration: FADE_S,
+          ease: "easeOut",
+        });
+      } else if (box) {
+        // The pose maps the panel's top-left corner onto the origin's: the
+        // origin must be that corner whatever state the panel was opened in.
         panel.style.transformOrigin = "left top";
-        const pose = flipFrom(card, layoutBox(panel));
-        await Promise.all([
-          landWithin(animate(panel, pose, closeTiming).finished, exitSeconds),
-          navHome,
-        ]);
+        m.flight = animate(panel, flipFrom(box, layoutBox(panel)), CLOSE_TIMING);
       } else {
-        // No card to land on (a study with none, or a direct load behind):
-        // the close flight still runs, shrinking in place about the centre of
-        // what is actually on screen.
+        // Nothing to land on: the close flight still runs, shrinking in place
+        // about the centre of what is actually on screen.
         panel.style.transformOrigin = visibleCentre(
           panel.getBoundingClientRect(),
           { width: window.innerWidth, height: window.innerHeight },
         );
-        await Promise.all([
-          landWithin(
-            animate(panel, { opacity: 0, scale: CLOSE_SCALE }, closeTiming)
-              .finished,
-            exitSeconds,
-          ),
-          navHome,
-        ]);
+        m.flight = animate(
+          panel,
+          { opacity: 0, scale: CLOSE_SCALE },
+          CLOSE_TIMING,
+        );
       }
 
-      closedRef.current = true;
+      const flight = m.flight;
+      await Promise.all([landWithin(flight.finished, exitSeconds), navHome]);
+
+      // A transition started while this flight ran (a reopen, a new entry):
+      // it owns the shell now, so this close must not touch the pose or the
+      // route.
+      if (m.generation !== generation) return;
+
+      m.flight = null;
       panel.style.removeProperty("transform");
       panel.style.opacity = "0";
-      announceOverlayExit();
 
-      if (window.location.pathname !== `/work/${slug}`) return;
-
-      // An in-app overlay leaves through the entry it was opened from (the
-      // homepage); a direct load — or a reader opened over one — has no such
-      // entry, so '/' replaces the study instead. Back from home must not
-      // reopen the reader.
-      if (window.history.state?.workOverlay) {
-        // Each "Next project" pushed its own entry, so the homepage is `depth`
-        // studies behind this one. Land on it in one step: router.back() would
-        // only reach the previous study and reopen the drawer there.
-        const depth = window.history.state?.workDepth;
-
-        if (typeof depth === "number" && depth > 0) {
-          window.history.go(-(depth + 1));
+      // Ask the route to leave. A slow exit lands whenever the router gets
+      // there; a cancelled one leaves the route here.
+      if (window.location.pathname.startsWith("/work")) {
+        // The in-app drawer steps back to the homepage entry in one go: every
+        // navigation inside it pushed its own entry above that one. A direct
+        // load is the document's own entry and is replaced instead, so Back
+        // cannot reopen the drawer.
+        if (!m.entry.inApp) {
+          router.replace("/");
+        } else if (m.entry.depth > 0) {
+          window.history.go(-(m.entry.depth + 1));
         } else {
           router.back();
         }
-      } else {
-        delete document.documentElement.dataset.readerEntry;
-        router.replace("/");
       }
+
+      // The close is over on screen, so settle it: closed and off the screen,
+      // with the page released, whether the exit lands now, later, or never.
+      // Nothing here may reopen it - only a real re-entry signal (a click, or
+      // the route coming back) does that. The layer stays laid out (it is
+      // hidden by `visibility`, not `display`) so the next open's FLIP still
+      // measures the panel.
+      commit("closed");
     })();
 
-    return closingRef.current;
-  }, [slug, reduce, closeTiming, panelRef, router, setPhase, clearRevealTimer]);
+    m.closing = closing;
 
-  return { phase, reveal, handoff: entering, close };
+    return closing;
+  }, [commit, originBox, panelRef, reduce, router]);
+
+  return { phase, reveal, close, stepBack, originRef };
 }

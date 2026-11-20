@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { nextWork } from "@/lib/work";
 import type { WorkMeta } from "@/lib/work";
-import { Intro, NextLink, READER_SCROLL_ID, READER_TITLE_ID } from "./parts";
+import { Intro, NextLink, READER_SCROLL_ID } from "./parts";
 import { Hero } from "./media-parts";
 import { ReaderMobileActions, ReaderRail } from "./reader-rail";
 import { ScrollRuler } from "./scroll-ruler";
@@ -18,23 +18,16 @@ export type ReaderProps = {
 };
 
 /**
- * The drawer's reader: a fixed panel with a single scroll container, so the
- * margin notes, the wide breakouts and the sticky rail all measure against the
- * same box. Both a soft navigation and a direct load render this over the
- * homepage; only the shell around it differs (morph or resting).
+ * The drawer's study content: one scroll container, so the margin notes, the
+ * wide breakouts and the sticky rail all measure against the same box.
+ *
+ * The panel itself — its inset, radius, shadow, dialog role and morph — belongs
+ * to the drawer (`drawer-shell.tsx`), which is the same panel the index uses.
+ * A study only fills it.
  */
 export function Reader({ meta, children }: ReaderProps) {
   return (
-    <div
-      className="wd-reader-panel"
-      data-mode="overlay"
-      role="dialog"
-      // Deliberately not aria-modal: the one nav lives in the root layout, at
-      // this panel's sibling, and must stay in the accessibility tree. The
-      // homepage is inert and the focus trap holds, so the dialog is modal in
-      // behaviour without telling screen readers to hide everything else.
-      aria-labelledby={READER_TITLE_ID}
-    >
+    <>
       <BlurStack height="calc(var(--wd-nav-inset) + var(--wd-nav-height))" />
 
       <div id={READER_SCROLL_ID} className="wd-reader-scroll">
@@ -66,6 +59,6 @@ export function Reader({ meta, children }: ReaderProps) {
       {/* Below 1024px the ways back are fixed to the panel's foot, outside the
           scroll container so they stay put while the article moves. */}
       <ReaderMobileActions />
-    </div>
+    </>
   );
 }

@@ -609,7 +609,7 @@ type SegmentTrackProps = {
  * The selected fill is painted by an SVG capsule under the icons, so the
  * segments themselves only carry labels and hit areas.
  */
-function SegmentTrack({
+export function SegmentTrack({
   label,
   segments,
   selectedIndex,
@@ -723,7 +723,9 @@ type SegmentProps = {
   selected: boolean;
   label: string;
   tooltip: string;
-  glyph: Glyph;
+  /** The theme's own glyphs; other tracks pass their icon as children. */
+  glyph?: Glyph;
+  children?: ReactNode;
   onClick: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
   buttonRef?: Ref<HTMLButtonElement>;
@@ -734,11 +736,12 @@ type SegmentProps = {
 };
 
 /** Shared segment button: same classes, icon size and tooltip everywhere. */
-function Segment({
+export function Segment({
   selected,
   label,
   tooltip,
   glyph,
+  children,
   onClick,
   onKeyDown,
   buttonRef,
@@ -767,7 +770,7 @@ function Segment({
         .filter(Boolean)
         .join(" ")}
     >
-      <GlyphIcon glyph={glyph} />
+      {glyph ? <GlyphIcon glyph={glyph} /> : children}
       <Tooltip>{tooltip}</Tooltip>
     </button>
   );
@@ -778,7 +781,7 @@ function Segment({
  * toggle is in puts the label away from the phase row (nav-dock.css), so a
  * tooltip never lands under a popover.
  */
-function Tooltip({ children }: { children: ReactNode }) {
+export function Tooltip({ children }: { children: ReactNode }) {
   return (
     <span
       aria-hidden="true"

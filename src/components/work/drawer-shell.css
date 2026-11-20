@@ -1,0 +1,233 @@
+/*
+ * The one drawer over the homepage. The layer is fixed so the morphing panel
+ * keeps one viewport coordinate space; the layer itself never transforms, so
+ * the panel's fixed geometry stays CSS.
+ */
+
+.wd-expand-layer {
+  /*
+   * The drawer's pinned motion values (T8 fix 1, F5), named here so no rule
+   * leaves its easing implicit:
+   *
+   *   backdrop in   320ms ease-out   (entrance curve as ease-out)
+   *   backdrop out  240ms ease-in
+   *   content out   300ms retarget   (the FLIP's own curve at ~86% of its run,
+   *                                   so the content is gone as the panel
+   *                                   lands; the entrance itself is the cascade
+   *                                   in entrance.css)
+   *   reduced       120ms ease-out   (opacity only, no transforms)
+   *
+   * The content swap inside the open drawer is its own pair (drawer-shell.tsx):
+   * 160ms out, 240ms in, both on the strong ease-out. It moves nothing.
+   */
+  --wd-backdrop-in: 320ms ease-out;
+  --wd-backdrop-out: 240ms ease-in;
+  --wd-content-out: 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  --wd-fade-reduced: 120ms ease-out;
+
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+/*
+ * A shell that has closed is off the screen even while its route is still
+ * `/work`: the flight is over, the page is released, and a slow (or lost) exit
+ * must not leave a surface behind. `visibility`, not `display`, so the panel
+ * keeps the layout box the next open's FLIP measures from.
+ */
+.wd-expand-layer[data-phase="closed"] {
+  visibility: hidden;
+}
+
+/* The drawer's panel: the same box the reader used to own, now shared with the
+   index. Its inset and the nav's insets are root tokens (globals.css): the nav
+   dock in the root layout reads the same values. */
+.wd-reader-panel {
+  position: fixed;
+  inset: var(--wd-panel-inset);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+}
+
+@media (min-width: 768px) {
+  .wd-reader-panel {
+    border-radius: 12px;
+    box-shadow:
+      var(--shadow-card),
+      0 30px 70px -30px rgb(0 0 0 / 0.45);
+  }
+
+  /*
+   * A close is the panel becoming the card, so its elevation crosses to the
+   * card's flat shadow over the same 350ms flight. The ambient 70px drop shadow
+   * is painted in the panel's own (scaled) space: squeezed to half size it turns
+   * into a hard dark band along the bottom edge - 120 grey against the page's
+   * dimmed 136 in day mode - and its negative spread cuts square-looking corners
+   * across the panel's radius. At rest, and through the whole open, nothing
+   * changes.
+   */
+  .wd-expand-layer[data-phase="closing"] .wd-reader-panel {
+    box-shadow: var(--shadow-card);
+  }
+}
+
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+  .wd-expand-layer[data-phase="closing"] .wd-reader-panel {
+    transition: box-shadow 350ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+.wd-expand-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(8 8 8 / 0.4);
+  animation: wd-backdrop-in var(--wd-backdrop-in) both;
+  pointer-events: auto;
+}
+
+[data-phase="night"] .wd-expand-backdrop {
+  background: rgb(0 0 0 / 0.62);
+}
+
+.wd-expand-layer[data-phase="closing"] .wd-expand-backdrop {
+  animation: wd-backdrop-out var(--wd-backdrop-out) both;
+}
+
+/* Height and width are the reader's own CSS; this wrapper is only the inert
+   and pointer-event boundary, never a containing block for the panel. */
+.wd-expand-content {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.wd-expand-content .wd-reader-panel {
+  pointer-events: auto;
+}
+
+/* The drawer is gone the moment the reverse morph lands: the layer can linger
+   for its 300ms without catching clicks or showing a surface. */
+.wd-expand-layer[data-phase="closing"] .wd-expand-backdrop,
+.wd-expand-layer[data-phase="closing"] .wd-reader-panel {
+  pointer-events: none;
+}
+
+/* Content leaves with the panel, not before it: the FLIP's own retarget curve
+   at 300ms, ~86% of the 350ms close, so every frame's opacity tracks how far
+   the panel has shrunk and the reader is never a blank white surface while it
+   still moves. It is 0 a beat before the panel lands rather than exactly at the
+   landing: the transition starts on the first painted close frame, a frame or
+   two behind the FLIP's clock. No doubling risk either way - the panel keeps its
+   own opaque surface the whole way, so the card's content cannot show through.
+   Its entrance is the reveal state, not the phase, so it can start before the
+   morph lands (entrance.css). A running swap animation is cancelled here: the
+   close owns the opacity from its first frame. */
+.wd-expand-layer[data-phase="closing"] .wd-drawer-view {
+  animation: none;
+  opacity: 0;
+  transition: opacity var(--wd-content-out);
+}
+
+/*
+ * The view inside the panel: one flex column per view, stacked absolutely in a
+ * box that fills the panel, so the content's own scroll box (`.wd-reader-scroll`,
+ * `.wd-index-scroll`) keeps the geometry it had when the reader owned the panel.
+ * Two views exist only for the length of a swap.
+ */
+.wd-drawer-stack {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.wd-drawer-view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/*
+ * The content swap: the outgoing view stays exactly where it was, over the
+ * incoming one, and fades out while the incoming fades in. Opacity only — the
+ * panel does not move and no frame is empty. 160ms out, 240ms in, on the
+ * drawer's own ease-out; reduced motion keeps the same fade, because it is the
+ * state change itself, not decoration.
+ */
+.wd-drawer-view[data-enter] {
+  animation: wd-view-in var(--duration-medium-1)
+    var(--ease-emphasized-decelerate) both;
+}
+
+.wd-drawer-view[data-leave] {
+  /* Painted over the incoming view, and out of reach while it goes. */
+  z-index: 1;
+  pointer-events: none;
+}
+
+/*
+ * A snapshot is a picture of the view it copied, not a re-render: its content
+ * must sit at the state it was in, not replay the reader's entrance. Both the
+ * copy and the Back ghost still live under a `data-reveal="on"` layer, so the
+ * entrance selectors in entrance.css match their blocks again and restart them
+ * at translateY(10px) + blur(10px) + opacity 0 - the copy's whole life for the
+ * 160ms swap, and the ghost's for its 350ms flight.
+ *
+ * Scoped to the content, never the snapshot itself: the copy's fade is a Web
+ * Animation on the view, and the ghost's backdrop fade and panel flight belong
+ * to the drawer's own close, so both still run.
+ */
+[data-leave] *,
+[data-exit-ghost] .wd-drawer-view * {
+  animation: none !important;
+  transition: none !important;
+}
+
+@keyframes wd-view-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes wd-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wd-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/*
+ * Reduced motion keeps every state change and removes the movement: opacity
+ * only, 120ms ease-out, no transforms. Each rule restates the whole animation
+ * or transition so no base shorthand keeps its own duration or easing.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .wd-expand-backdrop {
+    animation: wd-backdrop-in var(--wd-fade-reduced) both;
+  }
+
+  .wd-expand-layer[data-phase="closing"] .wd-expand-backdrop {
+    animation: wd-backdrop-out var(--wd-fade-reduced) both;
+  }
+
+  .wd-expand-layer[data-phase="closing"] .wd-drawer-view {
+    transition: opacity var(--wd-fade-reduced);
+  }
+}

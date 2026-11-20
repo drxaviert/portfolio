@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { READER_SCROLL_ID, READER_TITLE_ID } from "./parts";
 import { ReaderMobileActions, ReaderRail } from "./reader-rail";
-import { ReaderCloseProvider } from "./reader-close";
+import { DrawerActionsProvider } from "./drawer-actions";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -90,13 +90,13 @@ describe("ReaderRail", () => {
     );
   });
 
-  it("closes through the overlay's own path, with no prop drilled in", () => {
+  it("steps back through the drawer's own actions, with no prop drilled in", () => {
     const close = vi.fn();
 
     render(
-      <ReaderCloseProvider close={close}>
+      <DrawerActionsProvider close={vi.fn()} stepBack={close}>
         <ReaderRail />
-      </ReaderCloseProvider>,
+      </DrawerActionsProvider>,
     );
 
     fireEvent.click(screen.getByRole("link", { name: "Work" }));
@@ -106,7 +106,7 @@ describe("ReaderRail", () => {
 
   it("prevents the default navigation when the reader can close", () => {
     const close = vi.fn();
-    render(<ReaderRail onClose={close} />);
+    render(<ReaderRail onStepBack={close} />);
 
     const link = screen.getByRole("link", { name: "Work" });
     const click = createEvent.click(link);
@@ -116,7 +116,7 @@ describe("ReaderRail", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves a direct load to follow the link home", () => {
+  it("leaves a study with no drawer around it to follow the link", () => {
     render(<ReaderRail />);
 
     const link = screen.getByRole("link", { name: "Work" });
@@ -124,12 +124,12 @@ describe("ReaderRail", () => {
     fireEvent(link, click);
 
     expect(click.defaultPrevented).toBe(false);
-    expect(link).toHaveAttribute("href", "/");
+    expect(link).toHaveAttribute("href", "/work");
   });
 
   it("leaves a modified click to the browser", () => {
     const close = vi.fn();
-    render(<ReaderRail onClose={close} />);
+    render(<ReaderRail onStepBack={close} />);
 
     const link = screen.getByRole("link", { name: "Work" });
     const modified = createEvent.click(link, { metaKey: true });
@@ -141,7 +141,7 @@ describe("ReaderRail", () => {
 
   it("leaves a middle click to the browser", () => {
     const close = vi.fn();
-    render(<ReaderRail onClose={close} />);
+    render(<ReaderRail onStepBack={close} />);
 
     const link = screen.getByRole("link", { name: "Work" });
     const middle = createEvent.click(link, { button: 1 });
@@ -187,7 +187,7 @@ describe("ReaderMobileActions", () => {
   it("labels both thumb-reach buttons", () => {
     render(<ReaderMobileActions />);
 
-    expect(screen.getByLabelText("Back to work")).toHaveAttribute("href", "/");
+    expect(screen.getByLabelText("Back to work")).toHaveAttribute("href", "/work");
     expect(screen.getByLabelText("Back to top")).toBeInTheDocument();
   });
 
@@ -195,9 +195,9 @@ describe("ReaderMobileActions", () => {
     const close = vi.fn();
 
     render(
-      <ReaderCloseProvider close={close}>
+      <DrawerActionsProvider close={vi.fn()} stepBack={close}>
         <ReaderMobileActions />
-      </ReaderCloseProvider>,
+      </DrawerActionsProvider>,
     );
 
     fireEvent.click(screen.getByLabelText("Back to work"));

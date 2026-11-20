@@ -129,7 +129,24 @@ describe("NavDock", () => {
     expect(dock()).toHaveAttribute("data-nav-state", "reader");
   });
 
-  it("closes the reader when Work is clicked in the drawer", () => {
+  it("closes the whole drawer when the logo is clicked in it", () => {
+    mocks.pathname = "/work/systems-in-motion";
+    renderDock();
+    const close = vi.fn();
+    registerReaderClose(close);
+
+    const logo = screen.getByRole("link", { name: "Home" });
+    const click = createEvent.click(logo);
+    fireEvent(logo, click);
+
+    expect(click.defaultPrevented).toBe(true);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves Work to the router, so it steps the drawer back to the index", () => {
+    // Work is the drawer's own section: on a study it is the way back to the
+    // index, and on the index it is the page already on screen. Neither is a
+    // close.
     mocks.pathname = "/work/systems-in-motion";
     renderDock();
     const close = vi.fn();
@@ -139,8 +156,8 @@ describe("NavDock", () => {
     const click = createEvent.click(link);
     fireEvent(link, click);
 
-    expect(click.defaultPrevented).toBe(true);
-    expect(close).toHaveBeenCalledTimes(1);
+    expect(click.defaultPrevented).toBe(false);
+    expect(close).not.toHaveBeenCalled();
   });
 
   it("leaves a modified click and a direct load to the browser", () => {

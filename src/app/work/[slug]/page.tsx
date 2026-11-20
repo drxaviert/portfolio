@@ -1,15 +1,12 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { HomeScreen } from "@/components/home/home-screen";
-import { ExpandShell } from "@/components/work/expand-shell";
 import { mdxComponents } from "@/components/work/mdx-components";
 import { Reader } from "@/components/work/reader";
-import { RouteStudy } from "@/components/work/route-study";
 import { getWork, listWork } from "@/lib/work";
 import { WORK_BODIES } from "@/lib/work-bodies";
 import { workMetadata } from "@/lib/work-metadata";
 
-// The reader needs the slug to exist at all, so there is no instant shell to
+// The study needs the slug to exist at all, so there is no instant shell to
 // stream in ahead of it.
 export const instant = false;
 
@@ -28,10 +25,9 @@ export async function generateMetadata({
 }
 
 /**
- * A direct load of a study renders the same thing a soft navigation does: the
- * homepage underneath, the overlay reader open on top, resting (no morph). The
- * reader content is server-rendered either way, so the study is still the HTML
- * a crawler or a visitor without JS receives.
+ * `/work/<slug>`: a study inside the drawer. The homepage and the panel belong
+ * to the route's layout (`layout.tsx`), so this page is only the article — a
+ * direct load and an in-app step both land in the same open drawer.
  */
 export default async function WorkPage({
   params,
@@ -46,15 +42,8 @@ export default async function WorkPage({
   const { default: Body } = await WORK_BODIES[meta.slug]();
 
   return (
-    <>
-      <HomeScreen />
-      <RouteStudy slug={meta.slug}>
-        <ExpandShell slug={meta.slug} resting>
-          <Reader meta={meta}>
-            <Body components={mdxComponents} />
-          </Reader>
-        </ExpandShell>
-      </RouteStudy>
-    </>
+    <Reader meta={meta}>
+      <Body components={mdxComponents} />
+    </Reader>
   );
 }

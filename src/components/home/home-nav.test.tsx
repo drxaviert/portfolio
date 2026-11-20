@@ -43,12 +43,12 @@ describe("HomeNav", () => {
     );
   });
 
-  it("links Work home", () => {
+  it("links Work to the work sheet", () => {
     renderNav();
 
     expect(screen.getByRole("link", { name: "Work" })).toHaveAttribute(
       "href",
-      "/",
+      "/work",
     );
   });
 
@@ -87,22 +87,22 @@ describe("HomeNav", () => {
     }
   });
 
-  it("takes a 44px touch target for the labels and the orb", () => {
+  it("gives the labels, the glyph and the orb a 44px hit area", () => {
     renderNav();
 
-    // A coarse pointer gets 6px of the bar's padding on each edge, so the 32px
-    // label and the 36px orb clear the 44px floor without moving.
+    // 6px of the bar's padding on each edge: the 32px label and glyph become 44,
+    // and the 36px orb 44 too. The pseudo-elements are transparent, so the
+    // resting boxes, the capsule and the nav's look are untouched — and every
+    // pointer gets them, not only a coarse one.
     const css = readFileSync(
       join(process.cwd(), "src", "components", "home", "nav-items.css"),
       "utf8",
     );
 
-    expect(css).toMatch(
-      /@media \(pointer: coarse\) \{\s*\.nav-item::before \{[^}]*inset: -6px 0;/,
-    );
-    expect(css).toMatch(
-      /\.nav-logo::before,\s*\.nav-glyph::before \{[^}]*inset: -6px;/,
-    );
+    expect(css).toMatch(/\.nav-item::before \{[^}]*inset: -6px 0;/);
+    expect(css).toMatch(/\.nav-glyph::before \{[^}]*inset: -6px;/);
+    expect(css).toMatch(/\.nav-logo::before \{[^}]*inset: -4px;/);
+    expect(css).not.toMatch(/@media \(pointer: coarse\)/);
     expect(screen.getByRole("link", { name: "Home" })).toHaveClass("nav-logo");
   });
 
