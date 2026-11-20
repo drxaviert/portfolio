@@ -1,9 +1,10 @@
 /*
- * Progressive blur at the viewport's top and bottom edges, site-wide. Each band
- * renders a BlurStack with no surface tint: only the blur is painted, so the
- * horizon glow behind it keeps its colour. Height and peak blur are root tokens
- * (globals.css, next to the reader's nav geometry), and the ramp is pure CSS —
- * no scroll listener, nothing measured, nothing animated.
+ * Progressive blur at the viewport's top and bottom edges, on the homepage.
+ * Each band renders a BlurStack with no surface tint: only the blur is
+ * painted, so the horizon glow behind it keeps its colour. Height and peak
+ * blur are root tokens (globals.css, next to the reader's nav geometry), and
+ * the ramp is pure CSS — no scroll listener, nothing measured, nothing
+ * animated.
  *
  * Layer: z-index 40. Above the content and the entrance veil (10), below the
  * reader layer (50, drawer-shell.css) and the nav dock (60, nav-dock.css). The

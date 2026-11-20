@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Work_Sans } from "next/font/google";
 import type { ReactNode } from "react";
-import { ViewportEdgeBlur } from "@/components/edge-blur/viewport-edge-blur";
 import { NavDock } from "@/components/nav/nav-dock";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
@@ -62,11 +61,9 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           {children}
-          {/* Site-wide edge blur; fixed, so it sits under the nav dock and any
-              open study (viewport-edge-blur.css). */}
-          <ViewportEdgeBlur />
           {/* One nav for the whole site, after the page so the overlay's focus
-              trap can cycle from the panel into it. */}
+              trap can cycle from the panel into it. The homepage's edge blur is
+              mounted by `/` itself (app/page.tsx), not here. */}
           <NavDock />
         </ThemeProvider>
       </body>

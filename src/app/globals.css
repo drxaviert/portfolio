@@ -211,9 +211,10 @@
   --wd-nav-content-gap: 24px;
   --wd-phase-row-gap: 4px;
 
-  /* Viewport edge blur (viewport-edge-blur.css): the fixed progressive blur at
-     the top and bottom of the page. The band's height, and the deepest band's
-     blur; the ramp fades to zero at the band's inner edge. */
+  /* Homepage edge blur (viewport-edge-blur.css): the fixed progressive blur at
+     the top and bottom of `/`. The band's height, and the deepest band's blur;
+     the ramp fades to zero at the band's inner edge. The dev tuner
+     (edge-blur-tuner.tsx) writes overrides for these while picking a value. */
   --edge-blur-height: 64px;
   --edge-blur-max: 8px;
 }
