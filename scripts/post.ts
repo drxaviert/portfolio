@@ -358,6 +358,44 @@ async function publish(
   }
 }
 
+const UPLOAD_CONCURRENCY = 6;
+
+/**
+ * Uploads a ladder in a fixed-width pool: a 40-file encode would otherwise open
+ * 40 sockets at once and slow every one of them down. A failure rejects the
+ * pool, which fails the file before its manifest is written.
+ */
+async function publishAll(
+  id: string,
+  files: { relative: string; body: Buffer; contentType: string }[],
+  dryRun: boolean,
+): Promise<Map<string, string>> {
+  const bytes = files.reduce((total, file) => total + file.body.byteLength, 0);
+  console.log(
+    `  info     hls ${files.length} files · ${formatBytes(bytes)}`,
+  );
+
+  const urls = new Map<string, string>();
+  let next = 0;
+
+  const worker = async (): Promise<void> => {
+    while (next < files.length) {
+      const file = files[next++];
+      const url = await publish(
+        `media/${id}/hls/${file.relative}`,
+        file.body,
+        file.contentType,
+        dryRun,
+      );
+      urls.set(file.relative, url);
+    }
+  };
+
+  const width = Math.min(UPLOAD_CONCURRENCY, files.length);
+  await Promise.all(Array.from({ length: width }, worker));
+  return urls;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Images                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -854,15 +892,8 @@ async function processVideo(
   // variant URIs keep working straight from Blob.
   let hlsUrl: string | undefined;
   if (hls) {
-    for (const file of hls.files) {
-      const url = await publish(
-        `media/${job.id}/hls/${file.relative}`,
-        file.body,
-        file.contentType,
-        options.dryRun,
-      );
-      if (file.relative === "master.m3u8") hlsUrl = url;
-    }
+    const urls = await publishAll(job.id, hls.files, options.dryRun);
+    hlsUrl = urls.get("master.m3u8");
   }
 
   let webm: { url: string; bytes: number } | undefined;
