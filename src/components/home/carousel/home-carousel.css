@@ -2,7 +2,8 @@
  * Home carousel geometry.
  *
  * The slot widths are the Figma columns (444/120/52/52, 656/140/64/64,
- * 753/180/83/84) with 12px gaps. Until the client measures the row, a card's
+ * 753/180/83/84) with 12px gaps (`calc(var(--spacing) * 3)` below; keep in sync with
+ * `GAP` in carousel-math.ts). Until the client measures the row, a card's
  * box comes from these rules so the server HTML already shows the right
  * layout; after that (`data-ready`) the script writes every box in pixels and
  * these rules stop applying.
@@ -14,7 +15,7 @@
   --c2: 52;
   --c3: 52;
   --cols: 444fr 120fr 52fr 52fr;
-  --u: calc((100% - 36px) / (var(--c0) + var(--c1) + var(--c2) + var(--c3)));
+  --u: calc((100% - var(--spacing) * 9) / (var(--c0) + var(--c1) + var(--c2) + var(--c3)));
   /* The short run's centring offset: 0 for the full four-column band. */
   --c-off: 0px;
   /* How far a card's shadow reaches past its box: the mask and clip boxes open
@@ -57,7 +58,7 @@
   inset: 0;
   display: grid;
   grid-template-columns: var(--cols);
-  gap: 12px;
+  gap: calc(var(--spacing) * 3);
   visibility: hidden;
   pointer-events: none;
 }
@@ -75,14 +76,14 @@
 
 .car-row[data-slots="2"] {
   --cols: calc(var(--u) * var(--c0)) calc(var(--u) * var(--c1));
-  --c-off: calc((100% - (var(--u) * (var(--c0) + var(--c1)) + 12px)) / 2);
+  --c-off: calc((100% - (var(--u) * (var(--c0) + var(--c1)) + var(--spacing) * 3)) / 2);
 }
 
 .car-row[data-slots="3"] {
   --cols: calc(var(--u) * var(--c0)) calc(var(--u) * var(--c1))
     calc(var(--u) * var(--c2));
   --c-off: calc(
-    (100% - (var(--u) * (var(--c0) + var(--c1) + var(--c2)) + 24px)) / 2
+    (100% - (var(--u) * (var(--c0) + var(--c1) + var(--c2)) + var(--spacing) * 6)) / 2
   );
 }
 
@@ -127,9 +128,14 @@
 
 /* A hovered or focused card's ring grows into the gutters, over its
    neighbours. */
-.car-slide:hover,
 .car-slide:focus-within {
   z-index: 2;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .car-slide:hover {
+    z-index: 2;
+  }
 }
 
 .car-slide[data-ghost] {
@@ -196,9 +202,9 @@
 
 .car-title {
   position: absolute;
-  left: 32px;
-  right: 32px;
-  bottom: 32px;
+  left: calc(var(--spacing) * 8);
+  right: calc(var(--spacing) * 8);
+  bottom: calc(var(--spacing) * 8);
   z-index: 10;
   display: -webkit-box;
   overflow: hidden;
@@ -214,18 +220,18 @@
 }
 
 .car-row:not([data-ready]) .car-slide[data-slot="1"] {
-  left: calc(var(--c-off) + var(--u) * var(--c0) + 12px);
+  left: calc(var(--c-off) + var(--u) * var(--c0) + var(--spacing) * 3);
   width: calc(var(--u) * var(--c1));
 }
 
 .car-row:not([data-ready]) .car-slide[data-slot="2"] {
-  left: calc(var(--c-off) + var(--u) * (var(--c0) + var(--c1)) + 24px);
+  left: calc(var(--c-off) + var(--u) * (var(--c0) + var(--c1)) + var(--spacing) * 6);
   width: calc(var(--u) * var(--c2));
 }
 
 .car-row:not([data-ready]) .car-slide[data-slot="3"] {
   left: calc(
-    var(--c-off) + var(--u) * (var(--c0) + var(--c1) + var(--c2)) + 36px
+    var(--c-off) + var(--u) * (var(--c0) + var(--c1) + var(--c2)) + var(--spacing) * 9
   );
   width: calc(var(--u) * var(--c3));
 }
@@ -727,8 +733,10 @@
   );
 }
 
-.car-peek-edge:hover {
-  --car-ring: 6px;
+@media (hover: hover) and (pointer: fine) {
+  .car-peek-edge:hover {
+    --car-ring: 6px;
+  }
 }
 
 /*

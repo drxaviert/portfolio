@@ -15,25 +15,25 @@ do not sit on a single scale.
 | `gap-0.5` | 2 | theme menu rows (`src/components/theme/theme-toggle.tsx:1569`) |
 | `p-1` | 4 | theme menu padding (`:1569`) |
 | `gap-2` | 8 | theme menu icon → label (`:1589`) |
-| `gap-3` | 12 | home column, nav item group, tracker bands horizontally (`src/components/home/home-layout.tsx:119`, `src/components/home/home-nav.tsx:65`) |
+| `gap-3` | 12 | home column, nav item group, tracker bands horizontally (`src/components/home/home-layout.tsx:129`, `src/components/home/home-nav.tsx:65`) |
 | `p-3` / `px-3` | 12 | theme menu row inline padding (`src/components/theme/theme-toggle.tsx:1589`) |
 | `p-4` / `px-4` / `inset-4` | 16 | nav bar, home frame, dev panels (`src/components/home/home-nav.tsx:50`) |
-| `p-5` | 20 | featured card at 375 (`src/components/home/home-cards.tsx:62`) |
+| `p-5` | 20 | featured card at 375 (`src/components/home/home-cards.tsx:65`) |
 | `mx-6` | 24 | nav divider (`src/components/home/nav-items.tsx:539`) |
-| `p-8` / `inset-8` | 32 | featured card at `md`+, card-fade box (`src/components/home/home-cards.tsx:62`, `:86`) |
+| `p-8` / `inset-8` | 32 | featured card at `md`+, card-fade box (`src/components/home/home-cards.tsx:65`, `:90`) |
 | `h-11` | 44 | theme menu row (`src/components/theme/theme-toggle.tsx:1589`) |
 
 ## Home page frame
 
 | Item | Value | Source |
 | --- | --- | --- |
-| Outer frame max width | `1200px` | `src/components/home/home-layout.tsx:103` |
-| Frame padding | `16px`; `md` `32px`/`48px`; `xl` top/bottom `60px` | `home-layout.tsx:103` (`px-4 py-4 md:px-8 md:py-12 xl:py-[60px]`) |
+| Outer frame max width | `1200px` | `src/components/home/home-layout.tsx:113` |
+| Frame padding | `16px`; `md` `32px`/`48px`; `xl` top/bottom `60px` | `home-layout.tsx:113` (`px-4 py-4 md:px-8 md:py-12 xl:py-15`) |
 | Frame gap (vertical breathing above/below the content column) | `clamp(0px, calc((100dvh - 780px) / 2), 64px)` | `home-layout.tsx:23-25` |
-| Content column | `max-width: 1136px`, `gap: 12px` | `home-layout.tsx:119` |
-| Vertical frame lines | `1px`, on the content column's edges, from `1440px` | `home-layout.tsx:108-117` |
-| Horizontal frame lines | `1px`, `-inset-x-8` (32px each side), at `calc(var(--frame-gap) * -1 - 1px)` top and `calc(var(--frame-gap) * -1)` bottom | `home-layout.tsx:122-133` |
-| Nav slot | `h-16` (64px) | `home-layout.tsx:204` |
+| Content column | `max-width: 1136px`, `gap: 12px` | `home-layout.tsx:129` |
+| Vertical frame lines | `1px`, on the content column's edges, from `1440px` | `home-layout.tsx:118-127` |
+| Horizontal frame lines | `1px`, `-inset-x-8` (32px each side), at `calc(var(--frame-gap) * -1 - 1px)` top and `calc(var(--frame-gap) * -1)` bottom | `home-layout.tsx:133-144` |
+| Nav slot | `h-16` (64px) | `home-layout.tsx:216` |
 
 The comment at `home-layout.tsx:17-22` records the nominal frame as 780px content + 2 × 64px gaps =
 908px; a 900px-tall viewport overflows by 8px, which is why the gap shrinks.
@@ -94,11 +94,11 @@ the top band, and an open study's panel covers both bands rather than stacking u
 | Tracker cell gap | `3px` | `3px` | `3px` | `3px` | `tracker-widget.tsx:53`, `:64` |
 | Gap between tracker bands | — | `9px` | `9px` | `9px` | `tracker-widget.tsx:84` |
 | Tracker pager dot | `6px` (`size-1.5`), `6px` gap | same | same | same | `tracker-widget.tsx:89-93` |
-| Featured card band | `420px` | `560px` | `360px` | `416px` | `src/components/home/home-layout.tsx:159`, `:182` |
-| Empty-work band | `420px` | `560px` | `360px` | `416px` | `home-layout.tsx:159` |
-| Featured card padding | `20px` (`p-5`) | `32px` (`md:p-8`) | same | same | `src/components/home/home-cards.tsx:62` |
-| Card-fade inset | `32px` (`inset-8`) | same | same | same | `home-cards.tsx:86` |
-| Play card (`/play`) | `849×276` | same | same | same | `src/components/play/play-card.tsx:30` |
+| Featured card band | `420px` | `560px` | `360px` | `416px` | `src/components/home/home-layout.tsx:169`, `:193` |
+| Empty-work band | `420px` | `560px` | `360px` | `416px` | `home-layout.tsx:169` |
+| Featured card padding | `20px` (`p-5`) | `32px` (`md:p-8`) | same | same | `src/components/home/home-cards.tsx:65` |
+| Card-fade inset | `32px` (`inset-8`) | same | same | same | `home-cards.tsx:90` |
+| Play card (home) | `849×276` at 1440 | same | same | same | the home `PlayCard` is `flex-1` (`src/components/home/home-cards.tsx:193`; cell `min-w-0 flex-1` at `src/components/home/home-layout.tsx:156-162`), so its width is `1136 − 275 − 12 = 849` at 1440 and the height `276` follows the tracker card (`src/components/home/tracker-widget.tsx:77`); `/play` has its own fixed 849×276 at `src/components/play/play-card.tsx:30` |
 | Nav orb | `36px` (`size-9`) | same | same | same | `src/components/home/home-nav.tsx:32` |
 | Orb eyes | `8×3.4px` at `top: 10.5px`, `left: 13.5px` / `20.6px` | same | same | same | `home-nav.tsx:35-36` |
 | Nav item | `h-8` (32px), `px-2` | same | same | same | `src/components/home/nav-items.tsx:25` |
@@ -112,26 +112,26 @@ The tracker card's `w-[275px]` at `xl` against `xl:h-[276px]` is literal in the 
 
 | Item | 375–767 | `md` (768) | `lg` (1024) | `xl` (1280) | Source |
 | --- | --- | --- | --- | --- | --- |
-| Layout | stacked card + slivers | carousel | carousel | carousel | `src/components/home/home-layout.tsx:166-195` |
-| Row height | — | `560px` | `360px` | `416px` | `src/components/home/carousel/home-carousel.css:25`, `:39`, `:50` |
-| Slot 0 | — | `444fr` | `656fr` | `753fr` | `home-carousel.css:12`, `:34`, `:45` |
-| Slot 1 | — | `120fr` | `140fr` | `180fr` | `home-carousel.css:13`, `:35`, `:46` |
+| Layout | stacked card + slivers | carousel | carousel | carousel | `src/components/home/home-layout.tsx:174-192` |
+| Row height | — | `560px` | `360px` | `416px` | `src/components/home/carousel/home-carousel.css:26`, `:40`, `:51` |
+| Slot 0 | — | `444fr` | `656fr` | `753fr` | `home-carousel.css:13`, `:35`, `:46` |
+| Slot 1 | — | `120fr` | `140fr` | `180fr` | `home-carousel.css:14`, `:36`, `:47` |
 | Slot 2 | — | `52fr` | `64fr` | `83fr` | `:14`, `:36`, `:47` |
 | Slot 3 | — | `52fr` | `64fr` | `84fr` | `:15`, `:37`, `:48` |
-| Gap | — | `12px` | `12px` | `12px` | `home-carousel.css:60`; `GAP = 12` at `src/components/home/carousel/carousel-math.ts:11` |
-| Card shadow pad | `8px` | `8px` | `8px` | `8px` | `home-carousel.css:22` |
-| Title inset | `32px` left/right/bottom | same | same | same | `home-carousel.css:197-207` |
+| Gap | — | `12px` | `12px` | `12px` | `home-carousel.css:61`; `GAP = 12` at `src/components/home/carousel/carousel-math.ts:12` |
+| Card shadow pad | `8px` | `8px` | `8px` | `8px` | `home-carousel.css:23` |
+| Title inset | `32px` left/right/bottom | same | same | same | `home-carousel.css:203-213` |
 
 - Unit: `--u: calc((100% - 36px) / (var(--c0) + var(--c1) + var(--c2) + var(--c3)))`
-  (`home-carousel.css:17`). The `36px` is three 12px gaps.
+  (`home-carousel.css:18`). The `36px` is three 12px gaps.
 - Pre-measure placement: slot *n* left is `--c-off + --u * (sum of earlier columns) + 12px * n`, width
-  `--u * --cn` (`home-carousel.css:211-231`).
+  `--u * --cn` (`home-carousel.css:217-237`).
 - Short runs centre their own columns: `--c-off` is `(100% − u·Σc) / 2` for 1 slot, with `+12px` /
-  `+24px` for 2 and 3 slots (`home-carousel.css:71-87`).
+  `+24px` for 2 and 3 slots (`home-carousel.css:72-88`).
 - Row clip: rest `inset(-12px -6px)`; stepping `inset(-12px -4px)`; peeking `inset(-12px 0 -12px -6px)`
-  (`home-carousel.css:29`, `:693-695`, `:707-709`).
+  (`home-carousel.css:30`, `:699-701`, `:713-715`).
 - Edge mask (`edgeWidth`): `28px` fade starting `12px` in; mask image is 24px larger on every side and
-  positioned `-12px -12px` (`home-carousel.css:303-317`; default `src/components/home/carousel/edge-blur.ts:15-18`).
+  positioned `-12px -12px` (`home-carousel.css:309-323`; default `src/components/home/carousel/edge-blur.ts:15-18`).
 - Edge blur: `2.5px` (`edge-blur.ts:17`).
 - Hover peek defaults: reach `32px` inside the column, `24px` outside, reveal `450ms`, retract `350ms`,
   leave delay `120ms`, fade strength `0.5`, progressive-blur ramp `100%`, max blur `8px`, fade width
@@ -140,7 +140,7 @@ The tracker card's `w-[275px]` at `xl` against `xl:h-[276px]` is literal in the 
   and `33px` for the 83px slot 2 at `xl` (`src/components/home/carousel/home-carousel.tsx:1788-1799`).
 - Peek shift: last slot width + 12px gap → `96px` at `xl` (`hover-peek.ts:110-120`).
 - Slim-card content fade: `28px`, `clamp(0px, var(--car-wide) − 100cqw, 28px)`
-  (`home-carousel.css:893-910`).
+  (`home-carousel.css:901-918`).
 - Title fade in at `75%` eased progress over `20%` (`src/components/home/carousel/carousel-settings.ts:23-24`).
 
 ## Reader (drawer)
@@ -210,7 +210,7 @@ Hero scale relationship: `689 = 753 − 2 × 32`; the faux-UI canvas is shifted 
 | `min-width: 768px` | `md`: home carousel, 32px frame pad, 16px panel inset, rail absent, hero radius |
 | `min-width: 1024px` | `lg`: rail, margin notes, 360px carousel, panel inset |
 | `min-width: 1280px` | `xl`: 60px frame pad, 416px carousel, 753/180/83/84 slots |
-| `min-width: 1440px` | frame lines and spotlight (`src/components/home/home-layout.tsx:111`; `src/components/home/frame-line-spotlight.css:19`) |
+| `min-width: 1440px` | frame lines and spotlight (`src/components/home/home-layout.tsx:121`; `src/components/home/frame-line-spotlight.css:19`) |
 | `max-width: 1023px` | thumb targets replace the rail (`reader.css:215`) |
 | `max-width: 559px` | 3-column contact sheet (`reader.css:973`) |
 | `(hover: hover) and (pointer: fine)` | hover states: ring, glide, peek, spotlight, ruler |
@@ -225,8 +225,8 @@ arbitrary variants above.
 
 | Derived value | Expression | Source |
 | --- | --- | --- |
-| Carousel unit | `(100% − 36px) / (c0+c1+c2+c3)` | `home-carousel.css:17` |
-| Carousel slot left/width | `c-off + u·Σc + 12n`, `u·cn` | `home-carousel.css:211-231` |
+| Carousel unit | `(100% − 36px) / (c0+c1+c2+c3)` | `home-carousel.css:18` |
+| Carousel slot left/width | `c-off + u·Σc + 12n`, `u·cn` | `home-carousel.css:217-237` |
 | Peek shift | `lastSlot.w + gap` | `src/components/home/carousel/hover-peek.ts:112` |
 | Peek fade widths | `max(8, round(slot.w · 40 / 100))` | `src/components/home/carousel/home-carousel.tsx:1788-1799` |
 | Nav dock top | `max(pad + offset, 50dvh + offset/2 − 2rem)` | `nav-dock.css:20-23` |
@@ -246,7 +246,7 @@ arbitrary variants above.
 
 | Case | What is measured | Source |
 | --- | --- | --- |
-| Carousel after first measure | slot boxes in px, then `data-ready` stops the CSS ratios applying | `home-carousel.css:4-8`; `src/components/home/carousel/carousel-dom.ts` |
+| Carousel after first measure | slot boxes in px, then `data-ready` stops the CSS ratios applying | `home-carousel.css:4-9`; `src/components/home/carousel/carousel-dom.ts` |
 | Nav dock home position | `[data-nav-slot]` top, corrected when off by > `0.5px` | `src/components/nav/nav-dock.tsx:36`, `:195-219` |
 | Ruler right offset | available room beside the column | `scroll-ruler.tsx:344-357` |
 | Blur stack height | passed as a `calc()` string, not a number | `src/components/work/reader.tsx:43` |
