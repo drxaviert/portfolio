@@ -1,0 +1,159 @@
+/*
+ * The dev media library. Tokens only: the card surface and shadow come from
+ * Tailwind utilities; this file owns the thumbnail frame and the two states a
+ * utility cannot express, pointer-only hover and a focus ring inside the
+ * clipped card.
+ */
+
+.mlib-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background-color: var(--surface-container-highest);
+}
+
+.mlib-thumb-img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--duration-long-2) var(--ease-spring-follow);
+}
+
+/* The card clips its thumbnail, so the ring has to sit inside the frame. */
+.mlib-thumb:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -4px;
+}
+
+.mlib-button {
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--duration-short-6) var(--ease-decelerate);
+}
+
+.mlib-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Text and select fields share one quiet surface and the button's ring. */
+.mlib-field {
+  border: 0;
+  background-color: var(--surface-container);
+}
+
+.mlib-field:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.mlib-check {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 10px;
+  border-radius: var(--radius-md);
+  background-color: var(--surface-container);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.mlib-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.mlib-check:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/*
+ * The drop overlay sits above the nav dock (60) so a drag reads the same
+ * wherever the pointer is. It is pointer-only; the Upload button is the
+ * keyboard path and the overlay's text alternative.
+ */
+.mlib-drop {
+  position: fixed;
+  inset: 12px;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 2px dashed var(--primary);
+  border-radius: var(--radius-lg);
+  background-color: color-mix(in oklab, var(--surface) 92%, transparent);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
+/* A queued or encoding file, on the same card frame as a real asset. */
+.mlib-job {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background-color: var(--surface-container-low);
+  box-shadow: var(--shadow-card);
+}
+
+.mlib-job-top {
+  display: flex;
+  min-height: 88px;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background-color: var(--surface-container-highest);
+}
+
+.mlib-progress {
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: var(--surface-container-highest);
+}
+
+.mlib-progress > span {
+  display: block;
+  height: 100%;
+  background-color: var(--primary);
+  transform-origin: left;
+  transition: transform var(--duration-medium-3) var(--ease-decelerate);
+}
+
+/*
+ * Hover is a pointer affordance only: on a touch screen a tapped card would
+ * otherwise hold its hover state until the next tap. The selected filter is
+ * excluded, so its raised fill stays put.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .mlib-button:not([aria-pressed="true"]):hover {
+    background-color: var(--surface-container-high);
+  }
+
+  .mlib-thumb:hover .mlib-thumb-img {
+    transform: scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mlib-button,
+  .mlib-thumb-img {
+    transition: none;
+  }
+
+  .mlib-thumb:hover .mlib-thumb-img {
+    transform: none;
+  }
+}

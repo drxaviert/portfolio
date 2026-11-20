@@ -1,5 +1,7 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { coverImageFor, getMedia, validateManifest } from "./media";
+import { coverImageFor, getMedia, listMedia, validateManifest } from "./media";
 import { sourceSet } from "@/components/media/source-set";
 
 const IMAGE_ID = "pipeline-test-still-4a9b86e544";
@@ -41,6 +43,33 @@ describe("getMedia", () => {
     expect(() => getMedia("../work/systems-in-motion")).toThrow(
       /not a media id/,
     );
+  });
+});
+
+describe("listMedia", () => {
+  const manifestIds = () =>
+    fs
+      .readdirSync(path.join(process.cwd(), "content", "media"))
+      .filter((file) => file.endsWith(".json"))
+      .map((file) => file.replace(/\.json$/, ""));
+
+  it("lists every manifest in content/media, once", () => {
+    const listed = listMedia().map((media) => media.id);
+
+    expect(listed).toHaveLength(manifestIds().length);
+    expect([...listed].sort()).toEqual([...manifestIds()].sort());
+  });
+
+  it("sorts newest first by createdAt", () => {
+    const dates = listMedia().map((media) => Date.parse(media.createdAt));
+
+    expect(dates).toEqual([...dates].sort((a, b) => b - a));
+  });
+
+  it("returns the validated manifest getMedia returns", () => {
+    for (const media of listMedia()) {
+      expect(media).toBe(getMedia(media.id));
+    }
   });
 });
 

@@ -92,6 +92,8 @@ const HLS_SMALL_RUNG = { maxrate: "800k", bufsize: "1600k" };
 interface CliOptions {
   alt?: string;
   post?: string;
+  caption?: string;
+  only?: string;
   study?: string;
   audio: boolean;
   webm: boolean;
@@ -169,6 +171,12 @@ function parseArgs(argv: string[]): CliOptions {
       case "--post":
         options.post = value();
         break;
+      case "--caption":
+        options.caption = value();
+        break;
+      case "--only":
+        options.only = value();
+        break;
       case "--study":
         options.study = value();
         break;
@@ -234,7 +242,10 @@ Files that already have a manifest are skipped, so re-running is safe.
 Options
   --alt "<text>"        Alt text. Only valid when a single file is in the inbox;
                         otherwise you are prompted per file.
+  --only <filename>     Process just this inbox file, leaving the rest alone.
+                        A basename, not a path (the dev library's queue uses it).
   --post "<caption>"    Also write content/posts/<yyyy-mm-dd>-<slug>.mdx.
+  --caption "<text>"    Caption for the manifest only; no post file is written.
   --study <slug>        Print snippets to paste into content/work/<slug>.mdx.
                         The slug must be an existing study; it does not filter.
   --audio               Keep audio in the encoded video (AAC 128k).
@@ -1004,6 +1015,27 @@ async function listInbox(): Promise<string[]> {
     .sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * `--only` narrows one run to a single inbox file, which is what the dev
+ * library's upload queue needs: each drop is its own job with its own caption
+ * and flags. The name is a basename, never a path, so a job cannot reach
+ * outside `media/inbox/`.
+ */
+export function selectInbox(names: string[], only?: string): string[] {
+  if (only === undefined) return names;
+  if (only.trim() === "") {
+    throw new UsageError("--only needs a filename");
+  }
+  if (/[\\/]/.test(only) || only === "." || only === "..") {
+    throw new UsageError(`--only expects a filename, not a path: "${only}"`);
+  }
+  if (!names.includes(only)) {
+    throw new UsageError(`no file named "${only}" in media/inbox/`);
+  }
+
+  return [only];
+}
+
 async function run(): Promise<number> {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
@@ -1038,7 +1070,7 @@ async function run(): Promise<number> {
   await mkdir(MANIFEST_DIR, { recursive: true });
   await mkdir(ARCHIVE_DIR, { recursive: true });
 
-  const names = await listInbox();
+  const names = selectInbox(await listInbox(), options.only);
   if (names.length === 0) {
     console.log("Inbox is empty — drop files in media/inbox/ and run again.");
     return 0;
@@ -1082,7 +1114,9 @@ async function run(): Promise<number> {
   try {
     for (const [index, job] of jobs.entries()) {
       const alt = alts[index] ?? "";
-      const caption = options.post ?? "";
+      // `--post` is a caption plus a post file; `--caption` sets the manifest
+      // only, which is what the dev library needs.
+      const caption = options.post ?? options.caption ?? "";
 
       try {
         const workDir = path.join(workRoot, job.id);

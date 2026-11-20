@@ -12,6 +12,17 @@ web.
 
 Images and video are encoded and hosted by `pnpm post`; only a small JSON manifest is committed.
 
+### From the browser (the easy path)
+
+With `pnpm dev` running, open `/dev/media`. Drop files anywhere on the page, or press **Upload
+files**; each drop becomes a compact row where a caption, `--audio` for video and HLS
+auto/force/off can be set, and Upload starts the existing pipeline one file at a time. When a card
+appears, copy its `<Media>` tag from there. **Publish** commits and pushes the pending manifests when
+the checkout is on `main` with only `content/media/` dirty, which deploys the site. Every `/dev/media`
+route 404s in a production build.
+
+### From the CLI
+
 1. Drop the originals in `media/inbox/` (gitignored, like `media/archive/`).
 2. Run `pnpm post` from the repo root. It needs Node 24, `ffmpeg` and `ffprobe` on `PATH`.
 3. Commit `content/media/<id>.json` once the run prints `ok` for every file.
@@ -37,6 +48,8 @@ file is skipped and an edited file becomes a new id.
 | Flag | Effect |
 | --- | --- |
 | `--dry-run` | Encode in a temp directory and print what would upload and write; no uploads, files or credentials. |
+| `--only <filename>` | Process just that inbox file; the dev library's queue uses it. A basename, not a path. |
+| `--caption "<text>"` | Set the manifest's caption only; unlike `--post`, no post file is written. |
 | `--alt "<text>"` | Alt text for a single-file inbox. With several files it is ignored and each file is prompted. |
 | `--audio` | Keep the audio track: AAC 128k in the MP4, Opus 96k in the WebM. Default is to strip it. |
 | `--webm` | Also encode a VP9 WebM. |

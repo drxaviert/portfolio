@@ -5,6 +5,24 @@ fails the build instead of drawing an empty frame. The ingest side is in
 [real-work-intake.md](../workflows/real-work-intake.md#1-media); this page covers how the frame
 behaves once it has an id.
 
+## Browsing, uploading and publishing
+
+`/dev/media` lists every manifest in `content/media` and nothing else, so the `<Media id="...">` you
+copy is one that resolves. It runs under `pnpm dev` only and 404s in a production build. A card shows
+the smallest image variant (or the video poster, never a playing video), the dimensions, duration,
+recorded bytes and createdAt, with Copy tag and Copy id buttons and a filter/search over the list.
+
+The page is also the ingest path: drop files anywhere, or press Upload files. Each drop is staged
+with a caption, a with-audio toggle and HLS auto/force/off for video, then `POST /dev/media/api/upload`
+streams the file into `media/inbox/` and a one-at-a-time queue runs `scripts/post.ts --only` on it.
+Progress is polled from `/dev/media/api/jobs` (queued, encoding, uploading, done or the encoder's own
+error), a done job refreshes the page, and a failure stays in the inbox for a retry.
+
+The header counts manifests that are untracked or modified in git. Publish commits exactly those
+paths and pushes `main`; it refuses unless the branch is `main` and every dirty path is under
+`content/media/`, so work in progress never rides along. Byte counts are the ones the manifest
+records, so an image card says "not recorded" instead of guessing.
+
 ## Slots
 
 Every slot accepts a media id instead of its placeholder. A slot passed a `<Media>` child uses that
