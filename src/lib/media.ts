@@ -252,6 +252,29 @@ export function getMedia(id: string): MediaManifest {
   return manifest;
 }
 
+/**
+ * Every manifest in `content/media`, newest first.
+ *
+ * Each file is read through `getMedia`, so the library can only ever list an id
+ * that a real page could draw: a broken manifest fails here the same way it
+ * fails a build. Manifests without a parseable `createdAt` sort last and ties
+ * fall back to the id, so the order is stable between runs.
+ */
+export function listMedia(): MediaManifest[] {
+  if (!fs.existsSync(MEDIA_DIR)) return [];
+
+  const time = (media: MediaManifest) => {
+    const parsed = Date.parse(media.createdAt);
+    return Number.isNaN(parsed) ? -Infinity : parsed;
+  };
+
+  return fs
+    .readdirSync(MEDIA_DIR)
+    .filter((file) => file.endsWith(".json"))
+    .map((file) => getMedia(file.slice(0, -".json".length)))
+    .sort((a, b) => time(b) - time(a) || a.id.localeCompare(b.id));
+}
+
 /** The widest variant at or below the cover target, so a card never fetches 2560. */
 function pickWidth(sources: MediaSource[], format: ImageFormat): MediaSource {
   const matching = sources.filter((source) => source.format === format);
