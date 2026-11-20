@@ -113,16 +113,6 @@ const CLOSE_TIMING: NavFlightTiming = {
  */
 const CLOSE_CAP_MS = CAROUSEL_CLOSE_S * 1000 + 260;
 
-/**
- * How long a close waits for its route exit to land. The exit is only a
- * request: a same-URL push can cancel it and a Back can land on another
- * `/work` entry, leaving the shell closing while the route never leaves. The
- * Navigation API reopens that state when it exists; without it - or if the
- * exit is lost - the shell must not sit invisible behind a locked page, so
- * after this it opens again.
- */
-const EXIT_FALLBACK_MS = 1500;
-
 export function cardSelector(slug: string): string {
   return `[data-work-card="${slug}"]`;
 }
@@ -867,7 +857,10 @@ export function useDrawerMorph(
       if (!link) return;
 
       const m = machine.current;
-      if (m.phase !== "closing") return;
+      // Closing, or closed but still on screen while a slow (or lost) route
+      // exit lands: either way this click is the re-entry.
+      const closedOnScreen = m.phase === "closed" && !m.hidden;
+      if (m.phase !== "closing" && !closedOnScreen) return;
       if (link.getAttribute("href") !== window.location.pathname) return;
 
       reenter();
@@ -879,10 +872,10 @@ export function useDrawerMorph(
   }, [reenter]);
 
   /**
-   * Play the reverse morph, then ask the route to leave. There is no closed
-   * latch: the hide closes the shell, and a navigation back into /work*
-   * reopens it. A close whose navigation is superseded is simply abandoned by
-   * the next transition's generation.
+   * Play the reverse morph, then settle closed and ask the route to leave. The
+   * shell is off the screen when the flight ends, whatever the router does
+   * next: a slow exit lands later, a cancelled one never does, and only a real
+   * re-entry signal (a click, or the route coming back) opens it again.
    */
   const close = useCallback(() => {
     const m = machine.current;
@@ -911,7 +904,11 @@ export function useDrawerMorph(
     );
 
     const closing = (async () => {
-      if (!panel) return;
+      if (!panel) {
+        // Nothing to fly: the shell is still closed, never left mid-flight.
+        commit("closed");
+        return;
+      }
 
       if (reduce) {
         m.flight = animate(panel, { opacity: 0 }, {
@@ -949,41 +946,35 @@ export function useDrawerMorph(
       panel.style.removeProperty("transform");
       panel.style.opacity = "0";
 
-      // Ask the route to leave. Its outcome owns the phase: leaving hides the
-      // tree (closed), and a superseding navigation into /work* reopens it.
-      if (!window.location.pathname.startsWith("/work")) return;
-
-      // The in-app drawer steps back to the homepage entry in one go: every
-      // navigation inside it pushed its own entry above that one. A direct load
-      // is the document's own entry and is replaced instead, so Back cannot
-      // reopen the drawer.
-      if (!m.entry.inApp) {
-        router.replace("/");
-      } else if (m.entry.depth > 0) {
-        window.history.go(-(m.entry.depth + 1));
-      } else {
-        router.back();
+      // Ask the route to leave. A slow exit lands whenever the router gets
+      // there; a cancelled one leaves the route here.
+      if (window.location.pathname.startsWith("/work")) {
+        // The in-app drawer steps back to the homepage entry in one go: every
+        // navigation inside it pushed its own entry above that one. A direct
+        // load is the document's own entry and is replaced instead, so Back
+        // cannot reopen the drawer.
+        if (!m.entry.inApp) {
+          router.replace("/");
+        } else if (m.entry.depth > 0) {
+          window.history.go(-(m.entry.depth + 1));
+        } else {
+          router.back();
+        }
       }
 
-      // The exit was only a request. If the route is still here after a
-      // moment it never left: without the Navigation API nothing else would
-      // reopen a same-URL push, and a Back can land on another /work entry.
-      // The drawer comes back rather than stay invisible behind a locked page.
-      await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, EXIT_FALLBACK_MS);
-      });
-
-      if (m.generation !== generation) return;
-      if (m.hidden || m.phase !== "closing") return;
-      if (!window.location.pathname.startsWith("/work")) return;
-
-      reenter();
+      // The close is over on screen, so settle it: closed and off the screen,
+      // with the page released, whether the exit lands now, later, or never.
+      // Nothing here may reopen it - only a real re-entry signal (a click, or
+      // the route coming back) does that. The layer stays laid out (it is
+      // hidden by `visibility`, not `display`) so the next open's FLIP still
+      // measures the panel.
+      commit("closed");
     })();
 
     m.closing = closing;
 
     return closing;
-  }, [commit, originBox, panelRef, reduce, reenter, router]);
+  }, [commit, originBox, panelRef, reduce, router]);
 
   return { phase, reveal, close, stepBack, originRef };
 }

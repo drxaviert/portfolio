@@ -419,6 +419,11 @@ describe("DrawerShell", () => {
     expect(css).toMatch(
       /\.wd-expand-layer\[data-phase="closing"\] \.wd-expand-backdrop \{[^}]*wd-backdrop-out/,
     );
+    // A closed shell is off the screen while a slow route exit is still on its
+    // way; visibility keeps the panel's box for the next open's FLIP.
+    expect(css).toMatch(
+      /\.wd-expand-layer\[data-phase="closed"\] \{[^}]*visibility: hidden;/,
+    );
   });
 
   it("keeps the scroll position on the copy it fades out", async () => {
@@ -609,7 +614,8 @@ describe("DrawerShell", () => {
     fireEvent.keyDown(window, { key: "Escape" });
 
     await waitFor(() => expect(mocks.back).toHaveBeenCalledTimes(1));
-    expect(layerElement()).toHaveAttribute("data-phase", "closing");
+    // The flight is over: the shell settled closed and released the page.
+    expect(layerElement()).toHaveAttribute("data-phase", "closed");
   });
 
   it("closes the whole drawer on Esc from a study under A", async () => {
@@ -963,8 +969,8 @@ describe("DrawerShell", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(mocks.back).toHaveBeenCalled());
 
-    // The shell is shut: posed on the capsule, transparent.
-    expect(layerElement()).toHaveAttribute("data-phase", "closing");
+    // The shell is shut: the flight is over, so it settled closed.
+    expect(layerElement()).toHaveAttribute("data-phase", "closed");
     expect(panelElement().style.opacity).toBe("0");
 
     await cacheDrawerAway(entry);
@@ -982,7 +988,7 @@ describe("DrawerShell", () => {
 
     fireEvent.click(document.querySelector(".wd-expand-backdrop")!);
     await waitFor(() => expect(mocks.back).toHaveBeenCalled());
-    expect(layerElement()).toHaveAttribute("data-phase", "closing");
+    expect(layerElement()).toHaveAttribute("data-phase", "closed");
 
     await cacheDrawerAway(entry);
     holdOpenMorph();
@@ -998,7 +1004,7 @@ describe("DrawerShell", () => {
     // `a[href="/"]` to the registered reader close.
     act(() => requestReaderClose());
     await waitFor(() => expect(mocks.back).toHaveBeenCalled());
-    expect(layerElement()).toHaveAttribute("data-phase", "closing");
+    expect(layerElement()).toHaveAttribute("data-phase", "closed");
 
     await cacheDrawerAway(entry);
     holdOpenMorph();
@@ -1087,7 +1093,7 @@ describe("DrawerShell", () => {
 
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(mocks.back).toHaveBeenCalled());
-    expect(layerElement()).toHaveAttribute("data-phase", "closing");
+    expect(layerElement()).toHaveAttribute("data-phase", "closed");
 
     holdOpenMorph();
     mocks.pathname = "/work";
@@ -1270,18 +1276,35 @@ describe("DrawerShell", () => {
     mocks.replace.mockImplementation(scheduleLeave);
     mocks.go.mockImplementation(scheduleLeave);
 
+    /** The tree is really gone from the page (the router or our CSS hid it). */
+    const offScreen = () => {
+      const layer = document.querySelector<HTMLElement>(
+        ".wd-expand-layer:not([data-exit-ghost])",
+      );
+
+      if (!layer) return true;
+      if (getComputedStyle(layer).display === "none") return true;
+
+      return getComputedStyle(layer).visibility === "hidden";
+    };
+
+    /** For the invariant: a settled closed shell counts as hidden. */
     const hidden = () => {
       const layer = document.querySelector<HTMLElement>(
         ".wd-expand-layer:not([data-exit-ghost])",
       );
 
-      return !layer || getComputedStyle(layer).display === "none";
+      if (!layer) return true;
+      if (getComputedStyle(layer).display === "none") return true;
+      if (getComputedStyle(layer).visibility === "hidden") return true;
+
+      return layer.dataset.phase === "closed";
     };
 
     const showTo = (path: string, node: ReactNode) => {
       // Showing an already-visible drawer is not an event in the app, and it
       // must not cancel a close's pending route: only a navigation does that.
-      if (!hidden()) return;
+      if (!offScreen()) return;
 
       cancelLeave();
       mocks.pathname = path;
@@ -1293,7 +1316,7 @@ describe("DrawerShell", () => {
     const pushTo = (path: string, node: ReactNode) => {
       cancelLeave();
 
-      if (hidden()) {
+      if (offScreen()) {
         showTo(path, node);
         return;
       }
@@ -1333,7 +1356,7 @@ describe("DrawerShell", () => {
       // Nothing a transition started may outlive it.
       expect({ run, copies, ghosts }).toEqual({ run, copies: 0, ghosts: 0 });
 
-      if (!layer || getComputedStyle(layer).display === "none") {
+      if (hidden()) {
         // Gone from the screen: the page is the visitor's again.
         expect({ run, overflow, inert }).toEqual({
           run,
@@ -1344,7 +1367,7 @@ describe("DrawerShell", () => {
       }
 
       // Still on screen: a fully open drawer, never a phase left behind.
-      expect({ run, phase: layer.dataset.phase }).toEqual({
+      expect({ run, phase: layer?.dataset.phase }).toEqual({
         run,
         phase: "open",
       });
@@ -1384,7 +1407,7 @@ describe("DrawerShell", () => {
           if (action === "esc" || action === "backdrop") {
             // A hidden tree has no listener and nothing to click: its effects
             // are unmounted, so gestures only exist on a visible drawer.
-            if (hidden()) return;
+            if (offScreen()) return;
 
             if (action === "esc") {
               fireEvent.keyDown(window, { key: "Escape" });
@@ -1428,7 +1451,7 @@ describe("DrawerShell", () => {
     await runStorm(false);
   }, 40_000);
 
-  it("reopens a close whose route exit never lands", async () => {
+  it("settles closed and unlocked when the exit never lands, and a later click re-enters", async () => {
     const entry = await renderCached();
     vi.useFakeTimers();
 
@@ -1442,12 +1465,28 @@ describe("DrawerShell", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    // The flight has landed and the shell is closing with the route still here.
-    expect(layerElement()).toHaveAttribute("data-phase", "closing");
+    // The flight is over: the shell is closed, off the screen, the page free.
+    expect(layerElement()).toHaveAttribute("data-phase", "closed");
+    expect(document.body.style.overflow).toBe("");
+    expect(document.querySelector("body > main")).not.toHaveAttribute("inert");
 
-    // The exit fallback opens the drawer again: no invisible, locked shell.
+    // Nothing reopens it by itself, however long the route takes.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(2000);
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+    expect(layerElement()).toHaveAttribute("data-phase", "closed");
+    expect(document.body.style.overflow).toBe("");
+
+    // A real re-entry - the Work link - opens it again.
+    const link = document.createElement("a");
+    link.setAttribute("href", "/work");
+    link.addEventListener("click", (event) => event.preventDefault());
+    document.body.append(link);
+    fireEvent.click(link);
+    link.remove();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     expect(layerElement()).toHaveAttribute("data-phase", "open");
@@ -1455,5 +1494,47 @@ describe("DrawerShell", () => {
     expect(document.body.style.overflow).toBe("hidden");
     expect(document.querySelector("body > main")).toHaveAttribute("inert");
     expect(entry.control.current).not.toBeNull();
+  });
+
+  it("stays closed while a slow exit lands, and never reopens by itself", async () => {
+    const entry = await renderCached();
+    vi.useFakeTimers();
+
+    // The route leaves after three seconds, as a throttled exit does.
+    const leave = () => {
+      window.history.replaceState({}, "", "/");
+      mocks.pathname = "/";
+      act(() => entry.control.current?.setHidden(true));
+    };
+    mocks.back.mockImplementation(() => {
+      window.setTimeout(leave, 3000);
+    });
+    mocks.replace.mockImplementation(() => {
+      window.setTimeout(leave, 3000);
+    });
+    mocks.go.mockImplementation(() => {
+      window.setTimeout(leave, 3000);
+    });
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(layerElement()).toHaveAttribute("data-phase", "closed");
+
+    // Past the old fallback window the shell is still closed, not open again.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(layerElement()).toHaveAttribute("data-phase", "closed");
+    expect(document.body.style.overflow).toBe("");
+
+    // The slow exit lands: the tree hides and the shell stays closed.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    expect(layerElement()).toHaveAttribute("data-phase", "closed");
+    expect(getComputedStyle(layerElement()).display).toBe("none");
+    expect(document.body.style.overflow).toBe("");
   });
 });

@@ -31,6 +31,16 @@
   pointer-events: none;
 }
 
+/*
+ * A shell that has closed is off the screen even while its route is still
+ * `/work`: the flight is over, the page is released, and a slow (or lost) exit
+ * must not leave a surface behind. `visibility`, not `display`, so the panel
+ * keeps the layout box the next open's FLIP measures from.
+ */
+.wd-expand-layer[data-phase="closed"] {
+  visibility: hidden;
+}
+
 /* The drawer's panel: the same box the reader used to own, now shared with the
    index. Its inset and the nav's insets are root tokens (globals.css): the nav
    dock in the root layout reads the same values. */
