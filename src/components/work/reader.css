@@ -401,6 +401,12 @@
   background: var(--surface-container);
 }
 
+/* A real picture takes the hero's 689:352 box and crops to it. */
+.wd-hero > .wd-media {
+  height: 100%;
+  aspect-ratio: auto;
+}
+
 /* ---------------------------------------------------------------- intro ---- */
 
 .wd-intro {
@@ -933,6 +939,11 @@
 
 .wd-contact-grid .wd-media {
   aspect-ratio: 4 / 3;
+}
+
+/* With a real manifest the sheet is one frame at the sheet's own ratio. */
+.wd-contact-single .wd-media {
+  width: 100%;
 }
 
 @media (max-width: 559px) {

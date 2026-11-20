@@ -1,8 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
+import { coverImageFor } from "./media";
+import type { CoverImage } from "./media";
 import { FEATURED_SLUG } from "./work-order";
 
-export type Cover = "tiles" | "window" | "phone";
+export type CoverScene = "tiles" | "window" | "phone";
+
+/** A drawn scene, or a media id that resolves to a manifest picture. */
+export type Cover = CoverScene | `media:${string}`;
 
 export { FEATURED_SLUG };
 
@@ -23,10 +28,13 @@ export type WorkMeta = {
   role: string;
   summary: string;
   cover: Cover;
+  /** Set when `cover` is a media id: the picture the cover slots draw. */
+  coverImage?: CoverImage;
 };
 
 const WORK_SLUGS: readonly string[] = WORK_ORDER;
 const COVERS: readonly string[] = ["tiles", "window", "phone"];
+const MEDIA_COVER = /^media:([a-z0-9][a-z0-9-]*)$/;
 
 const CONTENT_DIR = path.join(process.cwd(), "content", "work");
 
@@ -35,7 +43,9 @@ function isWorkSlug(value: string): value is WorkSlug {
 }
 
 function isCover(value: string | undefined): value is Cover {
-  return value !== undefined && COVERS.includes(value);
+  return (
+    value !== undefined && (COVERS.includes(value) || MEDIA_COVER.test(value))
+  );
 }
 
 /**
@@ -82,11 +92,22 @@ function readWork(slug: WorkSlug): WorkMeta {
 
   if (!isCover(cover)) {
     throw new Error(
-      `content/work/${slug}.mdx has cover "${cover ?? ""}"; expected tiles, window or phone`,
+      `content/work/${slug}.mdx has cover "${cover ?? ""}"; expected tiles, window, phone or media:<id>`,
     );
   }
 
-  return { slug, title, subtitle, year, role, summary, cover };
+  return {
+    slug,
+    title,
+    subtitle,
+    year,
+    role,
+    summary,
+    cover,
+    ...(cover.startsWith("media:")
+      ? { coverImage: coverImageFor(cover.slice("media:".length)) }
+      : {}),
+  };
 }
 
 export function listWork(): WorkMeta[] {

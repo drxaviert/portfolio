@@ -10,6 +10,7 @@ import {
 import type { Mode } from "@/components/faux-ui/scenes";
 import type { SceneFit } from "@/components/faux-ui/use-scene-fit";
 import { useScenePause } from "@/components/faux-ui/use-scene-pause";
+import type { CoverImage } from "@/lib/media";
 import type { WorkMeta } from "@/lib/work";
 import "@/components/faux-ui/faux-ui.css";
 
@@ -23,10 +24,12 @@ const SCENES: Record<string, ComponentType<{ mode: Mode }> | undefined> = {
  * The featured card's product visual, shared by the home card and the reader
  * hero so the expand morph carries the same picture across.
  *
- * The scene is decorative. Its loop pauses offscreen and in a hidden tab; the
- * faux-UI CSS holds the still frame under reduced motion, so there is no mode
- * switch here. A scene the map cannot resolve falls back to the neutral
- * surface the design system already uses for media.
+ * A drawn scene is decorative: its loop pauses offscreen and in a hidden tab,
+ * and the faux-UI CSS holds the still frame under reduced motion, so there is no
+ * mode switch here. A `media:<id>` cover arrives with the picture the server
+ * resolved from its manifest — one AVIF with a WebP fallback, drawn cover. A
+ * scene or picture the props cannot resolve falls back to the neutral surface
+ * the design system already uses for media.
  *
  * `fit` is the slot's contract: the hero contains the whole 753:416 canvas;
  * the featured card covers its own box and crops the overflow.
@@ -34,14 +37,58 @@ const SCENES: Record<string, ComponentType<{ mode: Mode }> | undefined> = {
 export function Cover({
   scene,
   fit = "contain",
+  coverImage,
+  alt = "",
 }: {
   scene: WorkMeta["cover"];
   fit?: SceneFit;
+  coverImage?: CoverImage;
+  alt?: string;
 }) {
   const shotRef = useRef<HTMLDivElement | null>(null);
-  const Scene = SCENES[scene];
 
   useScenePause(shotRef);
+
+  if (scene.startsWith("media:")) {
+    if (!coverImage) {
+      return (
+        <div
+          className="h-full w-full rounded-[12px] bg-surface-container"
+          data-cover="neutral"
+          aria-hidden="true"
+        />
+      );
+    }
+
+    return (
+      <div
+        className="relative h-full w-full overflow-hidden rounded-[12px] bg-surface-container"
+        data-cover="media"
+        aria-hidden="true"
+      >
+        {coverImage.lqip ? (
+          <span
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url("${coverImage.lqip}")` }}
+          />
+        ) : null}
+        <picture>
+          <source type="image/avif" srcSet={coverImage.avif} />
+          <img
+            className="absolute inset-0 h-full w-full object-cover"
+            src={coverImage.fallback}
+            width={coverImage.width}
+            height={coverImage.height}
+            alt={alt}
+            loading="lazy"
+            decoding="async"
+          />
+        </picture>
+      </div>
+    );
+  }
+
+  const Scene = SCENES[scene];
 
   if (!Scene) {
     return (

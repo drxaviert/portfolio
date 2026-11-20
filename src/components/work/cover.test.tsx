@@ -52,6 +52,40 @@ describe("Cover", () => {
     );
   });
 
+  it("draws a media cover from the picture the server resolved", () => {
+    const { container } = render(
+      <Cover
+        scene="media:pipeline-test-still-4a9b86e544"
+        coverImage={{
+          avif: "https://x/w1280.avif",
+          fallback: "https://x/w1280.webp",
+          fallbackType: "image/webp",
+          width: 1600,
+          height: 900,
+          lqip: "data:image/webp;base64,AAAA",
+        }}
+      />,
+    );
+
+    expect(container.querySelector('[data-cover="media"]')).toBeInTheDocument();
+    expect(container.querySelector("source")).toHaveAttribute(
+      "type",
+      "image/avif",
+    );
+    expect(container.querySelector("img")).toHaveAttribute(
+      "src",
+      "https://x/w1280.webp",
+    );
+  });
+
+  it("keeps the neutral surface when a media cover has no picture", () => {
+    const { container } = render(<Cover scene="media:missing" />);
+
+    expect(
+      container.querySelector('[data-cover="neutral"]'),
+    ).toBeInTheDocument();
+  });
+
   it("renders the neutral surface for a scene it cannot resolve", () => {
     const { container } = render(
       <Cover scene={"poster" as WorkMeta["cover"]} />,

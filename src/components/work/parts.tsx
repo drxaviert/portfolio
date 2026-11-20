@@ -1,14 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import type { KeyboardEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { WorkMeta } from "@/lib/work";
-import { Cover } from "./cover";
 
 /**
- * The Margin layout's parts. Media is always a plain gray box: the site's
- * neutral container-highest, 12px radius, nothing inside.
+ * The Margin layout's parts. The media slots live in `media-parts.tsx`, which
+ * is a server component so a `media` id can be resolved before render.
  */
 
 export const READER_TITLE_ID = "wd-study-title";
@@ -30,24 +28,6 @@ function jumpTo(id: string) {
     behavior: reduce ? "auto" : "smooth",
   });
   target.focus({ preventScroll: true });
-}
-
-/**
- * The cover scene at the top of the study, carrying the featured card's
- * picture across the expand morph. Without a scene it stays the neutral media
- * box, which is what the MDX `<Hero />` maps to.
- */
-export function Hero({ scene }: { scene?: WorkMeta["cover"] }) {
-  return (
-    <div
-      className={["wd-hero", !scene && "wd-hero-neutral"]
-        .filter(Boolean)
-        .join(" ")}
-      aria-hidden="true"
-    >
-      {scene ? <Cover scene={scene} /> : null}
-    </div>
-  );
 }
 
 export function Intro({
@@ -74,37 +54,6 @@ export function Intro({
         {meta.role} · {meta.year}
       </p>
     </header>
-  );
-}
-
-export function Figure({
-  caption,
-  aspect = "16 / 9",
-  marginCaption = false,
-  wide = false,
-  className = "",
-}: {
-  caption: string;
-  aspect?: string;
-  marginCaption?: boolean;
-  wide?: boolean;
-  className?: string;
-}) {
-  const classes = ["wd-fig", wide && "wd-fig-wide", className]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    <figure className={classes}>
-      <div className="wd-media" style={{ aspectRatio: aspect }} />
-      <figcaption
-        className={["wd-caption", marginCaption && "wd-caption-margin"]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        {caption}
-      </figcaption>
-    </figure>
   );
 }
 
@@ -239,100 +188,6 @@ export function DecisionTable({ rows }: { rows: DecisionRow[] }) {
           ))}
         </tbody>
       </table>
-    </figure>
-  );
-}
-
-export function StepFigure({ steps }: { steps: string[] }) {
-  const [step, setStep] = useState(0);
-  const tabId = (index: number) => `wd-step-tab-${index}`;
-
-  function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    let next = index;
-
-    switch (event.key) {
-      case "ArrowRight":
-      case "ArrowDown":
-        next = (index + 1) % steps.length;
-        break;
-      case "ArrowLeft":
-      case "ArrowUp":
-        next = (index + steps.length - 1) % steps.length;
-        break;
-      case "Home":
-        next = 0;
-        break;
-      case "End":
-        next = steps.length - 1;
-        break;
-      default:
-        return;
-    }
-
-    event.preventDefault();
-    setStep(next);
-    document.getElementById(tabId(next))?.focus();
-  }
-
-  return (
-    <figure className="wd-step">
-      <div
-        id="wd-step-panel"
-        className="wd-step-panel"
-        role="tabpanel"
-        aria-labelledby={tabId(step)}
-      >
-        <div className="wd-media wd-step-media" />
-
-        <div className="wd-step-bar">
-          <div
-            className="wd-step-tabs"
-            role="tablist"
-            aria-label="Figure steps"
-          >
-            {steps.map((caption, index) => (
-              <button
-                key={caption}
-                id={tabId(index)}
-                type="button"
-                role="tab"
-                className="wd-step-tab"
-                aria-selected={index === step}
-                aria-controls="wd-step-panel"
-                tabIndex={index === step ? 0 : -1}
-                onClick={() => setStep(index)}
-                onKeyDown={(event) => onKeyDown(event, index)}
-              >
-                {index + 1}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="wd-step-replay"
-            onClick={() => setStep(0)}
-          >
-            Replay
-          </button>
-        </div>
-
-        <p className="wd-caption" aria-live="polite">
-          {steps[step]}
-        </p>
-      </div>
-    </figure>
-  );
-}
-
-export function ContactSheet({ caption }: { caption: string }) {
-  return (
-    <figure className="wd-contact">
-      <div className="wd-contact-grid" aria-hidden="true">
-        {Array.from({ length: 8 }, (_, index) => (
-          <div key={index} className="wd-media" />
-        ))}
-      </div>
-      <figcaption className="wd-caption">{caption}</figcaption>
     </figure>
   );
 }

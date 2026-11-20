@@ -1,0 +1,56 @@
+/*
+ * The frame a manifest draws into. The manifest's own ratio is a custom
+ * property, so a slot that owns a fixed box (hero, step panel) can override
+ * `aspect-ratio` without fighting an inline style.
+ */
+.media {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+  background-color: var(--surface-container-highest);
+  background-position: center;
+  background-size: cover;
+  aspect-ratio: var(--media-aspect, 16 / 9);
+}
+
+/* Covers the frame and crops only when the slot gives it a different ratio. */
+.media > picture,
+.media .media-asset {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.media .media-asset {
+  object-fit: cover;
+}
+
+/*
+ * The reduced-motion way in. A 44px control, not a 16px icon with padding: on a
+ * phone the whole circle is the target. The ring is the reader's own token.
+ */
+.media-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  translate: -50% -50%;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+}
+
+.media-play:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
