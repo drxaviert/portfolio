@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
+import { forgetOffset } from "@/components/home/carousel/carousel-memory";
 
 /**
  * jsdom has no layout observers. The faux-UI scene hooks only use them to
@@ -27,5 +28,6 @@ Element.prototype.animate ??= (() => ({
 })) as unknown as Element["animate"];
 
 afterEach(() => {
+  forgetOffset();
   cleanup();
 });
