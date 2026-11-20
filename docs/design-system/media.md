@@ -5,6 +5,15 @@ fails the build instead of drawing an empty frame. The ingest side is in
 [real-work-intake.md](../workflows/real-work-intake.md#1-media); this page covers how the frame
 behaves once it has an id.
 
+## Browsing
+
+`/dev/media` lists every manifest in `content/media` and nothing else, so the `<Media id="...">` you
+copy is one that resolves. It runs under `pnpm dev` only and 404s in a production build. A card shows
+the smallest image variant (or the video poster, never a playing video), the dimensions, duration,
+recorded bytes and createdAt, with Copy tag and Copy id buttons and a filter/search over the list.
+Byte counts are the ones the manifest records, so an image card says "not recorded" instead of
+guessing.
+
 ## Slots
 
 Every slot accepts a media id instead of its placeholder. A slot passed a `<Media>` child uses that
