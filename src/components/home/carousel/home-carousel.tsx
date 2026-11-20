@@ -296,7 +296,7 @@ function Slide({
                 fit="cover"
               />
             </span>
-            <span className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]" />
+            <span className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-md" />
           </>
         ) : (
           // A placeholder has no picture, but it still has a card face:
@@ -330,7 +330,7 @@ function Slide({
               </div>
               <span
                 aria-hidden="true"
-                className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]"
+                className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-md"
               />
             </>
           ) : null}

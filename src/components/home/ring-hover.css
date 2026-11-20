@@ -174,13 +174,13 @@
   :root[data-phase-switching="click"] .ring-surface,
   :root[data-phase-switching="click"] .ring-frame,
   :root[data-phase-switching="click"] .ring-glow {
-    transition-delay: calc(var(--horizon-transition-duration) + 250ms);
+    transition-delay: calc(var(--horizon-transition-duration) + var(--duration-medium-2));
   }
 
   :root[data-phase-switching="auto"] .ring-surface,
   :root[data-phase-switching="auto"] .ring-frame,
   :root[data-phase-switching="auto"] .ring-glow {
-    transition-delay: calc(var(--phase-auto-transition-duration) + 250ms);
+    transition-delay: calc(var(--phase-auto-transition-duration) + var(--duration-medium-2));
   }
 }
 

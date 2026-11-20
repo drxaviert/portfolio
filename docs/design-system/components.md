@@ -18,7 +18,7 @@ The same `HomeNav` is the home bar and the reader's top row; one dock in the roo
 | Bar fill | `surface-container-low` | `home-nav.tsx:55` | `--surface-container-low` |
 | Bar edge and shadow | 1px `frame-line` ring + `shadow-card` on the host | `src/components/home/ring-hover.css:35`, `:46`, `:62-67` | `--frame-line`, `--shadow-card` |
 | Gap, item run → toggle | `12px` (`gap-3`) | `home-nav.tsx:65` | — |
-| Nav slot on the home page | `64px` (`h-16`) | `src/components/home/home-layout.tsx:204` | — |
+| Nav slot on the home page | `64px` (`h-16`) | `src/components/home/home-layout.tsx:216` | — |
 | Orb | `36px` (`size-9`), `50%` radius | `home-nav.tsx:32` | `--orb-gradient` |
 | Orb eyes | `8 × 3.4px`, top `10.5px`, left `13.5px` / `20.6px`, white | `home-nav.tsx:35-36` | — |
 | Item | `32px` high (`h-8`), `8px` inline padding (`px-2`), `8px` radius (`rounded-md`) | `src/components/home/nav-items.tsx:25` | `--radius-md` |
@@ -85,13 +85,13 @@ on an integer and the `106px` and `140px` tracks right-align (`theme-toggle.tsx:
 | Tracker cell gap | `3px` | `3px` | `3px` | `3px` | `tracker-widget.tsx:53`, `:64` |
 | Gap between tracker bands | — | `9px` | `9px` | `9px` | `tracker-widget.tsx:84` |
 | Tracker pager dot | `6px`, `6px` gap | same | same | same | `tracker-widget.tsx:89-93` |
-| Featured card / band height | `420px` | `560px` | `360px` | `416px` | `src/components/home/home-layout.tsx:159`, `:182` |
-| Featured card padding | `20px` (`p-5`) | `32px` (`md:p-8`) | same | same | `src/components/home/home-cards.tsx:62` |
-| Featured card radius | `12px` (`rounded-lg`) | same | same | same | `home-cards.tsx:62` |
-| Sliver heights | `72px`, `56px`, `56px` | auto (`md:h-auto`) | auto | auto | `home-cards.tsx:20-30`, `:148` |
-| Card fade inset | `32px` (`inset-8`), `8px` radius | same | same | same | `home-cards.tsx:86` |
-| Nav slot | `64px` | same | same | same | `home-layout.tsx:204` |
-| Play card (`/play`) | `849 × 276px` | same | same | same | `src/components/play/play-card.tsx:30` |
+| Featured card / band height | `420px` | `560px` | `360px` | `416px` | `src/components/home/home-layout.tsx:169`, `:193` |
+| Featured card padding | `20px` (`p-5`) | `32px` (`md:p-8`) | same | same | `src/components/home/home-cards.tsx:65` |
+| Featured card radius | `12px` (`rounded-lg`) | same | same | same | `home-cards.tsx:65` |
+| Sliver heights | `72px`, `56px`, `56px` | auto (`md:h-auto`) | auto | auto | `home-cards.tsx:20-30`, `:152` |
+| Card fade inset | `32px` (`inset-8`), `8px` radius | same | same | same | `home-cards.tsx:90` |
+| Nav slot | `64px` | same | same | same | `home-layout.tsx:216` |
+| Play card (home) | `849 × 276px` at 1440 | same | same | same | the home `PlayCard` is `flex-1` (`src/components/home/home-cards.tsx:193`; cell `min-w-0 flex-1` at `src/components/home/home-layout.tsx:156-162`), so its width is `1136 − 275 − 12 = 849` at 1440 and the height `276` follows the tracker card (`src/components/home/tracker-widget.tsx:77`); `/play` has its own fixed 849×276 at `src/components/play/play-card.tsx:30` |
 
 | Item | Value | Source | Tokens |
 | --- | --- | --- | --- |
@@ -99,15 +99,15 @@ on an integer and the `106px` and `140px` tracks right-align (`theme-toggle.tsx:
 | Tracker card radius | `12px` (`rounded-lg`) | `tracker-widget.tsx:77` | `--radius-lg` |
 | Tracker cell radius | `2px` (`rounded-xs`) | `tracker-widget.tsx:45` | `--radius-xs` |
 | Tracker cell fills | `tracker-0` … `tracker-4` | `tracker-widget.tsx:14-20` | `--tracker-0` … `--tracker-4` |
-| Featured card fill | `surface-container-low` | `home-cards.tsx:73` | `--surface-container-low` |
-| Card title below `md` | `32px / 1.1`, `-0.01em`, weight `600` | `home-cards.tsx:92` | `--text-title-sm` |
-| Card title at `md`+ | `40px / 1.1`, `-0.01em`, weight `600` | `home-cards.tsx:92` | `--text-title` |
+| Featured card fill | `surface-container-low` | `home-cards.tsx:77` | `--surface-container-low` |
+| Card title below `md` | `32px / 1.1`, `-0.01em`, weight `600` | `home-cards.tsx:96` | `--text-title-sm` |
+| Card title at `md`+ | `40px / 1.1`, `-0.01em`, weight `600` | `home-cards.tsx:96` | `--text-title` |
 | Card title clamp | 3 lines | `src/components/home/home-cards.css:46-51` | — |
 | Card fade | `96%` intensity, `74% × 54%` reach, `80%` falloff | `home-cards.css:12-16` | `--surface-dim` |
-| Card layer order | scene `z-0`, fade `z-1`, title `z-10` | `home-cards.tsx:78`, `:86`, `:92` | — |
+| Card layer order | scene `z-0`, fade `z-1`, title `z-10` | `home-cards.tsx:82`, `:90`, `:96` | — |
 | Sliver fills | `surface-container`; `surface` / `surface-container-high` / `surface-container-highest` in Night | `home-cards.tsx:20-30` | surface roles |
-| Top band | tracker card + `12px` gap + play shell at `275 + 12 + 849` in the 1440 frame | `home-layout.tsx:137-153` | — |
-| Empty-work band | `420 / 560 / 360 / 416px` | `home-layout.tsx:156-163` | — |
+| Top band | tracker card + `12px` gap + play shell at `275 + 12 + 849` in the 1440 frame | `home-layout.tsx:147-164` | — |
+| Empty-work band | `420 / 560 / 360 / 416px` | `home-layout.tsx:167-173` | — |
 
 ## Work drawer and carousel
 
@@ -131,18 +131,18 @@ on an integer and the `106px` and `140px` tracks right-align (`theme-toggle.tsx:
 | Blur stack props | `edge="bottom"` sets `data-edge="bottom"` and flips the band masks to build toward the bottom edge (default top); `tint={false}` sets `data-tint="none"` and drops the panel-surface gradient under the bands (the homepage edge bands use it so the glow keeps its colour); `--wd-blur-height` sets the stack height, falling back to `100%` of the containing block | `src/components/work/blur-stack.tsx:12-41`; `blur-stack.css:27`, `:101`, `:116` | `--wd-blur-height` |
 | Drawer return focus | after the drawer closes, focus returns to its trigger (card, or the nav's Work item) and the focus ring shows only if the last input was keyboard navigation (Tab, Enter, Space, arrows, Home/End, PageUp/PageDown); a pointer press, or Esc or modifiers alone, counts as pointer, so a mouse close leaves no ring (PR #78) | `src/components/nav/input-modality.ts:48`; `src/components/work/drawer-shell.tsx:234` | none |
 | Ruler | `18px` wide, `z-index: 2` | `src/components/work/scroll-ruler.css:18`, `:23` | — |
-| Carousel row height | `560px`; `lg` `360px`; `xl` `416px` | `src/components/home/carousel/home-carousel.css:25`, `:39`, `:50` | — |
-| Carousel slots | `444/120/52/52`; `lg` `656/140/64/64`; `xl` `753/180/83/84` | `home-carousel.css:12-15`, `:34-37`, `:45-48` | — |
-| Carousel gap | `12px` | `home-carousel.css:60` | — |
-| Carousel unit | `calc((100% - 36px) / (c0 + c1 + c2 + c3))`; `36px` is three `12px` gaps | `home-carousel.css:17` | — |
-| Card shadow pad | `8px` | `home-carousel.css:22` | — |
-| Title inset | `32px` left / right / bottom, 3-line clamp | `home-carousel.css:197-208` | `--text-title` |
-| Edge mask | `28px` fade starting `12px` in; mask `24px` larger, at `-12px -12px` | `home-carousel.css:303-317` | — |
+| Carousel row height | `560px`; `lg` `360px`; `xl` `416px` | `src/components/home/carousel/home-carousel.css:26`, `:40`, `:51` | — |
+| Carousel slots | `444/120/52/52`; `lg` `656/140/64/64`; `xl` `753/180/83/84` | `home-carousel.css:13-16`, `:35-38`, `:46-49` | — |
+| Carousel gap | `12px` | `home-carousel.css:61` | — |
+| Carousel unit | `calc((100% - 36px) / (c0 + c1 + c2 + c3))`; `36px` is three `12px` gaps | `home-carousel.css:18` | — |
+| Card shadow pad | `8px` | `home-carousel.css:23` | — |
+| Title inset | `32px` left / right / bottom, 3-line clamp | `home-carousel.css:203-214` | `--text-title` |
+| Edge mask | `28px` fade starting `12px` in; mask `24px` larger, at `-12px -12px` | `home-carousel.css:309-323` | — |
 | Edge blur | `2.5px` | `src/components/home/carousel/edge-blur.ts:15-18` | — |
 | Hover peek | reach `32px` / outside `24px`; reveal `450ms`, retract `350ms`, leave `120ms`; fade `40%` of card (min `8px`); max blur `8px` | `src/components/home/carousel/hover-peek.ts:33-43`; `src/components/home/carousel/home-carousel.tsx:1788-1799` | — |
-| Hovered slide | `z-index: 2` | `home-carousel.css:130-133` | — |
+| Hovered slide | `z-index: 2` | `home-carousel.css:131-139` | — |
 
-The `36px` taken off the carousel row is three `12px` gaps (`home-carousel.css:17`, `:60`); the edge
+The `36px` taken off the carousel row is three `12px` gaps (`home-carousel.css:18`, `:60`); the edge
 mask's `28px` fade starts `12px` in from the row's edge (`:303-317`). The `60px` frame pad at `xl` is a
 term in the nav's top calculation (`nav-dock.css:20-23`, `:52`).
 
@@ -182,10 +182,10 @@ host, so they stay under their own card rather than under the page.
 | Hovered / focused ring host (card, nav bar) | `1` (transitioned `100ms steps(1)`) | `ring-hover.css:47`, `:132`, `:190` |
 | Nav raised while the phase row is open | `2` | `src/components/theme/theme-toggle.css:13` |
 | Theme menu (<768) | `3` | `src/components/theme/theme-toggle.tsx:1569` |
-| Hovered / focused carousel slide | `2` | `home-carousel.css:132` |
-| Carousel peek blur copy | `2` | `home-carousel.css:749` |
-| Card scene / fade / title | `0` / `1` / `10` | `src/components/home/home-cards.tsx:78`, `:86`, `:92` |
-| Carousel title | `10` | `home-carousel.css:202` |
+| Hovered / focused carousel slide | `2` | `home-carousel.css:132`, `:137` |
+| Carousel peek blur copy | `2` | `home-carousel.css:757` |
+| Card scene / fade / title | `0` / `1` / `10` | `src/components/home/home-cards.tsx:82`, `:90`, `:96` |
+| Carousel title | `10` | `home-carousel.css:208` |
 | Entrance veil | `10` | `src/components/home/home-entrance.css:44` |
 | Drawer layer and backdrop | `50` | `src/components/work/expand-shell.css:27` |
 | Nav dock | `60` | `src/components/nav/nav-dock.css:28` |

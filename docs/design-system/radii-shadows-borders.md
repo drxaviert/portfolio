@@ -20,7 +20,7 @@ Radius literals that are not the tokens:
 | `1px` | ruler tick and indicator | `src/components/work/scroll-ruler.css:68`, `:132` |
 | `999px` | thumb targets, faux-UI pills | `src/components/work/reader.css:235`; `src/components/faux-ui/faux-ui.css:101` |
 | `50%` | nav orb, faux-UI circles | `src/components/home/home-nav.tsx:32`; `src/components/faux-ui/faux-ui.css:154` |
-| `8px` | card-fade inner box, faux-UI card/dialog | `src/components/home/home-cards.tsx:86`; `src/components/faux-ui/faux-ui.css:62` |
+| `--radius-md` (`8px`) | card-fade inner box (`rounded-md`), faux-UI card/dialog (literal `8px`) | `src/components/home/home-cards.tsx:90`; `src/components/home/carousel/home-carousel.tsx:299`, `:333`; `src/components/faux-ui/faux-ui.css:62` |
 | `12px` | reader panel (written as a literal, not `--radius-lg`) | `src/components/work/reader.css:25` |
 | `10px` / `7px` / `5px` / `14px` | faux-UI pieces | `src/components/faux-ui/faux-ui.css:128`, `:192`, `:386`, `:547` |
 
@@ -43,8 +43,11 @@ reveals the ring inside the card (`ring-hover.css:225-250`).
 
 The 1px ring inside `--shadow-card` is the card edge; cards and menus carry no border
 (`src/app/globals.css:8`). The ring surface sets `background-color: transparent` and keeps the shadow
-on the host box (`ring-hover.css:38-47`), and on the featured card the shadow moves to the frame's
-`::before` during a carousel step (`src/components/home/carousel/home-carousel.css:645-652`).
+on the host box (`ring-hover.css:40-47`). That is where the featured card's shadow comes from, at rest
+and during most carousel states: `.ring-host` carries `box-shadow: var(--shadow-card)`. Only a card
+crossing the right edge mid-step (not peeking, no edge blur) moves it onto the frame's `::before`, so
+the drawn box crops it and the melt never fades it (`src/components/home/carousel/home-carousel.css:614-615`,
+`:645-657`).
 
 Forced colours replaces the shadow, and therefore the edge, with a real border:
 

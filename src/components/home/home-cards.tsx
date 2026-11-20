@@ -19,7 +19,7 @@ import "./home-cards.css";
  */
 
 export const WORK_SLIVERS = [
-  { fill: "bg-surface-container", height: "h-[72px]" },
+  { fill: "bg-surface-container", height: "h-18" },
   {
     fill: "bg-surface dark:bg-surface-container-high",
     height: "h-14",
@@ -87,7 +87,7 @@ export function ProjectCard({
               recede instead of running through the text. */}
           <span
             aria-hidden="true"
-            className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]"
+            className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-md"
           />
         </>
       ) : null}

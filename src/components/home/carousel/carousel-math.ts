@@ -8,6 +8,7 @@
  */
 
 export const VISIBLE_SLOTS = 4;
+/** Slot gap in px. Mirrors `calc(var(--spacing) * 3)` in home-carousel.css. */
 export const GAP = 12;
 
 export function mod(a: number, n: number): number {
