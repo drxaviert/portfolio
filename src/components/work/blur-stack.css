@@ -22,6 +22,9 @@
   position: absolute;
   inset-inline: 0;
   top: 0;
+  /* The reader passes its nav-bottom height inline; an omitted `height` prop
+     falls back to the caller's token, then to the containing block. */
+  height: var(--wd-blur-height, 100%);
   /* Under the nav (z-index 2), over the scroll content. */
   z-index: 1;
   pointer-events: none;
@@ -89,6 +92,29 @@
   --wd-band-blur: 32px;
   --wd-band-solid: 0%;
   --wd-band-fade: 16.67%;
+}
+
+/*
+ * The viewport's bottom edge mirrors the stack: the same stops read from the
+ * bottom up, so the blur builds toward the bottom instead of the top.
+ */
+.wd-blur-stack[data-edge="bottom"] .wd-blur-band {
+  -webkit-mask-image: linear-gradient(
+    to top,
+    #000 var(--wd-band-solid),
+    transparent var(--wd-band-fade)
+  );
+  mask-image: linear-gradient(
+    to top,
+    #000 var(--wd-band-solid),
+    transparent var(--wd-band-fade)
+  );
+}
+
+/* Blur only, no surface: the viewport bands sit over the horizon glow, which
+   keeps its colour. */
+.wd-blur-stack[data-tint="none"] {
+  background-image: none;
 }
 
 /* Without transparency, or without backdrop-filter, the bands would do nothing:

@@ -57,6 +57,32 @@ Those terms give 804 at `md` (220 + 12 + 560 + 12), 604 at `lg` (220 + 12 + 360 
 (160 + 12 + 420 + 12); the dock corrects a mismatch against `[data-nav-slot]` at runtime when it is
 over `0.5px` (`src/components/nav/nav-dock.tsx:205-220`).
 
+## Viewport edge blur
+
+Site-wide fixed progressive blur at the top and bottom of the viewport
+(`src/components/edge-blur/viewport-edge-blur.tsx`): content scrolling under an edge blurs more the
+closer it gets to it.
+
+| Item | Value | Source |
+| --- | --- | --- |
+| Band height | `64px` (`--edge-blur-height`) | `src/app/globals.css` (`:root`, beside the reader geometry) |
+| Bottom band | `64px + env(safe-area-inset-bottom)` | `viewport-edge-blur.css` |
+| Peak band blur | `8px` (`--edge-blur-max`); ramp `0.5/1/2/4/6/8px` | `viewport-edge-blur.css` |
+| Bands per edge | six, the reader's stops (percentages of the band) | `src/components/work/blur-stack.css` |
+| z-index | `40` | `viewport-edge-blur.css` |
+
+## Layer order (fixed overlays)
+
+| Layer | z-index | Source |
+| --- | --- | --- |
+| Entrance veil | `10` | `src/components/home/home-entrance.css:44` |
+| Viewport edge blur | `40` | `src/components/edge-blur/viewport-edge-blur.css` |
+| Reader (drawer) layer | `50` | `src/components/work/drawer-shell.css:30` |
+| Nav dock | `60` | `nav-dock.css:28` |
+
+The edge blur sits between the content and the reader, so the nav stays sharp where it passes over
+the top band, and an open study's panel covers both bands rather than stacking under them.
+
 ## Home bands and cards
 
 | Element | 375 | `md` (768) | `lg` (1024) | `xl` (1280) | Source |

@@ -210,6 +210,12 @@
   --wd-nav-height: 4rem;
   --wd-nav-content-gap: 24px;
   --wd-phase-row-gap: 4px;
+
+  /* Viewport edge blur (viewport-edge-blur.css): the fixed progressive blur at
+     the top and bottom of the page. The band's height, and the deepest band's
+     blur; the ramp fades to zero at the band's inner edge. */
+  --edge-blur-height: 64px;
+  --edge-blur-max: 8px;
 }
 
 @media (min-width: 768px) {
