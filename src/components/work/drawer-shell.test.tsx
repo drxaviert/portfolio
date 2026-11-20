@@ -16,7 +16,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Activity, createRef, useImperativeHandle, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { DrawerShell } from "./drawer-shell";
-import { setCloseBehaviour } from "./proto-layout-toggle";
 import { CAROUSEL_EASE, CAROUSEL_OPEN_S } from "./carousel-step";
 import { flipFrom } from "./morph";
 import type { Box } from "./morph";
@@ -245,7 +244,6 @@ beforeEach(() => {
   mocks.go.mockReset();
   vi.spyOn(window.history, "go").mockImplementation(mocks.go);
 
-  setCloseBehaviour("a");
   window.sessionStorage.clear();
   document.documentElement.removeAttribute("data-entrance-played");
 
@@ -477,7 +475,7 @@ describe("DrawerShell", () => {
 
     await renderOpen(STUDY, <Study />);
 
-    fireEvent.click(document.querySelector(".wd-expand-backdrop")!);
+    act(() => requestReaderClose());
     await waitFor(() => expect(mocks.back).toHaveBeenCalled());
 
     const panel = panelElement();
@@ -497,7 +495,7 @@ describe("DrawerShell", () => {
     // homepage away, or a direct load with no nav).
     document.querySelectorAll("[data-work-card], [data-nav-dock]").forEach((el) => el.remove());
 
-    fireEvent.click(document.querySelector(".wd-expand-backdrop")!);
+    act(() => requestReaderClose());
     await waitFor(() => expect(layerElement()).toHaveAttribute("data-phase", "closing"));
 
     const panel = panelElement();
@@ -511,7 +509,7 @@ describe("DrawerShell", () => {
     mocks.reduce = true;
     await renderOpen(STUDY, <Study />);
 
-    fireEvent.click(document.querySelector(".wd-expand-backdrop")!);
+    act(() => requestReaderClose());
     await waitFor(() => expect(mocks.back).toHaveBeenCalled());
 
     const panel = panelElement();
@@ -618,20 +616,9 @@ describe("DrawerShell", () => {
     expect(layerElement()).toHaveAttribute("data-phase", "closed");
   });
 
-  it("closes the whole drawer on Esc from a study under A", async () => {
+  it("steps back to the index on Esc from a study", async () => {
     placeCard();
     await renderOpen(STUDY, <Study />);
-
-    fireEvent.keyDown(window, { key: "Escape" });
-
-    await waitFor(() => expect(mocks.back).toHaveBeenCalledTimes(1));
-    expect(mocks.push).not.toHaveBeenCalled();
-  });
-
-  it("steps back to the index on Esc from a study under B", async () => {
-    placeCard();
-    await renderOpen(STUDY, <Study />);
-    act(() => setCloseBehaviour("b"));
 
     fireEvent.keyDown(window, { key: "Escape" });
 
@@ -646,7 +633,6 @@ describe("DrawerShell", () => {
     // Opened straight from a homepage card: there is no index to go back to.
     placeCard();
     await renderOpen(STUDY, <Study />);
-    act(() => setCloseBehaviour("b"));
 
     fireEvent.click(document.querySelector(".wd-expand-backdrop")!);
 
@@ -658,7 +644,6 @@ describe("DrawerShell", () => {
   it("steps back with Back when the index went first in the drawer", async () => {
     placeCard();
     const view = await renderOpen("/work");
-    act(() => setCloseBehaviour("b"));
 
     // The drawer opened on the index; the study was pushed on top of it.
     mocks.pathname = STUDY;
@@ -673,6 +658,57 @@ describe("DrawerShell", () => {
 
     await waitFor(() => expect(mocks.back).toHaveBeenCalledTimes(1));
     expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it("does not step back and close in one Esc burst", async () => {
+    placeCard();
+    const view = await renderOpen("/work");
+
+    // The drawer opened on the index; the study was pushed on top of it.
+    mocks.pathname = STUDY;
+    window.history.replaceState(
+      { workOverlay: true, workPrev: "index" },
+      "",
+      STUDY,
+    );
+    view.rerender(
+      <DrawerShell>
+        <Study />
+      </DrawerShell>,
+    );
+
+    vi.useFakeTimers();
+
+    // A burst of five presses is one step back, never five.
+    for (let press = 0; press < 5; press += 1) {
+      fireEvent.keyDown(window, { key: "Escape" });
+    }
+
+    expect(mocks.back).toHaveBeenCalledTimes(1);
+    expect(mocks.push).not.toHaveBeenCalled();
+
+    // The route lands on the index; the burst's tail must not close it.
+    mocks.pathname = "/work";
+    window.history.replaceState({}, "", "/work");
+    view.rerender(
+      <DrawerShell>
+        <Index />
+      </DrawerShell>,
+    );
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(mocks.back).toHaveBeenCalledTimes(1);
+
+    // A fresh press after the burst window closes the drawer normally.
+    vi.advanceTimersByTime(400);
+    fireEvent.keyDown(window, { key: "Escape" });
+    await act(async () => {});
+
+    // The close runs (through history depth, as this entry chain accumulated
+    // one on the simulated step back).
+    expect(mocks.go.mock.calls.length + mocks.back.mock.calls.length).toBeGreaterThan(
+      1,
+    );
   });
 
   it("traps Tab in the panel and the nav, then wraps", async () => {
@@ -706,7 +742,7 @@ describe("DrawerShell", () => {
     placeCard();
     const view = await renderOpen(STUDY, <Study />);
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    act(() => requestReaderClose());
     await waitFor(() => expect(mocks.back).toHaveBeenCalled());
 
     view.unmount();
@@ -758,7 +794,7 @@ describe("DrawerShell", () => {
       );
     }
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    act(() => requestReaderClose());
 
     await waitFor(() => expect(mocks.go).toHaveBeenCalledWith(-3));
     expect(mocks.back).not.toHaveBeenCalled();
@@ -792,7 +828,7 @@ describe("DrawerShell", () => {
       </DrawerShell>,
     );
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    act(() => requestReaderClose());
 
     await waitFor(() => expect(mocks.back).toHaveBeenCalledTimes(1));
     expect(mocks.go).not.toHaveBeenCalled();
@@ -819,7 +855,6 @@ describe("DrawerShell", () => {
   it("steps back to the index after Next project, not to the study behind it", async () => {
     placeCard();
     const view = await renderOpen("/work");
-    act(() => setCloseBehaviour("b"));
 
     // index -> A -> B: the entry behind B is A, not the index.
     for (const route of [STUDY, "/work/title-sequence"]) {
@@ -1042,7 +1077,7 @@ describe("DrawerShell", () => {
       stop: vi.fn(),
     });
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    act(() => requestReaderClose());
     expect(layerElement()).toHaveAttribute("data-phase", "closing");
 
     // Mid-flight, the panel is a scaled box on screen, not its layout box.
@@ -1091,7 +1126,7 @@ describe("DrawerShell", () => {
   it("reopens when a new entry lands after the close had finished", async () => {
     const view = await renderOpen(STUDY, <Study />);
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    act(() => requestReaderClose());
     await waitFor(() => expect(mocks.back).toHaveBeenCalled());
     expect(layerElement()).toHaveAttribute("data-phase", "closed");
 

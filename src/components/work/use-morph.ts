@@ -667,8 +667,8 @@ export function useDrawerMorph(
    * From a project to the index. Only an entry whose own previous entry is the
    * index can step back to it with history; after "Next project" the entry
    * behind is another study, so Back would land there instead of on the index —
-   * the index is pushed in that case. The same rule serves Esc and the backdrop
-   * under close=B: they call this.
+   * the index is pushed in that case. Esc and the backdrop on a project call
+   * this.
    */
   const stepBack = useCallback(() => {
     if (!window.location.pathname.startsWith("/work/")) return;

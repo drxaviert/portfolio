@@ -7,7 +7,6 @@ import type { ReactNode } from "react";
 import { DOCK_SELECTOR, registerReaderClose } from "@/components/nav/nav-flight";
 import { DrawerActionsProvider, useEscToClose } from "./drawer-actions";
 import { READER_TITLE_ID } from "./parts";
-import { useCloseBehaviour } from "./proto-layout-toggle";
 import {
   capsuleElement,
   laidOut,
@@ -24,6 +23,9 @@ import "./drawer-shell.css";
  * rendered with. Held as a snapshot so a swap always paints two distinct views.
  */
 type DrawerEntry = { key: string; node: ReactNode };
+
+/** How long after a step-back lands its burst of Esc presses stops counting. */
+const ESC_BURST_MS = 350;
 
 /**
  * The one drawer: `/work` and every `/work/<slug>` are this panel.
@@ -56,7 +58,6 @@ export function DrawerShell({
     { slug, route: pathname, resting },
   );
   const reduce = useReducedMotion() ?? false;
-  const closeBehaviour = useCloseBehaviour();
   const titleId = onIndex ? INDEX_TITLE_ID : READER_TITLE_ID;
 
   // The view on screen (its route and the children it was rendered with), plus
@@ -170,13 +171,41 @@ export function DrawerShell({
     };
   }, [view.key]);
 
-  // Esc, the backdrop and the logo are one gesture. Under A they close the
-  // drawer from anywhere; under B a project steps back to the index first, and
-  // a second press closes it.
+  /**
+   * A step-back starts a route change; bursty Esc or backdrop presses during
+   * it must not each start another one, and the burst's tail must not close the
+   * drawer the moment the index lands. A guard holds until the route is the
+   * index, then a short window swallows the rest of the same burst; a fresh
+   * press after it closes normally.
+   */
+  const steppingRef = useRef(false);
+  const stepLandedAt = useRef(Number.NEGATIVE_INFINITY);
+  const wasOnIndex = useRef(onIndex);
+
+  useEffect(() => {
+    if (onIndex && !wasOnIndex.current) {
+      stepLandedAt.current = Date.now();
+      steppingRef.current = false;
+    }
+
+    wasOnIndex.current = onIndex;
+  }, [onIndex]);
+
   const requestExit = useCallback(() => {
-    if (closeBehaviour === "b" && !onIndex) stepBack();
-    else void close();
-  }, [close, closeBehaviour, onIndex, stepBack]);
+    if (!onIndex) {
+      if (steppingRef.current) return;
+
+      steppingRef.current = true;
+      stepBack();
+      return;
+    }
+
+    // A project steps back to the index first; a press in the same burst does
+    // not also close it.
+    if (Date.now() - stepLandedAt.current < ESC_BURST_MS) return;
+
+    void close();
+  }, [close, onIndex, stepBack]);
 
   useEscToClose(requestExit);
   useEffect(() => registerReaderClose(close), [close]);
@@ -248,9 +277,6 @@ export function DrawerShell({
       data-phase={phase}
       data-reveal={reveal}
       data-view={onIndex ? "index" : "study"}
-      // Prototype state, visible to the switcher (and to a reviewer's DOM
-      // inspector) while Dat compares A and B.
-      data-close-mode={closeBehaviour}
     >
       <div
         className="wd-expand-backdrop"
