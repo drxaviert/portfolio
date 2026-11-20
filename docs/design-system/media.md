@@ -1,6 +1,6 @@
-# Media — as built (2026-11-19)
+# Media â€” as built (2026-11-19)
 
-One manifest per file in `content/media/`. `<Media id="…" />` resolves it on the server, so a bad id
+One manifest per file in `content/media/`. `<Media id="â€¦" />` resolves it on the server, so a bad id
 fails the build instead of drawing an empty frame. The ingest side is in
 [real-work-intake.md](../workflows/real-work-intake.md#1-media); this page covers how the frame
 behaves once it has an id.
@@ -27,7 +27,7 @@ from frontmatter (`src/components/work/reader.tsx:43`), so an MDX `<Hero media>`
 hero box. Use the frontmatter.
 
 A media cover resolves through `coverImageFor` to one picture: the widest AVIF and WebP variant at or
-below 1280 (`src/lib/media.ts:215-243`), or a video's poster. The home cards and the carousel pass
+below 1280 (`src/lib/media.ts:268-292`), or a video's poster. The home cards and the carousel pass
 that picture through (`src/components/home/home-cards.tsx:84`,
 `src/components/home/carousel/home-carousel.tsx:293-297`); the study hero does too
 (`src/components/work/reader.tsx:43`). The work index passes only the scene
@@ -59,32 +59,72 @@ browser picks the width, so no request goes through Vercel's optimiser.
 ## Video and autoplay policy
 
 The clip is `muted`, `loop`, `playsInline`, `preload="none"`, with the poster set
-(`src/components/media/media-video.tsx:99-109`).
+(`src/components/media/media-video.tsx:159-176`).
 
 | State | Behaviour |
 | --- | --- |
-| On screen | plays once 25% of the frame is visible (`media-video.tsx:49-56`) |
+| On screen | plays once 25% of the frame is visible (`media-video.tsx:61-67`) |
 | Off screen | pauses; the observer's callback covers entry and exit |
-| Hidden tab | pauses via `visibilitychange` (`media-video.tsx:59-64`) |
-| Autoplay refused | the poster stays; the rejection is caught (`media-video.tsx:39-42`) |
-| `prefers-reduced-motion: reduce` | never starts itself; the poster stays and a 44px button is the only way in (`media-video.tsx:112-134`) |
+| Hidden tab | pauses via `visibilitychange` (`media-video.tsx:71-77`) |
+| Autoplay refused | the poster stays; the rejection is caught (`media-video.tsx:51-54`) |
+| `prefers-reduced-motion: reduce` | never starts itself; the poster stays and a 44px button is the only way in (`media-video.tsx:178-206`) |
 
 The reduced-motion button is 44px with a `2px var(--primary)` focus ring at `3px` offset
 (`media.css:35-56`). Its label switches between `Play video` and `Pause video`
-(`media-video.tsx:116`). The intent is that motion never starts on its own for a reader who asked
+(`media-video.tsx:182`). The intent is that motion never starts on its own for a reader who asked
 for less of it.
 
 Poster: `<video poster>` always uses `poster.jpg`. `poster.avif` exists for the cover path. There is
 no fade from poster to first frame.
 
+## Adaptive streaming (HLS)
+
+A clip **longer than 20 s** is encoded as an adaptive ladder instead of one MP4 (`shouldUseHls`
+in `scripts/post.ts`). `--hls` forces a ladder on a shorter clip, `--no-hls` keeps a single MP4
+on a longer one; 20 s exactly still counts as short.
+
+| Piece | Value |
+| --- | --- |
+| Ladder | 1080p `5000k`/`10000k`, 720p `2800k`/`5600k`, 480p `1200k`/`2400k` (maxrate/bufsize) |
+| Rungs kept | those at or under the source height, so nothing is upscaled; under 480 the single rung is the source height, even-floored |
+| Encode | one ffmpeg run: `split` â†’ per-rung `scale=â€¦:flags=lanczos,setsar=1`, libx264 `-crf 21 -preset slow -pix_fmt yuv420p` |
+| Keyframes | `-force_key_frames "expr:gte(t,n_forced*2)" -sc_threshold 0`, so every segment starts on one |
+| Segments | `-hls_time 4`, `fmp4`, `independent_segments`, `-hls_playlist_type vod` |
+| Output | `master.m3u8`, then `v<rung>/index.m3u8`, `v<rung>/init_<rung>.mp4`, `v<rung>/segment_<n>.m4s` |
+| Upload | `media/<id>/hls/<relative path>`, six at a time; `.m3u8` is `application/vnd.apple.mpegurl`, `.mp4`/`.m4s` are `video/mp4`; public, no random suffix, one-year cache |
+| Budget | warn over 60 MB, hard-fail over 150 MB, both before any upload |
+| Manifest | `hls: { url, bytes, levels: [{ height, bandwidth }] }`; `levels` is read back from the master's `EXT-X-STREAM-INF` |
+
+The manifest's required `mp4` stays: for an HLS clip it is a progressive encode at the **lowest
+rung** with `+faststart`, so a browser with neither native HLS nor MSE still has a playable file.
+The 10 MB MP4 cap applies to non-HLS clips only; the ladder has its own budget.
+
+Playback (`src/components/media/media-video.tsx`):
+
+- A clip with `hls` never autoplays and never loops. It shows the poster and native `controls`
+  (keyboard reachable), keeps `playsInline`, and is muted only when `hasAudio` is false.
+- The library is fetched only after the IntersectionObserver first reports the frame at 25%:
+  `hls.js/dist/hls.light.mjs`, pinned to `1.7.4`. A page of short loops never requests it.
+- `canPlayType("application/vnd.apple.mpegurl")` passing means Safari/iOS plays the master
+  directly via `video.src`; otherwise `Hls.isSupported()` leads to `loadSource` + `attachMedia`;
+  otherwise the mp4 `<source>` stays. `hls.destroy()` runs on unmount.
+- Short loops are unchanged: muted, looping, autoplaying in view, and the reduced-motion button
+  is still the only way in under `prefers-reduced-motion: reduce`.
+
+Cache check on the existing Blob store (`media/pipeline-test-loop-c0fe9c23ef/`): both `poster.jpg`
+and `video.mp4` return `x-vercel-cache: HIT`, `cache-control: public, max-age=31536000`,
+`accept-ranges: bytes`, and a `206` for a `Range` request; the second request only advanced `age`.
+Uploaded `.m3u8` and `.m4s` answer with the same cache headers and the content types above, so a
+ladder is served straight from Blob without a rewrite.
+
 ## Alt text
 
 - The manifest requires an `alt` string. `pnpm post` prompts for it, or takes `--alt` on a
   single-file run; a non-TTY run without `--alt` leaves it empty.
-- `<Media alt="…">` overrides the manifest; `alt=""` marks the frame decorative
+- `<Media alt="â€¦">` overrides the manifest; `alt=""` marks the frame decorative
   (`media.tsx:19-26`).
 - A video has no `alt` attribute: the string becomes `aria-label`, and an empty string omits it
-  (`media-video.tsx:104`).
+  (`media-video.tsx:170`).
 - A `Figure` caption is separate. It does not replace alt text, and alt should describe the frame,
   not repeat the caption.
 - The hero wrapper is `aria-hidden="true"` (`media-parts.tsx:49`), so a hero picture's alt is never
@@ -93,22 +133,25 @@ no fade from poster to first frame.
 ## Audio
 
 Audio is stripped at ingest unless `pnpm post` ran with `--audio`; the manifest records the result in
-`hasAudio` (`scripts/post.ts:491`, `:617`). Playback is always muted and there are no controls, so a
-clip's audio is never heard through `<Media>` today. An audible clip needs a component decision, not
-just a manifest flag.
+`hasAudio` (`scripts/post.ts:781`, `:951`). A short loop is always muted and has no controls, so its
+audio is never heard through `<Media>` today. An HLS clip is the exception: it plays through native
+controls and is unmuted when it has audio (see Adaptive streaming above). Everything else needs a
+component decision, not just a manifest flag.
 
 ## What fails the build
 
 `getMedia` throws on:
 
-- an id that does not match `^[a-z0-9][a-z0-9-]*$` (`src/lib/media.ts:34`, `:186-190`);
-- no `content/media/<id>.json` (`media.ts:194-198`);
+- an id that does not match `^[a-z0-9][a-z0-9-]*$` (`src/lib/media.ts:41`, `:227-231`);
+- no `content/media/<id>.json` (`media.ts:235-239`);
 - a manifest that does not validate: id mismatch, unknown `kind`, non-integer or non-positive
   dimensions, non-`https` media URLs, empty `sources`, a `lqip` that is not an image data URI, a
-  non-positive `duration`, or a non-boolean `hasAudio` (`media.ts:118-180`);
+  non-positive `duration`, a non-boolean `hasAudio`, or an `hls` block whose `url` is not an https
+  `.m3u8`, whose `bytes` is not a positive integer, or whose `levels` are empty or not positive
+  (`media.ts:122-155`, `:157-221`);
 - an image manifest with no sources to draw (`media-image.tsx:33-37`).
 
-Manifests are read once per id per process (`media.ts:43`, `:182-212`), so a newly posted file needs
+Manifests are read once per id per process (`media.ts:50`, `:223-253`), so a newly posted file needs
 a dev-server restart before a page can use it.
 
 ## Feed

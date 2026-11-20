@@ -118,6 +118,89 @@ describe("validateManifest", () => {
       }),
     ).toThrow(/mp4/);
   });
+
+  const video = () => ({
+    ...image(),
+    kind: "video",
+    mp4: {
+      url: "https://example.public.blob.vercel-storage.com/test/video.mp4",
+      bytes: 1200,
+    },
+    poster: { avif: "https://x/y.avif", jpg: "https://x/y.jpg" },
+    duration: 61.2,
+    hasAudio: true,
+  });
+
+  it("accepts an hls ladder on a video", () => {
+    const manifest = {
+      ...video(),
+      hls: {
+        url: "https://example.public.blob.vercel-storage.com/test/hls/master.m3u8",
+        bytes: 24_000_000,
+        levels: [
+          { height: 1080, bandwidth: 5_000_000 },
+          { height: 720, bandwidth: 2_800_000 },
+          { height: 480, bandwidth: 1_200_000 },
+        ],
+      },
+    };
+
+    const parsed = validateManifest("test-0000000000", manifest);
+
+    expect(parsed.kind).toBe("video");
+    if (parsed.kind !== "video") return;
+    expect(parsed.hls?.levels.map((level) => level.height)).toEqual([
+      1080, 720, 480,
+    ]);
+  });
+
+  it("rejects an hls master that is not an https .m3u8", () => {
+    const manifest = {
+      ...video(),
+      hls: { url: "https://x/master.mp4", bytes: 1, levels: [] },
+    };
+
+    expect(() => validateManifest("test-0000000000", manifest)).toThrow(
+      /hls\.url must be an https URL ending in \.m3u8/,
+    );
+  });
+
+  it("rejects an hls block with no bytes", () => {
+    const manifest = {
+      ...video(),
+      hls: {
+        url: "https://x/master.m3u8",
+        bytes: 0,
+        levels: [{ height: 480, bandwidth: 1 }],
+      },
+    };
+
+    expect(() => validateManifest("test-0000000000", manifest)).toThrow(
+      /hls\.bytes must be a positive integer/,
+    );
+  });
+
+  it("rejects an hls block with empty or bad levels", () => {
+    const empty = {
+      ...video(),
+      hls: { url: "https://x/master.m3u8", bytes: 1, levels: [] },
+    };
+    expect(() => validateManifest("test-0000000000", empty)).toThrow(
+      /hls\.levels must be a non-empty array/,
+    );
+
+    const bad = {
+      ...video(),
+      hls: {
+        url: "https://x/master.m3u8",
+        bytes: 1,
+        levels: [{ height: 480, bandwidth: 0 }],
+      },
+    };
+    expect(() => validateManifest("test-0000000000", bad)).toThrow(
+      /hls\.levels\[0\]\.bandwidth must be a positive number/,
+    );
+  });
 });
 
 describe("sourceSet", () => {

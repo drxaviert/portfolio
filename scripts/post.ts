@@ -371,9 +371,7 @@ async function publishAll(
   dryRun: boolean,
 ): Promise<Map<string, string>> {
   const bytes = files.reduce((total, file) => total + file.body.byteLength, 0);
-  console.log(
-    `  info     hls ${files.length} files · ${formatBytes(bytes)}`,
-  );
+  console.log(`  info     hls ${files.length} files · ${formatBytes(bytes)}`);
 
   const urls = new Map<string, string>();
   let next = 0;
@@ -620,7 +618,9 @@ function contentTypeFor(file: string): string {
 }
 
 /** `BANDWIDTH` and `RESOLUTION` from the master playlist, tallest first. */
-function readMasterLevels(master: string): { height: number; bandwidth: number }[] {
+function readMasterLevels(
+  master: string,
+): { height: number; bandwidth: number }[] {
   const levels: { height: number; bandwidth: number }[] = [];
   for (const line of master.split("\n")) {
     if (!line.startsWith("#EXT-X-STREAM-INF:")) continue;
@@ -660,10 +660,7 @@ async function encodeHls(
     rungSize(probe.width, probe.height, rung.height),
   );
   const filters = sizes
-    .map(
-      (size, index) =>
-        `[v${index}]${scaleFilter(size)}[vout${index}]`,
-    )
+    .map((size, index) => `[v${index}]${scaleFilter(size)}[vout${index}]`)
     .join(";");
 
   const args: string[] = [
@@ -696,7 +693,12 @@ async function encodeHls(
       rung.bufsize,
     );
   }
-  args.push("-force_key_frames", "expr:gte(t,n_forced*2)", "-sc_threshold", "0");
+  args.push(
+    "-force_key_frames",
+    "expr:gte(t,n_forced*2)",
+    "-sc_threshold",
+    "0",
+  );
   if (audio) args.push("-c:a", "aac", "-b:a", "128k");
 
   // The HLS muxer expands %v per variant, so it needs a directory per rung; the
@@ -778,9 +780,7 @@ async function processVideo(
   );
 
   const mp4Path = path.join(workDir, "video.mp4");
-  const audioArgs = options.audio
-    ? ["-c:a", "aac", "-b:a", "128k"]
-    : ["-an"];
+  const audioArgs = options.audio ? ["-c:a", "aac", "-b:a", "128k"] : ["-an"];
 
   await runFfmpeg([
     "-i",
