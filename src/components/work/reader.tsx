@@ -1,13 +1,8 @@
 import type { ReactNode } from "react";
 import { nextWork } from "@/lib/work";
 import type { WorkMeta } from "@/lib/work";
-import {
-  Hero,
-  Intro,
-  NextLink,
-  READER_SCROLL_ID,
-  READER_TITLE_ID,
-} from "./parts";
+import { Intro, NextLink, READER_SCROLL_ID, READER_TITLE_ID } from "./parts";
+import { Hero } from "./media-parts";
 import { ReaderMobileActions, ReaderRail } from "./reader-rail";
 import { ScrollRuler } from "./scroll-ruler";
 import { BlurStack } from "./blur-stack";
@@ -52,7 +47,7 @@ export function Reader({ meta, children }: ReaderProps) {
             <ReaderRail />
           </div>
 
-          <Hero scene={meta.cover} />
+          <Hero scene={meta.cover} coverImage={meta.coverImage} />
 
           <div className="wd-reader-main">
             <Intro meta={meta} />

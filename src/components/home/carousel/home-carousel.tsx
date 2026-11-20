@@ -69,7 +69,13 @@ import "../home-cards.css";
 import "./home-carousel.css";
 
 export type CarouselItem =
-  | { kind: "work"; slug: string; title: string; cover: WorkMeta["cover"] }
+  | {
+      kind: "work";
+      slug: string;
+      title: string;
+      cover: WorkMeta["cover"];
+      coverImage?: WorkMeta["coverImage"];
+    }
   | { kind: "placeholder"; title: string };
 
 type Tween = {
@@ -284,7 +290,11 @@ function Slide({
         {item.kind === "work" ? (
           <>
             <span className="absolute inset-0 overflow-hidden">
-              <Cover scene={item.cover} fit="cover" />
+              <Cover
+                scene={item.cover}
+                coverImage={item.coverImage}
+                fit="cover"
+              />
             </span>
             <span className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-[8px]" />
           </>
@@ -312,7 +322,11 @@ function Slide({
                 data-car-cover=""
                 className="absolute inset-0 overflow-hidden"
               >
-                <Cover scene={item.cover} fit="cover" />
+                <Cover
+                  scene={item.cover}
+                  coverImage={item.coverImage}
+                  fit="cover"
+                />
               </div>
               <span
                 aria-hidden="true"
