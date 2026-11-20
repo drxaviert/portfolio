@@ -27,6 +27,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import {
   BlobAccessError,
@@ -40,6 +41,7 @@ import type {
   MediaSource,
   VideoMedia,
 } from "../src/lib/media-types";
+import { WORK_BODIES } from "../src/lib/work-bodies.ts";
 import { refreshBlobEnv } from "./lib/blob-env.ts";
 
 const execFileAsync = promisify(execFile);
@@ -93,6 +95,21 @@ interface ProbeResult {
 }
 
 class UsageError extends Error {}
+
+/**
+ * The studies the site can open, from the same importer map `/work/<slug>` uses.
+ * A new study needs an entry there, so an unknown `--study` slug is caught before
+ * any encoding or upload.
+ */
+const STUDY_SLUGS: readonly string[] = Object.keys(WORK_BODIES);
+
+export function assertStudySlug(slug: string): void {
+  if (!STUDY_SLUGS.includes(slug)) {
+    throw new UsageError(
+      `unknown study slug "${slug}"; expected one of: ${STUDY_SLUGS.join(", ")}`,
+    );
+  }
+}
 
 /* -------------------------------------------------------------------------- */
 /* CLI                                                                        */
@@ -184,7 +201,8 @@ Options
   --alt "<text>"        Alt text. Only valid when a single file is in the inbox;
                         otherwise you are prompted per file.
   --post "<caption>"    Also write content/posts/<yyyy-mm-dd>-<slug>.mdx.
-  --study <slug>        Print a <Figure>/<Media> snippet for each ingested id.
+  --study <slug>        Print snippets to paste into content/work/<slug>.mdx.
+                        The slug must be an existing study; it does not filter.
   --audio               Keep audio in the encoded video (AAC 128k).
   --webm                Also encode a VP9 WebM alongside the MP4.
   --poster-at <sec>     Poster frame timestamp in seconds. Default: 0.
@@ -676,6 +694,7 @@ async function run(): Promise<number> {
     printHelp();
     return 0;
   }
+  if (options.study !== undefined) assertStudySlug(options.study);
 
   loadEnv();
 
@@ -791,7 +810,8 @@ async function run(): Promise<number> {
       console.log(`  dry-run  would write a post for ${written.length} id(s)`);
     }
 
-    if (options.study !== undefined) {
+    if (options.study !== undefined && written.length > 0) {
+      console.log(`Paste into content/work/${options.study}.mdx:`);
       for (const manifest of written) {
         console.log(
           `<Figure caption=""><Media id="${manifest.id}" /></Figure>`,
@@ -839,17 +859,20 @@ async function writePost(caption: string, ids: string[]): Promise<void> {
   console.log(`post     content/posts/${path.basename(target)}`);
 }
 
-run()
-  .then((code) => {
-    process.exitCode = code;
-  })
-  .catch((error) => {
-    if (error instanceof UsageError) {
-      console.error(`${error.message}\n`);
-      printHelp();
-      process.exitCode = 2;
-      return;
-    }
-    console.error(errorMessage(error));
-    process.exitCode = 1;
-  });
+const entry = process.argv[1];
+if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
+  run()
+    .then((code) => {
+      process.exitCode = code;
+    })
+    .catch((error) => {
+      if (error instanceof UsageError) {
+        console.error(`${error.message}\n`);
+        printHelp();
+        process.exitCode = 2;
+        return;
+      }
+      console.error(errorMessage(error));
+      process.exitCode = 1;
+    });
+}
