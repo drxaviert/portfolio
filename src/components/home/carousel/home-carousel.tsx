@@ -1541,6 +1541,17 @@ export function HomeCarousel({
     const guide = guideRef.current;
     if (!row || !guide) return;
 
+    // The router hides a route segment (React Activity) instead of unmounting
+    // it, so on a later visit this instance comes back with the state it had
+    // when it was hidden, while a step may since have run in the other tree.
+    // The mount layout effect re-runs on that reveal, before paint: adopt the
+    // remembered card first so the revealed row is already in place.
+    const remembered = restoredOffset(n);
+    if (remembered !== offsetRef.current) {
+      offsetRef.current = remembered;
+      setOffset(remembered);
+    }
+
     snapRow(row);
     const measured = measureGeometry(row, guide);
     if (!measured) return;
