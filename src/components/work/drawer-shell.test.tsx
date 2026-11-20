@@ -780,16 +780,27 @@ describe("DrawerShell", () => {
   });
 
   it.each([
-    ["a pointer", false],
-    ["a key", true],
-  ])("shows the returned focus ring only when %s closed the drawer", async (_, keyboard) => {
+    ["a pointer open closed by the backdrop", "pointer", "backdrop", false],
+    ["a pointer open closed by Esc", "pointer", "esc", false],
+    ["a keyboard open closed by Esc", "keyboard", "esc", true],
+    ["a pointer open, Tab inside, then Esc", "pointer", "tab-esc", true],
+    ["a keyboard open, then a click on the backdrop", "keyboard", "backdrop", false],
+  ])("returns focus with a ring only for keyboard navigation: %s", async (_, open, exit, keyboard) => {
+    // How the drawer was opened, seen before the shell mounts.
+    if (open === "keyboard") {
+      fireEvent.keyDown(window, { key: "Enter" });
+    } else {
+      fireEvent.pointerDown(window);
+    }
+
     const view = await renderOpen("/work");
 
-    if (keyboard) {
-      fireEvent.keyDown(window, { key: "Escape" });
-    } else {
+    if (exit === "backdrop") {
       fireEvent.pointerDown(document.querySelector(".wd-expand-backdrop")!);
       fireEvent.click(document.querySelector(".wd-expand-backdrop")!);
+    } else {
+      if (exit === "tab-esc") fireEvent.keyDown(window, { key: "Tab" });
+      fireEvent.keyDown(window, { key: "Escape" });
     }
     await waitFor(() => expect(mocks.back).toHaveBeenCalled());
 
