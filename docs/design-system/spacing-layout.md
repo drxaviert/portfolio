@@ -59,14 +59,16 @@ over `0.5px` (`src/components/nav/nav-dock.tsx:205-220`).
 
 ## Viewport edge blur
 
-Site-wide fixed progressive blur at the top and bottom of the viewport
-(`src/components/edge-blur/viewport-edge-blur.tsx`): content scrolling under an edge blurs more the
-closer it gets to it.
+Fixed progressive blur at the top and bottom of the viewport on the homepage only
+(`src/components/edge-blur/viewport-edge-blur.tsx`, mounted by `<ViewportEdgeBlur />` in
+`src/app/page.tsx`, not in the root layout; `/work*` composes the home screen from its own layout and
+gets no bands): content scrolling under an edge blurs more the closer it gets to it. PR #81 scoped it
+to the homepage and raised the band from `64px` to `172px`.
 
 | Item | Value | Source |
 | --- | --- | --- |
-| Band height | `64px` (`--edge-blur-height`) | `src/app/globals.css` (`:root`, beside the reader geometry) |
-| Bottom band | `64px + env(safe-area-inset-bottom)` | `viewport-edge-blur.css` |
+| Band height | `172px` (`--edge-blur-height`; `viewport-edge-blur.css` falls back to `172px`) | `src/app/globals.css:217` (`:root`, beside the reader geometry) |
+| Bottom band | `172px + env(safe-area-inset-bottom)` | `viewport-edge-blur.css:31` |
 | Peak band blur | `8px` (`--edge-blur-max`); ramp `0.5/1/2/4/6/8px` | `viewport-edge-blur.css` |
 | Bands per edge | six, the reader's stops (percentages of the band) | `src/components/work/blur-stack.css` |
 | z-index | `40` | `viewport-edge-blur.css` |
@@ -76,11 +78,11 @@ closer it gets to it.
 | Layer | z-index | Source |
 | --- | --- | --- |
 | Entrance veil | `10` | `src/components/home/home-entrance.css:44` |
-| Viewport edge blur | `40` | `src/components/edge-blur/viewport-edge-blur.css` |
+| Viewport edge blur (homepage only) | `40` | `src/components/edge-blur/viewport-edge-blur.css` |
 | Reader (drawer) layer | `50` | `src/components/work/drawer-shell.css:30` |
 | Nav dock | `60` | `nav-dock.css:28` |
 
-The edge blur sits between the content and the reader, so the nav stays sharp where it passes over
+On the homepage the edge blur sits between the content and the reader, so the nav stays sharp where it passes over
 the top band, and an open study's panel covers both bands rather than stacking under them.
 
 ## Home bands and cards

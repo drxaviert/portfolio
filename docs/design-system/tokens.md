@@ -112,6 +112,13 @@ target of at least 24px (44px for the step replay) through padding or an invisib
 | `--orb-gradient`, `--orb-1`, `--orb-2`, `--orb-2-at`, `--orb-3` | nav orb head gradient |
 | `--play-bg-top`, `--play-bg-mid`, `--play-base`, `--play-bg-bottom`, `--play-strand`, `--play-glow` | play card fan and horizon band; `--play-bg-bottom` aliases `--play-base` |
 
+Homepage edge blur (details in `spacing-layout.md`, "Viewport edge blur"; set in `src/app/globals.css:217-218`):
+
+| Token | Value | Role |
+| --- | --- | --- |
+| `--edge-blur-height` | `172px` | height of each top/bottom blur band |
+| `--edge-blur-max` | `8px` | peak band blur; the six bands use 1/16, 1/8, 1/4, 1/2, 3/4 and 1 of it |
+
 Play card stops per phase:
 
 | Phase | top | mid | base | strand | glow |
