@@ -1,0 +1,79 @@
+/*
+ * Progressive blur at the viewport's top and bottom edges, site-wide. Each band
+ * renders a BlurStack with no surface tint: only the blur is painted, so the
+ * horizon glow behind it keeps its colour. Height and peak blur are root tokens
+ * (globals.css, next to the reader's nav geometry), and the ramp is pure CSS —
+ * no scroll listener, nothing measured, nothing animated.
+ *
+ * Layer: z-index 40. Above the content and the entrance veil (10), below the
+ * reader layer (50, drawer-shell.css) and the nav dock (60, nav-dock.css). The
+ * nav therefore stays sharp where it passes over the top band, and an open
+ * study's panel covers both bands instead of stacking under them.
+ */
+
+.wd-edge-blur {
+  position: fixed;
+  inset-inline: 0;
+  z-index: 40;
+  height: var(--edge-blur-height, 64px);
+  pointer-events: none;
+}
+
+.wd-edge-blur--top {
+  top: 0;
+}
+
+.wd-edge-blur--bottom {
+  bottom: 0;
+  /* Reaches through the home-indicator strip on iOS. */
+  height: calc(
+    var(--edge-blur-height, 64px) + env(safe-area-inset-bottom, 0px)
+  );
+}
+
+/*
+ * A shallower ramp than the reader's: 0.5/1/2/4/6/8px at --edge-blur-max: 8px,
+ * weakest first, so each band blurs the result of the one under it. The last
+ * mask lands on transparent at the band's inner edge, so the blur reaches zero
+ * with no seam where the band stops.
+ */
+.wd-edge-blur .wd-blur-band:nth-child(1) {
+  --wd-band-blur: calc(var(--edge-blur-max, 8px) * 0.0625);
+}
+
+.wd-edge-blur .wd-blur-band:nth-child(2) {
+  --wd-band-blur: calc(var(--edge-blur-max, 8px) * 0.125);
+}
+
+.wd-edge-blur .wd-blur-band:nth-child(3) {
+  --wd-band-blur: calc(var(--edge-blur-max, 8px) * 0.25);
+}
+
+.wd-edge-blur .wd-blur-band:nth-child(4) {
+  --wd-band-blur: calc(var(--edge-blur-max, 8px) * 0.5);
+}
+
+.wd-edge-blur .wd-blur-band:nth-child(5) {
+  --wd-band-blur: calc(var(--edge-blur-max, 8px) * 0.75);
+}
+
+.wd-edge-blur .wd-blur-band:nth-child(6) {
+  --wd-band-blur: var(--edge-blur-max, 8px);
+}
+
+/* Without backdrop-filter the bands would be invisible anyway; drop the boxes
+   too rather than leave two empty fixed layers over the page. */
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .wd-edge-blur {
+    display: none;
+  }
+}
+
+/* No transparency to spend: use the page as it is. */
+@media (prefers-reduced-transparency: reduce) {
+  .wd-edge-blur {
+    display: none;
+  }
+}
