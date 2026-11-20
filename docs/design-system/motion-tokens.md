@@ -132,6 +132,8 @@ the shipped number, not as a proposal to tokenise.
 | `PEEK_EASING` | `cubic-bezier(0.22, 1, 0.36, 1)` | `:45` |
 | `TURN_EASING` | `cubic-bezier(0.4, 0, 0.2, 1)` | `:47` |
 | `PEEK_FADE_MS` | `120` ms | `:48` |
+| `LAYOUT_SWITCH_MS` | `200` ms (not a scale step; the outgoing layout fades over `200 - 20` = `180` ms = `--duration-short-6`) | `src/components/work/work-index.tsx:29` |
+| `LAYOUT_SWITCH_EASE` | `cubic-bezier(0.23, 1, 0.32, 1)` = `--ease-emphasized-decelerate` (WAAPI cannot read the variable) | `:30` |
 
 ## Literal curves in CSS
 

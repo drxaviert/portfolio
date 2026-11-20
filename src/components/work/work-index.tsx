@@ -20,7 +20,12 @@ import "./work-index.css";
 export const INDEX_TITLE_ID = "wd-index-title";
 export const INDEX_SCROLL_ID = "wd-index-scroll";
 
-/** The crossfade between layouts: short, ease-out, and interruptible. */
+/**
+ * The crossfade between layouts: short, ease-out, and interruptible. WAAPI
+ * cannot read CSS variables, so the curve is the literal value of
+ * `--ease-emphasized-decelerate`; 200ms is not a step on the duration scale
+ * (docs/design-system/motion-tokens.md, "Literal curves in TS").
+ */
 const LAYOUT_SWITCH_MS = 200;
 const LAYOUT_SWITCH_EASE = "cubic-bezier(0.23, 1, 0.32, 1)";
 
