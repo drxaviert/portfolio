@@ -1,6 +1,6 @@
-# Media â€” as built (2026-11-19)
+# Media Ã¢â‚¬â€ as built (2026-11-19)
 
-One manifest per file in `content/media/`. `<Media id="â€¦" />` resolves it on the server, so a bad id
+One manifest per file in `content/media/`. `<Media id="Ã¢â‚¬Â¦" />` resolves it on the server, so a bad id
 fails the build instead of drawing an empty frame. The ingest side is in
 [real-work-intake.md](../workflows/real-work-intake.md#1-media); this page covers how the frame
 behaves once it has an id.
@@ -59,19 +59,19 @@ browser picks the width, so no request goes through Vercel's optimiser.
 ## Video and autoplay policy
 
 The clip is `muted`, `loop`, `playsInline`, `preload="none"`, with the poster set
-(`src/components/media/media-video.tsx:159-176`).
+(`src/components/media/media-video.tsx:161-178`).
 
 | State | Behaviour |
 | --- | --- |
 | On screen | plays once 25% of the frame is visible (`media-video.tsx:61-67`) |
 | Off screen | pauses; the observer's callback covers entry and exit |
-| Hidden tab | pauses via `visibilitychange` (`media-video.tsx:71-77`) |
+| Hidden tab | pauses via `visibilitychange` (`media-video.tsx:74-80`) |
 | Autoplay refused | the poster stays; the rejection is caught (`media-video.tsx:51-54`) |
-| `prefers-reduced-motion: reduce` | never starts itself; the poster stays and a 44px button is the only way in (`media-video.tsx:178-206`) |
+| `prefers-reduced-motion: reduce` | never starts itself; the poster stays and a 44px button is the only way in (`media-video.tsx:180-202`) |
 
 The reduced-motion button is 44px with a `2px var(--primary)` focus ring at `3px` offset
 (`media.css:35-56`). Its label switches between `Play video` and `Pause video`
-(`media-video.tsx:182`). The intent is that motion never starts on its own for a reader who asked
+(`media-video.tsx:184`). The intent is that motion never starts on its own for a reader who asked
 for less of it.
 
 Poster: `<video poster>` always uses `poster.jpg`. `poster.avif` exists for the cover path. There is
@@ -87,7 +87,7 @@ on a longer one; 20 s exactly still counts as short.
 | --- | --- |
 | Ladder | 1080p `5000k`/`10000k`, 720p `2800k`/`5600k`, 480p `1200k`/`2400k` (maxrate/bufsize) |
 | Rungs kept | those at or under the source height, so nothing is upscaled; under 480 the single rung is the source height, even-floored |
-| Encode | one ffmpeg run: `split` â†’ per-rung `scale=â€¦:flags=lanczos,setsar=1`, libx264 `-crf 21 -preset slow -pix_fmt yuv420p` |
+| Encode | one ffmpeg run: `split` Ã¢â€ â€™ per-rung `scale=Ã¢â‚¬Â¦:flags=lanczos,setsar=1`, libx264 `-crf 21 -preset slow -pix_fmt yuv420p` |
 | Keyframes | `-force_key_frames "expr:gte(t,n_forced*2)" -sc_threshold 0`, so every segment starts on one |
 | Segments | `-hls_time 4`, `fmp4`, `independent_segments`, `-hls_playlist_type vod` |
 | Output | `master.m3u8`, then `v<rung>/index.m3u8`, `v<rung>/init_<rung>.mp4`, `v<rung>/segment_<n>.m4s` |
@@ -105,9 +105,12 @@ Playback (`src/components/media/media-video.tsx`):
   (keyboard reachable), keeps `playsInline`, and is muted only when `hasAudio` is false.
 - The library is fetched only after the IntersectionObserver first reports the frame at 25%:
   `hls.js/dist/hls.light.mjs`, pinned to `1.7.4`. A page of short loops never requests it.
-- `canPlayType("application/vnd.apple.mpegurl")` passing means Safari/iOS plays the master
-  directly via `video.src`; otherwise `Hls.isSupported()` leads to `loadSource` + `attachMedia`;
-  otherwise the mp4 `<source>` stays. `hls.destroy()` runs on unmount.
+- Path order follows the hls.js README: `Hls.isSupported()` first (MSE or ManagedMediaSource, so
+  iOS 17.1+ included), then native `video.src` when `canPlayType` is non-empty (older iOS), then the
+  mp4 `<source>`. `canPlayType` is not trusted on its own — Safari answers `"maybe"` and so does
+  Chrome, which cannot demux HLS. Because `Hls.isSupported()` needs the import, the player first
+  checks for `window.MediaSource` / `ManagedMediaSource` and skips the fetch when neither exists.
+  `hls.destroy()` runs on unmount.
 - Short loops are unchanged: muted, looping, autoplaying in view, and the reduced-motion button
   is still the only way in under `prefers-reduced-motion: reduce`.
 
@@ -121,10 +124,10 @@ ladder is served straight from Blob without a rewrite.
 
 - The manifest requires an `alt` string. `pnpm post` prompts for it, or takes `--alt` on a
   single-file run; a non-TTY run without `--alt` leaves it empty.
-- `<Media alt="â€¦">` overrides the manifest; `alt=""` marks the frame decorative
+- `<Media alt="Ã¢â‚¬Â¦">` overrides the manifest; `alt=""` marks the frame decorative
   (`media.tsx:19-26`).
 - A video has no `alt` attribute: the string becomes `aria-label`, and an empty string omits it
-  (`media-video.tsx:170`).
+  (`media-video.tsx:172`).
 - A `Figure` caption is separate. It does not replace alt text, and alt should describe the frame,
   not repeat the caption.
 - The hero wrapper is `aria-hidden="true"` (`media-parts.tsx:49`), so a hero picture's alt is never

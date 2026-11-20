@@ -95,26 +95,41 @@ export function MediaVideo({
       if (started || cancelled) return;
       started = true;
 
-      // Safari and iOS play HLS themselves and would ignore MSE anyway.
-      if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = hlsUrl;
-        return;
+      // The order hls.js recommends: its own path first, native second, the mp4
+      // <source> last. `canPlayType` is not a reliable native test — Safari
+      // reports "maybe" and Chrome reports "maybe" for HLS it cannot demux — so
+      // it only gets a say when there is no MediaSource to use.
+      //
+      // hls.js has to be imported to ask `Hls.isSupported()`, so probe the
+      // capability it depends on first: no MSE and no ManagedMediaSource means
+      // the library cannot work and the bytes are not worth fetching.
+      const hasMediaSource =
+        typeof MediaSource !== "undefined" ||
+        "ManagedMediaSource" in window;
+      const nativeHls =
+        video.canPlayType("application/vnd.apple.mpegurl") !== "";
+
+      if (hasMediaSource) {
+        // hls.js ships no .d.mts beside the light build; the full build's types
+        // describe the same API, so cast to them rather than to `any`.
+        const light = (await import(
+          // @ts-expect-error TS7016: the light build has no declaration file.
+          "hls.js/dist/hls.light.mjs"
+        )) as typeof import("hls.js");
+        const Hls = light.default;
+        if (cancelled) return;
+
+        if (Hls.isSupported()) {
+          const instance = new Hls();
+          instance.loadSource(hlsUrl);
+          instance.attachMedia(video);
+          hls = instance;
+          return;
+        }
       }
 
-      // Only a frame the reader can actually see pays for the library.
-      // hls.js ships no .d.mts beside the light build; the full build's types
-      // describe the same API, so cast to them rather than to `any`.
-      const light = (await import(
-        // @ts-expect-error TS7016: the light build has no declaration file.
-        "hls.js/dist/hls.light.mjs"
-      )) as typeof import("hls.js");
-      const Hls = light.default;
-      if (cancelled || !Hls.isSupported()) return;
-
-      const instance = new Hls();
-      instance.loadSource(hlsUrl);
-      instance.attachMedia(video);
-      hls = instance;
+      // Older iOS: the element plays HLS itself. Everything else keeps the mp4.
+      if (nativeHls) video.src = hlsUrl;
     };
 
     const observer = new IntersectionObserver(
