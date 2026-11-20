@@ -10,6 +10,9 @@ proposal: every number is the one in the code, including values that do not sit 
   masks, reader geometry, breakpoints, and the calc/var chains that derive one value from another.
 - [radii-shadows-borders.md](./radii-shadows-borders.md) — radius tokens and literals, `shadow-card`
   and the other shadows, every border and focus outline.
+- [components.md](./components.md) — the nav, theme toggle (Day · Night · Auto and the Day-phase row),
+  home cards and tracker widget, work drawer and carousel: key dimensions, the tokens each reads, and
+  the shared z-index order.
 - [motion-tokens.md](./motion-tokens.md) — `--ease-*` and `--duration-*` exactly as defined, their
   component aliases, and the literal curves and durations that recur.
 - [tokens.md](./tokens.md) — the 2026-11-14 record, sampled from Figma (colour roles, elevation,

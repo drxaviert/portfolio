@@ -55,7 +55,7 @@ The comment at `nav-dock.css:9-12` spells out the offset as tracker + 12px gap +
 Those terms give 804 at `md` (220 + 12 + 560 + 12), 604 at `lg` (220 + 12 + 360 + 12) and 716 at `xl`
 (276 + 12 + 416 + 12). Below `md` the literal is **824px** while the same sum is 604px
 (160 + 12 + 420 + 12); the dock corrects a mismatch against `[data-nav-slot]` at runtime when it is
-over `0.5px` (`src/components/nav/nav-dock.tsx:195-219`).
+over `0.5px` (`src/components/nav/nav-dock.tsx:205-220`).
 
 ## Home bands and cards
 
