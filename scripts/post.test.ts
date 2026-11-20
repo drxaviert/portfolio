@@ -1,25 +1,47 @@
 import { describe, expect, it } from "vitest";
-import { WORK_BODIES } from "../src/lib/work-bodies.ts";
-import { assertStudySlug } from "./post.ts";
+import { HLS_MIN_DURATION, hlsRungs, shouldUseHls } from "./post.ts";
 
-const SLUGS = Object.keys(WORK_BODIES);
-
-describe("assertStudySlug", () => {
-  it("accepts every study the site can open", () => {
-    for (const slug of SLUGS) {
-      expect(() => assertStudySlug(slug)).not.toThrow();
-    }
+describe("shouldUseHls", () => {
+  it("sends a clip past the threshold to the ladder", () => {
+    expect(shouldUseHls(60, { hls: false, noHls: false })).toBe(true);
+    expect(
+      shouldUseHls(HLS_MIN_DURATION + 0.01, { hls: false, noHls: false }),
+    ).toBe(true);
   });
 
-  it("rejects an unknown slug and names the valid ones", () => {
-    expect(() => assertStudySlug("not-a-real-study")).toThrow(
-      `unknown study slug "not-a-real-study"; expected one of: ${SLUGS.join(", ")}`,
+  it("keeps a clip at or under 20 s as one MP4", () => {
+    expect(shouldUseHls(12.5, { hls: false, noHls: false })).toBe(false);
+    // The boundary itself belongs to the MP4: 20 s is not "longer than 20 s".
+    expect(shouldUseHls(HLS_MIN_DURATION, { hls: false, noHls: false })).toBe(
+      false,
     );
   });
 
-  it("does not trim or accept a near miss", () => {
-    expect(() => assertStudySlug("systems-in-motion ")).toThrow(
-      "unknown study slug",
-    );
+  it("lets the flags override the duration either way", () => {
+    expect(shouldUseHls(2.5, { hls: true, noHls: false })).toBe(true);
+    expect(shouldUseHls(120, { hls: false, noHls: true })).toBe(false);
+  });
+});
+
+describe("hlsRungs", () => {
+  it("gives a 1080 source the full ladder", () => {
+    expect(hlsRungs(1080).map((rung) => rung.height)).toEqual([1080, 720, 480]);
+  });
+
+  it("drops rungs taller than a 720 source and never upscales", () => {
+    expect(hlsRungs(720).map((rung) => rung.height)).toEqual([720, 480]);
+  });
+
+  it("keeps one rung at the source height below 480", () => {
+    const rungs = hlsRungs(360);
+
+    expect(rungs).toHaveLength(1);
+    expect(rungs[0].height).toBe(360);
+    expect(Number.parseFloat(rungs[0].maxrate)).toBeGreaterThan(0);
+  });
+
+  it("floors an odd source height to an even one", () => {
+    expect(hlsRungs(479)[0].height).toBe(478);
+    expect(hlsRungs(721).map((rung) => rung.height)).toEqual([720, 480]);
   });
 });

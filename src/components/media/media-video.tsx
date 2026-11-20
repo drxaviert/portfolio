@@ -6,13 +6,21 @@ import type { VideoMedia } from "@/lib/media-types";
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
 
 /**
- * A looping clip that costs nothing while it is off screen.
+ * A looping clip that costs nothing while it is off screen, or an adaptive
+ * stream that the reader starts themselves.
  *
- * The observer plays it as it enters and pauses it on the way out; a hidden tab
- * counts as out. Under `prefers-reduced-motion: reduce` it never starts itself:
- * the poster stays up and a real 44px button, with a visible focus ring, is the
- * only way in. `preload="none"` keeps the bytes for a clip the reader has not
- * scrolled to yet.
+ * A short loop: the observer plays it as it enters and pauses it on the way out;
+ * a hidden tab counts as out. Under `prefers-reduced-motion: reduce` it never
+ * starts itself: the poster stays up and a real 44px button, with a visible
+ * focus ring, is the only way in.
+ *
+ * A clip with an `hls` ladder is a different contract. It never autoplays and
+ * never loops, it keeps native controls (keyboard reachable, no custom motion),
+ * and the library is fetched only once the frame is near the viewport. Safari
+ * and iOS take the native HLS path; everyone else gets hls.js over MSE, and a
+ * browser with neither keeps the progressive MP4 source.
+ *
+ * `preload="none"` keeps the bytes for a clip the reader has not scrolled to.
  */
 export function MediaVideo({
   media,
@@ -27,7 +35,11 @@ export function MediaVideo({
   const reduce = useReducedMotion();
   const [playing, setPlaying] = useState(false);
 
+  const hlsUrl = media.hls?.url;
+  const streaming = Boolean(hlsUrl);
+
   useEffect(() => {
+    if (streaming) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -68,7 +80,75 @@ export function MediaVideo({
       observer.disconnect();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [reduce]);
+  }, [reduce, streaming]);
+
+  useEffect(() => {
+    if (!hlsUrl) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    let hls: { destroy: () => void } | null = null;
+    let started = false;
+    let cancelled = false;
+
+    const attach = async () => {
+      if (started || cancelled) return;
+      started = true;
+
+      // The order hls.js recommends: its own path first, native second, the mp4
+      // <source> last. `canPlayType` is not a reliable native test — Safari
+      // reports "maybe" and Chrome reports "maybe" for HLS it cannot demux — so
+      // it only gets a say when there is no MediaSource to use.
+      //
+      // hls.js has to be imported to ask `Hls.isSupported()`, so probe the
+      // capability it depends on first: no MSE and no ManagedMediaSource means
+      // the library cannot work and the bytes are not worth fetching.
+      const hasMediaSource =
+        typeof MediaSource !== "undefined" ||
+        "ManagedMediaSource" in window;
+      const nativeHls =
+        video.canPlayType("application/vnd.apple.mpegurl") !== "";
+
+      if (hasMediaSource) {
+        // hls.js ships no .d.mts beside the light build; the full build's types
+        // describe the same API, so cast to them rather than to `any`.
+        const light = (await import(
+          // @ts-expect-error TS7016: the light build has no declaration file.
+          "hls.js/dist/hls.light.mjs"
+        )) as typeof import("hls.js");
+        const Hls = light.default;
+        if (cancelled) return;
+
+        if (Hls.isSupported()) {
+          const instance = new Hls();
+          instance.loadSource(hlsUrl);
+          instance.attachMedia(video);
+          hls = instance;
+          return;
+        }
+      }
+
+      // Older iOS: the element plays HLS itself. Everything else keeps the mp4.
+      if (nativeHls) video.src = hlsUrl;
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        observer.disconnect();
+        void attach();
+      },
+      { threshold: 0.25 },
+    );
+
+    observer.observe(video);
+
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+      hls?.destroy();
+    };
+  }, [hlsUrl]);
 
   function toggle() {
     const video = videoRef.current;
@@ -97,10 +177,11 @@ export function MediaVideo({
         width={media.width}
         height={media.height}
         poster={media.poster.jpg}
-        muted
-        loop
+        muted={streaming ? !media.hasAudio : true}
+        loop={!streaming}
         playsInline
         preload="none"
+        controls={streaming}
         aria-label={alt || undefined}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
@@ -109,7 +190,7 @@ export function MediaVideo({
         <source src={media.mp4.url} type="video/mp4" />
       </video>
 
-      {reduce ? (
+      {reduce && !streaming ? (
         <button
           type="button"
           className="media-play"

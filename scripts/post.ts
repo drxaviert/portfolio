@@ -68,12 +68,35 @@ const MP4_WARN_BYTES = 6 * 1024 * 1024;
 const MP4_MAX_BYTES = 10 * 1024 * 1024;
 const MAX_VIDEO_HEIGHT = 1080;
 
+/** Above this many seconds a clip is worth an adaptive ladder instead of one MP4. */
+export const HLS_MIN_DURATION = 20;
+const HLS_WARN_BYTES = 60 * 1024 * 1024;
+const HLS_MAX_BYTES = 150 * 1024 * 1024;
+
+/** One rung of the adaptive ladder: a height cap and the bitrate that caps it. */
+export interface HlsRung {
+  height: number;
+  maxrate: string;
+  bufsize: string;
+}
+
+const HLS_LADDER: readonly HlsRung[] = [
+  { height: 1080, maxrate: "5000k", bufsize: "10000k" },
+  { height: 720, maxrate: "2800k", bufsize: "5600k" },
+  { height: 480, maxrate: "1200k", bufsize: "2400k" },
+];
+
+/** A source too small for the 480 rung still needs one, at a bitrate that fits. */
+const HLS_SMALL_RUNG = { maxrate: "800k", bufsize: "1600k" };
+
 interface CliOptions {
   alt?: string;
   post?: string;
   study?: string;
   audio: boolean;
   webm: boolean;
+  hls: boolean;
+  noHls: boolean;
   posterAt: number;
   dryRun: boolean;
   help: boolean;
@@ -119,6 +142,8 @@ function parseArgs(argv: string[]): CliOptions {
   const options: CliOptions = {
     audio: false,
     webm: false,
+    hls: false,
+    noHls: false,
     posterAt: 0,
     dryRun: false,
     help: false,
@@ -161,6 +186,12 @@ function parseArgs(argv: string[]): CliOptions {
       case "--webm":
         options.webm = true;
         break;
+      case "--hls":
+        options.hls = true;
+        break;
+      case "--no-hls":
+        options.noHls = true;
+        break;
       case "--dry-run":
         options.dryRun = true;
         break;
@@ -182,6 +213,9 @@ function parseArgs(argv: string[]): CliOptions {
   }
   if (options.study !== undefined && options.study.trim() === "") {
     throw new UsageError("--study needs a slug");
+  }
+  if (options.hls && options.noHls) {
+    throw new UsageError("--hls and --no-hls contradict each other");
   }
 
   return options;
@@ -205,9 +239,17 @@ Options
                         The slug must be an existing study; it does not filter.
   --audio               Keep audio in the encoded video (AAC 128k).
   --webm                Also encode a VP9 WebM alongside the MP4.
+  --hls                 Force an HLS ladder even for a clip under 20 s.
+  --no-hls              Keep a single progressive MP4 even past 20 s.
   --poster-at <sec>     Poster frame timestamp in seconds. Default: 0.
   --dry-run             Encode and report, but do not upload or write anything.
   --help, -h            Show this help.
+
+Video
+  A clip longer than 20 s is encoded as an HLS ladder (1080/720/480, dropping
+  rungs above the source) plus a low-rung progressive MP4 as the required
+  fallback. Shorter clips stay one MP4. HLS budgets: warn over 60 MB, fail over
+  150 MB. The 10 MB MP4 cap applies to non-HLS clips only.
 
 Environment
   Blob auth comes from .env.blob (BLOB_STORE_ID + VERCEL_OIDC_TOKEN). A missing
@@ -314,6 +356,42 @@ async function publish(
     }
     throw error;
   }
+}
+
+const UPLOAD_CONCURRENCY = 6;
+
+/**
+ * Uploads a ladder in a fixed-width pool: a 40-file encode would otherwise open
+ * 40 sockets at once and slow every one of them down. A failure rejects the
+ * pool, which fails the file before its manifest is written.
+ */
+async function publishAll(
+  id: string,
+  files: { relative: string; body: Buffer; contentType: string }[],
+  dryRun: boolean,
+): Promise<Map<string, string>> {
+  const bytes = files.reduce((total, file) => total + file.body.byteLength, 0);
+  console.log(`  info     hls ${files.length} files · ${formatBytes(bytes)}`);
+
+  const urls = new Map<string, string>();
+  let next = 0;
+
+  const worker = async (): Promise<void> => {
+    while (next < files.length) {
+      const file = files[next++];
+      const url = await publish(
+        `media/${id}/hls/${file.relative}`,
+        file.body,
+        file.contentType,
+        dryRun,
+      );
+      urls.set(file.relative, url);
+    }
+  };
+
+  const width = Math.min(UPLOAD_CONCURRENCY, files.length);
+  await Promise.all(Array.from({ length: width }, worker));
+  return urls;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -483,6 +561,190 @@ function scaleFilter(size: { width: number; height: number }): string {
   return `scale=${size.width}:${size.height}:flags=lanczos,setsar=1`;
 }
 
+/**
+ * HLS is worth it for a clip a reader will actually watch for a while: the
+ * ladder costs several extra encodes and uploads. `--hls` / `--no-hls` override
+ * the duration rule; the boundary itself is exclusive (20 s stays one MP4).
+ */
+export function shouldUseHls(
+  duration: number,
+  flags: { hls: boolean; noHls: boolean },
+): boolean {
+  if (flags.hls) return true;
+  if (flags.noHls) return false;
+  return duration > HLS_MIN_DURATION;
+}
+
+/**
+ * The rungs that fit a source, tallest first. Never upscales: a 720p source gets
+ * 720 and 480, and anything under 480 keeps one rung at its own even height.
+ */
+export function hlsRungs(srcHeight: number): HlsRung[] {
+  const height = Math.max(2, Math.floor(srcHeight / 2) * 2);
+  const fits = HLS_LADDER.filter((rung) => rung.height <= height);
+  if (fits.length > 0) return fits.map((rung) => ({ ...rung }));
+  return [{ height, ...HLS_SMALL_RUNG }];
+}
+
+/** The rung's output size, keeping the source's aspect ratio. */
+function rungSize(
+  width: number,
+  height: number,
+  rungHeight: number,
+): { width: number; height: number } {
+  return {
+    width: Math.max(2, Math.floor((width * rungHeight) / height / 2) * 2),
+    height: rungHeight,
+  };
+}
+
+async function listFilesRecursive(dir: string, base = dir): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const files: string[] = [];
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await listFilesRecursive(full, base)));
+    } else {
+      files.push(path.relative(base, full).split(path.sep).join("/"));
+    }
+  }
+  return files.sort((a, b) => a.localeCompare(b));
+}
+
+function contentTypeFor(file: string): string {
+  if (file.endsWith(".m3u8")) return "application/vnd.apple.mpegurl";
+  return "video/mp4";
+}
+
+/** `BANDWIDTH` and `RESOLUTION` from the master playlist, tallest first. */
+function readMasterLevels(
+  master: string,
+): { height: number; bandwidth: number }[] {
+  const levels: { height: number; bandwidth: number }[] = [];
+  for (const line of master.split("\n")) {
+    if (!line.startsWith("#EXT-X-STREAM-INF:")) continue;
+    const bandwidth = Number(/BANDWIDTH=(\d+)/.exec(line)?.[1] ?? 0);
+    const height = Number(/RESOLUTION=\d+x(\d+)/.exec(line)?.[1] ?? 0);
+    if (height > 0) levels.push({ height, bandwidth });
+  }
+  return levels;
+}
+
+interface HlsOutput {
+  /** Paths relative to `<id>/hls/`, body and content type ready to upload. */
+  files: { relative: string; body: Buffer; contentType: string }[];
+  bytes: number;
+  levels: { height: number; bandwidth: number }[];
+}
+
+/**
+ * One ffmpeg run for the whole ladder: split, scale per rung, encode each with
+ * the same 2 s keyframe grid, and let the HLS muxer write one playlist per rung
+ * plus the master that lists them.
+ */
+async function encodeHls(
+  job: Job,
+  probe: ProbeResult,
+  rungs: HlsRung[],
+  workDir: string,
+  audio: boolean,
+): Promise<HlsOutput> {
+  const hlsDir = path.join(workDir, "hls");
+  await mkdir(hlsDir, { recursive: true });
+  for (let index = 0; index < rungs.length; index++) {
+    await mkdir(path.join(hlsDir, `v${index}`), { recursive: true });
+  }
+
+  const sizes = rungs.map((rung) =>
+    rungSize(probe.width, probe.height, rung.height),
+  );
+  const filters = sizes
+    .map((size, index) => `[v${index}]${scaleFilter(size)}[vout${index}]`)
+    .join(";");
+
+  const args: string[] = [
+    "-i",
+    job.file,
+    "-filter_complex",
+    `[0:v]split=${rungs.length}${rungs.map((_, index) => `[v${index}]`).join("")};${filters}`,
+  ];
+
+  for (let index = 0; index < rungs.length; index++) {
+    args.push("-map", `[vout${index}]`);
+    if (audio) args.push("-map", "0:a:0");
+  }
+
+  args.push(
+    "-c:v",
+    "libx264",
+    "-crf",
+    "21",
+    "-preset",
+    "slow",
+    "-pix_fmt",
+    "yuv420p",
+  );
+  for (const [index, rung] of rungs.entries()) {
+    args.push(
+      `-maxrate:v:${index}`,
+      rung.maxrate,
+      `-bufsize:v:${index}`,
+      rung.bufsize,
+    );
+  }
+  args.push(
+    "-force_key_frames",
+    "expr:gte(t,n_forced*2)",
+    "-sc_threshold",
+    "0",
+  );
+  if (audio) args.push("-c:a", "aac", "-b:a", "128k");
+
+  // The HLS muxer expands %v per variant, so it needs a directory per rung; the
+  // playlist name doubles as the segment path base. Forward slashes keep the
+  // playlist URIs portable.
+  const base = hlsDir.split(path.sep).join("/");
+  args.push(
+    "-f",
+    "hls",
+    "-hls_time",
+    "4",
+    "-hls_playlist_type",
+    "vod",
+    "-hls_segment_type",
+    "fmp4",
+    "-hls_flags",
+    "independent_segments",
+    "-hls_segment_filename",
+    `${base}/v%v/segment_%d.m4s`,
+    "-master_pl_name",
+    "master.m3u8",
+    "-var_stream_map",
+    rungs
+      .map((_, index) => (audio ? `v:${index},a:${index}` : `v:${index}`))
+      .join(" "),
+    `${base}/v%v/index.m3u8`,
+  );
+
+  await runFfmpeg(args);
+
+  const relatives = await listFilesRecursive(hlsDir);
+  const files = await Promise.all(
+    relatives.map(async (relative) => {
+      const body = await readFile(path.join(hlsDir, relative));
+      return { relative, body, contentType: contentTypeFor(relative) };
+    }),
+  );
+  const master = await readFile(path.join(hlsDir, "master.m3u8"), "utf8");
+
+  return {
+    files,
+    bytes: files.reduce((total, file) => total + file.body.byteLength, 0),
+    levels: readMasterLevels(master),
+  };
+}
+
 async function processVideo(
   job: Job,
   alt: string,
@@ -491,7 +753,19 @@ async function processVideo(
   workDir: string,
 ): Promise<VideoMedia> {
   const probe = await probeVideo(job.file);
-  const size = videoTargetSize(probe.width, probe.height);
+  const useHls = shouldUseHls(probe.duration, options);
+  const rungs = useHls ? hlsRungs(probe.height) : [];
+  const ladderSize =
+    rungs.length > 0
+      ? rungSize(probe.width, probe.height, rungs[0].height)
+      : undefined;
+  const size = ladderSize ?? videoTargetSize(probe.width, probe.height);
+  // The progressive MP4 is the fallback for an HLS clip, so it encodes at the
+  // lowest rung instead of duplicating the top one.
+  const fallbackRung = rungs.at(-1);
+  const mp4Size = fallbackRung
+    ? rungSize(probe.width, probe.height, fallbackRung.height)
+    : size;
 
   // Check the poster timestamp before encoding: a bad value should fail fast instead of
   // after a slow encode, and before any upload has happened.
@@ -502,7 +776,7 @@ async function processVideo(
   }
 
   console.log(
-    `  info     ${probe.width}x${probe.height} · ${probe.duration.toFixed(2)}s · audio: ${probe.hasAudio ? "yes" : "no"} → ${size.width}x${size.height}`,
+    `  info     ${probe.width}x${probe.height} · ${probe.duration.toFixed(2)}s · audio: ${probe.hasAudio ? "yes" : "no"} → ${size.width}x${size.height}${useHls ? " (HLS)" : ""}`,
   );
 
   const mp4Path = path.join(workDir, "video.mp4");
@@ -512,11 +786,14 @@ async function processVideo(
     "-i",
     job.file,
     "-vf",
-    scaleFilter(size),
+    scaleFilter(mp4Size),
     "-c:v",
     "libx264",
     "-crf",
-    "20",
+    useHls ? "21" : "20",
+    ...(fallbackRung
+      ? ["-maxrate", fallbackRung.maxrate, "-bufsize", fallbackRung.bufsize]
+      : []),
     "-preset",
     "slow",
     "-pix_fmt",
@@ -529,25 +806,49 @@ async function processVideo(
 
   const mp4 = await readFile(mp4Path);
 
-  if (mp4.byteLength > MP4_MAX_BYTES) {
-    throw new Error(
-      `the MP4 is ${formatBytes(mp4.byteLength)}, over the 10 MB cap. Re-encode with a higher CRF or use a shorter clip.`,
-    );
-  }
-  if (mp4.byteLength > MP4_WARN_BYTES) {
-    console.warn(
-      `  warn     MP4 is ${formatBytes(mp4.byteLength)} — over 6 MB, consider a higher CRF or a shorter clip`,
-    );
+  // The cap guards a full-size MP4 a reader downloads whole. An HLS fallback is
+  // already at the lowest rung, and the ladder has its own budget below.
+  if (!useHls) {
+    if (mp4.byteLength > MP4_MAX_BYTES) {
+      throw new Error(
+        `the MP4 is ${formatBytes(mp4.byteLength)}, over the 10 MB cap. Re-encode with a higher CRF or use a shorter clip.`,
+      );
+    }
+    if (mp4.byteLength > MP4_WARN_BYTES) {
+      console.warn(
+        `  warn     MP4 is ${formatBytes(mp4.byteLength)} — over 6 MB, consider a higher CRF or a shorter clip`,
+      );
+    }
   }
 
-  let webm: { url: string; bytes: number } | undefined;
+  let hls: HlsOutput | undefined;
+  if (useHls) {
+    hls = await encodeHls(job, probe, rungs, workDir, options.audio);
+    if (hls.bytes > HLS_MAX_BYTES) {
+      throw new Error(
+        `the HLS ladder is ${formatBytes(hls.bytes)}, over the 150 MB cap. Raise the CRF or trim the clip.`,
+      );
+    }
+    if (hls.bytes > HLS_WARN_BYTES) {
+      console.warn(
+        `  warn     HLS ladder is ${formatBytes(hls.bytes)} — over 60 MB, consider a higher CRF or a shorter clip`,
+      );
+    }
+    for (const level of hls.levels) {
+      console.log(
+        `  info     hls ${level.height}p · ${Math.round(level.bandwidth / 1000)} kbps`,
+      );
+    }
+  }
+
+  let webmBuffer: Buffer | undefined;
   if (options.webm) {
     const webmPath = path.join(workDir, "video.webm");
     await runFfmpeg([
       "-i",
       job.file,
       "-vf",
-      scaleFilter(size),
+      scaleFilter(mp4Size),
       "-c:v",
       "libvpx-vp9",
       "-crf",
@@ -563,16 +864,7 @@ async function processVideo(
       ...(options.audio ? ["-c:a", "libopus", "-b:a", "96k"] : ["-an"]),
       webmPath,
     ]);
-    const webmBuffer = await readFile(webmPath);
-    webm = {
-      url: await publish(
-        `media/${job.id}/video.webm`,
-        webmBuffer,
-        "video/webm",
-        options.dryRun,
-      ),
-      bytes: webmBuffer.byteLength,
-    };
+    webmBuffer = await readFile(webmPath);
   }
 
   const posterPng = path.join(workDir, "poster.png");
@@ -596,6 +888,27 @@ async function processVideo(
     poster.clone().jpeg({ quality: 82 }).toBuffer(),
   ]);
 
+  // Every HLS file lands under `media/<id>/hls/`, so the master's relative
+  // variant URIs keep working straight from Blob.
+  let hlsUrl: string | undefined;
+  if (hls) {
+    const urls = await publishAll(job.id, hls.files, options.dryRun);
+    hlsUrl = urls.get("master.m3u8");
+  }
+
+  let webm: { url: string; bytes: number } | undefined;
+  if (webmBuffer) {
+    webm = {
+      url: await publish(
+        `media/${job.id}/video.webm`,
+        webmBuffer,
+        "video/webm",
+        options.dryRun,
+      ),
+      bytes: webmBuffer.byteLength,
+    };
+  }
+
   return {
     id: job.id,
     kind: "video",
@@ -615,6 +928,9 @@ async function processVideo(
       bytes: mp4.byteLength,
     },
     ...(webm ? { webm } : {}),
+    ...(hls && hlsUrl
+      ? { hls: { url: hlsUrl, bytes: hls.bytes, levels: hls.levels } }
+      : {}),
     poster: {
       avif: await publish(
         `media/${job.id}/poster.avif`,
