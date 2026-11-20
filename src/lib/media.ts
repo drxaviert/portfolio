@@ -1,14 +1,21 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { ImageFormat, MediaManifest, MediaSource } from "./media-types";
+import type {
+  ImageFormat,
+  MediaManifest,
+  MediaSource,
+  VideoHls,
+} from "./media-types";
 
 export type {
+  HlsLevel,
   ImageFormat,
   ImageMedia,
   MediaManifest,
   MediaPoster,
   MediaSource,
   VideoFile,
+  VideoHls,
   VideoMedia,
 } from "./media-types";
 export { isImageMedia, isVideoMedia } from "./media-types";
@@ -108,6 +115,38 @@ function readVideoFile(
 }
 
 /**
+ * The adaptive ladder: a master playlist, the bytes behind it and the rungs it
+ * advertises. A half-uploaded ladder is as broken as a missing MP4, so every
+ * part is required once `hls` is present.
+ */
+function readHls(id: string, value: unknown): VideoHls {
+  if (!isRecord(value)) invalid(id, "hls must be an object");
+  if (!isUrl(value.url) || !value.url.endsWith(".m3u8")) {
+    invalid(id, "hls.url must be an https URL ending in .m3u8");
+  }
+  if (!isBytes(value.bytes)) {
+    invalid(id, "hls.bytes must be a positive integer");
+  }
+  if (!Array.isArray(value.levels) || value.levels.length === 0) {
+    invalid(id, "hls.levels must be a non-empty array");
+  }
+
+  const levels = value.levels.map((level, index) => {
+    if (!isRecord(level)) invalid(id, `hls.levels[${index}] must be an object`);
+    if (!isDimension(level.height)) {
+      invalid(id, `hls.levels[${index}].height must be a positive integer`);
+    }
+    if (typeof level.bandwidth !== "number" || !(level.bandwidth > 0)) {
+      invalid(id, `hls.levels[${index}].bandwidth must be a positive number`);
+    }
+
+    return { height: level.height, bandwidth: level.bandwidth };
+  });
+
+  return { url: value.url, bytes: value.bytes, levels };
+}
+
+/**
  * Checks the manifest against the shape `scripts/post.ts` writes. Failing here
  * fails the build, which is the point: a typo in an id or a half-finished
  * upload should never reach a reader as a broken <img> or <video>.
@@ -153,6 +192,7 @@ export function validateManifest(id: string, raw: unknown): MediaManifest {
   const mp4 = readVideoFile(id, "mp4", raw.mp4);
   const webm =
     raw.webm === undefined ? undefined : readVideoFile(id, "webm", raw.webm);
+  const hls = raw.hls === undefined ? undefined : readHls(id, raw.hls);
 
   if (!isRecord(raw.poster)) invalid(id, "poster must be an object");
   if (!isUrl(raw.poster.avif)) {
@@ -173,6 +213,7 @@ export function validateManifest(id: string, raw: unknown): MediaManifest {
     kind: "video",
     mp4,
     ...(webm ? { webm } : {}),
+    ...(hls ? { hls } : {}),
     poster: { avif: raw.poster.avif, jpg: raw.poster.jpg },
     duration: raw.duration,
     hasAudio: raw.hasAudio,
