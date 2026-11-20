@@ -779,6 +779,36 @@ describe("DrawerShell", () => {
     );
   });
 
+  it.each([
+    ["a pointer", false],
+    ["a key", true],
+  ])("shows the returned focus ring only when %s closed the drawer", async (_, keyboard) => {
+    const view = await renderOpen("/work");
+
+    if (keyboard) {
+      fireEvent.keyDown(window, { key: "Escape" });
+    } else {
+      fireEvent.pointerDown(document.querySelector(".wd-expand-backdrop")!);
+      fireEvent.click(document.querySelector(".wd-expand-backdrop")!);
+    }
+    await waitFor(() => expect(mocks.back).toHaveBeenCalled());
+
+    view.unmount();
+    document.body.innerHTML = "";
+    placeDock();
+    const work = screen.getByRole("link", { name: "Work" });
+    const focus = vi.spyOn(work, "focus");
+
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    });
+
+    expect(focus).toHaveBeenCalledWith({
+      preventScroll: true,
+      focusVisible: keyboard,
+    });
+  });
+
   it("closes to the homepage entry after a chain of studies", async () => {
     placeCard();
     const view = await renderOpen("/work");

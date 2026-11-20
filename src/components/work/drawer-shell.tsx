@@ -60,6 +60,29 @@ export function DrawerShell({
   const reduce = useReducedMotion() ?? false;
   const titleId = onIndex ? INDEX_TITLE_ID : READER_TITLE_ID;
 
+  // How the visitor last touched the page while the drawer was up. The focus
+  // return below shows its ring only after a key: WebKit matches
+  // `:focus-visible` on every scripted focus, so a click or Back would
+  // otherwise leave the nav's Work item ringed on the homepage.
+  const lastInputRef = useRef<"pointer" | "keyboard">("pointer");
+
+  useEffect(() => {
+    const onPointer = () => {
+      lastInputRef.current = "pointer";
+    };
+    const onKey = () => {
+      lastInputRef.current = "keyboard";
+    };
+
+    window.addEventListener("pointerdown", onPointer, true);
+    window.addEventListener("keydown", onKey, true);
+
+    return () => {
+      window.removeEventListener("pointerdown", onPointer, true);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, []);
+
   // The view on screen (its route and the children it was rendered with), plus
   // the copy a swap leaves behind. The copy is a DOM snapshot, not a re-render:
   // the page under this layout is a router slot that paints the new route's
@@ -227,6 +250,7 @@ export function DrawerShell({
     // the page that is back, then to the nav — never the body.
     returnFocus: () => {
       const origin = originRef.current;
+      const focusVisible = lastInputRef.current === "keyboard";
 
       requestAnimationFrame(() => {
         // Development Strict Mode runs this cleanup once on mount, with the
@@ -249,7 +273,14 @@ export function DrawerShell({
             `${DOCK_SELECTOR} a[aria-label="Home"]`,
           );
 
-        target?.focus({ preventScroll: true });
+        // `focusVisible` ships in Chromium, WebKit and Firefox but not yet in
+        // TypeScript's DOM lib.
+        const options: FocusOptions & { focusVisible: boolean } = {
+          preventScroll: true,
+          focusVisible,
+        };
+
+        target?.focus(options);
       });
     },
   });
