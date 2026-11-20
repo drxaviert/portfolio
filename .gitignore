@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# quarantined experiments: kept locally, never committed.
+.quarantine/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
