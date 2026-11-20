@@ -1,0 +1,53 @@
+{
+  "id": "f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097",
+  "kind": "image",
+  "width": 2048,
+  "height": 1365,
+  "alt": "",
+  "caption": "",
+  "createdAt": "2026-11-20T17:52:44.238Z",
+  "original": "f874aa9e-71e7-4f6e-ac27-f084c7b7d08b_1---Copy.jpg",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2048,
+      "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097/w2048.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2048,
+      "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097/w2048.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRkwAAABXRUJQVlA4IEAAAADQAQCdASoQAAsAAsBMJZQCdADF62IQAAD++XSFkJVP0RrWsfkeogyRb2QsMZi0DjS9gs5/mZfe1n8n4vLoYAAA"
+}
