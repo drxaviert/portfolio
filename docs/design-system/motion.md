@@ -1,6 +1,6 @@
 # Design system motion — 2026-11-13
 
-The shipped motion of the theme toggle, the Day phase row, the home nav's Glide capsule and the Work drawer, recorded from the code (toggle and nav from PR #12, `5bbfba9` / `d574d89`; drawer at `98b6429`). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
+The shipped motion of the theme toggle, the Day phase row, the home nav's Glide capsule and the Work drawer, recorded from the code (toggle and nav from PR #12, `5bbfba9` / `d574d89`; drawer at `98b6429`; the shipped drawer, its close rules and the index layout switch approved at `cb6785a`, 2026-11-19, in the last two sections). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
 
 ## Principles
 
@@ -674,3 +674,89 @@ The cost stays on the compositor: `opacity`, `translate` and `filter` per card, 
 - `src/components/horizon/horizon-shader.tsx:353` — reads the radius once (`readSoftRadius`)
 - `src/components/horizon/horizon-shader.tsx:872` — starts the shader's own softness clock
 - `src/components/horizon/horizon-shader.tsx:139` — the four-tap coverage box, dither applied after
+
+## Work drawer — shipped entry, swap and close (2026-11-19)
+
+The drawer is one surface for `/work` and every `/work/<slug>`: it opens from the nav's Work capsule on the index and from the clicked homepage card on a study, and it never remounts between entries. The open is the home carousel's step, read from its own source (`carousel-step.ts`) rather than copied: 900ms on `cubic-bezier(0.25, 0.8, 0.25, 1)`. The panel keeps its final layout box the whole time and only `transform`/`opacity` animate; a close that interrupts the open retargets from the current pose.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Index opened (nav Work) | panel `transform` | 900ms | 0 | `cubic-bezier(0.25, 0.8, 0.25, 1)` | Work capsule rect → panel box (`translate` + `scale`, origin top left) |
+| Index opened (nav Work) | dock `transform` | 900ms | 0 | same | home row → the panel's top row |
+| Study opened (homepage card) | panel `transform` | 900ms | 0 | same | the clicked card's live rect → panel box |
+| Index → study, study → index, study → study | outgoing view `opacity` | 160ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 1 → 0, frozen over the incoming view |
+| Same swap | incoming view `opacity` | 240ms (`--duration-medium-1`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 0 → 1 |
+| "← Work" | the same cross-fade, towards `/work` | 160ms / 240ms | 0 | same | the study's view → the index's view; the panel does not move |
+| Close (index Esc/backdrop, or the logo anywhere) | panel `transform` | 350ms | 0 | `cubic-bezier(0.22, 1, 0.36, 1)` | current pose → the capsule or card's live rect (scale + fade when there is no origin) |
+| Opened, reduced motion | panel `opacity` | 120ms | 0 | `ease-out` | 0 → 1, no transform |
+| Swap/close, reduced motion | `opacity` only | 120ms | 0 | `ease-out` | the same states, no movement |
+
+The content swap snapshots the outgoing view before React mutates the DOM, so the copy is the view that was on screen rather than the new route's: it stays inert and `aria-hidden`, keeps the reader's scroll position, and has its inner animations and transitions neutralised so it paints at rest.
+
+**Close B.** Esc and the backdrop step a study back to the index; on the index they close the drawer. The logo closes from anywhere. "← Work" is the same step back, and browser Back is the platform's. A step back uses `router.back()` only when the entry behind this one is the index; after "Next project" the entry behind is another study, so the index is pushed instead.
+
+**Esc guard.** One burst of presses cannot step back and then close: Esc is ignored while a step-back transition is in flight, and for `ESC_BURST_MS = 350ms` after the index lands. Auto-repeat from a held key is ignored too (`event.repeat`). A single deliberate press is unchanged: one steps back, a later one closes.
+
+**The lifecycle rule.** One machine owns the drawer: the phase (`closed | opening | open | closing`), one generation, the running flight, the close promise, the reveal timer and the entry. Every transition goes through `commit()` — bump the generation, stop the flight, set the phase — so an async completion commits only while its generation is current. A close always settles `closed` once its flight ends, whether the route exit lands now, later, or never: the shell is off the screen (`visibility: hidden`) and the page lock and homepage inertness are released from the phase. Only a real re-entry reopens it — a new Work/card click, or the route coming back to `/work*`. A timer never reopens; the old 1.5s fallback was removed because a slow exit was mistaken for a cancelled one and sprang the drawer open.
+
+- `src/components/work/use-morph.ts:101` — the open/close timing pair handed to the panel and the nav
+- `src/components/work/carousel-step.ts:26` — `CAROUSEL_OPEN_S` (900ms, read from `DEFAULT_SETTINGS.duration`)
+- `src/components/work/carousel-step.ts:27` — `CAROUSEL_EASE` (`0.25, 0.8, 0.25, 1`)
+- `src/components/work/carousel-step.ts:37` — `CAROUSEL_CLOSE_S = 0.35`
+- `src/components/work/carousel-step.ts:38` — `CAROUSEL_CLOSE_EASE` (`0.22, 1, 0.36, 1`)
+- `src/components/work/use-morph.ts:192` — `findOrigin`: the study's visible card, else the nav's Work capsule
+- `src/components/work/use-morph.ts:417` — `flyOpen`: the pose, the flight and the nav's flight
+- `src/components/work/use-morph.ts:481` — the dock flies on the drawer's own open timing
+- `src/components/work/use-morph.ts:86` — `FADE_S = 0.12`, the reduced-motion opacity path
+- `src/components/work/drawer-shell.tsx:148` — the frozen copy is marked `data-leave`
+- `src/components/work/drawer-shell.tsx:157` — the copy's 160ms fade
+- `src/components/work/drawer-shell.css:163` — the incoming view's 240ms `wd-view-in`
+- `src/components/work/drawer-shell.tsx:194` — `requestExit`: step back on a study, close on the index
+- `src/components/work/drawer-shell.tsx:211` — the logo's close registration
+- `src/components/work/drawer-shell.tsx:28` — `ESC_BURST_MS = 350`
+- `src/components/work/drawer-shell.tsx:205` — the burst window after the index lands
+- `src/components/work/drawer-actions.tsx:53` — auto-repeat is not a fresh press
+- `src/components/work/use-morph.ts:673` — `stepBack`
+- `src/components/work/use-morph.ts:676` — uses history only when the index is the entry behind
+- `src/components/work/reader-rail.tsx:88` — "← Work" calls the same step back
+- `src/components/work/use-morph.ts:301` — the one lifecycle machine
+- `src/components/work/use-morph.ts:338` — `commit`: generation bump, flight stop, phase
+- `src/components/work/use-morph.ts:880` — `close`: play, then settle, no latch
+- `src/components/work/use-morph.ts:909` — a close with no panel still settles closed
+- `src/components/work/use-morph.ts:547` — the hide transition closes the shell
+- `src/components/work/use-morph.ts:531` — re-entry, the only way back open
+- `src/components/work/use-morph.ts:862` — a click re-enters a closed-but-on-screen shell
+
+## Work index — grid / list switch (2026-11-19)
+
+The index header carries a two-segment, icon-only radiogroup (Grid · List). It is the theme toggle's own track: `SegmentTrack` and `Segment` are exported from `theme-toggle.tsx` and the switch passes its glyphs as children, so the capsule's stretch-and-snap glide, the tooltips, the roving focus and the 40px coarse-pointer hit area are the same code, not a copy. The choice is remembered in localStorage (`wd-work-layout`, every access guarded); the grid is the default.
+
+The switch cross-fades the two layouts and morphs the stack height to the incoming layout's: 200ms on `cubic-bezier(0.23, 1, 0.32, 1)`. A new switch finishes the previous one first, so it is interruptible. Reduced motion is instant. Each layout keeps its own last scroll position, so a round trip returns to where each one was (the shorter layout's clamp is applied only when the value is written, not remembered).
+
+No layout flash and no hydration mismatch: both layouts are in the document, and the stylesheet picks one from `data-work-layout` on `<html>`, which the root layout's head script sets before paint on a hard load. The control reads that attribute through `useSyncExternalStore` (server snapshot grid), so hydration starts from the markup and settles on the real value. A client navigation reads the store and applies the attribute in a layout effect before paint.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Switch | outgoing layout `opacity` | 180ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 1 → 0 over the incoming |
+| Switch | incoming layout `opacity` | 200ms | 0 | same | 0 → 1 |
+| Switch | stack `height` | 200ms | 0 | same | current height → the incoming layout's height |
+| Switch, reduced motion | — | 0 | — | — | instant swap |
+| Selection moves | capsule path | 180ms leading / 220ms trailing | 0 / 120ms | same as the theme toggle | current edge → target edge |
+
+- `src/components/work/layout-toggle.tsx:51` — `LayoutToggle`
+- `src/components/theme/theme-toggle.tsx:612` — `SegmentTrack`, shared with the theme toggle
+- `src/components/theme/theme-toggle.tsx:739` — `Segment` (glyph or children)
+- `src/components/theme/theme-toggle.tsx:299` — the capsule's 120ms lag / 180ms leading / 220ms trailing
+- `src/components/work/work-index.tsx:24` — `LAYOUT_SWITCH_MS = 200`
+- `src/components/work/work-index.tsx:25` — the switch's ease-out curve
+- `src/components/work/work-index.tsx:208` — the stack height morph
+- `src/components/work/work-index.tsx:212` — the outgoing layout's fade
+- `src/components/work/work-index.tsx:217` — the incoming layout's fade
+- `src/components/work/work-index.tsx:172` — the scroll restore
+- `src/components/work/work-index.tsx:69` — each layout's own remembered scroll
+- `src/components/work/layout-preference.ts:14` — `wd-work-layout`
+- `src/components/work/layout-preference.ts:51` — the snapshot the control reads
+- `src/components/work/layout-preference.ts:73` — apply, store, announce
+- `src/lib/layout-script.ts:10` — the pre-paint bootstrap
+- `src/app/layout.tsx:59` — the bootstrap in the root head
+- `src/components/work/work-index.css:113` — the attribute picks the visible layout
