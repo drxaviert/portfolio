@@ -42,7 +42,7 @@ file is skipped and an edited file becomes a new id.
 | `--webm` | Also encode a VP9 WebM. |
 | `--poster-at <sec>` | Poster frame timestamp, default `0`. It must be inside the clip's duration. |
 | `--post "<caption>"` | Also write `content/posts/<yyyy-mm-dd>-<slug>.mdx`, frontmatter only (`date`, `caption`, `media: [ids]`). |
-| `--study <slug>` | Print a `<Figure><Media /></Figure>` snippet for each id ingested in the run; the slug does not filter. |
+| `--study <slug>` | Validate the slug against the studies the site can open, then print `Paste into content/work/<slug>.mdx:` above a `<Figure><Media /></Figure>` snippet for each id ingested in the run; the slug does not filter. An unknown slug is a usage error before any encode or upload. |
 | `--help`, `-h` | Print the flags and the environment notes. |
 
 The script takes flags only; there are no positional arguments. Hidden files and unknown extensions
