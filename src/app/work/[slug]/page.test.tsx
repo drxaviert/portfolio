@@ -73,6 +73,10 @@ describe("work page", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(document.querySelector("[data-work-card]")).not.toBeInTheDocument();
     expect(document.querySelector(".wd-expand-layer")).not.toBeInTheDocument();
+    // The layout switch belongs to the index, not to a study.
+    expect(
+      screen.queryByRole("radiogroup", { name: "Layout" }),
+    ).not.toBeInTheDocument();
   });
 
   it("ends with the next study in reading order", async () => {
