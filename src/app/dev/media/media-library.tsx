@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PublishButton } from "./publish-button";
 import { UploadPanel } from "./upload-panel";
+import type { PublishState } from "./publish";
 import "./media-library.css";
 
 /** One manifest, flattened to what a card draws. Bytes stay null for images. */
@@ -248,7 +250,13 @@ function Card({
  * The dev library. Everything the page shows arrives as plain data from the
  * server, so this file owns only filter, search and the copy confirmation.
  */
-export function MediaLibrary({ items }: { items: LibraryItem[] }) {
+export function MediaLibrary({
+  items,
+  publish,
+}: {
+  items: LibraryItem[];
+  publish: PublishState;
+}) {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
@@ -299,6 +307,8 @@ export function MediaLibrary({ items }: { items: LibraryItem[] }) {
               {formatBytes(recorded)} of the 1 GB Hobby limit · video files only
             </p>
           </header>
+
+          <PublishButton state={publish} />
         </div>
 
         {items.length > 0 ? (

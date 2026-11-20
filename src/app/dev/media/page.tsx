@@ -4,6 +4,7 @@ import type { MediaManifest } from "@/lib/media";
 import type { ImageMedia } from "@/lib/media-types";
 import { MediaLibrary } from "./media-library";
 import type { LibraryItem } from "./media-library";
+import { readPublishState } from "./publish";
 
 /**
  * Dev-only browser for the file-based media pipeline: every manifest in
@@ -78,5 +79,10 @@ export default async function DevMediaPage() {
     notFound();
   }
 
-  return <MediaLibrary items={listMedia().map(toItem)} />;
+  return (
+    <MediaLibrary
+      items={listMedia().map(toItem)}
+      publish={await readPublishState()}
+    />
+  );
 }
