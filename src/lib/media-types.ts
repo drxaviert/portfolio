@@ -28,6 +28,19 @@ export interface VideoFile {
   bytes: number;
 }
 
+/** One rung of an adaptive ladder, as the master playlist advertises it. */
+export interface HlsLevel {
+  height: number;
+  bandwidth: number;
+}
+
+/** The adaptive ladder: a master playlist plus the bytes and rungs behind it. */
+export interface VideoHls {
+  url: string;
+  bytes: number;
+  levels: HlsLevel[];
+}
+
 interface MediaBase {
   id: string;
   kind: MediaKind;
@@ -53,6 +66,8 @@ export interface VideoMedia extends MediaBase {
   kind: "video";
   mp4: VideoFile;
   webm?: VideoFile;
+  /** Present when the clip was long enough for an adaptive ladder. */
+  hls?: VideoHls;
   poster: MediaPoster;
   /** Seconds. */
   duration: number;
