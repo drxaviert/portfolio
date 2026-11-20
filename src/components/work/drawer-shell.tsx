@@ -4,6 +4,7 @@ import { useReducedMotion } from "motion/react";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { navigatingByKeyboard } from "@/components/nav/input-modality";
 import { DOCK_SELECTOR, registerReaderClose } from "@/components/nav/nav-flight";
 import { DrawerActionsProvider, useEscToClose } from "./drawer-actions";
 import { READER_TITLE_ID } from "./parts";
@@ -227,6 +228,10 @@ export function DrawerShell({
     // the page that is back, then to the nav — never the body.
     returnFocus: () => {
       const origin = originRef.current;
+      // The ring shows only for a visitor moving by keyboard: WebKit matches
+      // `:focus-visible` on every scripted focus, so a mouse close (Esc
+      // included) would otherwise leave the nav's Work item ringed.
+      const focusVisible = navigatingByKeyboard();
 
       requestAnimationFrame(() => {
         // Development Strict Mode runs this cleanup once on mount, with the
@@ -249,7 +254,14 @@ export function DrawerShell({
             `${DOCK_SELECTOR} a[aria-label="Home"]`,
           );
 
-        target?.focus({ preventScroll: true });
+        // `focusVisible` ships in Chromium, WebKit and Firefox but not yet in
+        // TypeScript's DOM lib.
+        const options: FocusOptions & { focusVisible: boolean } = {
+          preventScroll: true,
+          focusVisible,
+        };
+
+        target?.focus(options);
       });
     },
   });

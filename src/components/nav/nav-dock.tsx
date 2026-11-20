@@ -30,6 +30,8 @@ import {
   MORPH_OPEN_S,
 } from "@/components/work/morph";
 import { NavMotionBlur, beginNavBlur, endNavBlur } from "./nav-motion-blur";
+// Starts tracking keyboard navigation before the drawer's code has loaded.
+import "./input-modality";
 import "./nav-dock.css";
 
 /** Half of the 120ms reduced-motion crossfade. */
