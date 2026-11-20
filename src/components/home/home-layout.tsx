@@ -64,7 +64,12 @@ type HomeLayoutProps = {
    * intercepted reader; the title is read on the server so the client graph
    * never touches the content loader.
    */
-  featured?: { slug: string; title: string; cover: WorkMeta["cover"] };
+  featured?: {
+    slug: string;
+    title: string;
+    cover: WorkMeta["cover"];
+    coverImage?: WorkMeta["coverImage"];
+  };
   /**
    * The endless carousel items, front first. From md up they replace the
    * middle row; below md it stays the stacked featured card and slivers.
@@ -84,7 +89,12 @@ export function HomeLayout({
   const lead = items?.[0];
   const stacked =
     lead?.kind === "work"
-      ? { slug: lead.slug, title: lead.title, cover: lead.cover }
+      ? {
+          slug: lead.slug,
+          title: lead.title,
+          cover: lead.cover,
+          coverImage: lead.coverImage,
+        }
       : featured;
 
   return (
@@ -172,6 +182,7 @@ export function HomeLayout({
                     title={stacked?.title}
                     slug={stacked?.slug}
                     scene={stacked?.cover}
+                    coverImage={stacked?.coverImage}
                   />
                 </EntranceCell>
                 <WorkSlivers entrance={entrance} />
@@ -188,6 +199,7 @@ export function HomeLayout({
                     title={featured?.title}
                     slug={featured?.slug}
                     scene={featured?.cover}
+                    coverImage={featured?.coverImage}
                   />
                 )}
               </EntranceCell>

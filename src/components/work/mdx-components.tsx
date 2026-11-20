@@ -1,5 +1,7 @@
 import type { MDXComponents } from "mdx/types";
-import { BriefQuote, DecisionTable, Figure, Hero, Note } from "./parts";
+import { Media } from "@/components/media/media";
+import { BriefQuote, DecisionTable, Note } from "./parts";
+import { ContactSheet, Figure, Hero, StepFigure } from "./media-parts";
 
 /**
  * The Margin layout's MDX contract. Passed explicitly to the loaded body in
@@ -25,7 +27,10 @@ export const mdxComponents: MDXComponents = {
   hr: () => <hr className="wd-hr" />,
   Note,
   Figure,
+  Hero,
+  StepFigure,
+  ContactSheet,
+  Media,
   Brief: BriefQuote,
   Steps: DecisionTable,
-  Hero,
 };

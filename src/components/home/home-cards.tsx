@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { Cover } from "@/components/work/cover";
+import type { CoverImage } from "@/lib/media";
 import type { WorkMeta } from "@/lib/work";
 import { EMPTY_WORK_LABEL } from "./empty-work";
 import { EntranceCell } from "./entrance-cell";
@@ -52,8 +53,10 @@ type ProjectCardProps = {
   title?: string;
   /** With a slug the card links to the study and becomes the morph's source. */
   slug?: string;
-  /** The featured study's scene, drawn edge-to-edge behind the title. */
+  /** The featured study's cover, drawn edge-to-edge behind the title. */
   scene?: WorkMeta["cover"];
+  /** Set when the cover is a media id: the picture the server resolved. */
+  coverImage?: CoverImage;
   onOpen?: (element: HTMLElement) => void;
 };
 
@@ -66,6 +69,7 @@ export function ProjectCard({
   title = EMPTY_WORK_LABEL,
   slug,
   scene,
+  coverImage,
   onOpen,
 }: ProjectCardProps = {}) {
   const content = (
@@ -77,7 +81,7 @@ export function ProjectCard({
             aria-hidden="true"
             className="absolute inset-0 z-0 overflow-hidden"
           >
-            <Cover scene={scene} fit="cover" />
+            <Cover scene={scene} coverImage={coverImage} fit="cover" />
           </div>
           {/* The shot's own colour comes back under the title, so the bars
               recede instead of running through the text. */}
