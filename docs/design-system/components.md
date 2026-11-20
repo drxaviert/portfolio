@@ -111,6 +111,8 @@ on an integer and the `106px` and `140px` tracks right-align (`theme-toggle.tsx:
 
 ## Work drawer and carousel
 
+The carousel remembers its position in memory for the life of the document (`src/components/home/carousel/carousel-memory.ts`). `/` and `/work*` mount separate HomeScreen trees, so opening or closing the drawer remounts it; it restarts from the remembered card on its first render, with no step animation. A reload starts from the default card. Nothing is persisted to storage.
+
 | Item | Value | Source | Tokens |
 | --- | --- | --- | --- |
 | Drawer layer | `fixed`, `inset: 0`, `z-index: 50` | `src/components/work/expand-shell.css:25-28` | — |

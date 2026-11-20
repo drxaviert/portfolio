@@ -42,6 +42,7 @@ import {
   stepMode,
 } from "./carousel-math";
 import type { Ease, Entity, Geometry, TitleTiming } from "./carousel-math";
+import { rememberOffset, restoredOffset } from "./carousel-memory";
 import { DEFAULT_SETTINGS } from "./carousel-settings";
 import {
   cardPoses,
@@ -479,8 +480,10 @@ export function HomeCarousel({
   // `offset` is the target: labels, slots and the announcement follow it at
   // once. `domOffset` is the order the DOM is in, which only changes between
   // steps so a moving card is never re-parented mid-tween.
-  const [offset, setOffset] = useState(0);
-  const [domOffset, setDomOffset] = useState(0);
+  // Both start from the remembered card (carousel-memory.ts): the drawer
+  // remounts the carousel, and it must come back where it was, in place.
+  const [offset, setOffset] = useState(() => restoredOffset(n));
+  const [domOffset, setDomOffset] = useState(() => restoredOffset(n));
   const [ghosts, setGhosts] = useState<number[]>([]);
   /**
    * The item that was the peek's right edge when the running step started: it
@@ -504,7 +507,7 @@ export function HomeCarousel({
   const guideRef = useRef<HTMLDivElement>(null);
   const elements = useRef(new Map<string, HTMLElement>());
   const geometry = useRef<Geometry>(EMPTY_GEOMETRY);
-  const offsetRef = useRef(0);
+  const offsetRef = useRef(restoredOffset(n));
   const tween = useRef<Tween | null>(null);
   const focusFirst = useRef(false);
   const latest = useRef({ settings, reduce });
@@ -1166,6 +1169,7 @@ export function HomeCarousel({
 
     focusFirst.current = viaKeyboard;
     offsetRef.current = next;
+    rememberOffset(next);
 
     if (stepMode(reduced) === "crossfade") {
       cancelTween();
