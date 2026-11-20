@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { NavDock } from "@/components/nav/nav-dock";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
+import { LAYOUT_INIT_SCRIPT } from "@/lib/layout-script";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 import "./globals.css";
 
@@ -55,6 +56,7 @@ export default function RootLayout({
     <html lang="en" className={workSans.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: LAYOUT_INIT_SCRIPT }} />
       </head>
       <body>
         <ThemeProvider>

@@ -3,13 +3,6 @@ import { HomeScreen } from "@/components/home/home-screen";
 import { WorkDrawer } from "@/components/work/work-drawer";
 
 /**
- * Runs while the document is parsed, before the index paints: the stored
- * layout is on <html> from the first frame, so a visitor who chose the list
- * never sees the grid. Guarded like every storage read.
- */
-const LAYOUT_BOOTSTRAP = `try{if(localStorage.getItem("wd-work-layout")==="list"){document.documentElement.setAttribute("data-work-layout","list")}}catch(e){}`;
-
-/**
  * `/work` and `/work/<slug>` are one route segment, so they share this layout:
  * the homepage underneath and the drawer over it, once for every `/work*` URL.
  *
@@ -21,7 +14,6 @@ const LAYOUT_BOOTSTRAP = `try{if(localStorage.getItem("wd-work-layout")==="list"
 export default function WorkLayout({ children }: { children: ReactNode }) {
   return (
     <>
-      <script dangerouslySetInnerHTML={{ __html: LAYOUT_BOOTSTRAP }} />
       <HomeScreen />
       <WorkDrawer>{children}</WorkDrawer>
     </>

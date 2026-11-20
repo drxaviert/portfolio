@@ -45,7 +45,7 @@ function prefersReducedMotion(): boolean {
  *
  * Both layouts are rendered, and the stylesheet picks one from the
  * `data-work-layout` attribute on `<html>`. That attribute is set before paint
- * on a hard load by the inline script in the work layout, so a stored "list"
+ * on a hard load by the head bootstrap in the root layout, so a stored "list"
  * never flashes the grid; the switch animates the change.
  *
  * The column mirrors the reader's own: the same nav clearance at the top, the
@@ -61,6 +61,17 @@ export function WorkIndex({ works }: { works: WorkMeta[] }) {
   const stackRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * Each layout's own last scroll position, unclamped. A shorter layout clamps
+   * the shared scroll box when it is shown, so the return trip would otherwise
+   * start from that clamped value and lose the longer layout's place.
+   */
+  const layoutScrollRef = useRef<Record<WorkLayout, number | null>>({
+    grid: null,
+    list: null,
+  });
+  /** The layout on screen, for the scroll recorder between renders. */
+  const layoutRef = useRef(layout);
   /** What the next switch needs, measured before the attribute flips. */
   const pendingRef = useRef<{
     from: WorkLayout;
@@ -82,12 +93,22 @@ export function WorkIndex({ works }: { works: WorkMeta[] }) {
     // its scrollTop would read 0 over the real value.
     const record = () => {
       indexScroll = scroll.scrollTop;
+
+      // While a switch travels through the shorter layout's height, the box
+      // clamps on the way and those values are not where the visitor was.
+      if (!switchRef.current) {
+        layoutScrollRef.current[layoutRef.current] = scroll.scrollTop;
+      }
     };
 
     scroll.addEventListener("scroll", record, { passive: true });
 
     return () => scroll.removeEventListener("scroll", record);
   }, []);
+
+  useLayoutEffect(() => {
+    layoutRef.current = layout;
+  }, [layout]);
 
   // Keep the attribute the stylesheet reads in step with the store, without
   // overwriting the one the bootstrap script set before paint: during
@@ -112,13 +133,17 @@ export function WorkIndex({ works }: { works: WorkMeta[] }) {
       const stack = stackRef.current;
 
       switchRef.current?.finish();
+
+      const scrollTop = scrollRef.current?.scrollTop ?? 0;
+      // The outgoing layout remembers where it was, unclamped; the incoming
+      // one comes back to its own last place (or this one on a first visit).
+      layoutScrollRef.current[layout] = scrollTop;
+
       pendingRef.current = {
         from: layout,
         height: stack?.getBoundingClientRect().height ?? 0,
         reduce: prefersReducedMotion(),
-        // The switch animates the stack through the shorter layout's height,
-        // which clamps the scroll box; put the visitor's place back after it.
-        scrollTop: scrollRef.current?.scrollTop ?? 0,
+        scrollTop: layoutScrollRef.current[next] ?? scrollTop,
       };
 
       chooseStoredLayout(next);
@@ -148,10 +173,16 @@ export function WorkIndex({ works }: { works: WorkMeta[] }) {
       const scroll = scrollRef.current;
       if (!scroll) return;
 
-      scroll.scrollTop = Math.min(
+      // Clamp only now, against the layout that is actually landing: the
+      // remembered value stays unclamped so the next return trip keeps it.
+      const top = Math.min(
         pending.scrollTop,
         Math.max(0, scroll.scrollHeight - scroll.clientHeight),
       );
+
+      scroll.scrollTop = top;
+      indexScroll = top;
+      layoutScrollRef.current[layout] = top;
     };
 
     if (pending.reduce || pending.height <= 0 || endHeight <= 0) {

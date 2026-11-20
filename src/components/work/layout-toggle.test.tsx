@@ -114,6 +114,40 @@ describe("layout toggle", () => {
     );
   });
 
+  it("keeps each layout's own scroll position across a round trip", () => {
+    renderIndex();
+
+    const scroll = document.querySelector<HTMLElement>("#" + "wd-index-scroll")!;
+
+    // jsdom has no layout, so model the two layouts' scroll ranges: the grid is
+    // taller than the 667px viewport, the list is only 67px taller.
+    Object.defineProperty(scroll, "clientHeight", {
+      configurable: true,
+      get: () => 667,
+    });
+    Object.defineProperty(scroll, "scrollHeight", {
+      configurable: true,
+      get: () =>
+        document.documentElement.getAttribute("data-work-layout") === "list"
+          ? 734
+          : 1400,
+    });
+
+    scroll.scrollTop = 400;
+
+    fireEvent.click(screen.getByRole("radio", { name: "List view" }));
+    // The list clamps the shared box to its own end.
+    expect(scroll.scrollTop).toBe(67);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Grid view" }));
+    // The grid comes back to where it was, not to the list's clamped place.
+    expect(scroll.scrollTop).toBe(400);
+
+    fireEvent.click(screen.getByRole("radio", { name: "List view" }));
+    // A layout remembers its own last place too.
+    expect(scroll.scrollTop).toBe(67);
+  });
+
   it("moves the choice with the arrow keys", () => {
     renderIndex();
 
