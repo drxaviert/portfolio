@@ -1,8 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
+import { parseFrontmatter } from "./frontmatter";
 import { coverImageFor } from "./media";
 import type { CoverImage } from "./media";
 import { FEATURED_SLUG } from "./work-order";
+
+// Flat `key: value` frontmatter is shared with the play feed. Re-exported so
+// the case-study callers and tests keep one entry point.
+export { parseFrontmatter };
 
 export type CoverScene = "tiles" | "window" | "phone";
 
@@ -46,28 +51,6 @@ function isCover(value: string | undefined): value is Cover {
   return (
     value !== undefined && (COVERS.includes(value) || MEDIA_COVER.test(value))
   );
-}
-
-/**
- * Flat `key: value` frontmatter, split at the first colon so a value may
- * contain one. The content files are ours, so this stays deliberately small.
- * A saved-with-BOM file is still frontmatter: the editor's mark is not content.
- */
-export function parseFrontmatter(source: string): Record<string, string> {
-  const block = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(source);
-  if (!block) return {};
-
-  const fields: Record<string, string> = {};
-
-  for (const line of block[1].split(/\r?\n/)) {
-    const colon = line.indexOf(":");
-    if (colon === -1) continue;
-    const key = line.slice(0, colon).trim();
-    if (!key) continue;
-    fields[key] = line.slice(colon + 1).trim();
-  }
-
-  return fields;
 }
 
 function readWork(slug: WorkSlug): WorkMeta {

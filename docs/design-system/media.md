@@ -113,5 +113,9 @@ a dev-server restart before a page can use it.
 
 ## Feed
 
-`pnpm post --post` writes `content/posts/<date>-<slug>.mdx`, but no route renders those files yet.
-The standalone feed is pending its design pass.
+`pnpm post --post` writes `content/posts/<date>-<slug>.mdx`, and `/play` renders those files:
+title, date, summary and media, newest first, in one static list
+(`src/lib/posts.ts`, `src/app/play/page.tsx`). Entries have no body and no per-post route yet, and
+the route is a plain placeholder pending its design pass. The frontmatter is `title` (or the
+`caption` the script writes), `date`, `summary` and `media: ["<id>", ...]`; a missing field or a
+bad media id fails the build.
