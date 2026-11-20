@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { HLS_MIN_DURATION, hlsRungs, shouldUseHls } from "./post.ts";
+import {
+  HLS_MIN_DURATION,
+  hlsRungs,
+  selectInbox,
+  shouldUseHls,
+} from "./post.ts";
 
 describe("shouldUseHls", () => {
   it("sends a clip past the threshold to the ladder", () => {
@@ -20,6 +25,29 @@ describe("shouldUseHls", () => {
   it("lets the flags override the duration either way", () => {
     expect(shouldUseHls(2.5, { hls: true, noHls: false })).toBe(true);
     expect(shouldUseHls(120, { hls: false, noHls: true })).toBe(false);
+  });
+});
+
+describe("selectInbox", () => {
+  it("keeps every inbox file when --only is absent", () => {
+    expect(selectInbox(["a.png", "b.mp4"])).toEqual(["a.png", "b.mp4"]);
+  });
+
+  it("narrows the run to the named file", () => {
+    expect(selectInbox(["a.png", "b.mp4"], "b.mp4")).toEqual(["b.mp4"]);
+  });
+
+  it("rejects a path instead of a basename", () => {
+    expect(() => selectInbox(["a.png"], "../a.png")).toThrow(/not a path/);
+    expect(() => selectInbox(["a.png"], "sub/a.png")).toThrow(/not a path/);
+  });
+
+  it("rejects a name that is not in the inbox", () => {
+    expect(() => selectInbox(["a.png"], "b.png")).toThrow(/no file named/);
+  });
+
+  it("rejects an empty name", () => {
+    expect(() => selectInbox(["a.png"], "  ")).toThrow(/needs a filename/);
   });
 });
 

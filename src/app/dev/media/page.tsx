@@ -15,6 +15,10 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
+// The list, the queue and the publish count all change under the page, so it
+// renders per request. Same switch as the other dev prototypes.
+export const instant = false;
+
 /** The encoded variant at one end of the ladder; WebP wins a width tie. */
 function variant(media: ImageMedia, edge: "smallest" | "largest"): string {
   const widths = media.sources.map((source) => source.width);
@@ -69,7 +73,7 @@ function toItem(media: MediaManifest): LibraryItem {
   };
 }
 
-export default function DevMediaPage() {
+export default async function DevMediaPage() {
   if (process.env.NODE_ENV === "production") {
     notFound();
   }

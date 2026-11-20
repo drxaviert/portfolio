@@ -1,6 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { UploadPanel } from "./upload-panel";
 import "./media-library.css";
 
 /** One manifest, flattened to what a card draws. Bytes stay null for images. */
@@ -247,9 +249,12 @@ function Card({
  * server, so this file owns only filter, search and the copy confirmation.
  */
 export function MediaLibrary({ items }: { items: LibraryItem[] }) {
+  const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
+
+  const refresh = () => router.refresh();
 
   const images = items.filter((item) => item.kind === "image").length;
   const videos = items.length - images;
@@ -272,118 +277,120 @@ export function MediaLibrary({ items }: { items: LibraryItem[] }) {
   return (
     <main className="min-h-screen bg-surface text-on-surface">
       <div className="mx-auto w-full max-w-[1200px] px-4 py-8 md:px-8">
-        <header className="max-w-2xl">
-          <h1 className="text-title-sm font-semibold md:text-title">
-            Media library
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-on-surface-variant">
-            Every manifest in{" "}
-            <code className="font-mono text-on-surface">content/media</code>,
-            newest first. Dev only: this route 404s in a production build.
-          </p>
-          <p className="mt-3 text-sm leading-6 text-on-surface-variant tabular-nums">
-            {items.length} {items.length === 1 ? "asset" : "assets"} · {images}{" "}
-            {images === 1 ? "image" : "images"} · {videos}{" "}
-            {videos === 1 ? "video" : "videos"}
-          </p>
-          <p
-            className="text-sm leading-6 text-on-surface-variant tabular-nums"
-            title="An image manifest records widths and URLs, not bytes."
-          >
-            {formatBytes(recorded)} of the 1 GB Hobby limit · video files only
-          </p>
-        </header>
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
+          <header className="max-w-2xl">
+            <h1 className="text-title-sm font-semibold md:text-title">
+              Media library
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+              Drop files here to encode and upload them, then Publish to put
+              them on the site. Dev only: every route here 404s in a production
+              build.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-on-surface-variant tabular-nums">
+              {items.length} {items.length === 1 ? "asset" : "assets"} ·{" "}
+              {images} {images === 1 ? "image" : "images"} · {videos}{" "}
+              {videos === 1 ? "video" : "videos"}
+            </p>
+            <p
+              className="text-sm leading-6 text-on-surface-variant tabular-nums"
+              title="An image manifest records widths and URLs, not bytes."
+            >
+              {formatBytes(recorded)} of the 1 GB Hobby limit · video files only
+            </p>
+          </header>
+        </div>
+
+        {items.length > 0 ? (
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <div
+              role="group"
+              aria-label="Filter by kind"
+              className="flex flex-wrap gap-2"
+            >
+              {FILTERS.map((option) => {
+                const active = filter === option.value;
+
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setFilter(option.value)}
+                    className={`mlib-button min-h-11 px-3 text-sm font-medium ${
+                      active
+                        ? "bg-surface-bright text-on-surface shadow-card"
+                        : "bg-surface-container text-on-surface"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="ml-auto w-full sm:w-64">
+              <label className="sr-only" htmlFor="media-search">
+                Search by id or caption
+              </label>
+              <input
+                id="media-search"
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search id or caption"
+                className="mlib-field h-11 w-full rounded-md bg-surface-container px-3 text-sm text-on-surface shadow-card placeholder:text-on-surface-variant focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              />
+            </div>
+          </div>
+        ) : null}
+
+        <UploadPanel onIngested={refresh} />
+
+        <p
+          className="sr-only"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {status}
+        </p>
 
         {items.length === 0 ? (
           <div className="mt-8 rounded-lg bg-surface-container-low p-6 shadow-card">
             <h2 className="text-lg font-medium">No media yet</h2>
             <p className="mt-2 max-w-[60ch] text-sm leading-6 text-on-surface-variant">
-              Drop a file in{" "}
+              Drop a file above, or put one in{" "}
               <code className="font-mono text-on-surface">media/inbox/</code>{" "}
               and run{" "}
               <code className="font-mono text-on-surface">pnpm post</code>. The
-              manifest it writes shows up here after the dev server restarts.
+              manifest it writes shows up here.
             </p>
           </div>
-        ) : (
-          <>
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <div
-                role="group"
-                aria-label="Filter by kind"
-                className="flex flex-wrap gap-2"
-              >
-                {FILTERS.map((option) => {
-                  const active = filter === option.value;
-
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => setFilter(option.value)}
-                      className={`mlib-button min-h-11 px-3 text-sm font-medium ${
-                        active
-                          ? "bg-surface-bright text-on-surface shadow-card"
-                          : "bg-surface-container text-on-surface"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="ml-auto w-full sm:w-64">
-                <label className="sr-only" htmlFor="media-search">
-                  Search by id or caption
-                </label>
-                <input
-                  id="media-search"
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search id or caption"
-                  className="mlib-field h-11 w-full rounded-md bg-surface-container px-3 text-sm text-on-surface shadow-card placeholder:text-on-surface-variant focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                />
-              </div>
-            </div>
-
-            <p
-              className="sr-only"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              {status}
+        ) : visible.length === 0 ? (
+          <div className="mt-8 rounded-lg bg-surface-container-low p-6 shadow-card">
+            <p className="text-sm leading-6 text-on-surface">
+              No assets match that search.
             </p>
-
-            {visible.length === 0 ? (
-              <div className="mt-8 rounded-lg bg-surface-container-low p-6 shadow-card">
-                <p className="text-sm leading-6 text-on-surface">
-                  No assets match that search.
-                </p>
-                <button
-                  type="button"
-                  className="mlib-button mt-3 min-h-11 bg-surface-container px-3 text-sm font-medium text-on-surface"
-                  onClick={() => {
-                    setQuery("");
-                    setFilter("all");
-                  }}
-                >
-                  Clear filters
-                </button>
-              </div>
-            ) : (
-              <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {visible.map((item) => (
-                  <li key={item.id}>
-                    <Card item={item} onResult={setStatus} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
+            <button
+              type="button"
+              className="mlib-button mt-3 min-h-11 bg-surface-container px-3 text-sm font-medium text-on-surface"
+              onClick={() => {
+                setQuery("");
+                setFilter("all");
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <ul className="mt-8 grid list-none grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {visible.map((item) => (
+              <li key={item.id}>
+                <Card item={item} onResult={setStatus} />
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </main>
