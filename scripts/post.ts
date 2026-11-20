@@ -40,6 +40,7 @@ import type {
   MediaSource,
   VideoMedia,
 } from "../src/lib/media-types";
+import { refreshBlobEnv } from "./lib/blob-env.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -191,9 +192,10 @@ Options
   --help, -h            Show this help.
 
 Environment
-  Blob auth comes from .env.blob (BLOB_STORE_ID + VERCEL_OIDC_TOKEN, pulled with
-  \`vercel env pull .env.blob --environment=production --yes\`) or from
-  BLOB_READ_WRITE_TOKEN in .env.local / the environment. Not needed with --dry-run.
+  Blob auth comes from .env.blob (BLOB_STORE_ID + VERCEL_OIDC_TOKEN). A missing
+  token, or one within 15 minutes of expiry, is refreshed automatically with
+  \`pnpm blob:env\` (vercel env pull). BLOB_READ_WRITE_TOKEN in .env.local or the
+  environment also works and is never refreshed. Not needed with --dry-run.
   ffmpeg and ffprobe must be on PATH.
 `);
 }
@@ -672,6 +674,18 @@ async function run(): Promise<number> {
   }
 
   loadEnv();
+
+  // OIDC tokens expire ~12 h after `vercel env pull`, so refresh a stale .env.blob
+  // before encoding starts rather than failing mid-upload. A BLOB_READ_WRITE_TOKEN
+  // needs no refresh, and --dry-run never uploads.
+  if (!options.dryRun && !process.env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      await refreshBlobEnv(ROOT);
+    } catch (error) {
+      console.error(`fail     ${errorMessage(error)}`);
+      return 1;
+    }
+  }
 
   if (!options.dryRun && !hasBlobAuth()) {
     console.error(

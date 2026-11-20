@@ -13,6 +13,7 @@
     "build": "next build",
     "start": "next start",
     "post": "node scripts/post.ts",
+    "blob:env": "vercel env pull .env.blob --environment=production --yes",
     "og:capture": "node scripts/capture-og.mjs",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
