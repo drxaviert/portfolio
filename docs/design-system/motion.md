@@ -7,7 +7,7 @@ The shipped motion of the theme toggle, the Day phase row, the home nav's Glide 
 - One curve family per job: `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) for entrances, `ease-in` (`--ease-accelerate`) for exits, `cubic-bezier(0.34, 1.3, 0.64, 1)` (`--ease-spring`) for the icon settle.
 - Calm and ambient entrances use `cubic-bezier(0.4, 0, 0.2, 1)` (`--ease-calm`): it leaves at zero velocity and settles on a long tail, so light and content arrive without anything launching.
 - A theme change is one crossfade of the whole page, not a colour transition per element: everything changes on the same frame because it is the same image pair.
-- The drawer opens on `cubic-bezier(0.25, 0.8, 0.25, 1)` (panel and nav together) and closes on `cubic-bezier(0.22, 1, 0.36, 1)`; its content cascades and the blur resolving on top of that fade both run on the open curve, while the nav's own default flight, with no drawer behind it, uses `cubic-bezier(0.32, 0.72, 0, 1)` (`morph.ts`).
+- The drawer opens on `cubic-bezier(0.25, 0.8, 0.25, 1)` (panel and nav together) and closes in 300ms on CSS `ease` (`cubic-bezier(0.25, 0.1, 0.25, 1)`, Stripe's dialog close); its content cascades and the blur resolving on top of that fade both run on the open curve, while the nav's own default flight, with no drawer behind it, uses `cubic-bezier(0.32, 0.72, 0, 1)` (`morph.ts`).
 - Entrances stagger left to right; exits leave together. Nothing waits on the pointer.
 - Hover never restarts the entrance: it replays the icon settle once from its resting pose and ends at rest.
 - Reduced motion keeps the state change and drops the movement: one opacity fade, no icon motion.
@@ -357,34 +357,41 @@ The row belongs to Day. It closes 100ms (`--duration-short-1`) after the pointer
 
 The intercepted reader is one fixed panel over the live homepage. On open it FLIPs out of the featured card, on close back into the card's live rect. Only `transform` and `opacity` animate; the panel keeps its final layout box the whole time, and the card → panel pose is measured once, before the first paint. A close that interrupts the open retargets from the current pose instead of restarting.
 
-The drawer's timing is the home carousel's step, read from its source (`carousel-settings.ts` / `easeSpec`) rather than written down: the open is 900ms on `cubic-bezier(0.25, 0.8, 0.25, 1)`, the close is the run the row gives an interrupted step, 350ms on `cubic-bezier(0.22, 1, 0.36, 1)`.
+The drawer's open is the home carousel's step, read from its source (`carousel-settings.ts` / `easeSpec`) rather than written down: 900ms on `cubic-bezier(0.25, 0.8, 0.25, 1)`. The close is Stripe's dialog close, 300ms on CSS `ease` (`cubic-bezier(0.25, 0.1, 0.25, 1)`), for every part of it: the panel, the nav, the backdrop, the desktop shadow, and the content at ~86% of the run. Dat picked it on 2026-11-20 after an A/B on `proto/stripe-drawer` (the "timed" variant), over the carousel's 350ms interrupted-step run on `cubic-bezier(0.22, 1, 0.36, 1)`. Browser Back plays the same close on a cloned layer through the Navigation API; without the API (Firefox) Back has no reverse flight and the route simply changes, as before.
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
 | Card opened | panel `transform` | 900ms | 0 | `cubic-bezier(0.25, 0.8, 0.25, 1)` | card rect → panel box (`translate` + `scale`, origin top left) |
 | Study → study | panel, shadow, backdrop, nav | 0 | — | — | stay put; only the article swaps (see "Work drawer — study hand-off") |
-| Reverse morph | panel `transform` | 350ms | 0 | `cubic-bezier(0.22, 1, 0.36, 1)` | current pose → the card's live rect |
-| Reverse morph, or no card | panel `opacity` | 120ms | 0 | `ease-out` | 1 → 0 |
-| Opened, reduced motion | panel `opacity` | 120ms | 0 | `ease-out` | 0 → 1, `transform: none` |
-| Close interrupts the open | panel `transform` | 350ms | 0 | `cubic-bezier(0.22, 1, 0.36, 1)` | retargeted from the live pose, never from zero |
+| Reverse morph | panel `transform` | 300ms | 0 | `ease` (`0.25, 0.1, 0.25, 1`) | current pose → the card's live rect |
+| Close with no card on screen | panel `opacity`, `scale` | 300ms | 0 | `ease` | 1 → 0, `scale(1)` → `scale(0.95)` about the visible centre |
+| Opened or closed, reduced motion | panel `opacity` | 120ms | 0 | `ease-out` | 0 → 1 / 1 → 0, `transform: none` |
+| Close interrupts the open | panel `transform` | 300ms | 0 | `ease` | retargeted from the live pose, never from zero |
 | Resize mid-open | panel | — | — | — | completes the flight |
 | Backdrop in | `opacity` | 320ms | 0 | `ease-out` | 0 → 1 (0.4 black; 0.62 in Night) |
-| Backdrop out | `opacity` | 240ms | 0 | `ease-in` | 1 → 0 |
-| Content out on close | scroll column `opacity` | 300ms (~86% of the close) | 0 | `cubic-bezier(0.22, 1, 0.36, 1)` | 1 → 0, tracking the panel's own shrink |
+| Backdrop out | `opacity` | 300ms | 0 | `ease` | 1 → 0 |
+| Desktop shadow on close (768+) | panel `box-shadow` | 300ms | 0 | `ease` | panel elevation → the card's flat `--shadow-card` |
+| Content out on close | scroll column `opacity` | 260ms (~86% of the close) | 0 | `ease` | 1 → 0, tracking the panel's own shrink |
 | Backdrop / content, reduced motion | `opacity` | 120ms | 0 | `ease-out` | 0 → 1 / 1 → 0 |
 
-- `src/components/work/carousel-step.ts:26` — `CAROUSEL_OPEN_S` = `DEFAULT_SETTINGS.duration / 1000` (900ms)
-- `src/components/work/carousel-step.ts:27` — `CAROUSEL_EASE`, parsed from `easeSpec` (`0.25, 0.8, 0.25, 1`)
-- `src/components/work/carousel-step.ts:37` — `CAROUSEL_CLOSE_S = 0.35` (the row's `SETTLE_MS`)
-- `src/components/work/carousel-step.ts:38` — `CAROUSEL_CLOSE_EASE` = `RETARGET_BEZIER` (`0.22, 1, 0.36, 1`)
-- `src/components/work/use-morph.ts:65` — the drawer's one open/close timing pair, handed to the panel and the nav
-- `src/components/work/use-morph.ts:279` — the open flight, transform only
-- `src/components/work/use-morph.ts:354` — the reverse pose into the card's live rect
-- `src/components/work/use-morph.ts:50` — 120ms opacity path (`FADE_S`)
-- `src/components/work/expand-shell.css:18` — backdrop in 320ms `ease-out`
-- `src/components/work/expand-shell.css:19` — backdrop out 240ms `ease-in`
-- `src/components/work/expand-shell.css:20` — content out 300ms on the FLIP's retarget curve
-- `src/components/work/expand-shell.css:21` — reduced-motion 120ms `ease-out`
+The close's frame-stall cap follows the flight: a Back ghost is removed at `DRAWER_CLOSE_S × 1000 + 260` = 560ms at the latest, and the in-page close waits at most the flight's own 300ms (`landWithin`) before it settles closed. No timer reopens the drawer.
+
+- `src/components/work/carousel-step.ts:23` — `CAROUSEL_OPEN_S` = `DEFAULT_SETTINGS.duration / 1000` (900ms)
+- `src/components/work/carousel-step.ts:24` — `CAROUSEL_EASE`, parsed from `easeSpec` (`0.25, 0.8, 0.25, 1`)
+- `src/components/work/carousel-step.ts:35` — `DRAWER_CLOSE_S = 0.3`
+- `src/components/work/carousel-step.ts:36` — `DRAWER_CLOSE_EASE` = CSS `ease` (`0.25, 0.1, 0.25, 1`)
+- `src/components/work/use-morph.ts:100` — the drawer's one open/close timing pair, handed to the panel and the nav
+- `src/components/work/use-morph.ts:113` — `CLOSE_CAP_MS`, the Back ghost's stall cap
+- `src/components/work/use-morph.ts:473` — the open flight, transform only
+- `src/components/work/use-morph.ts:921` — the reverse pose into the card's live rect
+- `src/components/work/use-morph.ts:931` — the no-card close, `scale(0.95)` + fade
+- `src/components/work/use-morph.ts:716` — browser Back's cloned-layer exit, on the same timing
+- `src/components/work/use-morph.ts:86` — 120ms opacity path (`FADE_S`)
+- `src/components/work/drawer-shell.css:24` — backdrop in 320ms `ease-out`
+- `src/components/work/drawer-shell.css:25` — backdrop out 300ms `ease`
+- `src/components/work/drawer-shell.css:26` — content out 260ms `ease`
+- `src/components/work/drawer-shell.css:27` — reduced-motion 120ms `ease-out`
+- `src/components/work/drawer-shell.css:82` — desktop shadow crossfade, 300ms `ease`
 
 ## Work drawer — nav dock
 
@@ -393,7 +400,7 @@ The one nav lives in the root layout and never remounts, so opening a study FLIP
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
 | Study opened | dock `transform` | 900ms | 0 | `cubic-bezier(0.25, 0.8, 0.25, 1)` | home top → reader top (`translateY` of the measured delta) |
-| Study closed | dock `transform` | 350ms | 0 | `cubic-bezier(0.22, 1, 0.36, 1)` | reader top → home top |
+| Study closed | dock `transform` | 300ms | 0 | `ease` (`0.25, 0.1, 0.25, 1`), locked to the panel | reader top → home top |
 | Reduced motion, or no card | dock `opacity` | 60ms out + 60ms in | 0 | `ease-out` | 1 → 0 → 1, no transform |
 | Study → study | dock | 0 | 0 | — | stays at the reader position |
 | Resize mid-flight | dock | — | — | — | lands the move |
@@ -498,7 +505,7 @@ The mark is one element: its top edge is a `translateY` and its height a `scaleY
 | Incoming study | scroll column `opacity` | 0 | — | — | held at 0 for the `pending` frame, then 1 while the cascade runs |
 | Incoming study | ruler `opacity`, `filter` | 900ms | 560ms | `cubic-bezier(0.25, 0.8, 0.25, 1)` | 0 / `blur(8px)` → 1 / `none`, the next beat after the last block |
 | Back / Forward | route | — | — | — | the previous study, through the same swap |
-| Close after a swap | panel `transform`, nav `transform` | 350ms | 0 | `cubic-bezier(0.22, 1, 0.36, 1)` | the study on screen's card, or the drawer's origin card |
+| Close after a swap | panel `transform`, nav `transform` | 300ms | 0 | `ease` (`0.25, 0.1, 0.25, 1`) | the study on screen's card, or the drawer's origin card |
 | Reduced motion | scroll column + ruler `opacity` | 120ms | 0 | `ease-out` | one opacity pass, `filter: none`, no transform |
 
 The hand-off is a module flag, not the tree: the flag is set while any drawer is mounted, so the incoming mount knows it is the same drawer even when the route change was the browser's (Back/Forward). "Next project" also announces itself, because its click is where the incoming entry learns its history depth. Next keys the intercepted page by its slug, so the reader remounts either way; nothing else about the drawer does.
@@ -555,7 +562,7 @@ The progressive blur over the reader's top edge is six static `backdrop-filter` 
 | Open | panel opacity 120ms `ease-out`, no transform; nav crossfades over 2 × 60ms; backdrop 120ms |
 | Cascade | `animation: none` on the cover and every text block; the scroll column is one 120ms opacity pass |
 | Hand-off | no fade-out wait and no cascade; the incoming column and ruler take one 120ms `ease-out` opacity pass, `filter: none` |
-| Content out | 300ms on the close's retarget curve, 120ms `ease-out` reduced |
+| Content out | 260ms `ease`, ~86% of the 300ms close, 120ms `ease-out` reduced |
 | Thumb pair, rail | 120ms `ease-out`, visibility steps with the fade |
 | Picker row | existing rows: opacity only 120ms, no scale, no icon settle |
 | Ruler indicator | placed on the target tick in one write, no flight |
@@ -687,7 +694,7 @@ The drawer is one surface for `/work` and every `/work/<slug>`: it opens from th
 | Index → study, study → index, study → study | outgoing view `opacity` | 160ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 1 → 0, frozen over the incoming view |
 | Same swap | incoming view `opacity` | 240ms (`--duration-medium-1`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 0 → 1 |
 | "← Work" | the same cross-fade, towards `/work` | 160ms / 240ms | 0 | same | the study's view → the index's view; the panel does not move |
-| Close (index Esc/backdrop, or the logo anywhere) | panel `transform` | 350ms | 0 | `cubic-bezier(0.22, 1, 0.36, 1)` | current pose → the capsule or card's live rect (scale + fade when there is no origin) |
+| Close (index Esc/backdrop, or the logo anywhere) | panel `transform` | 300ms | 0 | `ease` (`0.25, 0.1, 0.25, 1`) | current pose → the capsule or card's live rect (scale + fade when there is no origin) |
 | Opened, reduced motion | panel `opacity` | 120ms | 0 | `ease-out` | 0 → 1, no transform |
 | Swap/close, reduced motion | `opacity` only | 120ms | 0 | `ease-out` | the same states, no movement |
 
@@ -699,11 +706,11 @@ The content swap snapshots the outgoing view before React mutates the DOM, so th
 
 **The lifecycle rule.** One machine owns the drawer: the phase (`closed | opening | open | closing`), one generation, the running flight, the close promise, the reveal timer and the entry. Every transition goes through `commit()` — bump the generation, stop the flight, set the phase — so an async completion commits only while its generation is current. A close always settles `closed` once its flight ends, whether the route exit lands now, later, or never: the shell is off the screen (`visibility: hidden`) and the page lock and homepage inertness are released from the phase. Only a real re-entry reopens it — a new Work/card click, or the route coming back to `/work*`. A timer never reopens; the old 1.5s fallback was removed because a slow exit was mistaken for a cancelled one and sprang the drawer open.
 
-- `src/components/work/use-morph.ts:101` — the open/close timing pair handed to the panel and the nav
-- `src/components/work/carousel-step.ts:26` — `CAROUSEL_OPEN_S` (900ms, read from `DEFAULT_SETTINGS.duration`)
-- `src/components/work/carousel-step.ts:27` — `CAROUSEL_EASE` (`0.25, 0.8, 0.25, 1`)
-- `src/components/work/carousel-step.ts:37` — `CAROUSEL_CLOSE_S = 0.35`
-- `src/components/work/carousel-step.ts:38` — `CAROUSEL_CLOSE_EASE` (`0.22, 1, 0.36, 1`)
+- `src/components/work/use-morph.ts:100` — the open/close timing pair handed to the panel and the nav
+- `src/components/work/carousel-step.ts:23` — `CAROUSEL_OPEN_S` (900ms, read from `DEFAULT_SETTINGS.duration`)
+- `src/components/work/carousel-step.ts:24` — `CAROUSEL_EASE` (`0.25, 0.8, 0.25, 1`)
+- `src/components/work/carousel-step.ts:35` — `DRAWER_CLOSE_S = 0.3`
+- `src/components/work/carousel-step.ts:36` — `DRAWER_CLOSE_EASE` (CSS `ease`, `0.25, 0.1, 0.25, 1`)
 - `src/components/work/use-morph.ts:192` — `findOrigin`: the study's visible card, else the nav's Work capsule
 - `src/components/work/use-morph.ts:417` — `flyOpen`: the pose, the flight and the nav's flight
 - `src/components/work/use-morph.ts:481` — the dock flies on the drawer's own open timing

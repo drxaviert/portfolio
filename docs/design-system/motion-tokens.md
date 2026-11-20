@@ -80,15 +80,15 @@ visible; the token is the value.
 | `--entrance-reduced-duration` | `var(--duration-short-2)` | `:152` |
 | `--wd-enter-ease`, `--wd-enter-blur-ease` | `cubic-bezier(0.25, 0.8, 0.25, 1)` (literal) | `src/components/work/entrance.css:47-48` |
 | `--wd-enter-duration` | `900ms` (literal) | `:49` |
-| `--wd-fade-reduced` | `120ms ease-out` (literal) | `:50`; `src/components/work/expand-shell.css:23` |
+| `--wd-fade-reduced` | `120ms ease-out` (literal) | `:50`; `src/components/work/drawer-shell.css:27` |
 | `--wd-actions-in` | `240ms cubic-bezier(0.23, 1, 0.32, 1)` | `src/components/work/reader.css:268` |
 | `--wd-actions-out` | `140ms ease-in` | `:269` |
 | `--wd-actions-reduced` | `120ms ease-out` | `:270` |
 | `--wd-ruler-out` | `160ms ease-out` | `:291` |
 | `--wd-ruler-enter-delay` | `calc(480ms + 80ms)` | `:295` |
-| `--wd-backdrop-in` | `320ms ease-out` | `src/components/work/expand-shell.css:20` |
-| `--wd-backdrop-out` | `240ms ease-in` | `:21` |
-| `--wd-content-out` | `300ms cubic-bezier(0.22, 1, 0.36, 1)` | `:22` |
+| `--wd-backdrop-in` | `320ms ease-out` | `src/components/work/drawer-shell.css:24` |
+| `--wd-backdrop-out` | `300ms ease` (the drawer close) | `:25` |
+| `--wd-content-out` | `260ms ease` (~86% of the 300ms close) | `:26` |
 | `--phase-row-exit-ms` | `240` (registered default `240`) | `src/components/theme/theme-toggle.css:25-32` |
 | `--phase-enter-delay` | `0ms`, raised to `var(--horizon-transition-duration)` while a phase is switching | `theme-toggle.css:39`, `:50-52` |
 
@@ -139,9 +139,9 @@ the shipped number, not as a proposal to tokenise.
 | --- | --- | --- |
 | `cubic-bezier(0.23, 1, 0.32, 1)` | reader thumb/rail fades; faux-UI entrances | `src/components/work/reader.css:192`, `:268`; `src/components/faux-ui/faux-ui.css:14` (comment) |
 | `cubic-bezier(0.25, 0.8, 0.25, 1)` | drawer content entrance (move and defocus) | `src/components/work/entrance.css:47-48` |
-| `cubic-bezier(0.22, 1, 0.36, 1)` | panel shadow crossfade, content out | `src/components/work/reader.css:47`; `src/components/work/expand-shell.css:22` |
+| `ease` = `cubic-bezier(0.25, 0.1, 0.25, 1)` | the whole drawer close: panel and nav flight (`DRAWER_CLOSE_EASE`), backdrop out, desktop shadow crossfade, content out | `src/components/work/carousel-step.ts:36`; `src/components/work/drawer-shell.css:25-26`, `:82` |
 | `cubic-bezier(0.34, 1.3, 0.64, 1)` | icon settle in CSS transitions | `src/components/theme/theme-toggle.css:214`, `:229`, `:244`, `:259` |
-| `ease-in-out` / `ease-out` / `ease-in` / `linear` | keyword literals in component rules | e.g. `src/components/home/carousel/edge-blur.ts:33-35`, `src/components/work/expand-shell.css:20-21` |
+| `ease-in-out` / `ease-out` / `ease-in` / `linear` | keyword literals in component rules | e.g. `src/components/home/carousel/edge-blur.ts:33-35`, `src/components/work/drawer-shell.css:24` |
 
 ## Recurring duration literals
 
@@ -151,10 +151,10 @@ Recorded because they appear in more than one file and are not all a scale step:
 | --- | --- |
 | `900ms` | `entrance.css:49` (drawer content), `carousel-settings.ts:20` (carousel step / drawer open) |
 | `480ms` | `entrance.css:137-139` (last content beat), `reader.css:295` (ruler beat), `morph.ts:23` (nav default open) |
-| `350ms` | `carousel-step.ts:37` (drawer close), `reader.css:47` (panel shadow) |
-| `320ms` | `expand-shell.css:20` (backdrop in) |
-| `300ms` | `expand-shell.css:22` (content out), `theme-toggle.css:339` (tooltip delay, via `--duration-medium-5`) |
-| `240ms` | `theme-toggle.css:28`, `:32` (row exit), `reader.css:268` (actions in), `expand-shell.css:21` (backdrop out) |
+| `320ms` | `drawer-shell.css:24` (backdrop in) |
+| `300ms` | `carousel-step.ts:35` (drawer close: panel and nav), `drawer-shell.css:25` (backdrop out), `drawer-shell.css:82` (desktop shadow crossfade), `morph.ts:24` (nav default close), `theme-toggle.css:339` (tooltip delay, via `--duration-medium-5`) |
+| `260ms` | `drawer-shell.css:26` (drawer content out) |
+| `240ms` | `theme-toggle.css:28`, `:32` (row exit), `reader.css:268` (actions in) |
 | `160ms` | `reader.css:291` (ruler exit) |
 | `140ms` | `reader.css:269` (actions out), `progression.ts:19` (hand-off exit) |
 | `120ms` | reduced-motion fades, `use-morph.ts:56`, `nav-items.tsx` reduced transitions, `hover-peek.ts:48` |
@@ -170,7 +170,7 @@ today:
 
 | Claim in `motion.md:10` | Code today | Source |
 | --- | --- | --- |
-| panel flies on `0.32, 0.72, 0, 1` | open `0.25, 0.8, 0.25, 1`; close `0.22, 1, 0.36, 1`; `0.32, 0.72, 0, 1` is only the nav's default flight with no drawer behind it | `src/components/work/carousel-step.ts:26-38`; `src/components/work/morph.ts:22` |
+| panel flies on `0.32, 0.72, 0, 1` | open `0.25, 0.8, 0.25, 1`; close `0.25, 0.1, 0.25, 1` (CSS `ease`, 300ms); `0.32, 0.72, 0, 1` is only the nav's default flight with no drawer behind it | `src/components/work/carousel-step.ts:23-36`; `src/components/work/morph.ts:22` |
 | content cascades on `0.22, 1, 0.36, 1` | `0.25, 0.8, 0.25, 1` | `src/components/work/entrance.css:47-49` |
 | blur resolves on `0.25, 0.1, 0.25, 1` | same curve as the move, `0.25, 0.8, 0.25, 1` | `src/components/work/entrance.css:47-48` |
 

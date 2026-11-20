@@ -10,19 +10,20 @@
    * leaves its easing implicit:
    *
    *   backdrop in   320ms ease-out   (entrance curve as ease-out)
-   *   backdrop out  240ms ease-in
-   *   content out   300ms retarget   (the FLIP's own curve at ~86% of its run,
-   *                                   so the content is gone as the panel
-   *                                   lands; the entrance itself is the cascade
-   *                                   in entrance.css)
+   *   backdrop out  300ms ease       (the close flight's own timing: Stripe's
+   *                                   300ms dialog close, carousel-step.ts)
+   *   content out   260ms ease       (the close's own curve at ~86% of its
+   *                                   300ms run, so the content is gone as the
+   *                                   panel lands; the entrance itself is the
+   *                                   cascade in entrance.css)
    *   reduced       120ms ease-out   (opacity only, no transforms)
    *
    * The content swap inside the open drawer is its own pair (drawer-shell.tsx):
    * 160ms out, 240ms in, both on the strong ease-out. It moves nothing.
    */
   --wd-backdrop-in: 320ms ease-out;
-  --wd-backdrop-out: 240ms ease-in;
-  --wd-content-out: 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  --wd-backdrop-out: 300ms ease;
+  --wd-content-out: 260ms ease;
   --wd-fade-reduced: 120ms ease-out;
 
   position: fixed;
@@ -64,7 +65,7 @@
 
   /*
    * A close is the panel becoming the card, so its elevation crosses to the
-   * card's flat shadow over the same 350ms flight. The ambient 70px drop shadow
+   * card's flat shadow over the same 300ms flight. The ambient 70px drop shadow
    * is painted in the panel's own (scaled) space: squeezed to half size it turns
    * into a hard dark band along the bottom edge - 120 grey against the page's
    * dimmed 136 in day mode - and its negative spread cuts square-looking corners
@@ -78,7 +79,7 @@
 
 @media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
   .wd-expand-layer[data-phase="closing"] .wd-reader-panel {
-    transition: box-shadow 350ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: box-shadow 300ms ease;
   }
 }
 
@@ -117,8 +118,8 @@
   pointer-events: none;
 }
 
-/* Content leaves with the panel, not before it: the FLIP's own retarget curve
-   at 300ms, ~86% of the 350ms close, so every frame's opacity tracks how far
+/* Content leaves with the panel, not before it: the close's own `ease` at
+   260ms, ~86% of the 300ms close, so every frame's opacity tracks how far
    the panel has shrunk and the reader is never a blank white surface while it
    still moves. It is 0 a beat before the panel lands rather than exactly at the
    landing: the transition starts on the first painted close frame, a frame or
@@ -177,7 +178,7 @@
  * copy and the Back ghost still live under a `data-reveal="on"` layer, so the
  * entrance selectors in entrance.css match their blocks again and restart them
  * at translateY(10px) + blur(10px) + opacity 0 - the copy's whole life for the
- * 160ms swap, and the ghost's for its 350ms flight.
+ * 160ms swap, and the ghost's for its 300ms flight.
  *
  * Scoped to the content, never the snapshot itself: the copy's fade is a Web
  * Animation on the view, and the ghost's backdrop fade and panel flight belong

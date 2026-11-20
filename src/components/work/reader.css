@@ -237,7 +237,7 @@
 
 /*
  * The ruler's own exit beat: 160ms ease-out, which starts on the close's first
- * frame and still lands well inside the 350ms close. It is its own value rather
+ * frame and still lands well inside the 300ms close. It is its own value rather
  * than the thumbs' 140ms ease-in because it is a column of ticks leaving with
  * the content, and the hard start of `ease-in` reads as a delayed cut at this
  * length.

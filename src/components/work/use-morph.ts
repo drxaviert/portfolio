@@ -19,10 +19,10 @@ import {
 } from "./morph";
 import type { Box } from "./morph";
 import {
-  CAROUSEL_CLOSE_EASE,
-  CAROUSEL_CLOSE_S,
   CAROUSEL_EASE,
   CAROUSEL_OPEN_S,
+  DRAWER_CLOSE_EASE,
+  DRAWER_CLOSE_S,
 } from "./carousel-step";
 import {
   announceOverlayClosing,
@@ -93,9 +93,8 @@ const REVEAL_LEAD_S = 0.3;
 /**
  * The drawer's motion, timed once. The shape never changes - the panel FLIPs out
  * of its origin, the content is revealed near the landing, the nav flies between
- * its two rows - and every part runs on the home carousel's step
- * (carousel-step.ts): the open on its 900ms curve, the close on the run it gives
- * an interrupted step. The nav is handed the same pair (nav-flight.ts) so it
+ * its two rows - and every part runs on carousel-step.ts: the open on the home
+ * carousel's 900ms step, the close on Stripe's 300ms `ease`. The nav is handed the same pair (nav-flight.ts) so it
  * cannot drift from the panel.
  */
 const OPEN_TIMING: NavFlightTiming = {
@@ -103,15 +102,15 @@ const OPEN_TIMING: NavFlightTiming = {
   ease: CAROUSEL_EASE,
 };
 const CLOSE_TIMING: NavFlightTiming = {
-  duration: CAROUSEL_CLOSE_S,
-  ease: CAROUSEL_CLOSE_EASE,
+  duration: DRAWER_CLOSE_S,
+  ease: DRAWER_CLOSE_EASE,
 };
 
 /**
  * How long a copy may stay on screen when the frame loop stalls: the close
  * flight plus a frame of slack.
  */
-const CLOSE_CAP_MS = CAROUSEL_CLOSE_S * 1000 + 260;
+const CLOSE_CAP_MS = DRAWER_CLOSE_S * 1000 + 260;
 
 export function cardSelector(slug: string): string {
   return `[data-work-card="${slug}"]`;

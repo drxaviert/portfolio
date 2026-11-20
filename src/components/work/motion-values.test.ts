@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 
 /**
  * The drawer's motion law, asserted where CSS is the only implementation:
- * entrances use the entrance curve, exits use ease-in, and reduced motion is
+ * entrances use the entrance curve, chrome exits use ease-in, the drawer's own
+ * close fades share the close flight's 300ms CSS ease, and reduced motion is
  * opacity only, 120ms ease-out. A reduced override must restate the whole
  * transition, or a base shorthand keeps its own easing (T8 F1).
  */
@@ -28,10 +29,12 @@ function reducedMotionBlock(css: string) {
 describe("drawer motion values", () => {
   it("pins the backdrop and content fades by name", () => {
     expect(shell).toMatch(/--wd-backdrop-in: 320ms ease-out;/);
-    expect(shell).toMatch(/--wd-backdrop-out: 240ms ease-in;/);
-    expect(shell).toMatch(
-      /--wd-content-out: 300ms cubic-bezier\(0\.22, 1, 0\.36, 1\);/,
-    );
+    // The close fades run on the close flight's own Stripe timing (carousel-
+    // step.ts): backdrop 300ms ease, content 260ms ease (~86% of the 300ms).
+    expect(shell).toMatch(/--wd-backdrop-out: 300ms ease;/);
+    expect(shell).toMatch(/--wd-content-out: 260ms ease;/);
+    // The desktop shadow crossfade lands with the 300ms close flight.
+    expect(shell).toContain("transition: box-shadow 300ms ease;");
 
     expect(shell).toContain(
       "animation: wd-backdrop-in var(--wd-backdrop-in) both;",
