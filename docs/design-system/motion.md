@@ -763,21 +763,24 @@ No layout flash and no hydration mismatch: both layouts are in the document, and
 | Switch | stack `height` | 200ms | 0 | same | current height → the incoming layout's height |
 | Switch, reduced motion | — | 0 | — | — | instant swap |
 | Selection moves | capsule path | 180ms leading / 220ms trailing | 0 / 120ms | same as the theme toggle | current edge → target edge |
+| Index arrives with the panel | `.wd-index-scroll` `opacity` | 300ms (`--duration-medium-5`) | held at 0 until `data-reveal="on"` | `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) | 0 → 1, one pass, no cascade |
+| Index arrives, reduced motion | `.wd-index-scroll` `opacity` | 120ms (`--wd-fade-reduced`) | same | `ease-out` | 0 → 1 |
 
 - `src/components/work/layout-toggle.tsx:51` — `LayoutToggle`
 - `src/components/theme/theme-toggle.tsx:612` — `SegmentTrack`, shared with the theme toggle
 - `src/components/theme/theme-toggle.tsx:739` — `Segment` (glyph or children)
 - `src/components/theme/theme-toggle.tsx:299` — the capsule's 120ms lag / 180ms leading / 220ms trailing
-- `src/components/work/work-index.tsx:24` — `LAYOUT_SWITCH_MS = 200`
-- `src/components/work/work-index.tsx:25` — the switch's ease-out curve
-- `src/components/work/work-index.tsx:208` — the stack height morph
-- `src/components/work/work-index.tsx:212` — the outgoing layout's fade
-- `src/components/work/work-index.tsx:217` — the incoming layout's fade
-- `src/components/work/work-index.tsx:172` — the scroll restore
-- `src/components/work/work-index.tsx:69` — each layout's own remembered scroll
+- `src/components/work/work-index.tsx:29` — `LAYOUT_SWITCH_MS = 200`
+- `src/components/work/work-index.tsx:30` — the switch's ease-out curve
+- `src/components/work/work-index.tsx:213` — the stack height morph
+- `src/components/work/work-index.tsx:217` — the outgoing layout's fade
+- `src/components/work/work-index.tsx:222` — the incoming layout's fade
+- `src/components/work/work-index.tsx:177` — the scroll restore
+- `src/components/work/work-index.tsx:74` — each layout's own remembered scroll
 - `src/components/work/layout-preference.ts:14` — `wd-work-layout`
 - `src/components/work/layout-preference.ts:51` — the snapshot the control reads
 - `src/components/work/layout-preference.ts:73` — apply, store, announce
 - `src/lib/layout-script.ts:10` — the pre-paint bootstrap
 - `src/app/layout.tsx:59` — the bootstrap in the root head
-- `src/components/work/work-index.css:113` — the attribute picks the visible layout
+- `src/components/work/work-index.css:42-58` — the index's arrival fade
+- `src/components/work/work-index.css:112` — the attribute picks the visible layout
