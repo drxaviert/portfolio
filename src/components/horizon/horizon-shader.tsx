@@ -732,6 +732,15 @@ export function HorizonShader({
     let cssWidth = canvas.clientWidth;
     let cssHeight = canvas.clientHeight;
 
+    /**
+     * Sets the drawing buffer to the current CSS size. Assigning canvas.width
+     * or height clears the buffer to opaque black (the context has alpha:
+     * false), so this may only ever run in the same task as a draw: otherwise
+     * the compositor can show the cleared buffer for a frame when the window
+     * or the scrollbar changes the canvas' size. `tick` (and the init path)
+     * call resize() and draw() together for exactly that reason; the resize
+     * observers below only ask for a frame, they never resize on their own.
+     */
     const resize = () => {
       const dpr = Math.min(
         window.devicePixelRatio || 1,
@@ -968,13 +977,15 @@ export function HorizonShader({
     const sizeObserver = new ResizeObserver(() => {
       cssWidth = canvas.clientWidth;
       cssHeight = canvas.clientHeight;
-      resize();
+      // The frame resizes and draws together (see resize above); resizing here
+      // would clear the buffer a frame before it is repainted.
       requestFrame();
     });
 
     const onReducedMotion = () => requestFrame();
     const onResize = () => {
-      resize();
+      cssWidth = canvas.clientWidth;
+      cssHeight = canvas.clientHeight;
       scheduleTexture();
       requestFrame();
     };
