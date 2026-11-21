@@ -19,6 +19,19 @@ function applyDesktopViewport() {
 }
 
 /**
+ * Desktop browsers ignore the viewport meta, so a narrow window keeps the
+ * narrow layout after the bypass. Leave neither the marker nor the session flag
+ * behind; the gate's own CSS follows the viewport, so it stays up.
+ */
+function clearBypass() {
+  document.documentElement.removeAttribute("data-desktop-view");
+
+  try {
+    window.sessionStorage.removeItem(DESKTOP_VIEW_KEY);
+  } catch {}
+}
+
+/**
  * The under-768 screen: the one message the site shows instead of the pages
  * while the mobile layouts are still being built. It copies the boundary
  * screens' column, sits above the dock and drawer, and only asks the horizon
@@ -27,11 +40,13 @@ function applyDesktopViewport() {
  *
  * "View the desktop version anyway" writes a session flag, so a reload stays in
  * desktop layout, and widens the layout viewport to 1280px, which is the same
- * render a phone's "Request desktop site" gets.
+ * render a phone's "Request desktop site" gets. A desktop browser ignores that
+ * meta, so the click is only kept if the next frame really is wider than 768.
  */
 export function MobileGate() {
   const pathname = usePathname();
   const [narrow, setNarrow] = useState(false);
+  const [tooNarrow, setTooNarrow] = useState(false);
 
   useEffect(() => {
     const query = window.matchMedia(SMALL_VIEWPORT);
@@ -44,11 +59,24 @@ export function MobileGate() {
   }, []);
 
   useEffect(() => {
+    let bypassed = false;
+
     try {
-      if (window.sessionStorage.getItem(DESKTOP_VIEW_KEY) === "1") {
-        applyDesktopViewport();
-      }
+      bypassed = window.sessionStorage.getItem(DESKTOP_VIEW_KEY) === "1";
     } catch {}
+
+    if (!bypassed) return;
+
+    applyDesktopViewport();
+
+    const frame = requestAnimationFrame(() => {
+      if (window.matchMedia(SMALL_VIEWPORT).matches) {
+        clearBypass();
+        setTooNarrow(true);
+      }
+    });
+
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   if (pathname.startsWith("/dev")) return null;
@@ -59,6 +87,13 @@ export function MobileGate() {
     } catch {}
 
     applyDesktopViewport();
+
+    requestAnimationFrame(() => {
+      if (window.matchMedia(SMALL_VIEWPORT).matches) {
+        clearBypass();
+        setTooNarrow(true);
+      }
+    });
   }
 
   return (
@@ -75,21 +110,29 @@ export function MobileGate() {
         kicker="Mobile · WIP"
         title="Best viewed on a computer."
         titleId="mobile-gate-title"
+        centered
       >
         <p>
           The mobile version is still being built. For the full experience, open
           this site on a laptop or desktop.
         </p>
 
-        <p>
-          <button
-            type="button"
-            onClick={viewDesktop}
-            className={`${MESSAGE_LINK} inline-flex min-h-11 items-center text-left`}
-          >
-            View the desktop version anyway
-          </button>
-        </p>
+        {tooNarrow ? (
+          <p role="status">
+            This window is too narrow for the desktop version. Widen it, or open
+            the site on a computer.
+          </p>
+        ) : (
+          <p>
+            <button
+              type="button"
+              onClick={viewDesktop}
+              className={`${MESSAGE_LINK} inline-flex min-h-11 items-center text-left`}
+            >
+              View the desktop version anyway
+            </button>
+          </p>
+        )}
       </MessageColumn>
     </div>
   );

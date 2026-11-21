@@ -1,9 +1,12 @@
 /*
  * The mobile gate (Dat, 2026-11-20). The root layout mounts it on every route
- * and the component returns null for /dev; this file owns the 768 breakpoint,
- * the stacking order, and the bypass state. `data-desktop-view` is written by
- * the pre-paint script and the gate's button; it hides the gate and releases
- * the scroll lock, so a bypassed reload never flashes the message.
+ * and the component returns null for /dev; this file owns the 768 breakpoint
+ * and the stacking order.
+ *
+ * Visibility follows the viewport alone, never the bypass flag: a desktop
+ * browser ignores the width=1280 meta, so if the flag could hide the gate that
+ * window would fall back to the stacked layout. The bypass works by widening
+ * the layout viewport; until it does, the gate stays up.
  */
 
 [data-mobile-gate] {
@@ -11,7 +14,7 @@
 }
 
 @media (max-width: 767.98px) {
-  :root:not([data-desktop-view]) [data-mobile-gate] {
+  [data-mobile-gate] {
     position: fixed;
     inset: 0;
     z-index: 70;
@@ -22,15 +25,15 @@
       env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 
-  :root:not([data-desktop-view]):has([data-mobile-gate]) {
+  :root:has([data-mobile-gate]) {
     overflow: hidden;
   }
 
-  :root:not([data-desktop-view]):has([data-mobile-gate]) body {
+  :root:has([data-mobile-gate]) body {
     overflow: hidden;
   }
 
-  :root:not([data-desktop-view]):has([data-mobile-gate]) .wd-nav-dock {
+  :root:has([data-mobile-gate]) .wd-nav-dock {
     display: none;
   }
 }

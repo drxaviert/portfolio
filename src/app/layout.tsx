@@ -53,8 +53,13 @@ export const viewport: Viewport = {
  * choice for this tab, so a bypassed reload must never flash the gate. The
  * viewport meta may be injected after this head script runs, hence the short
  * observer; MobileGate's effect re-applies it after hydration.
+ *
+ * Desktop browsers ignore the meta. If the layout viewport is still under 768
+ * after load, the bypass cannot be honored, so drop the marker and the flag:
+ * the gate's CSS already follows the viewport, so the stacked layout is never
+ * what this load shows.
  */
-const MOBILE_GATE_INIT_SCRIPT = `(function(){try{if(window.sessionStorage.getItem("mobile-gate:desktop")!=="1")return;document.documentElement.setAttribute("data-desktop-view","");var apply=function(){var meta=document.querySelector('meta[name="viewport"]');if(!meta)return false;meta.setAttribute("content","width=1280");return true;};if(apply())return;var observer=new MutationObserver(function(){if(apply())observer.disconnect();});observer.observe(document.head,{childList:true,subtree:true});window.setTimeout(function(){observer.disconnect();},1000);}catch(error){}})();`;
+const MOBILE_GATE_INIT_SCRIPT = `(function(){try{if(window.sessionStorage.getItem("mobile-gate:desktop")!=="1")return;var root=document.documentElement;root.setAttribute("data-desktop-view","");var apply=function(){var meta=document.querySelector('meta[name="viewport"]');if(!meta)return false;meta.setAttribute("content","width=1280");return true;};if(!apply()){var observer=new MutationObserver(function(){if(apply())observer.disconnect();});observer.observe(document.head,{childList:true,subtree:true});window.setTimeout(function(){observer.disconnect();},1000);}var check=function(){if(!window.matchMedia("(max-width: 767.98px)").matches)return;root.removeAttribute("data-desktop-view");try{window.sessionStorage.removeItem("mobile-gate:desktop");}catch(error){}};var afterLoad=function(){requestAnimationFrame(check);};if(document.readyState==="complete"){afterLoad();}else{window.addEventListener("load",afterLoad);}}catch(error){}})();`;
 
 export default function RootLayout({
   children,
