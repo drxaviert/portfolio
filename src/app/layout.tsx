@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Work_Sans } from "next/font/google";
 import type { ReactNode } from "react";
 import { NavDock } from "@/components/nav/nav-dock";
+import { MobileGate } from "@/components/system/mobile-gate";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import { LAYOUT_INIT_SCRIPT } from "@/lib/layout-script";
@@ -47,6 +48,14 @@ export const viewport: Viewport = {
   ],
 };
 
+/**
+ * The mobile gate's bypass, before paint. The session flag is the visitor's
+ * choice for this tab, so a bypassed reload must never flash the gate. The
+ * viewport meta may be injected after this head script runs, hence the short
+ * observer; MobileGate's effect re-applies it after hydration.
+ */
+const MOBILE_GATE_INIT_SCRIPT = `(function(){try{if(window.sessionStorage.getItem("mobile-gate:desktop")!=="1")return;document.documentElement.setAttribute("data-desktop-view","");var apply=function(){var meta=document.querySelector('meta[name="viewport"]');if(!meta)return false;meta.setAttribute("content","width=1280");return true;};if(apply())return;var observer=new MutationObserver(function(){if(apply())observer.disconnect();});observer.observe(document.head,{childList:true,subtree:true});window.setTimeout(function(){observer.disconnect();},1000);}catch(error){}})();`;
+
 export default function RootLayout({
   children,
 }: {
@@ -57,6 +66,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: LAYOUT_INIT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: MOBILE_GATE_INIT_SCRIPT }} />
       </head>
       <body>
         <ThemeProvider>
@@ -65,6 +75,7 @@ export default function RootLayout({
               trap can cycle from the panel into it. The homepage's edge blur is
               mounted by `/` itself (app/page.tsx), not here. */}
           <NavDock />
+          <MobileGate />
         </ThemeProvider>
       </body>
     </html>

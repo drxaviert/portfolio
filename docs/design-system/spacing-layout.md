@@ -221,6 +221,22 @@ Hero scale relationship: `689 = 753 − 2 × 32`; the faux-UI canvas is shifted 
 No `@theme` overrides of `--breakpoint-*` exist; these are Tailwind's defaults plus the explicit
 arbitrary variants above.
 
+## Mobile gate
+
+Below `768px` the root layout paints one full-screen dialog instead of the pages while the mobile
+layouts are being built; `/dev/*` is the only exclusion. It reuses the boundary screens' column
+(`MessageColumn`) and is hidden on desktop by CSS alone, so a wide load never mounts its horizon.
+
+| Item | Value | Source |
+| --- | --- | --- |
+| Breakpoint | `max-width: 767.98px`, scoped further with `:root:not([data-desktop-view])` | `src/components/system/mobile-gate.css` |
+| Exclusion | the component returns `null` when `usePathname()` starts with `/dev` | `src/components/system/mobile-gate.tsx` |
+| Layer | `fixed`, `inset: 0`, `z-index: 70` — above the drawer (`50`) and nav dock (`60`) | `mobile-gate.css` |
+| Lock | `html`/`body` get `overflow: hidden`, `.wd-nav-dock` is hidden; the gate scrolls itself | `mobile-gate.css` |
+| Safe area | `padding: env(safe-area-inset-*)` | `mobile-gate.css` |
+| Horizon | client-only `HorizonLive`, mounted once `matchMedia("(max-width: 767.98px)")` matches | `mobile-gate.tsx` |
+| Bypass | click stores `sessionStorage["mobile-gate:desktop"] = "1"`, sets `data-desktop-view` on `<html>` and the viewport meta to `width=1280`; the pre-paint script restores both on reload | `mobile-gate.tsx`; `src/app/layout.tsx` |
+
 ## Derived relationships present in the code
 
 | Derived value | Expression | Source |
