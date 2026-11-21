@@ -1,0 +1,193 @@
+/* B, Restructured. Tokens only. */
+
+.wi-b-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 24px;
+}
+
+.wi-b-title {
+  margin: 0;
+  font-size: var(--text-title-sm);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+@media (min-width: 768px) {
+  .wi-b-title {
+    font-size: var(--text-title);
+  }
+}
+
+.wi-b-count {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--on-surface-variant);
+}
+
+.wi-b-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .wi-b-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}
+
+/* ---------- Featured tile ---------- */
+
+.wi-b-feature {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container);
+  box-shadow: var(--shadow-card);
+  color: inherit;
+  text-decoration: none;
+}
+
+.wi-b-feature-cover {
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--surface-container-high);
+}
+
+.wi-b-feature-cover > * {
+  height: 100%;
+}
+
+.wi-b-feature-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 20px 22px;
+}
+
+.wi-b-feature-title {
+  font-size: var(--text-2xl);
+  line-height: 1.15;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.wi-b-feature-summary {
+  max-width: 56ch;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+  text-wrap: pretty;
+}
+
+.wi-b-feature-facts {
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--on-surface-variant);
+}
+
+.wi-b-feature:focus-visible,
+.wi-b-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Compact rows ---------- */
+
+.wi-b-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wi-b-row {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: 3rem 96px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px 8px 8px;
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+}
+
+/* The wash is its own layer: hover fades opacity, nothing else changes. */
+.wi-b-row::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--surface-container);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wi-b-year {
+  padding-left: 4px;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--on-surface-variant);
+}
+
+.wi-b-thumb {
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  background: var(--surface-container-high);
+}
+
+.wi-b-thumb > * {
+  height: 100%;
+}
+
+.wi-b-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wi-b-name {
+  font-size: var(--text-base);
+  line-height: 1.25;
+  font-weight: 500;
+  text-wrap: balance;
+}
+
+.wi-b-role {
+  font-size: var(--text-xs);
+  color: var(--on-surface-variant);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .wi-b-row:hover::before {
+    opacity: 1;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .wi-b-row::before {
+    transition: opacity var(--duration-short-3) var(--ease-decelerate);
+  }
+}
+
+@media (forced-colors: active) {
+  .wi-b-feature {
+    border: 1px solid CanvasText;
+  }
+}

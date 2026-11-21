@@ -1,0 +1,211 @@
+/* C, Expressive. Tokens only. */
+
+.wi-c-title {
+  margin: 0 0 24px;
+  font-size: var(--text-4xl);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+@media (min-width: 768px) {
+  .wi-c-title {
+    margin-bottom: 40px;
+    font-size: var(--text-title);
+    letter-spacing: -0.045em;
+  }
+}
+
+.wi-c-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.wi-c-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--outline-variant);
+}
+
+.wi-c-item {
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+.wi-c-row {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) 72px;
+  grid-template-areas:
+    "num name cover"
+    "num aside cover";
+  column-gap: 12px;
+  row-gap: 4px;
+  align-items: center;
+  padding: 16px 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.wi-c-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.wi-c-num {
+  grid-area: num;
+  align-self: start;
+  padding-top: 6px;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--on-surface-variant);
+}
+
+.wi-c-name {
+  grid-area: name;
+  font-size: var(--text-2xl);
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.wi-c-aside {
+  grid-area: aside;
+  font-size: var(--text-sm);
+  color: var(--on-surface-variant);
+}
+
+.wi-c-year {
+  font-variant-numeric: tabular-nums;
+}
+
+.wi-c-year::before {
+  content: "·";
+  margin-right: 8px;
+}
+
+.wi-c-inline {
+  grid-area: cover;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  background: var(--surface-container-high);
+}
+
+.wi-c-inline > * {
+  height: 100%;
+}
+
+.wi-c-preview {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .wi-c-name {
+    font-size: var(--text-3xl);
+  }
+
+  .wi-c-row {
+    grid-template-columns: 3rem minmax(0, 1fr) auto 96px;
+    grid-template-areas: "num name aside cover";
+    column-gap: 24px;
+    padding: 22px 0;
+  }
+
+  .wi-c-num {
+    align-self: center;
+    padding-top: 0;
+  }
+
+  .wi-c-aside {
+    display: flex;
+    justify-content: flex-end;
+    text-align: end;
+  }
+
+  .wi-c-role {
+    min-width: 9rem;
+  }
+
+  .wi-c-year {
+    min-width: 3rem;
+  }
+
+  .wi-c-year::before {
+    content: none;
+  }
+}
+
+/* Wide and fine-pointer: the sticky preview panel replaces the inline covers. */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  .wi-c-body {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    column-gap: 48px;
+    align-items: start;
+  }
+
+  .wi-c-row {
+    grid-template-columns: 3rem minmax(0, 1fr) auto;
+    grid-template-areas: "num name aside";
+  }
+
+  .wi-c-inline {
+    display: none;
+  }
+
+  .wi-c-preview {
+    position: sticky;
+    top: 24px;
+    display: block;
+  }
+
+  .wi-c-frame {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius-lg);
+    background: var(--surface-container);
+    box-shadow: var(--shadow-card);
+  }
+
+  .wi-c-shot {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transform: scale(0.985);
+  }
+
+  .wi-c-shot > * {
+    height: 100%;
+  }
+
+  .wi-c-shot[data-on] {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Dim the rest while a row is engaged; the engaged row stays full. */
+  .wi-c-list[data-hot] .wi-c-item:not([data-current]) {
+    opacity: 0.4;
+  }
+}
+
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .wi-c-item {
+    transition: opacity var(--duration-short-3) var(--ease-decelerate);
+  }
+
+  .wi-c-shot {
+    transition:
+      opacity var(--duration-short-4) var(--ease-decelerate),
+      transform var(--duration-short-4) var(--ease-decelerate);
+  }
+}
+
+@media (forced-colors: active) {
+  .wi-c-frame {
+    border: 1px solid CanvasText;
+  }
+}

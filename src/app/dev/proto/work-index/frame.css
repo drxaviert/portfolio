@@ -1,0 +1,32 @@
+/*
+ * The drawer's index column, as a frame: the drawer's surface, the column's
+ * 1184px max width and its 16px (32px from 768px) side padding.
+ */
+.wip-stage {
+  min-height: 100dvh;
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+}
+
+.wip-frame {
+  width: 100%;
+  max-width: 1184px;
+  margin-inline: auto;
+  padding: 24px 16px 96px;
+}
+
+@media (min-width: 768px) {
+  .wip-frame {
+    padding-inline: 32px;
+  }
+}
+
+/* The production index owns a scroll box, so it needs a height. The docked nav
+   is not here, so its clearance is zeroed and the column starts at the top. */
+.wip-current {
+  --wd-nav-inset: 0px;
+  --wd-nav-height: 0px;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
