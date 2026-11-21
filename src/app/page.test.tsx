@@ -33,12 +33,9 @@ describe("home page", () => {
 
     // Below md the stacked card and from md the carousel card both render
     // (CSS picks one), so the featured study appears twice in the markup.
-    expect(
-      screen.getAllByRole("heading", { name: "Systems in motion" }).length,
-    ).toBeGreaterThan(0);
-    for (const link of screen.getAllByRole("link", {
-      name: "Systems in motion",
-    })) {
+    const cards = screen.getAllByRole("link", { name: "Systems in motion" });
+    expect(cards.length).toBeGreaterThan(0);
+    for (const link of cards) {
       expect(link).toHaveAttribute("href", "/work/systems-in-motion");
     }
     // The nav itself is one element in the root layout; the page reserves its

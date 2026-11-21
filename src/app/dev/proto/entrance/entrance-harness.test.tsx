@@ -1,6 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EMPTY_WORK_LABEL } from "@/components/home/empty-work";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { EntranceHarness } from "./entrance-harness";
 
@@ -38,9 +37,9 @@ describe("entrance harness", () => {
 
     expect(document.querySelector("main")?.dataset.entrance).toBe("scale");
     expect(document.querySelectorAll("[data-entrance-item]")).toHaveLength(7);
-    expect(
-      screen.getByRole("heading", { name: EMPTY_WORK_LABEL }),
-    ).toBeInTheDocument();
+    // The featured card is an empty surface now; its box is still the seventh
+    // item in the entrance run.
+    expect(document.querySelectorAll(".ring-card")).toHaveLength(1);
   });
 
   it("does not replay when the route mounts again in the same tab", () => {

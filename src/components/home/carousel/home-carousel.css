@@ -200,19 +200,6 @@
   --car-xd: initial;
 }
 
-.car-title {
-  position: absolute;
-  left: calc(var(--spacing) * 8);
-  right: calc(var(--spacing) * 8);
-  bottom: calc(var(--spacing) * 8);
-  z-index: 10;
-  display: -webkit-box;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
 /* Before the client has measured: slot boxes from the Figma ratios. */
 .car-row:not([data-ready]) .car-slide[data-slot="0"] {
   left: var(--c-off);
@@ -238,10 +225,6 @@
 
 .car-row:not([data-ready]) .car-slide[data-offscreen] {
   visibility: hidden;
-}
-
-.car-row:not([data-ready]) .car-slide:not([data-slot="0"]) [data-car-title] {
-  opacity: 0;
 }
 
 /*
@@ -877,10 +860,6 @@
 
 .car-slide.car-peek-edge {
   pointer-events: auto;
-}
-
-.car-peek [data-car-title] {
-  opacity: 0;
 }
 
 /*

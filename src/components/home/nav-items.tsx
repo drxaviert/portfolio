@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
@@ -16,10 +17,21 @@ import { NavGlyphIcon } from "./nav-glyph-icon";
 import "./nav-items.css";
 
 const LINKS = [
-  { label: "Work", current: true, href: "/work" },
-  { label: "Play", current: false },
-  { label: "About", current: false },
+  { label: "Work", href: "/work" },
+  { label: "Play" },
+  { label: "About" },
 ];
+
+/**
+ * Work is current only on its own route. The home page and the prototype are
+ * not the work section, so there it keeps the plain resting style and only the
+ * Glide hover capsule marks the pointer.
+ */
+function isCurrent(pathname: string, href?: string): boolean {
+  return (
+    href !== undefined && (pathname === href || pathname.startsWith(`${href}/`))
+  );
+}
 
 const ITEM_CLASS = [
   "nav-item relative flex h-8 min-w-0 items-center rounded-md px-2",
@@ -457,6 +469,7 @@ export function NavItems() {
   const itemRefs = useRef<(HTMLElement | null)[]>([]);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const clipped = useClippedLabels(itemRefs, LINKS.length);
+  const pathname = usePathname();
 
   function enter(index: number, event: ReactPointerEvent<HTMLElement>) {
     if (event.pointerType === "touch") return;
@@ -482,9 +495,10 @@ export function NavItems() {
       />
 
       {LINKS.map((link, index) => {
+        const current = isCurrent(pathname, link.href);
         const classes = [
           ITEM_CLASS,
-          link.current
+          current
             ? "bg-surface-container text-on-surface"
             : "text-on-surface-variant",
         ].join(" ");
@@ -512,7 +526,7 @@ export function NavItems() {
             href={link.href}
             ref={ref}
             aria-label={link.label}
-            aria-current={link.current ? "page" : undefined}
+            aria-current={current ? "page" : undefined}
             onPointerEnter={(event) => enter(index, event)}
             className={`no-underline ${classes}`}
           >

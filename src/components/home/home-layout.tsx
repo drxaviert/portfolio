@@ -1,8 +1,8 @@
 import type { CSSProperties } from "react";
-import type { WorkMeta } from "@/lib/work";
 import { HorizonLive } from "@/components/horizon/horizon-live";
 import { EntranceCell } from "./entrance-cell";
 import type { EntranceVariant } from "./entrance-cell";
+import { EntranceReplayGuard } from "./entrance-replay-guard";
 import { HomeEntrancePlayed } from "./home-entrance";
 import { EntranceGrain } from "./entrance-grain";
 import { HomeCarousel } from "./carousel/home-carousel";
@@ -67,8 +67,6 @@ type HomeLayoutProps = {
   featured?: {
     slug: string;
     title: string;
-    cover: WorkMeta["cover"];
-    coverImage?: WorkMeta["coverImage"];
   };
   /**
    * The endless carousel items, front first. From md up they replace the
@@ -77,6 +75,12 @@ type HomeLayoutProps = {
   items?: CarouselItem[];
   entrance?: EntranceVariant;
   shipped?: boolean;
+  /**
+   * Draw the horizon inside this layout. The shipped routes pass false: the
+   * root layout's SharedHorizon owns the one canvas above both routes. Dev
+   * prototypes keep their own.
+   */
+  horizon?: boolean;
 };
 
 export function HomeLayout({
@@ -85,6 +89,7 @@ export function HomeLayout({
   items,
   entrance,
   shipped = false,
+  horizon = true,
 }: HomeLayoutProps = {}) {
   const lead = items?.[0];
   const stacked =
@@ -92,8 +97,6 @@ export function HomeLayout({
       ? {
           slug: lead.slug,
           title: lead.title,
-          cover: lead.cover,
-          coverImage: lead.coverImage,
         }
       : featured;
 
@@ -101,9 +104,12 @@ export function HomeLayout({
     <main
       data-entrance={entrance}
       data-entrance-shipped={shipped ? "" : undefined}
-      className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface"
+      className={`relative flex min-h-dvh flex-col overflow-hidden text-on-surface ${
+        horizon ? "bg-surface" : "bg-transparent"
+      }`}
     >
-      <HorizonLive />
+      {horizon ? <HorizonLive /> : null}
+      {shipped && entrance === "soft" ? <EntranceReplayGuard /> : null}
       {/* Prototype hook: the grain sits above the glow and under the cards,
           so it can only live between the two. Absent on `/`. */}
       {entrance === "grain" ? <EntranceGrain /> : null}
@@ -181,8 +187,6 @@ export function HomeLayout({
                   <ProjectCard
                     title={stacked?.title}
                     slug={stacked?.slug}
-                    scene={stacked?.cover}
-                    coverImage={stacked?.coverImage}
                   />
                 </EntranceCell>
                 <WorkSlivers entrance={entrance} />
@@ -198,8 +202,6 @@ export function HomeLayout({
                   <ProjectCard
                     title={featured?.title}
                     slug={featured?.slug}
-                    scene={featured?.cover}
-                    coverImage={featured?.coverImage}
                   />
                 )}
               </EntranceCell>

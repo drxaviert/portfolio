@@ -31,8 +31,6 @@ export function HomeScreen() {
       kind: "work" as const,
       slug: work.slug,
       title: work.title,
-      cover: work.cover,
-      coverImage: work.coverImage,
     })),
     ...(works.length > 0
       ? [{ kind: "placeholder" as const, title: EMPTY_WORK_LABEL }]
@@ -45,14 +43,13 @@ export function HomeScreen() {
       <HomeLayout
         entrance="soft"
         shipped
+        horizon={false}
         items={items}
         featured={
           featured
             ? {
                 slug: featured.slug,
                 title: featured.title,
-                cover: featured.cover,
-                coverImage: featured.coverImage,
               }
             : undefined
         }

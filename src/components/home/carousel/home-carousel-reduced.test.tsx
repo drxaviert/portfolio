@@ -4,9 +4,9 @@ import { HomeCarousel } from "./home-carousel";
 import type { CarouselItem } from "./home-carousel";
 
 const ITEMS: CarouselItem[] = [
-  { kind: "work", slug: "systems-in-motion", title: "Systems", cover: "tiles" },
-  { kind: "work", slug: "title-sequence", title: "Titles", cover: "window" },
-  { kind: "work", slug: "type-in-motion", title: "Type", cover: "phone" },
+  { kind: "work", slug: "systems-in-motion", title: "Systems" },
+  { kind: "work", slug: "title-sequence", title: "Titles" },
+  { kind: "work", slug: "type-in-motion", title: "Type" },
   { kind: "placeholder", title: "More work soon" },
 ];
 

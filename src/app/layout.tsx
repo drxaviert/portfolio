@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Work_Sans } from "next/font/google";
 import type { ReactNode } from "react";
+import { SharedHorizon } from "@/components/horizon/shared-horizon";
 import { NavDock } from "@/components/nav/nav-dock";
 import { MobileGate } from "@/components/system/mobile-gate";
 import { ThemeProvider } from "@/components/theme/theme-provider";
@@ -75,6 +76,7 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider>
+          <SharedHorizon />
           {children}
           {/* One nav for the whole site, after the page so the overlay's focus
               trap can cycle from the panel into it. The homepage's edge blur is

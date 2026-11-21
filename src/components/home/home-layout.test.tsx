@@ -30,7 +30,7 @@ describe("HomeLayout", () => {
     // One line, in the band's place: no stand-in card and no empty column.
     expect(screen.getAllByText(EMPTY_WORK_LABEL)).toHaveLength(1);
     expect(container.querySelector(".car-row")).toBeNull();
-    expect(container.querySelector(".card-title")).toBeNull();
+    expect(container.querySelector(".car-title")).toBeNull();
     expect(
       screen.queryByRole("region", { name: "Selected work" }),
     ).not.toBeInTheDocument();

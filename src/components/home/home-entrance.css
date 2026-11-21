@@ -352,6 +352,32 @@
     backwards;
 }
 
+/*
+ * The shared root horizon is outside the entrance element, so the entrance
+ * reaches it through :root:has() and the host carries the three tokens those
+ * animations read. The in-layout rules above stay for the dev prototypes,
+ * which draw their own horizon.
+ */
+:root:has([data-entrance="soft"][data-entrance-shipped]) [data-horizon-shared] {
+  --entrance-ease: var(--ease-calm);
+  --soft-duration: 1400ms;
+  --soft-blur: 8px;
+}
+
+:root:has([data-entrance="soft"][data-entrance-shipped])
+  [data-horizon-shared]:not(:has(.horizon-canvas-layer))
+  .horizon-motion-layer {
+  animation: entrance-soft-glow var(--soft-duration) var(--entrance-ease)
+    backwards;
+}
+
+:root:has([data-entrance="soft"][data-entrance-shipped])
+  [data-horizon-shared]
+  .horizon-canvas-layer {
+  animation: entrance-soft-softness var(--soft-duration) var(--entrance-ease)
+    backwards;
+}
+
 @keyframes entrance-soft-softness {
   from {
     --soft-softness: var(--soft-blur, 8px);
@@ -387,7 +413,13 @@
   }
 
   [data-entrance="soft"] .horizon-motion-layer,
-  [data-entrance="soft"] .horizon-canvas-layer {
+  [data-entrance="soft"] .horizon-canvas-layer,
+  :root:has([data-entrance="soft"][data-entrance-shipped])
+    [data-horizon-shared]
+    .horizon-motion-layer,
+  :root:has([data-entrance="soft"][data-entrance-shipped])
+    [data-horizon-shared]
+    .horizon-canvas-layer {
     animation: none;
     filter: none;
   }
@@ -405,6 +437,22 @@
 :root[data-entrance-played] [data-entrance-shipped] .horizon-canvas-layer,
 :root[data-entrance-played]
   [data-entrance-shipped]:not(:has(.horizon-canvas-layer))
+  .horizon-motion-layer,
+:root[data-entrance-played] [data-horizon-shared] .horizon-canvas-layer,
+:root[data-entrance-played]
+  [data-horizon-shared]:not(:has(.horizon-canvas-layer))
   .horizon-motion-layer {
+  animation: none !important;
+}
+
+/*
+ * One entrance per document. The first shipped HomeScreen claims the entrance
+ * (entrance-replay-guard.tsx); a later copy — the work layout's HomeScreen
+ * under the drawer — marks itself before paint, so its veil and cards mount at
+ * rest instead of replaying the 1400ms Soft focus behind the drawer. The first
+ * copy's animations, and the shared horizon's softness, are not touched.
+ */
+[data-entrance-replay="later"] .entrance-body,
+[data-entrance-replay="later"] .entrance-soft {
   animation: none !important;
 }
