@@ -12,8 +12,6 @@ import {
 } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
 import { flushSync } from "react-dom";
-import { Cover } from "@/components/work/cover";
-import type { WorkMeta } from "@/lib/work";
 import { EntranceCell } from "../entrance-cell";
 import type { EntranceVariant } from "../entrance-cell";
 import { RingLayers } from "../ring-hover";
@@ -41,7 +39,7 @@ import {
   slotPose,
   stepMode,
 } from "./carousel-math";
-import type { Ease, Entity, Geometry, TitleTiming } from "./carousel-math";
+import type { Ease, Entity, Geometry } from "./carousel-math";
 import { rememberOffset, restoredOffset } from "./carousel-memory";
 import { DEFAULT_SETTINGS } from "./carousel-settings";
 import {
@@ -66,7 +64,6 @@ import {
 } from "@/components/work/overlay-exit";
 import { announceStep } from "../step-events";
 import { useReducedMotion } from "../use-reduced-motion";
-import "../home-cards.css";
 import "./home-carousel.css";
 
 export type CarouselItem =
@@ -74,8 +71,6 @@ export type CarouselItem =
       kind: "work";
       slug: string;
       title: string;
-      cover: WorkMeta["cover"];
-      coverImage?: WorkMeta["coverImage"];
     }
   | { kind: "placeholder"; title: string };
 
@@ -84,7 +79,6 @@ type Tween = {
   t0: number;
   duration: number;
   ease: Ease;
-  timing: TitleTiming;
   animations: Animation[];
   /** True for a released run gliding to rest (see settle). */
   settling?: boolean;
@@ -138,7 +132,6 @@ function overlayPresent(): boolean {
   );
 }
 const CROSSFADE_FROM = 0.6;
-const TITLE_OUT_END = 0.12;
 
 function subscribeToLocation(onChange: () => void) {
   window.addEventListener("popstate", onChange);
@@ -283,30 +276,16 @@ function Slide({
   // when its slot after the wrap is the right-most one (a short ring).
   const edgeBlur = peek || edgeLeft ? "left" : rightEdge ? "right" : null;
 
-  // The blurred picture an edge-blur layer masks (the filter is on this copy,
-  // the mask on its wrapper: Chromium paints neither if one element has both).
+  // The blurred face an edge-blur layer masks (the filter is on this copy, the
+  // mask on its wrapper: Chromium paints neither if one element has both). The
+  // cards are empty, so the card's own surface is all there is to melt.
   const blurCopy = (
     <span className="car-peek-blur-copy">
       <span className="car-content">
-        {item.kind === "work" ? (
-          <>
-            <span className="absolute inset-0 overflow-hidden">
-              <Cover
-                scene={item.cover}
-                coverImage={item.coverImage}
-                fit="cover"
-              />
-            </span>
-            <span className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-md" />
-          </>
-        ) : (
-          // A placeholder has no picture, but it still has a card face:
-          // blur the surface itself so its edge melts like the others.
-          <span
-            data-peek-surface=""
-            className="bg-surface-container-low absolute inset-0"
-          />
-        )}
+        <span
+          data-peek-surface=""
+          className="bg-surface-container-low absolute inset-0"
+        />
       </span>
     </span>
   );
@@ -315,41 +294,7 @@ function Slide({
     <>
       <RingLayers fill="bg-surface-container-low" />
       <div className="car-clip rounded-lg">
-        <div className="car-content">
-          {item.kind === "work" ? (
-            <>
-              <div
-                aria-hidden="true"
-                data-car-cover=""
-                className="absolute inset-0 overflow-hidden"
-              >
-                <Cover
-                  scene={item.cover}
-                  coverImage={item.coverImage}
-                  fit="cover"
-                />
-              </div>
-              <span
-                aria-hidden="true"
-                className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-md"
-              />
-            </>
-          ) : null}
-          <div
-            data-car-title=""
-            data-work-card-title={
-              first && item.kind === "work" ? "" : undefined
-            }
-            role={first ? "heading" : undefined}
-            aria-level={first ? 1 : undefined}
-            dir="auto"
-            className={`ring-title car-title text-balance text-title-sm font-semibold md:text-title ${
-              item.kind === "placeholder" ? "text-on-surface-variant" : ""
-            }`}
-          >
-            {item.title}
-          </div>
-        </div>
+        <div className="car-content" />
         {edgeBlur ? (
           <span
             aria-hidden="true"
@@ -385,6 +330,7 @@ function Slide({
       <Link
         href={`/work/${item.slug}`}
         prefetch={first ? true : undefined}
+        aria-label={item.title}
         data-work-card={first ? item.slug : undefined}
         data-work-slug={item.slug}
         className={hostClass}
@@ -397,6 +343,7 @@ function Slide({
     host = (
       <button
         type="button"
+        aria-label={item.title}
         aria-disabled={first || undefined}
         className={hostClass}
         onClick={(event) => onActivate(event, index)}
@@ -558,12 +505,7 @@ export function HomeCarousel({
       if (!element) return;
 
       const slot = slotOf(index, at, n);
-      restStyle(
-        element,
-        slotPose(g, slot),
-        slot === 0 ? 1 : 0,
-        slot < VISIBLE_SLOTS,
-      );
+      restStyle(element, slotPose(g, slot), slot < VISIBLE_SLOTS);
     });
   }
 
@@ -816,22 +758,17 @@ export function HomeCarousel({
     // Start from the poses drawn this instant, read off the cards themselves,
     // not from the clock: the animation's timeline can lag the wall clock by a
     // frame or more under load, and a clock-based start would jump.
-    const drawnPoses = new Map<
-      string,
-      { x: number; w: number; title: number }
-    >();
+    const drawnPoses = new Map<string, { x: number; w: number }>();
     for (const entity of running.entities) {
       const element = elements.current.get(entityKey(entity));
       if (!element) continue;
 
       const box = Number.parseFloat(element.style.width);
       const crop = read(element, "--car-r");
-      const title = element.querySelector<HTMLElement>("[data-car-title]");
 
       drawnPoses.set(entityKey(entity), {
         x: read(element, "--car-x"),
         w: Number.isFinite(box) ? Math.max(box - crop, 1) : entity.from.w,
-        title: title ? Number.parseFloat(getComputedStyle(title).opacity) : NaN,
       });
     }
 
@@ -840,7 +777,6 @@ export function HomeCarousel({
       const slot = slotOf(entity.item, at, n);
       const dest = slotPose(g, slot);
       const visible = slot < VISIBLE_SLOTS;
-      const wide = !entity.ghost && slot === 0;
       // A card that is already on its way out through an end stays on that
       // course: the row's shift moves the ones on screen, it does not send a
       // card back across the row to a slot it was leaving. Only a wrap has a
@@ -857,11 +793,7 @@ export function HomeCarousel({
       return {
         ...entity,
         from: pose ? { x: pose.x, w: pose.w } : entity.from,
-        fromTitle:
-          pose && Number.isFinite(pose.title) ? pose.title : entity.fromTitle,
         to,
-        toWide: wide ? 1 : 0,
-        toTitle: wide ? 1 : 0,
       };
     });
 
@@ -875,11 +807,7 @@ export function HomeCarousel({
     for (const entity of planned) {
       const element = elements.current.get(entityKey(entity));
       if (!element) continue;
-      if (
-        entity.from.x === entity.to.x &&
-        entity.from.w === entity.to.w &&
-        entity.fromTitle === entity.toTitle
-      ) {
+      if (entity.from.x === entity.to.x && entity.from.w === entity.to.w) {
         continue;
       }
 
@@ -887,7 +815,6 @@ export function HomeCarousel({
         ...playEntity(element, entity, {
           duration: SETTLE_MS,
           easing,
-          timing: running.timing,
           blur: { edgeBlur: 0, rowWidth: g.rowWidth },
         }),
       );
@@ -935,7 +862,6 @@ export function HomeCarousel({
       t0: performance.now(),
       duration: SETTLE_MS,
       ease: spec.fn,
-      timing: running.timing,
       animations: [...animations, clock],
       settling: true,
       peek: peekAfter,
@@ -1059,10 +985,6 @@ export function HomeCarousel({
       const element = elements.current.get(`m${entity.item}`);
       if (!element) return entity;
 
-      const title = element.querySelector<HTMLElement>("[data-car-title]");
-      const opacity = title
-        ? Number.parseFloat(getComputedStyle(title).opacity)
-        : Number.NaN;
       const slot = slotOf(entity.item, at, n);
 
       return {
@@ -1075,7 +997,6 @@ export function HomeCarousel({
           x: read(element, "--car-x"),
           w: Number.parseFloat(element.style.width) || entity.to.w,
         },
-        fromTitle: Number.isFinite(opacity) ? opacity : entity.toTitle,
       };
     });
 
@@ -1096,11 +1017,7 @@ export function HomeCarousel({
     for (const entity of planned) {
       const element = elements.current.get(`m${entity.item}`);
       if (!element) continue;
-      if (
-        entity.from.x === entity.to.x &&
-        entity.from.w === entity.to.w &&
-        entity.fromTitle === entity.toTitle
-      ) {
+      if (entity.from.x === entity.to.x && entity.from.w === entity.to.w) {
         continue;
       }
 
@@ -1108,7 +1025,6 @@ export function HomeCarousel({
         ...playEntity(element, entity, {
           duration: SETTLE_MS,
           easing,
-          timing: running.timing,
           blur: { edgeBlur: 0, rowWidth: g.rowWidth },
         }),
       );
@@ -1135,7 +1051,6 @@ export function HomeCarousel({
       t0: performance.now(),
       duration: SETTLE_MS,
       ease: spec.fn,
-      timing: running.timing,
       animations: [...animations, clock],
       settling: true,
       peek: peekAfter,
@@ -1267,11 +1182,6 @@ export function HomeCarousel({
       spec.css.startsWith("linear(") && !supportsLinearEasing()
         ? FALLBACK_EASING
         : spec.css;
-    const timing: TitleTiming = {
-      start: s.titleStart,
-      span: s.titleSpan,
-      outEnd: TITLE_OUT_END,
-    };
     const now = performance.now();
 
     // An interrupt plans from the cards as they are drawn this instant, so
@@ -1282,7 +1192,6 @@ export function HomeCarousel({
           now - running.t0,
           running.duration,
           running.ease,
-          running.timing,
         )
       : restEntities(g, n, prev);
     const withPush = drawn
@@ -1290,13 +1199,7 @@ export function HomeCarousel({
           const pose = drawn.get(e.item);
           if (pose === undefined || e.ghost) return e;
 
-          // The title it is drawn at, too: a click mid-glide interrupts a
-          // running fade, and the clock can be a frame behind the drawing.
           const el = elements.current.get(entityKey(e));
-          const title = el?.querySelector<HTMLElement>("[data-car-title]");
-          const opacity = title
-            ? Number.parseFloat(getComputedStyle(title).opacity)
-            : Number.NaN;
           // A card already blurred by the previous run (leaving past an end)
           // keeps its blur and ramps from there.
           const filterNow = el ? getComputedStyle(el).filter : "none";
@@ -1305,7 +1208,6 @@ export function HomeCarousel({
             ...e,
             from: pose,
             to: pose,
-            fromTitle: Number.isFinite(opacity) ? opacity : e.fromTitle,
             edgeBlurFrom:
               filterNow && filterNow !== "none" ? filterNow : undefined,
           };
@@ -1384,11 +1286,10 @@ export function HomeCarousel({
 
     const animations: Animation[] = [];
 
-    // One loop, one frame, no per-slot delay: every card's run below (and the
-    // titles') is created in this task, so the whole row shares one start time
-    // and one curve. The wide featured card still covers far more ground than
-    // the narrow slots in the same 900ms, so it reads louder early; that is
-    // travel, not sequencing.
+    // One loop, one frame, no per-slot delay: every card's run below is created
+    // in this task, so the whole row shares one start time and one curve. The
+    // wide featured card still covers far more ground than the narrow slots in
+    // the same 900ms, so it reads louder early; that is travel, not sequencing.
     for (const entity of planned) {
       const element = elements.current.get(entityKey(entity));
       if (!element) continue;
@@ -1397,7 +1298,6 @@ export function HomeCarousel({
         ...playEntity(element, entity, {
           duration: duration,
           easing,
-          timing,
           blur: {
             edgeBlur: s.edgeBlur,
             rowWidth: g.rowWidth,
@@ -1522,7 +1422,6 @@ export function HomeCarousel({
       t0: now,
       duration,
       ease,
-      timing,
       animations: [...animations, clock],
       peek: peekAfter,
     };

@@ -1,6 +1,6 @@
 import { blur } from "./edge-blur";
-import { crossesRight, titleKeys } from "./carousel-math";
-import type { Entity, Pose, TitleTiming } from "./carousel-math";
+import { crossesRight } from "./carousel-math";
+import type { Entity, Pose } from "./carousel-math";
 
 /**
  * Imperative styling for a carousel card (the `.car-slide` element).
@@ -21,17 +21,8 @@ import type { Entity, Pose, TitleTiming } from "./carousel-math";
  * card is moving to.
  */
 
-function titleOf(el: HTMLElement): HTMLElement | null {
-  return el.querySelector<HTMLElement>("[data-car-title]");
-}
-
-/** Puts a card at rest: slot box, no clip, the title for `wide`. */
-export function restStyle(
-  el: HTMLElement,
-  pose: Pose,
-  wide: number,
-  visible: boolean,
-) {
+/** Puts a card at rest: slot box, no clip. */
+export function restStyle(el: HTMLElement, pose: Pose, visible: boolean) {
   el.style.width = `${pose.w}px`;
   el.style.setProperty("--car-x", `${pose.x}px`);
   el.style.setProperty("--car-r", "0px");
@@ -42,9 +33,6 @@ export function restStyle(
   delete el.dataset.peekFade;
   el.style.removeProperty("--car-lf");
   el.style.visibility = visible ? "" : "hidden";
-
-  const title = titleOf(el);
-  if (title) title.style.opacity = String(wide);
 }
 
 /** How much of the box the crop removes on the right. */
@@ -60,20 +48,19 @@ export type PlayBlur = {
 type PlayOptions = {
   duration: number;
   easing: string;
-  timing: TitleTiming;
   blur: PlayBlur;
 };
 
 /**
  * Starts one entity's run. Everything on it (the card's transform and clip-path
- * and blur, the title) uses the same duration and curve and starts together, so
- * nothing drifts out of sync. Returns every animation so the caller can cancel
- * them as one.
+ * and blur) uses the same duration and curve and starts together, so nothing
+ * drifts out of sync. Returns every animation so the caller can cancel them as
+ * one.
  */
 export function playEntity(
   el: HTMLElement,
   e: Entity,
-  { duration, easing, timing, blur: b }: PlayOptions,
+  { duration, easing, blur: b }: PlayOptions,
 ): Animation[] {
   const box = Math.max(e.from.w, e.to.w);
   const timeline = { duration, easing, fill: "both" as const };
@@ -124,24 +111,6 @@ export function playEntity(
   }
 
   const animations: Animation[] = [el.animate(keyframes, timeline)];
-
-  const title = titleOf(el);
-
-  if (title) {
-    if (e.fromTitle === e.toTitle) {
-      title.style.opacity = String(e.toTitle);
-    } else {
-      animations.push(
-        title.animate(
-          titleKeys(e, timing).map((k) => ({
-            offset: k.offset,
-            opacity: k.opacity,
-          })),
-          timeline,
-        ),
-      );
-    }
-  }
 
   return animations;
 }

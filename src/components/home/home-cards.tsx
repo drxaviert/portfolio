@@ -1,21 +1,18 @@
 import Link from "next/link";
 import type { KeyboardEvent, MouseEvent } from "react";
-import { Cover } from "@/components/work/cover";
-import type { CoverImage } from "@/lib/media";
-import type { WorkMeta } from "@/lib/work";
 import { EMPTY_WORK_LABEL } from "./empty-work";
 import { EntranceCell } from "./entrance-cell";
 import type { EntranceVariant } from "./entrance-cell";
 import { RingLayers } from "./ring-hover";
-import "./home-cards.css";
 
 /**
  * The home page's cards, shared by / and /dev/prototype.
  *
  * The main band is 753 / 180 / 83 / 84 at 1440, 656 / 140 / 64 / 64 at 1024,
- * 444 / 120 / 52 / 52 at 768, with 12px gutters. Work slivers have no content
- * in Figma, so they are decorative stand-ins; the highlight card carries the
- * placeholder project title.
+ * 444 / 120 / 52 / 52 at 768, with 12px gutters. The cards are intentionally
+ * empty: each keeps its Figma box, surface, radius, shadow and ring, with its
+ * study's title carried as the link's accessible name. Work slivers have no
+ * content in Figma, so they are decorative stand-ins.
  */
 
 export const WORK_SLIVERS = [
@@ -34,11 +31,14 @@ export const WORK_SLIVERS = [
  * Optional interactive mode: when `onOpen` is absent the card is exactly the
  * shipped, non-interactive article.
  */
-function cardInteraction(onOpen: (element: HTMLElement) => void) {
+function cardInteraction(
+  onOpen: (element: HTMLElement) => void,
+  label: string,
+) {
   return {
     role: "button" as const,
     tabIndex: 0,
-    "aria-label": "Open case study",
+    "aria-label": label,
     style: { cursor: "pointer" },
     onClick: (event: MouseEvent<HTMLElement>) => onOpen(event.currentTarget),
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
@@ -50,13 +50,10 @@ function cardInteraction(onOpen: (element: HTMLElement) => void) {
 }
 
 type ProjectCardProps = {
+  /** The study the card opens; also its accessible name. */
   title?: string;
   /** With a slug the card links to the study and becomes the morph's source. */
   slug?: string;
-  /** The featured study's cover, drawn edge-to-edge behind the title. */
-  scene?: WorkMeta["cover"];
-  /** Set when the cover is a media id: the picture the server resolved. */
-  coverImage?: CoverImage;
   onOpen?: (element: HTMLElement) => void;
 };
 
@@ -64,45 +61,22 @@ type ProjectCardProps = {
 const CARD_CLASS =
   "ring-host ring-card flex h-[420px] flex-col justify-end rounded-lg p-5 md:h-auto md:p-8";
 
-/** Highlight card: the only card with a title. */
+/** The highlight card: an empty surface named after the study it opens. */
 export function ProjectCard({
   title = EMPTY_WORK_LABEL,
   slug,
-  scene,
-  coverImage,
   onOpen,
 }: ProjectCardProps = {}) {
-  const content = (
-    <>
-      <RingLayers fill="bg-surface-container-low" />
-      {scene ? (
-        <>
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 z-0 overflow-hidden"
-          >
-            <Cover scene={scene} coverImage={coverImage} fit="cover" />
-          </div>
-          {/* The shot's own colour comes back under the title, so the bars
-              recede instead of running through the text. */}
-          <span
-            aria-hidden="true"
-            className="card-fade pointer-events-none absolute inset-8 z-[1] rounded-md"
-          />
-        </>
-      ) : null}
-      <h1
-        dir="auto"
-        className="card-title ring-title relative z-10 text-balance text-title-sm font-semibold md:text-title"
-      >
-        {title}
-      </h1>
-    </>
-  );
+  const content = <RingLayers fill="bg-surface-container-low" />;
 
   if (slug) {
     return (
-      <Link href={`/work/${slug}`} data-work-card={slug} className={CARD_CLASS}>
+      <Link
+        href={`/work/${slug}`}
+        data-work-card={slug}
+        aria-label={title}
+        className={CARD_CLASS}
+      >
         {content}
       </Link>
     );
@@ -111,7 +85,7 @@ export function ProjectCard({
   return (
     <article
       className={CARD_CLASS}
-      {...(onOpen ? cardInteraction(onOpen) : {})}
+      {...(onOpen ? cardInteraction(onOpen, title) : {})}
     >
       {content}
     </article>

@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-import type { WorkMeta } from "@/lib/work";
 import { HorizonLive } from "@/components/horizon/horizon-live";
 import { EntranceCell } from "./entrance-cell";
 import type { EntranceVariant } from "./entrance-cell";
@@ -67,8 +66,6 @@ type HomeLayoutProps = {
   featured?: {
     slug: string;
     title: string;
-    cover: WorkMeta["cover"];
-    coverImage?: WorkMeta["coverImage"];
   };
   /**
    * The endless carousel items, front first. From md up they replace the
@@ -92,8 +89,6 @@ export function HomeLayout({
       ? {
           slug: lead.slug,
           title: lead.title,
-          cover: lead.cover,
-          coverImage: lead.coverImage,
         }
       : featured;
 
@@ -181,8 +176,6 @@ export function HomeLayout({
                   <ProjectCard
                     title={stacked?.title}
                     slug={stacked?.slug}
-                    scene={stacked?.cover}
-                    coverImage={stacked?.coverImage}
                   />
                 </EntranceCell>
                 <WorkSlivers entrance={entrance} />
@@ -198,8 +191,6 @@ export function HomeLayout({
                   <ProjectCard
                     title={featured?.title}
                     slug={featured?.slug}
-                    scene={featured?.cover}
-                    coverImage={featured?.coverImage}
                   />
                 )}
               </EntranceCell>

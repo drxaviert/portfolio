@@ -251,17 +251,12 @@ function nearestExit(g: Geometry, pose: Pose): Pose {
 /**
  * One drawn card. Every item has a main entity; an item that wraps also has a
  * ghost, the plain copy that enters at the far end while the main one leaves.
- * `wide` is 1 in slot 0 and 0 elsewhere; it drives the title and the covers.
  */
 export type Entity = {
   item: number;
   ghost: boolean;
   from: Pose;
   to: Pose;
-  fromWide: number;
-  toWide: number;
-  fromTitle: number;
-  toTitle: number;
   /** A card stepping in from the hover peek: the left fade it had. */
   peekFrom?: { fade: number };
   /** A card already blurred by the previous run: the filter it is drawn at. */
@@ -278,23 +273,18 @@ export function restEntities(g: Geometry, n: number, offset: number): Entity[] {
   return Array.from({ length: n }, (_, item) => {
     const slot = slotOf(item, offset, n);
     const pose = slotPose(g, slot);
-    const wide = slot === 0 ? 1 : 0;
 
     return {
       item,
       ghost: false,
       from: pose,
       to: pose,
-      fromWide: wide,
-      toWide: wide,
-      fromTitle: wide,
-      toTitle: wide,
     };
   });
 }
 
-function retargetTo(e: Entity, to: Pose, wide: number): Entity {
-  return { ...e, to, toWide: wide, toTitle: wide };
+function retargetTo(e: Entity, to: Pose): Entity {
+  return { ...e, to };
 }
 
 /**
@@ -360,20 +350,19 @@ export function retarget(
     const dest = mod(unwrapped, n);
     const wraps = unwrapped < 0 || unwrapped >= n;
     const destPose = slotPose(g, dest);
-    const wide = dest === 0 ? 1 : 0;
     const visible = dest < VISIBLE_SLOTS;
 
     if (ents.length >= 2) {
       const [a, b] = ents;
       if (!visible) {
-        out.push(retargetTo(a, nearestExit(g, a.from), 0));
-        out.push(retargetTo(b, nearestExit(g, b.from), 0));
+        out.push(retargetTo(a, nearestExit(g, a.from)));
+        out.push(retargetTo(b, nearestExit(g, b.from)));
       } else {
         const aLeads =
           Math.abs(a.from.x - destPose.x) <= Math.abs(b.from.x - destPose.x);
         const [lead, other] = aLeads ? [a, b] : [b, a];
-        out.push(retargetTo(lead, destPose, wide));
-        out.push(retargetTo(other, nearestExit(g, other.from), 0));
+        out.push(retargetTo(lead, destPose));
+        out.push(retargetTo(other, nearestExit(g, other.from)));
       }
       continue;
     }
@@ -381,7 +370,7 @@ export function retarget(
     const main = ents[0];
 
     if (!wraps) {
-      out.push(retargetTo(main, destPose, wide));
+      out.push(retargetTo(main, destPose));
       continue;
     }
 
@@ -391,11 +380,11 @@ export function retarget(
       // the left-edge treatment for the run (see playEntity), so its edge fades
       // and blurs as it goes.
       out.push({
-        ...retargetTo(main, { x: main.from.x - pushOut, w: main.from.w }, 0),
+        ...retargetTo(main, { x: main.from.x - pushOut, w: main.from.w }),
         edgeLeft: true,
       });
     } else {
-      out.push(retargetTo(main, exit, 0));
+      out.push(retargetTo(main, exit));
     }
 
     if (visible) {
@@ -405,10 +394,6 @@ export function retarget(
         ghost: true,
         from: { ...entry, x: entry.x + queued * (entry.w + g.gap) },
         to: destPose,
-        fromWide: 0,
-        toWide: wide,
-        fromTitle: 0,
-        toTitle: wide,
       });
     }
   }
@@ -477,80 +462,17 @@ export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
-/**
- * Title fades share the step's one timeline and curve, so they are expressed
- * in eased progress (0..1), not time: in once the card is mostly in the wide
- * slot, out almost at once.
- */
-export type TitleTiming = {
-  /** Progress at which the fade-in starts. */
-  start: number;
-  /** How much progress the fade-in takes. */
-  span: number;
-  /** Progress by which a leaving title is gone. */
-  outEnd: number;
-};
-
-/** Eased progress the title's keyframes sit at: [offset, opacity] pairs. */
-export function titleKeys(
-  e: Pick<Entity, "fromTitle" | "toTitle">,
-  t: TitleTiming,
-): { offset: number; opacity: number }[] {
-  if (e.toTitle > e.fromTitle) {
-    const start = clamp01(t.start);
-    const end = Math.min(start + Math.max(t.span, 0.01), 1);
-
-    return [
-      { offset: 0, opacity: e.fromTitle },
-      { offset: start, opacity: e.fromTitle },
-      { offset: end, opacity: e.toTitle },
-      { offset: 1, opacity: e.toTitle },
-    ];
-  }
-
-  return [
-    { offset: 0, opacity: e.fromTitle },
-    { offset: Math.max(t.outEnd, 0.01), opacity: e.toTitle },
-    { offset: 1, opacity: e.toTitle },
-  ];
-}
-
-export function titleAt(
-  e: Pick<Entity, "fromTitle" | "toTitle">,
-  progress: number,
-  timing: TitleTiming,
-): number {
-  if (e.fromTitle === e.toTitle) return e.toTitle;
-
-  const keys = titleKeys(e, timing);
-  for (let i = 1; i < keys.length; i++) {
-    if (progress <= keys[i].offset) {
-      const a = keys[i - 1];
-      const b = keys[i];
-      const span = b.offset - a.offset;
-      return span <= 0
-        ? b.opacity
-        : lerp(a.opacity, b.opacity, (progress - a.offset) / span);
-    }
-  }
-
-  return e.toTitle;
-}
-
 /** Every entity as it looks `elapsed` ms into a run of `duration`. */
 export function sampleEntities(
   entities: Entity[],
   elapsed: number,
   duration: number,
   ease: Ease,
-  timing: TitleTiming,
 ): Entity[] {
   const p = ease(clamp01(elapsed / duration));
 
   return entities.map((e) => ({
     ...e,
     from: { x: lerp(e.from.x, e.to.x, p), w: lerp(e.from.w, e.to.w, p) },
-    fromWide: lerp(e.fromWide, e.toWide, p),
-    fromTitle: titleAt(e, p, timing),
   }));
 }

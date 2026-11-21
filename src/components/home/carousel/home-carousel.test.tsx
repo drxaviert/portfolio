@@ -7,9 +7,9 @@ import { HomeCarousel } from "./home-carousel";
 import type { CarouselItem } from "./home-carousel";
 
 const ITEMS: CarouselItem[] = [
-  { kind: "work", slug: "systems-in-motion", title: "Systems", cover: "tiles" },
-  { kind: "work", slug: "title-sequence", title: "Titles", cover: "window" },
-  { kind: "work", slug: "type-in-motion", title: "Type", cover: "phone" },
+  { kind: "work", slug: "systems-in-motion", title: "Systems" },
+  { kind: "work", slug: "title-sequence", title: "Titles" },
+  { kind: "work", slug: "type-in-motion", title: "Type" },
   { kind: "placeholder", title: "More work soon" },
 ];
 
@@ -133,9 +133,8 @@ describe("HomeCarousel markup", () => {
     expect(cards).toHaveLength(1);
     expect(cards[0]).toHaveAttribute("data-work-card", "systems-in-motion");
     expect(cards[0]).toHaveAttribute("href", "/work/systems-in-motion");
-    expect(cards[0].querySelector("[data-work-card-title]")).toHaveTextContent(
-      "Systems",
-    );
+    // The card is empty, so its title is carried as the accessible name.
+    expect(cards[0]).toHaveAttribute("aria-label", "Systems");
   });
 
   it("marks every work card with its study for focus return", () => {
@@ -293,9 +292,8 @@ describe("the wrap seam", () => {
     expect(ghost).toHaveAttribute("aria-hidden", "true");
     expect(ghost).toHaveAttribute("inert");
     expect(ghost.querySelector("a, button, [data-work-card]")).toBeNull();
-    expect(ghost.querySelector("[data-car-title]")).toHaveTextContent(
-      "Systems",
-    );
+    expect(ghost.getAttribute("aria-label")).toContain("Systems");
+    expect(ghost.textContent).toBe("");
 
     finishStep();
 
@@ -408,7 +406,7 @@ describe("easing and one timeline", () => {
     expect(card.options.easing).toBe("cubic-bezier(0.25, 0.8, 0.25, 1)");
   });
 
-  it("runs card, clip, covers, title and the wrap copy on the same duration and curve", () => {
+  it("runs every card and the wrap copy on the same duration and curve", () => {
     const { container } = render(<HomeCarousel items={ITEMS} />);
 
     fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
@@ -416,12 +414,9 @@ describe("easing and one timeline", () => {
     const timeline = recorded.filter(
       (r) => !r.target.classList.contains("car-row"),
     );
-    const titles = timeline.filter((r) =>
-      r.target.hasAttribute("data-car-title"),
-    );
     const ghost = container.querySelector("[data-ghost]")!;
 
-    expect(titles.length).toBeGreaterThan(0);
+    expect(timeline.length).toBeGreaterThan(0);
     expect(
       timeline.some((r) => ghost.contains(r.target) || r.target === ghost),
     ).toBe(true);
@@ -449,20 +444,6 @@ describe("easing and one timeline", () => {
     expect(timings).toEqual(
       new Set(["900|cubic-bezier(0.25, 0.8, 0.25, 1)|0"]),
     );
-  });
-
-  it("holds a title back until the card is mostly wide", () => {
-    render(<HomeCarousel items={ITEMS} />);
-
-    fireEvent.keyDown(host("Systems"), { key: "ArrowRight" });
-
-    const arriving = recorded.find(
-      (r) =>
-        r.target.hasAttribute("data-car-title") &&
-        Array.isArray(r.keyframes) &&
-        r.keyframes.some((k) => k.offset === 0.75),
-    );
-    expect(arriving).toBeDefined();
   });
 
   it("the responsive preset sets both the duration and the curve, and the retarget curve stays", async () => {

@@ -1,52 +1,6 @@
 /*
- * The featured card's soft fade.
- *
- * The scene is drawn on --surface-dim, so the fade brings that same colour
- * back over the shot's bottom-left instead of introducing a new scrim colour.
- * Day fades to #d9d9d9, Night to black, and the title reads over either.
- *
- * Values are Dat's pick from the cover-title proto (variant 3), hardcoded:
- * intensity is the fade's max opacity, reach is the ellipse in shot
- * percentages, falloff is where it reaches nothing.
+ * The home page's cards are empty by request: each keeps only its surface,
+ * ring, Figma box and link. The featured card's cover fade and the card title's
+ * line clamp went with the content they styled, so this file intentionally has
+ * no rules left. It stays as the record of the removed treatment.
  */
-.card-fade {
-  --card-fade-intensity: 96%;
-  --card-fade-reach-x: 74%;
-  --card-fade-reach-y: 54%;
-  --card-fade-falloff: 80%;
-
-  background: radial-gradient(
-    var(--card-fade-reach-x) var(--card-fade-reach-y) at 0% 100%,
-    color-mix(
-        in oklab,
-        var(--surface-dim) var(--card-fade-intensity),
-        transparent
-      )
-      0%,
-    color-mix(
-        in oklab,
-        var(--surface-dim) calc(var(--card-fade-intensity) * 0.9),
-        transparent
-      )
-      calc(var(--card-fade-falloff) * 0.375),
-    color-mix(
-        in oklab,
-        var(--surface-dim) calc(var(--card-fade-intensity) * 0.5),
-        transparent
-      )
-      calc(var(--card-fade-falloff) * 0.6875),
-    transparent var(--card-fade-falloff)
-  );
-}
-
-/*
- * The card's title is a caption over its picture: three lines at most, the
- * same clamp the carousel uses, so a long title never covers the shot.
- */
-.card-title {
-  display: -webkit-box;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}

@@ -11,9 +11,9 @@ import { HomeCarousel } from "./home-carousel";
 import type { CarouselItem } from "./home-carousel";
 
 const ITEMS: CarouselItem[] = [
-  { kind: "work", slug: "systems-in-motion", title: "Systems", cover: "tiles" },
-  { kind: "work", slug: "title-sequence", title: "Titles", cover: "window" },
-  { kind: "work", slug: "type-in-motion", title: "Type", cover: "phone" },
+  { kind: "work", slug: "systems-in-motion", title: "Systems" },
+  { kind: "work", slug: "title-sequence", title: "Titles" },
+  { kind: "work", slug: "type-in-motion", title: "Type" },
   { kind: "placeholder", title: "More work soon" },
 ];
 
@@ -25,10 +25,10 @@ const SIX: CarouselItem[] = [
 
 /** Four work cards, so the peek's previous and right-most are both pictures. */
 const FOUR_WORKS: CarouselItem[] = [
-  { kind: "work", slug: "systems-in-motion", title: "Systems", cover: "tiles" },
-  { kind: "work", slug: "title-sequence", title: "Titles", cover: "window" },
-  { kind: "work", slug: "type-in-motion", title: "Type", cover: "phone" },
-  { kind: "work", slug: "fourth", title: "Fourth", cover: "tiles" },
+  { kind: "work", slug: "systems-in-motion", title: "Systems" },
+  { kind: "work", slug: "title-sequence", title: "Titles" },
+  { kind: "work", slug: "type-in-motion", title: "Type" },
+  { kind: "work", slug: "fourth", title: "Fourth" },
 ];
 
 const ROW = { left: 100, top: 50, width: 1136, height: 416 };
@@ -90,7 +90,7 @@ beforeEach(() => {
     if (this.classList.contains("car-row"))
       return rect(ROW.left, ROW.top, ROW.width, ROW.height);
 
-    if (this.matches("[data-work-card], [data-work-card-title]")) {
+    if (this.matches("[data-work-card]")) {
       // Where the card is drawn: the row's left plus its --car-x.
       const slide = this.closest<HTMLElement>(".car-slide");
       const x = Number.parseFloat(
@@ -476,11 +476,15 @@ describe("left hover peek", () => {
 
   it("shows order[(first - 1 + n) % n]: the last item for four, the one before for six", () => {
     const four = render(<HomeCarousel items={ITEMS} />);
-    expect(prevCard(four.container)!.textContent).toContain("More work soon");
+    expect(prevCard(four.container)!.getAttribute("aria-label")).toContain(
+      "More work soon",
+    );
     four.unmount();
 
     const six = render(<HomeCarousel items={SIX} />);
-    expect(prevCard(six.container)!.textContent).toContain("Six");
+    expect(prevCard(six.container)!.getAttribute("aria-label")).toContain(
+      "Six",
+    );
   });
 
   it("steps back one from the shifted pose when the previous card is clicked, and lands peeked", () => {
@@ -572,7 +576,7 @@ describe("left hover peek", () => {
     // It was already there: nothing started after the glide.
     expect(recorded).toHaveLength(afterStep);
     expect(row(container)).toHaveAttribute("data-peeking");
-    expect(prevCard(container)!.textContent).toContain("Type");
+    expect(prevCard(container)!.getAttribute("aria-label")).toContain("Type");
     expect(prevCard(container)!.style.getPropertyValue("--car-lf")).toBe("0.5");
     // cards[] are the elements captured before the step: item 0 is slot 1 now.
     const endX = [OPEN_X[1], OPEN_X[2], OPEN_X[3], OPEN_X[0]];
@@ -694,7 +698,7 @@ describe("left hover peek", () => {
     // The copy is the new previous item (item 0, "Systems") and arrives on the
     // same glide.
     const copy = prevCard(container)!;
-    expect(copy.textContent).toContain("Systems");
+    expect(copy.getAttribute("aria-label")).toContain("Systems");
     const copyRun = slides(copy).at(-1)!;
     expect(copyRun.keyframes["--car-x"]).toEqual(["-96px", "0px"]);
     expect(copyRun.options.duration).toBe(350);
@@ -757,7 +761,9 @@ describe("left hover peek", () => {
 
     // It lands in the peeking arrangement for offset 1, then nothing runs.
     expect(row(container)).toHaveAttribute("data-peeking");
-    expect(prevCard(container)!.textContent).toContain("Systems");
+    expect(prevCard(container)!.getAttribute("aria-label")).toContain(
+      "Systems",
+    );
     const after = recorded.length;
     act(() => vi.advanceTimersByTime(1000));
     expect(recorded).toHaveLength(after);
@@ -884,9 +890,7 @@ describe("left hover peek", () => {
       ".car-slide[data-edge-left]",
     )!;
     expect(leaving).toBeTruthy();
-    expect(leaving.querySelector("[data-car-title]")?.textContent).toBe(
-      "Systems",
-    );
+    expect(leaving.getAttribute("aria-label")).toContain("Systems");
     // A push, not a shrink: it keeps its box and leaves past the left edge.
     const move = slides(leaving).at(-1)!;
     expect(move.keyframes["--car-x"]).toEqual(["0px", "-765px"]);

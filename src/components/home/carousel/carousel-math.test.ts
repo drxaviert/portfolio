@@ -14,7 +14,6 @@ import {
   keyStep,
   linearEasing,
   parseBezier,
-  titleKeys,
   offRight,
   restEntities,
   retarget,
@@ -26,7 +25,7 @@ import {
   stepMode,
   visibleItems,
 } from "./carousel-math";
-import type { Entity, Geometry, TitleTiming } from "./carousel-math";
+import type { Entity, Geometry } from "./carousel-math";
 
 const G: Geometry = {
   slots: [
@@ -38,7 +37,6 @@ const G: Geometry = {
   rowWidth: 1136,
   gap: GAP,
 };
-const TIMING: TitleTiming = { start: 0.75, span: 0.2, outEnd: 0.12 };
 const SMOOTH = easeSpec("smooth", [0.5, 0, 0.1, 1]);
 const EXPO = easeSpec("expo-out", [0.5, 0, 0.1, 1]);
 
@@ -239,7 +237,7 @@ describe("wrap seam", () => {
 describe("interrupt", () => {
   it("retargets from the current pose with one entity per item", () => {
     const first = retarget(G, 4, 0, 1, restEntities(G, 4, 0));
-    const midway = sampleEntities(first, 150, 1000, SMOOTH.fn, TIMING);
+    const midway = sampleEntities(first, 150, 1000, SMOOTH.fn);
     const second = retarget(G, 4, 1, 1, midway);
 
     // No pile-up: still one main per item, plus at most one copy per item.
@@ -261,7 +259,7 @@ describe("interrupt", () => {
 
   it("lands every item on its slot after two quick steps", () => {
     const first = retarget(G, 4, 0, 1, restEntities(G, 4, 0));
-    const midway = sampleEntities(first, 100, 1000, SMOOTH.fn, TIMING);
+    const midway = sampleEntities(first, 100, 1000, SMOOTH.fn);
     const second: Entity[] = retarget(G, 4, 1, 1, midway);
     const offset = advance(advance(0, 1, 4), 1, 4);
 
@@ -270,33 +268,6 @@ describe("interrupt", () => {
       const ends = second.filter((e) => e.item === item).map((e) => e.to);
       expect(ends).toContainEqual(G.slots[slot]);
     }
-  });
-});
-
-describe("title timing", () => {
-  it("rides the step's own progress: in late, out early", () => {
-    const entering = titleKeys({ fromTitle: 0, toTitle: 1 }, TIMING);
-    expect(entering[1]).toEqual({ offset: 0.75, opacity: 0 });
-    expect(entering[2]).toEqual({ offset: 0.95, opacity: 1 });
-
-    const leaving = titleKeys({ fromTitle: 1, toTitle: 0 }, TIMING);
-    expect(leaving[1]).toEqual({ offset: 0.12, opacity: 0 });
-  });
-
-  it("is still hidden while the card is mostly narrow", () => {
-    const run = (p: number, entity: { fromTitle: number; toTitle: number }) =>
-      sampleEntities(
-        [{ ...restEntities(G, 4, 0)[0], ...entity }],
-        p * 1000,
-        1000,
-        (t) => t,
-        TIMING,
-      )[0].fromTitle;
-
-    expect(run(0.5, { fromTitle: 0, toTitle: 1 })).toBe(0);
-    expect(run(0.85, { fromTitle: 0, toTitle: 1 })).toBeCloseTo(0.5, 5);
-    expect(run(0.06, { fromTitle: 1, toTitle: 0 })).toBeCloseTo(0.5, 5);
-    expect(run(0.3, { fromTitle: 1, toTitle: 0 })).toBe(0);
   });
 });
 
