@@ -159,9 +159,9 @@ The index lives in the drawer panel, under the same nav, in the reader's own col
 | Count | `--text-sm`, `--on-surface-variant` | `work-index.css:96-100` | `--text-sm` |
 | Layout switch | two-segment icon radiogroup, the theme toggle's `SegmentTrack` / `Segment`, 40px finger target | `src/components/work/layout-toggle.tsx` | none |
 | Grid | `1 / 2 / 3` columns at `<640` / `640` / `1024`, `16px` gap | `work-index.css:123-142` | none |
-| Grid card | `ring-host` link, `--radius-lg`, `bg-surface-container` ring fill, cover `4 / 3` with `--radius-lg` top corners, meta padding `14px 16px 18px`, title `--text-lg` / 500, sub `--text-sm` | `work-index.css:144-183`; `src/components/work/work-grid.tsx` | `--radius-lg`, `--surface-container(-high)`, `--text-lg` |
+| Grid card | `ring-host` link, `--radius-lg`, `bg-surface-container` ring fill, cover `4 / 3` with `--radius-lg` top corners, meta padding `12px 16px 20px`, title `--text-lg` / 500, sub `--text-sm` | `work-index.css:144-183`; `src/components/work/work-grid.tsx` | `--radius-lg`, `--surface-container(-high)`, `--text-lg` |
 | Grid hover | cover scene `scale(1.02)`, `--duration-long-2` `--ease-spring-follow`, fine pointer and no reduced motion only | `work-index.css:185-194` | `--duration-long-2`, `--ease-spring-follow` |
-| List row | grid `4.5rem / 1fr / auto` (`md`+ `5rem / 1fr / 10rem`), `18px 16px` padding, `--radius-lg`; hover fill `--surface-container` over 180ms | `work-index.css:205-262`, `:296-308`; `src/components/work/work-index-list.tsx` | `--duration-short-6`, `--ease-decelerate` |
+| List row | grid `4.5rem / 1fr / auto` (`md`+ `5rem / 1fr / 10rem`), `16px 16px` padding, `--radius-lg`; hover fill `--surface-container` over 180ms (fine pointers only); `:focus-visible` fill on every pointer type | `work-index.css:205-262`, `:296-308`; `src/components/work/work-index-list.tsx` | `--duration-short-6`, `--ease-decelerate` |
 | List preview | from `1024`: `180px` wide, `16 / 10`, `--radius-md`, `--shadow-card`, fades and scales `0.98 → 1` on hover / focus-visible; the row's `212px` right padding reserves its slot | `work-index.css:265-325` | `--radius-md`, `--shadow-card` |
 | Forced colours | grid card and preview get a `1px CanvasText` border | `work-index.css:327-336` | none |
 

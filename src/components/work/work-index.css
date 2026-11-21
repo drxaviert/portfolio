@@ -165,7 +165,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 14px 16px 18px;
+  padding: 12px 16px 20px;
 }
 
 .wd-grid-title {
@@ -208,7 +208,7 @@
   grid-template-columns: 4.5rem minmax(0, 1fr) auto;
   gap: 16px;
   align-items: baseline;
-  padding: 18px 16px;
+  padding: 16px 16px;
   border-radius: var(--radius-lg);
   color: inherit;
   text-decoration: none;
@@ -298,8 +298,7 @@
     transition: background-color var(--duration-short-6) var(--ease-decelerate);
   }
 
-  .wd-index-row:hover,
-  .wd-index-row:focus-visible {
+  .wd-index-row:hover {
     background: var(--surface-container);
   }
 
@@ -314,6 +313,11 @@
     opacity: 1;
     transform: translateY(-50%) scale(1);
   }
+}
+
+/* Keyboard focus must not depend on pointer type. */
+.wd-index-row:focus-visible {
+  background: var(--surface-container);
 }
 
 @media (prefers-reduced-motion: reduce) {
