@@ -444,3 +444,15 @@
   .horizon-motion-layer {
   animation: none !important;
 }
+
+/*
+ * One entrance per document. The first shipped HomeScreen claims the entrance
+ * (entrance-replay-guard.tsx); a later copy — the work layout's HomeScreen
+ * under the drawer — marks itself before paint, so its veil and cards mount at
+ * rest instead of replaying the 1400ms Soft focus behind the drawer. The first
+ * copy's animations, and the shared horizon's softness, are not touched.
+ */
+[data-entrance-replay="later"] .entrance-body,
+[data-entrance-replay="later"] .entrance-soft {
+  animation: none !important;
+}

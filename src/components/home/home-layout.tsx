@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { HorizonLive } from "@/components/horizon/horizon-live";
 import { EntranceCell } from "./entrance-cell";
 import type { EntranceVariant } from "./entrance-cell";
+import { EntranceReplayGuard } from "./entrance-replay-guard";
 import { HomeEntrancePlayed } from "./home-entrance";
 import { EntranceGrain } from "./entrance-grain";
 import { HomeCarousel } from "./carousel/home-carousel";
@@ -108,6 +109,7 @@ export function HomeLayout({
       }`}
     >
       {horizon ? <HorizonLive /> : null}
+      {shipped && entrance === "soft" ? <EntranceReplayGuard /> : null}
       {/* Prototype hook: the grain sits above the glow and under the cards,
           so it can only live between the two. Absent on `/`. */}
       {entrance === "grain" ? <EntranceGrain /> : null}
