@@ -225,8 +225,9 @@ arbitrary variants above.
 
 Below `768px` the root layout paints one full-screen dialog instead of the pages while the mobile
 layouts are being built; `/dev/*` is the only exclusion. It reuses the boundary screens' column
-(`MessageColumn`), centered with an auto margin (not `justify-content`, which clips tall content) and
-center-aligned text. A wide load never mounts its horizon.
+(`MessageColumn`); the gate's block is centered as a whole with an auto margin (not
+`justify-content`, which clips tall content), with its text left-aligned. A wide load never mounts
+its horizon.
 
 | Item | Value | Source |
 | --- | --- | --- |

@@ -24,11 +24,13 @@ export function MessageColumn({
   centered?: boolean;
   children: ReactNode;
 }) {
+  const column =
+    "relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-12 xl:py-[60px]";
+  const block = "w-full max-w-[34rem]";
+
   return (
-    <div className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-12 xl:py-[60px]">
-      <div
-        className={`m-auto w-full max-w-[34rem]${centered ? " text-center" : ""}`}
-      >
+    <div className={centered ? column : `${column} justify-center`}>
+      <div className={centered ? `${block} m-auto text-left` : block}>
         <p className="text-xs font-medium tracking-[0.08em] text-on-surface-variant uppercase">
           {kicker}
         </p>
