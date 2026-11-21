@@ -43,6 +43,7 @@ export function HomeScreen() {
       <HomeLayout
         entrance="soft"
         shipped
+        horizon={false}
         items={items}
         featured={
           featured

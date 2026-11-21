@@ -74,6 +74,12 @@ type HomeLayoutProps = {
   items?: CarouselItem[];
   entrance?: EntranceVariant;
   shipped?: boolean;
+  /**
+   * Draw the horizon inside this layout. The shipped routes pass false: the
+   * root layout's SharedHorizon owns the one canvas above both routes. Dev
+   * prototypes keep their own.
+   */
+  horizon?: boolean;
 };
 
 export function HomeLayout({
@@ -82,6 +88,7 @@ export function HomeLayout({
   items,
   entrance,
   shipped = false,
+  horizon = true,
 }: HomeLayoutProps = {}) {
   const lead = items?.[0];
   const stacked =
@@ -96,9 +103,11 @@ export function HomeLayout({
     <main
       data-entrance={entrance}
       data-entrance-shipped={shipped ? "" : undefined}
-      className="relative flex min-h-dvh flex-col overflow-hidden bg-surface text-on-surface"
+      className={`relative flex min-h-dvh flex-col overflow-hidden text-on-surface ${
+        horizon ? "bg-surface" : "bg-transparent"
+      }`}
     >
-      <HorizonLive />
+      {horizon ? <HorizonLive /> : null}
       {/* Prototype hook: the grain sits above the glow and under the cards,
           so it can only live between the two. Absent on `/`. */}
       {entrance === "grain" ? <EntranceGrain /> : null}
