@@ -5,7 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { HomeNav } from "./home-nav";
 
+const mocks = vi.hoisted(() => ({ pathname: "/" }));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mocks.pathname,
+}));
+
 beforeEach(() => {
+  mocks.pathname = "/";
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -104,6 +111,32 @@ describe("HomeNav", () => {
     expect(css).toMatch(/\.nav-logo::before \{[^}]*inset: -4px;/);
     expect(css).not.toMatch(/@media \(pointer: coarse\)/);
     expect(screen.getByRole("link", { name: "Home" })).toHaveClass("nav-logo");
+  });
+
+  it("marks Work current only on the work route", () => {
+    const home = renderNav();
+    const work = () => screen.getByRole("link", { name: "Work" });
+
+    // On the homepage the item must not wear the selected capsule; the `aria`
+    // state and the resting fill both belong to /work.
+    expect(work()).not.toHaveAttribute("aria-current");
+    expect(work()).not.toHaveClass("bg-surface-container");
+    home.unmount();
+
+    mocks.pathname = "/work";
+    renderNav();
+    expect(work()).toHaveAttribute("aria-current", "page");
+    expect(work()).toHaveClass("bg-surface-container");
+  });
+
+  it("keeps Work current inside a study of the work route", () => {
+    mocks.pathname = "/work/systems-in-motion";
+    renderNav();
+
+    expect(screen.getByRole("link", { name: "Work" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
   it("warms the tooltip group only after the first label has opened", () => {
