@@ -165,94 +165,24 @@
   cursor: none;
 }
 
-/* ---------- Left-docked thumbnail (?thumb=left) ---------- */
+/* ---------- Left modes (?thumb=left-*) ---------- */
 
 /*
- * The prototype's second variant, translated from joycenho.com/work: the media
- * docks in a sticky left column with the list to its right, the image top
- * aligned under the nav, and nothing shown until a row is current. The 480x360
- * box is the shipped cursor thumb's own resting size, so both variants show the
- * same picture at the same scale and nothing scales or shifts on hover.
- *
- * The layout keys on `html[data-work-thumb="left"]`, which `WorkList` only
- * allows to be written when the fixed 480 box leaves the rows a readable column
- * and the pointer can hover (the DOCK_QUERY in work-list.tsx). It lives on the
- * document rather than the list because `/work` is a static shell: the page's
- * own script sets it from the query before the list is parsed, so a hard load of
- * `?thumb=left` paints the docked layout once instead of shifting after
- * hydration. Below that width, and on touch, the marker is never set and the
- * list keeps the shipped behaviour. The column widens to 1280 only here: the
- * 1120 reading width cannot hold 480 + a comfortable list.
+ * The three prototype modes keep the list exactly as it ships — same width,
+ * same position — and overlay the same 480x360 thumb, with X locked to the
+ * list's left edge in work-list.tsx. Only Y differs, so there is no layout work
+ * here: the fixed mode's row-to-row swap is a touch shorter than the shipped
+ * 200ms fade.
  */
-.wd-work-dock {
-  display: none;
-}
-
-html[data-work-thumb="left"] .wd-work-column {
-  max-width: 1280px;
-}
-
-html[data-work-thumb="left"] .wd-work-group {
-  display: grid;
-  grid-template-columns: 480px minmax(0, 1fr);
-  column-gap: 48px;
-  align-items: start;
-}
-
-html[data-work-thumb="left"] .wd-work-list-column {
-  grid-column: 2;
-  grid-row: 1;
-  min-width: 0;
-}
-
-html[data-work-thumb="left"] .wd-work-dock {
-  display: block;
-  position: sticky;
-  top: calc(
-    var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
-  );
-  grid-column: 1;
-  grid-row: 1;
-  width: 480px;
-  height: 360px;
-  pointer-events: none;
-}
-
-/*
- * The frame owns the radius, shadow and fade, so the idle state paints nothing
- * (no placeholder box) and the first image cannot outrun its own shadow. The
- * two image layers inside are the cursor thumb's own crossfade slots, retimed
- * below into the prototype's 150–200ms band; opacity transitions retarget, so
- * scrubbing the rows never queues a swap.
- */
-.wd-work-dock-in {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  opacity: 0;
-  transition: opacity var(--duration-short-3) var(--ease-decelerate);
-}
-
-.wd-work-dock[data-work-active] .wd-work-dock-in {
-  opacity: 1;
-}
-
-/* Inside the prototype's 150–200ms band; the fling cut matches the cursor
-   thumb's 120ms. */
-.wd-work-dock .wd-work-thumb-img {
+.wd-work-thumb-clip[data-work-variant="left-fixed"] .wd-work-thumb-img {
   transition-duration: var(--duration-short-6);
 }
 
-.wd-work-dock[data-work-fast] .wd-work-thumb-img {
-  transition-duration: var(--duration-short-2);
-}
-
-/* A swap under reduced motion is instant: no fade, no motion at all. */
+/* Reduced motion has no glide and no crossfade in the left modes: the thumb is
+   placed and its media swapped on the same frame. The shared enter/exit fade
+   keeps its reduced 120ms, as the shipped thumb does. */
 @media (prefers-reduced-motion: reduce) {
-  .wd-work-dock-in,
-  .wd-work-dock .wd-work-thumb-img {
+  .wd-work-thumb-clip[data-work-variant^="left"] .wd-work-thumb-img {
     transition: none;
   }
 }
@@ -452,8 +382,7 @@ html[data-work-thumb="left"] .wd-work-dock {
 /* ---------- Forced colours ---------- */
 
 @media (forced-colors: active) {
-  .wd-work-thumb-in,
-  .wd-work-dock-in {
+  .wd-work-thumb-in {
     border: 1px solid CanvasText;
   }
 }

@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { Activity } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { listWork } from "@/lib/work";
@@ -7,10 +7,12 @@ import { WorkList } from "./work-list";
 import { INDEX_SCROLL_ID, INDEX_TITLE_ID } from "./work-index-ids";
 
 const works = listWork();
-const DOCK_QUERY = "(min-width: 1200px) and (hover: hover) and (pointer: fine)";
+const LEFT_QUERY = "(min-width: 1200px) and (hover: hover) and (pointer: fine)";
 
-/** Whether the viewport is wide enough for the docked variant in this test. */
-let dockFits = true;
+/** Whether the viewport is wide enough for the left modes in this test. */
+let leftFits = true;
+/** Whether the system asks for reduced motion in this test. */
+let reduceMotion = false;
 
 function renderList() {
   return render(
@@ -18,6 +20,70 @@ function renderList() {
       <WorkList works={works} />
     </ThemeProvider>,
   );
+}
+
+/**
+ * jsdom has no layout, so the placement code's rects are stubbed: a 1440x900
+ * viewport, a list column at x 132 spanning y 160-560, and three 100px rows.
+ * Nav dock absent, so the visible top is scroll top 16 + 92 + 12 = 120.
+ */
+function mockListGeometry() {
+  const rect = (left: number, top: number, width: number, height: number) =>
+    ({
+      left,
+      top,
+      width,
+      height,
+      right: left + width,
+      bottom: top + height,
+      x: left,
+      y: top,
+      toJSON: () => ({}),
+    }) as DOMRect;
+
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+    function (this: Element) {
+      const element = this as HTMLElement;
+
+      if (element.classList.contains("wd-work-thumb-clip")) {
+        return rect(0, 0, 1440, 900);
+      }
+
+      if (element.id === INDEX_SCROLL_ID) return rect(100, 16, 1140, 884);
+
+      if (element.classList.contains("wd-work-list-column")) {
+        return rect(132, 160, 976, 400);
+      }
+
+      if (element.classList.contains("wd-work-row-item")) {
+        const index = Number(element.dataset.workIndex);
+
+        return rect(132, 160 + index * 100, 976, 100);
+      }
+
+      return rect(0, 0, 0, 0);
+    },
+  );
+}
+
+/** The one thumb layer's last written position, or null before it is placed. */
+function thumbXY(): { x: number; y: number } | null {
+  const thumb = document.body.querySelector<HTMLElement>(".wd-work-thumb");
+  const match = /translate3d\((-?[\d.]+)px, (-?[\d.]+)px, 0px\)/.exec(
+    thumb?.style.transform ?? "",
+  );
+
+  return match ? { x: Number(match[1]), y: Number(match[2]) } : null;
+}
+
+function hoverRow(container: HTMLElement, index: number, clientY = 500) {
+  const row =
+    container.querySelectorAll<HTMLElement>(".wd-work-row-item")[index];
+
+  fireEvent.pointerMove(row.querySelector<HTMLElement>(".wd-work-row")!, {
+    clientX: 700,
+    clientY,
+  });
 }
 
 /**
@@ -36,16 +102,16 @@ function CachedList({ visible }: { visible: boolean }) {
 }
 
 beforeEach(() => {
-  dockFits = true;
+  leftFits = true;
+  reduceMotion = false;
   window.history.replaceState({}, "", "/work");
-  document.documentElement.removeAttribute("data-work-thumb");
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
-      // The list only reacts to a fine pointer; reduced motion stays off.
       matches:
         query === "(hover: hover) and (pointer: fine)" ||
-        (dockFits && query === DOCK_QUERY),
+        (leftFits && query === LEFT_QUERY) ||
+        (reduceMotion && query === "(prefers-reduced-motion: reduce)"),
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -59,6 +125,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("work list", () => {
@@ -114,93 +181,140 @@ describe("work list", () => {
 
   it("keeps the shipped cursor thumbnail with no ?thumb param", () => {
     const { container } = renderList();
+    const clip = document.body.querySelector<HTMLElement>(
+      ".wd-work-thumb-clip",
+    );
 
     expect(container.querySelector(".wd-work-column")).toHaveAttribute(
       "data-thumb",
       "cursor",
     );
-    expect(container.querySelector(".wd-work-dock")).toBeNull();
-    expect(document.body.querySelector(".wd-work-thumb-clip")).not.toBeNull();
-    expect(document.documentElement).not.toHaveAttribute("data-work-thumb");
+    expect(clip).not.toBeNull();
+    expect(clip).toHaveAttribute("data-work-variant", "cursor");
   });
 
-  it("docks the thumbnail on the left for ?thumb=left, cursor visible", () => {
-    window.history.replaceState({}, "", "/work?thumb=left");
+  it("overlays every left mode on the unchanged list, cursor visible", async () => {
+    for (const mode of ["left-follow", "left-snap", "left-fixed"] as const) {
+      window.history.replaceState({}, "", `/work?thumb=${mode}`);
+
+      const { container, unmount } = renderList();
+      const group = container.querySelector<HTMLElement>(".wd-work-group")!;
+      const clip = document.body.querySelector<HTMLElement>(
+        ".wd-work-thumb-clip",
+      )!;
+
+      mockListGeometry();
+
+      // No dock, no extra column: the group is still just the list.
+      expect(container.querySelector(".wd-work-dock")).toBeNull();
+      expect(group.children).toHaveLength(1);
+      expect(container.querySelector(".wd-work-column")).toHaveAttribute(
+        "data-thumb",
+        mode,
+      );
+      expect(clip).toHaveAttribute("data-work-variant", mode);
+
+      hoverRow(container, 1);
+
+      // X is the list's left edge, so the cursor stays visible.
+      await waitFor(() => expect(thumbXY()?.x).toBe(132));
+      expect(group).not.toHaveAttribute("data-work-pointer");
+      expect(group).toHaveAttribute("data-work-dim");
+      expect(clip).toHaveAttribute("data-work-active");
+
+      unmount();
+    }
+  });
+
+  it("left-follow centres Y on the cursor, X on the list edge", async () => {
+    window.history.replaceState({}, "", "/work?thumb=left-follow");
 
     const { container } = renderList();
-    const group = container.querySelector<HTMLElement>(".wd-work-group")!;
-    const list = container.querySelector<HTMLElement>(".wd-work-list-column")!;
-    const dock = container.querySelector<HTMLElement>(".wd-work-dock")!;
-    const first = container.querySelector<HTMLElement>(".wd-work-row-item")!;
 
-    expect(container.querySelector(".wd-work-column")).toHaveAttribute(
-      "data-thumb",
-      "left",
-    );
-    expect(dock).not.toBeNull();
-    // The document marker drives the docked layout CSS (set pre-paint by a
-    // hard load); the docked panel replaces the cursor-follow layer, and the
-    // cursor stays visible.
-    expect(document.documentElement).toHaveAttribute("data-work-thumb", "left");
-    expect(document.body.querySelector(".wd-work-thumb-clip")).toBeNull();
-    expect(dock).not.toHaveAttribute("data-work-active");
+    mockListGeometry();
+    hoverRow(container, 0, 500);
 
-    fireEvent.pointerMove(first.querySelector<HTMLElement>(".wd-work-row")!, {
-      clientX: 100,
-      clientY: 100,
+    await waitFor(() => expect(thumbXY()).toEqual({ x: 132, y: 320 }));
+
+    // Moving inside the row moves Y with the cursor, not to the row's centre.
+    hoverRow(container, 0, 300);
+    await waitFor(() => expect(thumbXY()?.y).toBe(120));
+  });
+
+  it("left-snap centres Y on the row and glides to the next one", async () => {
+    window.history.replaceState({}, "", "/work?thumb=left-snap");
+
+    const { container } = renderList();
+
+    mockListGeometry();
+    hoverRow(container, 0);
+
+    // First row: centre 210 minus half the 360 box, clamped to the visible top.
+    await waitFor(() => expect(thumbXY()).toEqual({ x: 132, y: 120 }));
+
+    hoverRow(container, 2);
+
+    // The glide starts from the old Y and is still in flight a frame later.
+    await waitFor(() => {
+      const y = thumbXY()?.y ?? 0;
+
+      expect(y).toBeGreaterThan(120);
+      expect(y).toBeLessThan(230);
     });
+    await waitFor(() => expect(thumbXY()).toEqual({ x: 132, y: 230 }));
+  });
 
-    expect(first).toHaveAttribute("data-work-current");
-    expect(group).toHaveAttribute("data-work-dim");
-    expect(group).not.toHaveAttribute("data-work-pointer");
-    expect(dock).toHaveAttribute("data-work-active");
+  it("left-fixed holds one Y, centred on the list block, for every row", async () => {
+    window.history.replaceState({}, "", "/work?thumb=left-fixed");
 
-    // One front slot, holding the hovered row's cover.
-    const fronts = dock.querySelectorAll(".wd-work-thumb-img[data-front]");
-    expect(fronts).toHaveLength(1);
-    expect(fronts[0]?.firstElementChild).not.toBeNull();
+    const { container } = renderList();
 
-    // Moving to the second row swaps the front slot through the other layer.
-    const second =
-      container.querySelectorAll<HTMLElement>(".wd-work-row-item")[1];
-    const frontBefore = [
-      ...dock.querySelectorAll(".wd-work-thumb-img"),
-    ].indexOf(fronts[0]);
+    mockListGeometry();
+    hoverRow(container, 0, 200);
 
-    fireEvent.pointerMove(second.querySelector<HTMLElement>(".wd-work-row")!, {
-      clientX: 120,
-      clientY: 180,
+    // List block 160-560, centred: 160 + 200 - 180 = 180.
+    await waitFor(() => expect(thumbXY()).toEqual({ x: 132, y: 180 }));
+
+    hoverRow(container, 2, 800);
+    await waitFor(() => expect(thumbXY()).toEqual({ x: 132, y: 180 }));
+  });
+
+  it("left-snap jumps with no glide under reduced motion", async () => {
+    reduceMotion = true;
+    window.history.replaceState({}, "", "/work?thumb=left-snap");
+
+    const { container } = renderList();
+
+    mockListGeometry();
+    hoverRow(container, 0);
+    await waitFor(() => expect(thumbXY()).toEqual({ x: 132, y: 120 }));
+
+    hoverRow(container, 2);
+
+    // One frame later it is already on the new row, not part-way there.
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
     });
-
-    const frontAfter = [
-      ...dock.querySelectorAll(".wd-work-thumb-img[data-front]"),
-    ][0];
-    expect(
-      [...dock.querySelectorAll(".wd-work-thumb-img")].indexOf(frontAfter),
-    ).not.toBe(frontBefore);
-    expect(second).toHaveAttribute("data-work-current");
-
-    fireEvent.pointerLeave(list);
-
-    expect(dock).not.toHaveAttribute("data-work-active");
-    expect(group).not.toHaveAttribute("data-work-dim");
+    expect(thumbXY()).toEqual({ x: 132, y: 230 });
   });
 
   it("drops a stale hover when a cached view is revealed again", () => {
-    window.history.replaceState({}, "", "/work?thumb=left");
+    window.history.replaceState({}, "", "/work?thumb=left-snap");
 
     const view = render(<CachedList visible />);
     const group = view.container.querySelector<HTMLElement>(".wd-work-group")!;
-    const dock = view.container.querySelector<HTMLElement>(".wd-work-dock")!;
+    const clip = document.body.querySelector<HTMLElement>(
+      ".wd-work-thumb-clip",
+    )!;
     const first =
       view.container.querySelector<HTMLElement>(".wd-work-row-item")!;
 
     fireEvent.pointerMove(first.querySelector<HTMLElement>(".wd-work-row")!, {
-      clientX: 100,
-      clientY: 100,
+      clientX: 700,
+      clientY: 500,
     });
 
-    expect(dock).toHaveAttribute("data-work-active");
+    expect(clip).toHaveAttribute("data-work-active");
     expect(group).toHaveAttribute("data-work-dim");
 
     // The route is hidden while a study shows, then revealed: no pointer event
@@ -208,24 +322,35 @@ describe("work list", () => {
     view.rerender(<CachedList visible={false} />);
     view.rerender(<CachedList visible />);
 
-    expect(dock).not.toHaveAttribute("data-work-active");
+    expect(clip).not.toHaveAttribute("data-work-active");
     expect(group).not.toHaveAttribute("data-work-dim");
     expect(first).not.toHaveAttribute("data-work-current");
   });
 
-  it("falls back to the shipped cursor thumb where the dock does not fit", () => {
-    dockFits = false;
-    window.history.replaceState({}, "", "/work?thumb=left");
+  it("falls back to the shipped cursor thumb where the left modes do not fit", () => {
+    leftFits = false;
+    window.history.replaceState({}, "", "/work?thumb=left-snap");
 
     const { container } = renderList();
+    const clip = document.body.querySelector<HTMLElement>(
+      ".wd-work-thumb-clip",
+    )!;
 
     expect(container.querySelector(".wd-work-column")).toHaveAttribute(
       "data-thumb",
       "cursor",
     );
-    expect(container.querySelector(".wd-work-dock")).toBeNull();
-    expect(document.body.querySelector(".wd-work-thumb-clip")).not.toBeNull();
-    expect(document.documentElement).not.toHaveAttribute("data-work-thumb");
+    expect(clip).toHaveAttribute("data-work-variant", "cursor");
+
+    fireEvent.pointerMove(
+      container.querySelector<HTMLElement>(".wd-work-row")!,
+      { clientX: 100, clientY: 100 },
+    );
+
+    // The shipped variant still hides the cursor and follows the pointer.
+    expect(container.querySelector(".wd-work-group")).toHaveAttribute(
+      "data-work-pointer",
+    );
   });
 
   it("hides the cursor and dims the other rows only while a row is hovered", () => {

@@ -25,28 +25,42 @@ const THUMB_WIDTH = 480;
 const THUMB_HEIGHT = 360;
 const ENTRANCE_MAX = 12;
 const FAST_SCROLL_PX_PER_MS = 1.5;
+/** The row-to-row glide in the snap variant. */
+const SNAP_MS = 200;
 
 /**
- * Prototype switch: `?thumb=left` docks the thumbnail in a sticky left column,
- * anything else (including no param) keeps the shipped cursor-follow thumb.
+ * Prototype switch, `?thumb=<value>`: `cursor` is the shipped thumb that follows
+ * the pointer; the three `left-*` modes lock X to the list's left edge and differ
+ * only in how Y is chosen. Anything else, including no param, is `cursor`.
  */
-type ThumbVariant = "cursor" | "left";
+const VARIANTS = [
+  { value: "cursor", label: "Cursor" },
+  { value: "left-follow", label: "Left follow" },
+  { value: "left-snap", label: "Left snap" },
+  { value: "left-fixed", label: "Left fixed" },
+] as const;
+
+type ThumbVariant = (typeof VARIANTS)[number]["value"];
 
 function readThumbVariant(): ThumbVariant {
   if (typeof window === "undefined") return "cursor";
 
-  return new URLSearchParams(window.location.search).get("thumb") === "left"
-    ? "left"
-    : "cursor";
+  const param = new URLSearchParams(window.location.search).get("thumb");
+
+  return VARIANTS.find((variant) => variant.value === param)?.value ?? "cursor";
 }
 
 /**
- * The dock only exists where its fixed 480 box still leaves the rows a readable
- * column and the pointer can hover: from 1200 on a fine pointer. Below that, and
- * on touch, the variant falls back to the shipped behaviour (cursor thumb on a
- * pointer, plain list on touch).
+ * The left modes keep the list exactly as it ships, so they need no room of
+ * their own; the gate is only the width at which the 480px thumb can sit over
+ * the list with the list's left edge in view, and a fine pointer to hover with.
+ * Below that (and on touch) the list keeps the shipped cursor thumb.
  */
-const DOCK_QUERY = "(min-width: 1200px) and (hover: hover) and (pointer: fine)";
+const LEFT_QUERY = "(min-width: 1200px) and (hover: hover) and (pointer: fine)";
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
 
 /** The list keeps its place while a study takes the panel. */
 let listScroll = 0;
@@ -101,6 +115,13 @@ const getServerSnapshot = () => false;
  * keyboard focus) it parks at the focused row's right end. Touch has no
  * thumbnail. Scroll tracking finds the row under the stationary pointer, and
  * the cursor is hidden only while the thumbnail is showing over a row.
+ *
+ * The `?thumb=` prototype keeps that as the default and adds three left modes
+ * that leave the list's size and position untouched: the thumb's left edge sits
+ * on the list's left edge (X locked), the cursor stays visible, and Y is either
+ * the cursor (`left-follow`), the hovered row with a short glide between rows
+ * (`left-snap`), or one Y for the whole list (`left-fixed`). They are gated to
+ * 1200px and up on a fine pointer; below that the shipped thumb is used.
  */
 export function WorkList({
   works,
@@ -114,8 +135,9 @@ export function WorkList({
   const [focused, setFocused] = useState<number | null>(null);
   const [dimActive, setDimActive] = useState(false);
   const [variant, setVariant] = useState<ThumbVariant>("cursor");
-  const [dockFits, setDockFits] = useState(false);
-  const docked = variant === "left" && dockFits;
+  const [leftFits, setLeftFits] = useState(false);
+  const activeVariant: ThumbVariant =
+    variant !== "cursor" && leftFits ? variant : "cursor";
   const portalReady = useSyncExternalStore(
     subscribeClient,
     getClientSnapshot,
@@ -132,7 +154,6 @@ export function WorkList({
   const listColumnRef = useRef<HTMLDivElement | null>(null);
   const thumbRef = useRef<HTMLDivElement | null>(null);
   const clipRef = useRef<HTMLDivElement | null>(null);
-  const dockRef = useRef<HTMLDivElement | null>(null);
   const rowRefs = useRef<(HTMLLIElement | null)[]>([]);
   const hoveredRef = useRef<number | null>(null);
   const focusedRef = useRef<number | null>(null);
@@ -144,9 +165,27 @@ export function WorkList({
   const lastScrollRef = useRef({ top: 0, time: 0 });
   const velocityRef = useRef(0);
   const frameRef = useRef(0);
+  const activeVariantRef = useRef<ThumbVariant>("cursor");
+  /** The snap glide: last Y written, and the tween when one is in flight. */
+  const snapRef = useRef({
+    row: null as number | null,
+    y: 0,
+    from: 0,
+    to: 0,
+    start: 0,
+    frame: 0,
+  });
 
-  // Read the prototype param and the dock's fit before paint, so neither layout
-  // flashes the other, and re-read them whenever the environment changes.
+  const stopSnap = useCallback(() => {
+    const snap = snapRef.current;
+
+    if (snap.frame) cancelAnimationFrame(snap.frame);
+
+    snap.frame = 0;
+  }, []);
+
+  // Read the prototype param and the left gate before paint, and re-read them
+  // whenever the environment changes.
   //
   // The router caches this segment with React Activity, which tears the effects
   // down while the view is away and runs them again on every reveal. So this is
@@ -154,16 +193,21 @@ export function WorkList({
   // shipped cursor is the no-param default), and the hover left over from before
   // the view went away is dropped, because a revealed view is not a hovered one
   // (the pointer may be somewhere else entirely, with no event to say so). The
-  // same reset covers a resize across the dock's breakpoint, which moves the
-  // list out from under the pointer.
+  // same reset covers a resize across the gate, which changes how the thumb is
+  // placed.
   useLayoutEffect(() => {
     if (typeof window.matchMedia !== "function") return;
 
-    const query = window.matchMedia(DOCK_QUERY);
+    const query = window.matchMedia(LEFT_QUERY);
     const sync = () => {
       const next = readThumbVariant();
+      const snap = snapRef.current;
 
-      setDockFits(query.matches);
+      if (snap.frame) cancelAnimationFrame(snap.frame);
+
+      snap.frame = 0;
+      snap.row = null;
+      setLeftFits(query.matches);
       setVariant((current) => (next === current ? current : next));
       hoveredRef.current = null;
       focusedRef.current = null;
@@ -179,16 +223,11 @@ export function WorkList({
     return () => query.removeEventListener("change", sync);
   }, []);
 
-  // Keep the document marker the docked CSS keys on in step with the measured
-  // state. It is deliberately not removed on hide: a view swap fades a DOM copy
-  // of the index after the real one is hidden, and the copy needs the docked
-  // layout for that fade. A re-show with the cursor variant removes it.
+  // The placement code is shared by pointer, scroll and tween frames, so it
+  // reads the active mode through a ref rather than closing over the state.
   useLayoutEffect(() => {
-    const root = document.documentElement;
-
-    if (docked) root.setAttribute("data-work-thumb", "left");
-    else root.removeAttribute("data-work-thumb");
-  }, [docked]);
+    activeVariantRef.current = activeVariant;
+  }, [activeVariant]);
 
   // The list keeps its place while a study takes the panel.
   useLayoutEffect(() => {
@@ -206,6 +245,57 @@ export function WorkList({
     return () => scroll.removeEventListener("scroll", record);
   }, []);
 
+  const writeThumb = useCallback((x: number, y: number) => {
+    const thumb = thumbRef.current;
+
+    if (!thumb) return;
+
+    thumb.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    snapRef.current.y = y;
+  }, []);
+
+  /**
+   * The snap variant's row-to-row glide: 200ms on the toggle's leading-edge
+   * ease-out cubic, `1-(1-t)^3`. A second row change mid-flight retargets from
+   * the current Y, so scrubbing the list is one continuous move instead of a
+   * restart.
+   */
+  const glideTo = useCallback(
+    (x: number, y: number) => {
+      const snap = snapRef.current;
+
+      stopSnap();
+      snap.from = snap.y;
+      snap.to = y;
+      snap.start = performance.now();
+
+      const tick = () => {
+        const thumb = thumbRef.current;
+
+        if (!thumb) {
+          snap.frame = 0;
+          return;
+        }
+
+        const t = Math.min(1, (performance.now() - snap.start) / SNAP_MS);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const nextY = snap.from + (snap.to - snap.from) * eased;
+
+        writeThumb(x, nextY);
+        snap.frame = t < 1 ? requestAnimationFrame(tick) : 0;
+      };
+
+      snap.frame = requestAnimationFrame(tick);
+    },
+    [stopSnap, writeThumb],
+  );
+
+  /**
+   * Where the thumbnail is. The cursor variant is the shipped one, unchanged:
+   * centred on the pointer, or parked at the focused row's right end. The left
+   * modes all lock X to the list's left edge and only choose Y: the cursor
+   * (follow), the hovered row (snap), or the list block's centre (fixed).
+   */
   const placeThumb = useCallback(() => {
     const thumb = thumbRef.current;
     const clip = clipRef.current;
@@ -214,38 +304,107 @@ export function WorkList({
 
     const clipRect = clip.getBoundingClientRect();
     const point = pointerRef.current;
-    let x: number;
-    let y: number;
+    const mode = activeVariantRef.current;
+    const index = hoveredRef.current ?? focusedRef.current;
 
-    if (hoveredRef.current !== null && point) {
-      x = point.x - clipRect.left - THUMB_WIDTH / 2;
-      y = point.y - clipRect.top - THUMB_HEIGHT / 2;
-    } else if (focusedRef.current !== null) {
-      const row = rowRefs.current[focusedRef.current];
-      const scroll = scrollRef.current;
-      const list = listColumnRef.current;
+    if (mode === "cursor") {
+      let x: number;
+      let y: number;
 
-      if (!row || !scroll || !list) return;
+      if (hoveredRef.current !== null && point) {
+        x = point.x - clipRect.left - THUMB_WIDTH / 2;
+        y = point.y - clipRect.top - THUMB_HEIGHT / 2;
+      } else if (focusedRef.current !== null) {
+        const row = rowRefs.current[focusedRef.current];
+        const scroll = scrollRef.current;
+        const list = listColumnRef.current;
 
-      const scrollRect = scroll.getBoundingClientRect();
-      const listRect = list.getBoundingClientRect();
-      const rowRect = row.getBoundingClientRect();
-      const minTop = visibleTop(scrollRect);
+        if (!row || !scroll || !list) return;
 
-      x =
-        Math.max(listRect.left + 12, rowRect.right - THUMB_WIDTH - 16) -
-        clipRect.left;
-      y =
-        Math.max(
-          minTop,
-          Math.min(rowRect.top, scrollRect.bottom - THUMB_HEIGHT - 12),
-        ) - clipRect.top;
-    } else {
+        const scrollRect = scroll.getBoundingClientRect();
+        const listRect = list.getBoundingClientRect();
+        const rowRect = row.getBoundingClientRect();
+        const minTop = visibleTop(scrollRect);
+
+        x =
+          Math.max(listRect.left + 12, rowRect.right - THUMB_WIDTH - 16) -
+          clipRect.left;
+        y =
+          Math.max(
+            minTop,
+            Math.min(rowRect.top, scrollRect.bottom - THUMB_HEIGHT - 12),
+          ) - clipRect.top;
+      } else {
+        stopSnap();
+        snapRef.current.row = null;
+        return;
+      }
+
+      stopSnap();
+      snapRef.current.row = index;
+      writeThumb(x, y);
       return;
     }
 
-    thumb.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-  }, []);
+    const row = index === null ? null : rowRefs.current[index];
+    const scroll = scrollRef.current;
+    const list = listColumnRef.current;
+
+    if (!row || !scroll || !list) {
+      stopSnap();
+      snapRef.current.row = null;
+      return;
+    }
+
+    const scrollRect = scroll.getBoundingClientRect();
+    const listRect = list.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    const minTop = visibleTop(scrollRect);
+    const maxTop = Math.max(minTop, scrollRect.bottom - THUMB_HEIGHT - 12);
+    const x = listRect.left - clipRect.left;
+
+    if (mode === "left-fixed") {
+      // One Y for the whole list: its block's centre, kept inside the viewport.
+      const centre = listRect.top + listRect.height / 2 - THUMB_HEIGHT / 2;
+
+      stopSnap();
+      snapRef.current.row = index;
+      writeThumb(x, clamp(centre, minTop, maxTop));
+      return;
+    }
+
+    if (mode === "left-follow" && hoveredRef.current !== null && point) {
+      // Same centring as the shipped thumb; X stays on the list's edge.
+      stopSnap();
+      snapRef.current.row = index;
+      writeThumb(x, point.y - clipRect.top - THUMB_HEIGHT / 2);
+      return;
+    }
+
+    // The row owns Y: left-snap, and left-follow when a keyboard focus has no
+    // pointer to follow.
+    const targetY = clamp(
+      rowRect.top + rowRect.height / 2 - THUMB_HEIGHT / 2,
+      minTop,
+      maxTop,
+    );
+    const snap = snapRef.current;
+    const glides =
+      mode === "left-snap" &&
+      snap.row !== null &&
+      snap.row !== index &&
+      !prefersReducedMotion();
+
+    if (glides) {
+      snap.row = index;
+      glideTo(x, targetY);
+      return;
+    }
+
+    stopSnap();
+    snap.row = index;
+    writeThumb(x, targetY);
+  }, [glideTo, stopSnap, writeThumb]);
 
   // One write per frame, always from the latest pointer event.
   const scheduleThumb = useCallback(() => {
@@ -260,8 +419,9 @@ export function WorkList({
   useEffect(() => {
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      stopSnap();
     };
-  }, []);
+  }, [stopSnap]);
 
   const clearDimTimer = useCallback(() => {
     if (dimTimerRef.current) {
@@ -282,13 +442,14 @@ export function WorkList({
     }, 80);
   }, [clearDimTimer]);
 
-  /** A fling cuts the crossfade on whichever layer is showing. */
+  /** A fling cuts the show's crossfade, whichever variant is on. */
   const markFast = useCallback((on: boolean) => {
-    for (const node of [thumbRef.current, dockRef.current]) {
-      if (!node) continue;
-      if (on) node.setAttribute("data-work-fast", "");
-      else node.removeAttribute("data-work-fast");
-    }
+    const thumb = thumbRef.current;
+
+    if (!thumb) return;
+
+    if (on) thumb.setAttribute("data-work-fast", "");
+    else thumb.removeAttribute("data-work-fast");
   }, []);
 
   const setSlotsFor = useCallback((index: number) => {
@@ -327,15 +488,21 @@ export function WorkList({
 
     hoveredRef.current = null;
     setHovered(null);
+    // The next show enters where the pointer is, never glides in from the old
+    // row's Y.
+    stopSnap();
+    snapRef.current.row = null;
 
     if (focusedRef.current === null) scheduleDimClear();
-  }, [scheduleDimClear]);
+  }, [scheduleDimClear, stopSnap]);
 
   const leaveList = useCallback(() => {
     pointerRef.current = null;
     hoveredRef.current = null;
     setHovered(null);
     clearDimTimer();
+    stopSnap();
+    snapRef.current.row = null;
 
     if (focusedRef.current === null) {
       setDimActive(false);
@@ -345,7 +512,7 @@ export function WorkList({
       setSlotsFor(focusedRef.current);
       scheduleThumb();
     }
-  }, [clearDimTimer, scheduleThumb, setSlotsFor]);
+  }, [clearDimTimer, scheduleThumb, setSlotsFor, stopSnap]);
 
   const onFocus = (event: ReactFocusEvent<HTMLDivElement>) => {
     const target = event.target;
@@ -602,15 +769,18 @@ export function WorkList({
     leaveList();
   };
 
-  // The dev-only switch writes the param and flips the layout in place; a
-  // pointer cannot be on a row in the other layout, so any hover is dropped.
+  // The dev-only switch writes the param and swaps the mode in place. The list
+  // does not move, but the pointer is not "on" a row for the new mode's
+  // purposes, so any hover is dropped.
   const switchVariant = (next: ThumbVariant) => {
     const url = new URL(window.location.href);
 
-    if (next === "left") url.searchParams.set("thumb", "left");
-    else url.searchParams.delete("thumb");
+    if (next === "cursor") url.searchParams.delete("thumb");
+    else url.searchParams.set("thumb", next);
 
     window.history.replaceState(window.history.state, "", url);
+    stopSnap();
+    snapRef.current.row = null;
     setVariant(next);
     clearDimTimer();
     hoveredRef.current = null;
@@ -622,8 +792,8 @@ export function WorkList({
   const currentRow = hovered ?? focused;
   const thumbActive = hovered !== null || focused !== null;
 
-  // Two stacked images; the front one is the current row's cover. Both the
-  // cursor thumb and the docked panel crossfade through the same slots.
+  // Two stacked images; the front one is the current row's cover, swapped by
+  // the same crossfade in every variant.
   const mediaSlots = ([0, 1] as const).map((slot) => {
     const index = slots.items[slot];
     const work = index === null ? null : works[index];
@@ -659,7 +829,7 @@ export function WorkList({
         <div
           className="wd-index-column wd-work-column"
           ref={rootRef}
-          data-thumb={docked ? "left" : "cursor"}
+          data-thumb={activeVariant}
         >
           <h1 id={INDEX_TITLE_ID} tabIndex={-1} className="wd-work-sr-only">
             Work
@@ -673,15 +843,15 @@ export function WorkList({
               role="group"
               aria-label="Thumbnail prototype"
             >
-              {(["cursor", "left"] as const).map((option) => (
+              {VARIANTS.map((option) => (
                 <button
-                  key={option}
+                  key={option.value}
                   type="button"
                   className="wd-work-dev-option"
-                  aria-pressed={variant === option}
-                  onClick={() => switchVariant(option)}
+                  aria-pressed={variant === option.value}
+                  onClick={() => switchVariant(option.value)}
                 >
-                  {option === "cursor" ? "Cursor" : "Left dock"}
+                  {option.label}
                 </button>
               ))}
             </div>
@@ -692,19 +862,10 @@ export function WorkList({
             data-work-dim={dimActive ? "" : undefined}
             ref={groupRef}
             data-work-active={thumbActive ? "" : undefined}
-            data-work-pointer={!docked && hovered !== null ? "" : undefined}
+            data-work-pointer={
+              activeVariant === "cursor" && hovered !== null ? "" : undefined
+            }
           >
-            {docked ? (
-              <div
-                className="wd-work-dock"
-                ref={dockRef}
-                aria-hidden="true"
-                data-work-active={thumbActive ? "" : undefined}
-              >
-                <div className="wd-work-dock-in">{mediaSlots}</div>
-              </div>
-            ) : null}
-
             <div
               className="wd-work-list-column"
               ref={listColumnRef}
@@ -744,13 +905,14 @@ export function WorkList({
         </div>
       </div>
 
-      {portalReady && !docked
+      {portalReady
         ? createPortal(
             <div
               className="wd-work-thumb-clip"
               ref={clipRef}
               aria-hidden="true"
               data-work-active={thumbActive ? "" : undefined}
+              data-work-variant={activeVariant}
             >
               {thumbNode}
             </div>,
