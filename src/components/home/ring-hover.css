@@ -268,120 +268,78 @@
 }
 
 /*
- * The featured card's ring: the same ring every host carries, but grown by
- * `transform: scale` instead of an animated `clip-path`.
+ * The featured card's ring: the same ring every host carries, grown by
+ * animating the boxes' `inset` (layout) instead of a `clip-path`.
  *
- * Both clips stay put — the surface's is the host box (the Figma card, no
- * stroke) and the frame's is one pixel larger — so a shared scale keeps the
- * ring's 1px edge while the fill and the frame grow outward. Only the
- * transform animates, on the same 0.8s spring as the clip path it replaced,
- * and because the clips are static a hover no longer repaints the frame
- * layer, which carries the 614px glow: one 1440x900 hover measured raster at
- * 11.8ms / 443 tasks and GPU at 121.2ms before, 0.1ms / 7 tasks and 25.3ms
- * after.
+ * Why not the clip-path the other hosts use: clip edges are antialiased at
+ * fractional positions, so mid-grow the 1px ring straddled two device pixels
+ * (wide and dim) and then settled onto one crisp pixel ("thinning"). The same
+ * goes for a `transform: scale`, which resamples the layer. Layout edges are
+ * snapped to device pixels, and the frame and the fill always differ by
+ * exactly 1px, so the ring stays one crisp pixel for the whole grow.
  *
- * A scale cannot add a fixed number of pixels, so the factors are tuned per
- * breakpoint to the featured card: 1 + 2 x (grow - 1px) / card size, for
- * 358x420 stacked, 444x560 at md, 656x360 at lg and 753x416 at xl. At those
- * sizes the fill grows the shipped 2.5px x / 5px y and the frame edge lands on
- * the shipped 3.5px x / 6px y.
+ * Rest: the fill is the host box exactly (the Figma card, no stroke) and the
+ * frame is one pixel larger, transparent. Hover/focus: the fill grows to
+ * grow - 1px and the frame to grow, the shipped 2.5px x / 5px y and 3.5px x /
+ * 6px y, at every size. Same 0.8s spring.
  *
- * Scope is the featured card only (`.ring-card`). The nav, the slivers and the
- * narrower carousel columns keep the clip-path grow: a proportional scale
- * would grow a 180px column about 0.6px sideways instead of 3.5px.
- *
- * Reduced motion never reaches this block, so it keeps the rules above: no
- * growth, the ring reveals inside the card.
+ * Scope is the featured card only (`.ring-card`). Reduced motion never
+ * reaches this block, so it keeps the rules above: no growth, the ring
+ * reveals inside the card.
  */
 @media (prefers-reduced-motion: no-preference) {
-  .ring-card {
-    --ring-card-scale-x: 1.014;
-    --ring-card-scale-y: 1.0238;
-  }
-
-  @media (min-width: 768px) {
-    .ring-card {
-      --ring-card-scale-x: 1.0113;
-      --ring-card-scale-y: 1.0179;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .ring-card {
-      --ring-card-scale-x: 1.0076;
-      --ring-card-scale-y: 1.0278;
-    }
-  }
-
-  @media (min-width: 1280px) {
-    .ring-card {
-      --ring-card-scale-x: 1.0066;
-      --ring-card-scale-y: 1.024;
-    }
-  }
-
-  /*
-   * Rest: the surface is the Figma box exactly, so its clip never moves; the
-   * frame carries the extra pixel the fill leaves for the edge. The delay
-   * lists are left to the rules above, so a theme switch still postpones the
-   * exit (the data-phase-switching block).
-   */
   .ring-card .ring-frame {
-    clip-path: inset(
-      calc(var(--ring-grow-y) - 1px) calc(var(--ring-grow-x) - 1px) round
-        var(--ring-radius)
-    );
-    transform: scale(1);
-    transition-property: transform, opacity;
+    inset: -1px;
+    clip-path: none;
+    transition-property: inset, opacity;
     transition-duration: var(--ring-grow), var(--duration-short-1);
     transition-timing-function: var(--ring-ease), var(--ease-linear);
   }
 
   .ring-card .ring-surface {
-    transform: scale(1);
-    transition-property: transform;
+    inset: 0;
+    clip-path: none;
+    transition-property: inset;
     transition-duration: var(--ring-grow);
     transition-timing-function: var(--ring-ease);
   }
 
-  /* Keyboard mirrors hover: the same scale, the same static clips. */
+  /* Keyboard mirrors hover. */
   .ring-card:focus-visible .ring-frame,
   .ring-card:has(:focus-visible) .ring-frame {
-    clip-path: inset(
-      calc(var(--ring-grow-y) - 1px) calc(var(--ring-grow-x) - 1px) round
-        var(--ring-radius)
-    );
-    transform: scale(var(--ring-card-scale-x), var(--ring-card-scale-y));
-    transition-property: transform, opacity;
+    inset: calc(var(--ring-grow-y) * -1) calc(var(--ring-grow-x) * -1);
+    clip-path: none;
+    transition-property: inset, opacity;
     transition-duration: var(--ring-grow), var(--duration-short-1);
     transition-timing-function: var(--ring-ease), var(--ease-linear);
   }
 
   .ring-card:focus-visible .ring-surface,
   .ring-card:has(:focus-visible) .ring-surface {
-    clip-path: inset(
-      var(--ring-grow-y) var(--ring-grow-x) round var(--ring-radius)
-    );
-    transform: scale(var(--ring-card-scale-x), var(--ring-card-scale-y));
+    inset: calc((var(--ring-grow-y) - 1px) * -1)
+      calc((var(--ring-grow-x) - 1px) * -1);
+    clip-path: none;
+    transition-property: inset;
+    transition-duration: var(--ring-grow);
+    transition-timing-function: var(--ring-ease);
   }
 }
 
 @media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
   .ring-card:hover .ring-frame {
-    clip-path: inset(
-      calc(var(--ring-grow-y) - 1px) calc(var(--ring-grow-x) - 1px) round
-        var(--ring-radius)
-    );
-    transform: scale(var(--ring-card-scale-x), var(--ring-card-scale-y));
-    transition-property: transform, opacity;
+    inset: calc(var(--ring-grow-y) * -1) calc(var(--ring-grow-x) * -1);
+    clip-path: none;
+    transition-property: inset, opacity;
     transition-duration: var(--ring-grow), var(--duration-short-1);
     transition-timing-function: var(--ring-ease), var(--ease-linear);
   }
 
   .ring-card:hover .ring-surface {
-    clip-path: inset(
-      var(--ring-grow-y) var(--ring-grow-x) round var(--ring-radius)
-    );
-    transform: scale(var(--ring-card-scale-x), var(--ring-card-scale-y));
+    inset: calc((var(--ring-grow-y) - 1px) * -1)
+      calc((var(--ring-grow-x) - 1px) * -1);
+    clip-path: none;
+    transition-property: inset;
+    transition-duration: var(--ring-grow);
+    transition-timing-function: var(--ring-ease);
   }
 }
