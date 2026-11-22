@@ -46,7 +46,7 @@ const CLIPPED_CLASS = "min-w-0 truncate";
 const NO_CLIPS: readonly number[] = [];
 
 const GLYPH_CLASS = [
-  "nav-glyph relative hidden size-8 shrink-0 items-center justify-center",
+  "nav-glyph relative hidden size-8 shrink-0 cursor-pointer items-center justify-center",
   "rounded-md text-on-surface-variant md:flex",
   "outline-hidden focus-visible:outline-solid focus-visible:outline-2",
   "focus-visible:outline-offset-0 focus-visible:outline-primary",
@@ -479,7 +479,7 @@ export function NavItems() {
 
   return (
     <div
-      className="relative flex min-w-0 items-center"
+      className="nav-run relative flex min-w-0 items-center"
       onPointerLeave={() => {
         // A theme crossfade snapshots the page and the live document stops
         // receiving hit tests for its length, so this is not a real leave.

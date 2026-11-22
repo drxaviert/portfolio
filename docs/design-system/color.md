@@ -220,7 +220,7 @@ Consumers: horizon background `src/components/horizon/horizon-background.tsx:254
 | Dawn prototype scrim | `color-mix(in oklab, var(--on-surface) 8%, var(--surface-dim))` | `src/components/home/home-entrance.css:131` | `--dawn-scrim` (dev variants only) |
 | Card fade | `color-mix(in oklab, var(--surface-dim) …%, transparent)` at 96% / 86.4% / 48% | `src/components/home/home-cards.css:13-39` | featured card title scrim |
 | Frame spotlight pool | `var(--frame-spot-color, var(--primary))`; fallback opacity `0.85` | `src/components/home/frame-line-spotlight.css:44`, `:94` | `.frame-spot-pool`, `.frame-spot-glow` |
-| Nav hover capsule | `color-mix(in oklab, var(--surface-container) 55%, transparent)` (reduced motion) | `src/components/home/nav-items.css:149-153` | reduced-motion hover fill |
+| Nav hover capsule | `color-mix(in oklab, var(--on-surface) 5%, var(--surface-container))`, revealed at `0.55`; reduced motion fills the item with the same mix at `55%` alpha | `src/components/home/nav-items.css:33-49`, `:170-178` | `.nav-glide`, reduced-motion hover fill |
 | Play card gradient | `linear-gradient(180deg, … 0%, … 58%, … 74%, … 100%)` | `src/components/play/play-card.tsx:36-39` | `/play` card |
 
 ## 4. Where `tokens.md` differs from the code

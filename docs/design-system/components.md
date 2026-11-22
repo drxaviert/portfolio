@@ -201,7 +201,7 @@ inside the card's box.
 
 | Component | Tokens |
 | --- | --- |
-| Nav | `--surface-container-low`, `--surface-container`, `--shadow-card`, `--frame-line`, `--outline-variant`, `--orb-1/2/3`, `--orb-2-at`, `--orb-gradient`, `--radius-md`, `--radius-lg`, `--text-base`, `--primary` (focus) |
+| Nav | `--surface-container-low`, `--surface-container` (hover fill base, current item), `--on-surface` (hover ink, label hover), `--shadow-card`, `--frame-line`, `--outline-variant`, `--orb-1/2/3`, `--orb-2-at`, `--orb-gradient`, `--radius-md`, `--radius-lg`, `--text-base`, `--primary` (focus) |
 | Theme toggle | `--toggle-track`, `--toggle-selected`, `--surface-container-low`, `--surface-container`, `--surface-container-high`, `--on-surface`, `--on-surface-variant`, `--primary`, `--shadow-card`, `--radius-md`, `--radius-lg`, `--text-base`, `--wd-phase-row-gap` |
 | Home cards and tracker | `--surface-container-low`, `--surface-container`, `--surface-container-high`, `--surface-container-highest`, `--surface-dim`, `--tracker-0` … `--tracker-4`, `--text-title`, `--text-title-sm`, `--radius-xs`, `--radius-lg`, `--shadow-card`, `--frame-line` |
 | Work drawer and carousel | `--surface-container-low`, `--surface-container-highest`, `--shadow-card`, `--frame-line`, `--outline-variant`, `--primary`, `--radius-lg`, `--text-xs` … `--text-lg`, `--text-title`, `--text-title-sm`, `--wd-panel-inset`, `--wd-nav-inset`, `--wd-nav-height`, `--wd-nav-content-gap` |

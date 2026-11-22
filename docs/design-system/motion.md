@@ -194,7 +194,7 @@ The capsule is two edges, each its own damped spring (`src/components/home/glide
 | Item pressed | `scale` | 150ms (`--duration-short-3`) | 0 | `ease-out` (`--ease-decelerate`) | 1 → 0.96 |
 | Glyph hovered | tooltip `opacity` | 150ms (`--duration-short-3`) | 300ms (`--duration-medium-5`) | `ease-out` (`--ease-decelerate`) | 0 → 1 |
 | Glyph focused | tooltip `opacity` | 150ms (`--duration-short-3`) | 0 | `ease-out` (`--ease-decelerate`) | 0 → 1 |
-| Hover enters, reduced motion | item fill `background-color` | 120ms (`--duration-short-2`) | 0 | `ease-out` (`--ease-decelerate`) | transparent → 55% `surface-container` |
+| Hover enters, reduced motion | item fill `background-color` | 120ms (`--duration-short-2`) | 0 | `ease-out` (`--ease-decelerate`) | transparent → neutral hover fill at 55% |
 
 Spring constants, from `glide-spring.ts`: `GLIDE_LEAD_SPRING = { stiffness: 1100, dampingRatio: 0.9 }`, `GLIDE_TRAIL_SPRING = { stiffness: 900, dampingRatio: 0.9 }`. The runner steps them by the frame's `dt`, clamped to `GLIDE_MAX_STEP_S = 1/30`, and treats an edge as at rest under `GLIDE_REST_PX = 0.4` and `GLIDE_REST_VELOCITY = 12` px/s, then stops the rAF loop. The step is the closed-form solution of the oscillator, so the path does not depend on how the interval is split.
 
@@ -202,7 +202,7 @@ The leading edge is whichever edge points the way the pill is travelling and get
 
 `data-glide-break` cuts the run: the capsule never stretches across the divider, so a move across it sets `data-fading` (fade out in place), re-places while blank and fades back in. `data-visible` is not touched by that, so the trace still reads "in the run" throughout. A retarget during the fade only updates the pending destination — the timer is never restarted — so a sweep cannot leave the capsule hidden; a pointer that leaves during the fade cancels the re-place.
 
-A frame writes one property: the capsule keeps the run's width and carries the pill as a `clip-path` inset, so the edges move independently while no width or other layout property changes. At rest the pill is the hovered item's box at the `--radius-md` token. Hover is gated to `(hover: hover) and (pointer: fine)`, focus is a 2px `primary` ring on the item, and Work carries `aria-current="page"` on `/work` only (the home page keeps the plain resting style). Reduced motion hides the capsule: the hovered item carries the 55% `surface-container` fill and crossfades it in 120ms (`--duration-short-2`) with no travel, so the state change survives without the movement.
+A frame writes one property: the capsule keeps the run's width and carries the pill as a `clip-path` inset, so the edges move independently while no width or other layout property changes. At rest the pill is the hovered item's box at the `--radius-md` token, filled with a neutral 5% mix of the ink into `--surface-container` (`color-mix(in oklab, var(--on-surface) 5%, var(--surface-container))`) and revealed at the original `0.55` weight. Hover is gated to `(hover: hover) and (pointer: fine)`, focus is a 2px `primary` ring on the item, and Work carries `aria-current="page"` on `/work` only (the home page keeps the plain resting style). Reduced motion hides the capsule: the hovered item carries the same fill at 55% alpha and crossfades it in 120ms (`--duration-short-2`) with no travel, so the state change survives without the movement.
 
 - `src/components/home/glide-spring.ts:32` — lead spring `k=1100`, `ζ=0.9`
 - `src/components/home/glide-spring.ts:43` — trail spring `k=900`, `ζ=0.9`
@@ -221,11 +221,12 @@ A frame writes one property: the capsule keeps the run's width and carries the p
 - `src/components/home/nav-items.tsx:336` — direction, hold arming, reversal
 - `src/components/home/nav-items.tsx:380` — the item run: labels, divider, glyph as the fourth target
 - `src/components/home/nav-items.css:19` — press `scale: 0.96`, 150ms (`--duration-short-3`) `ease-out` (`--ease-decelerate`)
-- `src/components/home/nav-items.css:61` — hover weight 0.55
-- `src/components/home/nav-items.css:64` — `data-fading` blanks the capsule for a break
-- `src/components/home/nav-items.css:83` — glyph tooltip, 300ms (`--duration-medium-5`) delay
-- `src/components/home/nav-items.css:111` — reduced-motion capsule hide
-- `src/components/home/nav-items.css:119` — reduced-motion 55% fill crossfade
+- `src/components/home/nav-items.css:33-49` — capsule fill: neutral 5% ink mix
+- `src/components/home/nav-items.css:77` — hover reveal at the 0.55 weight
+- `src/components/home/nav-items.css:81` — `data-fading` blanks the capsule for a break
+- `src/components/home/nav-items.css:98` — glyph tooltip, 300ms (`--duration-medium-5`) delay
+- `src/components/home/nav-items.css:165` — reduced-motion capsule hide
+- `src/components/home/nav-items.css:170-178` — reduced-motion hover fill crossfade
 
 ## Home card hover ring
 
@@ -599,7 +600,7 @@ The theme change keeps its crossfade — a colour change is not motion — but a
 | Segments | no opacity or translate animation; colour always transitions over 150ms (`--duration-short-3`) |
 | Icons | stay at rest; entrance poses and settles are inside `prefers-reduced-motion: no-preference` |
 | Hover capsule | hidden; the segment fill is the only hover feedback, following the pointer without travel |
-| Nav hover capsule | hidden; the hovered nav item carries the 55% `surface-container` fill over 120ms (`--duration-short-2`), no travel |
+| Nav hover capsule | hidden; the hovered nav item carries the neutral hover fill at 55% over 120ms (`--duration-short-2`), no travel |
 | Press | `scale: 1` (no 0.96 dip) |
 | Frame-line spotlight | mask replaced by a whole-line opacity fade capped at 0.4 strength, 150ms (`--duration-short-3`) |
 
