@@ -2,12 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { registerReaderExit } from "@/components/nav/nav-flight";
 import { ThemeProvider } from "@/components/theme/theme-provider";
-import {
-  resetCloseVariantForTests,
-  setCloseVariant,
-} from "@/components/work/close-variant";
 import { HomeNav } from "./home-nav";
 
 const mocks = vi.hoisted(() => ({ pathname: "/" }));
@@ -18,9 +13,6 @@ vi.mock("next/navigation", () => ({
 
 beforeEach(() => {
   mocks.pathname = "/";
-  window.localStorage.clear();
-  window.history.replaceState({}, "", "/");
-  resetCloseVariantForTests();
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -37,9 +29,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  registerReaderExit(null);
-  window.localStorage.clear();
-  resetCloseVariantForTests();
   vi.unstubAllGlobals();
 });
 
@@ -240,65 +229,6 @@ describe("HomeNav", () => {
     );
     expect(itemsCss).toMatch(
       /\.nav-logo::after \{[^}]*var\(--nav-hover-fill\) 55%/,
-    );
-  });
-
-  it("keeps the nav close in the bar's layout but hidden on the homepage", () => {
-    setCloseVariant("nav");
-    renderNav();
-
-    const nav = screen.getByRole("navigation", { name: "Primary" });
-    const slot = nav.querySelector(".xv-nav-slot");
-    const close = nav.querySelector(".xv-nav-close");
-    const toggle = nav.querySelector("[data-mode-track]");
-
-    // The slot is the last item in the right-hand group, after the toggle; it
-    // stays in the DOM on `/` so opening the drawer cannot reflow the bar.
-    expect(slot).not.toBeNull();
-    expect(close).not.toBeNull();
-    expect(slot).not.toHaveAttribute("data-shown");
-    expect(close).toHaveAttribute("aria-hidden", "true");
-    expect(close).toHaveAttribute("tabindex", "-1");
-    expect(slot?.parentElement?.lastElementChild).toBe(slot);
-    expect(
-      toggle!.compareDocumentPosition(close!) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-
-  it("shows the nav close on the index and runs the drawer's exit", () => {
-    mocks.pathname = "/work";
-    setCloseVariant("nav");
-    const exit = vi.fn();
-    registerReaderExit(exit);
-    renderNav();
-
-    const slot = document.querySelector(".xv-nav-slot");
-    const close = screen.getByRole("button", {
-      name: "Close work, back to home",
-    });
-
-    expect(slot).toHaveAttribute("data-shown");
-    expect(close).not.toHaveAttribute("aria-hidden");
-    expect(close.querySelector(".xv-hint")).toHaveTextContent("Close");
-    expect(close.querySelector(".xv-hint-key")).toHaveTextContent("Esc");
-
-    fireEvent.click(close);
-
-    expect(exit).toHaveBeenCalledTimes(1);
-  });
-
-  it("hides the nav close again on a study", () => {
-    mocks.pathname = "/work/systems-in-motion";
-    setCloseVariant("nav");
-    renderNav();
-
-    expect(document.querySelector(".xv-nav-slot")).not.toHaveAttribute(
-      "data-shown",
-    );
-    expect(document.querySelector(".xv-nav-close")).toHaveAttribute(
-      "aria-hidden",
-      "true",
     );
   });
 });

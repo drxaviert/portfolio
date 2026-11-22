@@ -1,29 +1,9 @@
-import {
-  createEvent,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactNode } from "react";
 import { READER_SCROLL_ID, READER_TITLE_ID } from "./parts";
 import { ReaderMobileActions, ReaderRail } from "./reader-rail";
-import { DrawerActionsProvider } from "./drawer-actions";
-
-vi.mock("next/link", () => ({
-  default: ({
-    href,
-    children,
-    ...rest
-  }: { href: string; children: ReactNode } & Record<string, unknown>) => (
-    <a href={href} {...rest}>
-      {children}
-    </a>
-  ),
-}));
 
 let scroll: HTMLElement;
 let title: HTMLElement;
@@ -68,7 +48,7 @@ afterEach(() => {
   title.remove();
 });
 
-/** The reader is quiet until it has been scrolled more than one screen. */
+/** The reach-to-top control is quiet until scrolled more than one screen. */
 async function scrollPastOneScreen() {
   scroll.scrollTop = 601;
   fireEvent.scroll(scroll);
@@ -90,65 +70,12 @@ describe("ReaderRail", () => {
     );
   });
 
-  it("steps back through the drawer's own actions, with no prop drilled in", () => {
-    const close = vi.fn();
-
-    render(
-      <DrawerActionsProvider close={vi.fn()} stepBack={close} exit={vi.fn()}>
-        <ReaderRail />
-      </DrawerActionsProvider>,
-    );
-
-    fireEvent.click(screen.getByRole("link", { name: "Work" }));
-
-    expect(close).toHaveBeenCalledTimes(1);
-  });
-
-  it("prevents the default navigation when the reader can close", () => {
-    const close = vi.fn();
-    render(<ReaderRail onStepBack={close} />);
-
-    const link = screen.getByRole("link", { name: "Work" });
-    const click = createEvent.click(link);
-    fireEvent(link, click);
-
-    expect(click.defaultPrevented).toBe(true);
-    expect(close).toHaveBeenCalledTimes(1);
-  });
-
-  it("leaves a study with no drawer around it to follow the link", () => {
+  it("keeps only the reach-to-top control in the rail", () => {
     render(<ReaderRail />);
 
-    const link = screen.getByRole("link", { name: "Work" });
-    const click = createEvent.click(link);
-    fireEvent(link, click);
-
-    expect(click.defaultPrevented).toBe(false);
-    expect(link).toHaveAttribute("href", "/work");
-  });
-
-  it("leaves a modified click to the browser", () => {
-    const close = vi.fn();
-    render(<ReaderRail onStepBack={close} />);
-
-    const link = screen.getByRole("link", { name: "Work" });
-    const modified = createEvent.click(link, { metaKey: true });
-    fireEvent(link, modified);
-
-    expect(modified.defaultPrevented).toBe(false);
-    expect(close).not.toHaveBeenCalled();
-  });
-
-  it("leaves a middle click to the browser", () => {
-    const close = vi.fn();
-    render(<ReaderRail onStepBack={close} />);
-
-    const link = screen.getByRole("link", { name: "Work" });
-    const middle = createEvent.click(link, { button: 1 });
-    fireEvent(link, middle);
-
-    expect(middle.defaultPrevented).toBe(false);
-    expect(close).not.toHaveBeenCalled();
+    // The way back is the shared BackLink above the article now.
+    expect(screen.queryByRole("link", { name: "Work" })).toBeNull();
+    expect(screen.getByLabelText("Back to top")).toHaveClass("wd-rail-top");
   });
 
   it("hides Back to top until the reader is a screen down", async () => {
@@ -184,28 +111,14 @@ describe("ReaderRail", () => {
 });
 
 describe("ReaderMobileActions", () => {
-  it("labels both thumb-reach buttons", () => {
+  it("keeps only the thumb-reach Back to top button", () => {
     render(<ReaderMobileActions />);
 
-    expect(screen.getByLabelText("Back to work")).toHaveAttribute(
-      "href",
-      "/work",
+    expect(screen.getByLabelText("Back to top")).toHaveClass(
+      "wd-reader-action",
     );
-    expect(screen.getByLabelText("Back to top")).toBeInTheDocument();
-  });
-
-  it("closes from the thumb-reach Work button in the overlay", () => {
-    const close = vi.fn();
-
-    render(
-      <DrawerActionsProvider close={vi.fn()} stepBack={close} exit={vi.fn()}>
-        <ReaderMobileActions />
-      </DrawerActionsProvider>,
-    );
-
-    fireEvent.click(screen.getByLabelText("Back to work"));
-
-    expect(close).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText("Back to work")).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   it("scrolls to the top and focuses the title", async () => {

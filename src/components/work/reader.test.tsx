@@ -1,9 +1,4 @@
-import {
-  createEvent,
-  fireEvent,
-  render,
-  screen,
-} from "@testing-library/react";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,11 +6,13 @@ import type { ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { getWork } from "@/lib/work";
 import { READER_TITLE_ID, Reader } from "./reader";
+import { DrawerActionsProvider } from "./drawer-actions";
 
 const { push, replace } = vi.hoisted(() => ({
   push: vi.fn(),
   replace: vi.fn(),
 }));
+const stepBack = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace }),
@@ -49,6 +46,7 @@ function featured() {
 beforeEach(() => {
   push.mockReset();
   replace.mockReset();
+  stepBack.mockReset();
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -71,7 +69,9 @@ afterEach(() => {
 function renderReader(children: ReactNode) {
   return render(
     <ThemeProvider>
-      <Reader meta={featured()}>{children}</Reader>
+      <DrawerActionsProvider close={vi.fn()} stepBack={stepBack} exit={vi.fn()}>
+        <Reader meta={featured()}>{children}</Reader>
+      </DrawerActionsProvider>
     </ThemeProvider>,
   );
 }
@@ -86,14 +86,46 @@ describe("reader content", () => {
     expect(document.getElementById(READER_TITLE_ID)).toBeInTheDocument();
   });
 
-  it("anchors the ways-back rail to the whole column", () => {
+  it("puts the shared way back above the article, before the column", () => {
+    renderReader(<p>Case-study body</p>);
+
+    const back = screen.getByRole("link", { name: "Back to work" });
+    const row = document.querySelector(".wd-reader-back-row");
+    const column = document.querySelector(".wd-reader-column");
+
+    expect(back).toHaveTextContent("Work");
+    expect(back).toHaveAttribute("href", "/work");
+    expect(back.closest(".wd-reader-back-row")).toBe(row);
+    expect(
+      row!.compareDocumentPosition(column!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    const click = createEvent.click(back);
+    fireEvent(back, click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(stepBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("no longer puts the way back in the rail or the thumb pair", () => {
+    renderReader(<p>Case-study body</p>);
+
+    const rail = document.querySelector<HTMLElement>(".wd-rail");
+    const thumb = document.querySelector<HTMLElement>(".wd-reader-actions");
+
+    expect(rail?.querySelector("a")).toBeNull();
+    expect(thumb?.querySelector("a")).toBeNull();
+    expect(rail?.querySelector(".wd-rail-top")).not.toBeNull();
+    expect(thumb?.querySelector(".wd-reader-action")).not.toBeNull();
+  });
+
+  it("anchors the reach-to-top rail to the whole column", () => {
     renderReader(<p>Case-study body</p>);
 
     const rail = document.querySelector<HTMLElement>(".wd-rail");
     const column = document.querySelector<HTMLElement>(".wd-reader-column");
 
-    // The rail must start at the top of the scroll area, not below the cover,
-    // or "← Work" cannot pin there on the first paint.
+    // The rail must span the article for the sticky "↑ Top" to hold at the
+    // foot while the study scrolls. The way back lives above the column now.
     expect(rail?.parentElement).toBe(column);
   });
 

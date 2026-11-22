@@ -539,22 +539,23 @@ The hand-off is a module flag, not the tree: the flag is set while any drawer is
 
 ## Work drawer — geometry and popover sides
 
-One set of root tokens positions the drawer, so the nav, the blur zone, the reading column and the rail cannot drift apart. The drawer's nav sits 44px from the viewport top at 768 and up (16px below) and the study starts 32px under it (24px below 768).
+One set of root tokens positions the drawer, so the nav, the blur zone, the reading column, the shared back row and the rail cannot drift apart. The drawer's nav sits 44px from the viewport top at 768 and up (16px below) and the study starts 32px under it (24px below 768).
 
 | Token | Below 768 | 768 and up | Read by |
 | --- | --- | --- | --- |
 | `--wd-panel-inset` | 0px | 16px | panel inset, nav top |
-| `--wd-nav-inset` | 16px | 28px | nav top, blur height, column clearance, rail |
-| `--wd-nav-height` | 4rem | 4rem | nav box, blur height, column clearance |
-| `--wd-nav-content-gap` | 24px | 32px | column top padding, rail sticky top |
+| `--wd-nav-inset` | 16px | 28px | nav top, blur height, back row top padding |
+| `--wd-nav-height` | 4rem | 4rem | nav box, blur height, back row top padding |
+| `--wd-nav-content-gap` | 24px | 32px | back row top padding; the index column's top padding |
 | `--wd-phase-row-gap` | 4px | 4px | the picker row's side offset |
 
 The Day phase row opens above the toggle on the homepage and below it in the drawer, always at `--wd-phase-row-gap`. Each track's labels point away from the other track: home has the row above, so the toggle's labels go below and the row's go above; the reader has the row below, so the toggle's labels go above and the row's go below. The glyph's label keeps the reader's downward side.
 
 - `src/app/globals.css:258` — the token block
 - `src/app/globals.css:267` — the 768 overrides
-- `src/components/work/reader.css:48` — column top padding
-- `src/components/work/reader.css:104` — rail sticky top
+- `src/components/work/reader.css:30` — the shared back row's top padding
+- `src/components/work/reader.css:46` — the reading column, now without the nav clearance
+- `src/components/work/work-index.css:23` — the index column's top padding
 - `src/components/nav/nav-dock.css:72` — home label side
 - `src/components/nav/nav-dock.css:77` — reader label side
 - `src/components/nav/nav-dock.css:103` — the reader's picker row, 4px below the toggle
@@ -569,7 +570,7 @@ The progressive blur over the reader's top edge is six static `backdrop-filter` 
 | Cascade | `animation: none` on the cover and every text block; the scroll column is one 120ms opacity pass |
 | Hand-off | no fade-out wait and no cascade; the incoming column and ruler take one 120ms `ease-out` opacity pass, `filter: none` |
 | Content out | 260ms `ease`, ~86% of the 300ms close, 120ms `ease-out` reduced |
-| Thumb pair, rail | 120ms `ease-out`, visibility steps with the fade |
+| Reach-to-top pair, rail | 120ms `ease-out`, visibility steps with the fade |
 | Picker row | existing rows: opacity only 120ms, no scale, no icon settle |
 | Ruler indicator | placed on the target tick in one write, no flight |
 
@@ -577,7 +578,7 @@ The progressive blur over the reader's top edge is six static `backdrop-filter` 
 - `src/components/work/blur-stack.css:96` — reduced-transparency / no-support fallback
 - `src/components/work/entrance.css:171` — reduced-motion `animation: none`
 - `src/components/work/entrance.css:184` — the hand-off column's one 120ms opacity pass
-- `src/components/work/reader.css:253` — thumb-pair reduced path
+- `src/components/work/reader.css:331` — reach-to-top reduced path
 
 ## Reduced motion
 
@@ -699,14 +700,14 @@ The drawer is one surface for `/work` and every `/work/<slug>`: it opens from th
 | Study opened (homepage card) | panel `transform` | 900ms | 0 | same | the clicked card's live rect → panel box |
 | Index → study, study → index, study → study | outgoing view `opacity` | 160ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 1 → 0, frozen over the incoming view |
 | Same swap | incoming view `opacity` | 240ms (`--duration-medium-1`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 0 → 1 |
-| "← Work" | the same cross-fade, towards `/work` | 160ms / 240ms | 0 | same | the study's view → the index's view; the panel does not move |
+| "← Work" (shared BackLink) | the same cross-fade, towards `/work` | 160ms / 240ms | 0 | same | the study's view → the index's view; the panel does not move |
 | Close (index Esc/backdrop, or the logo anywhere) | panel `transform` | 300ms | 0 | `ease` (`0.25, 0.1, 0.25, 1`) | current pose → the capsule or card's live rect (scale + fade when there is no origin) |
 | Opened, reduced motion | panel `opacity` | 120ms | 0 | `ease-out` | 0 → 1, no transform |
 | Swap/close, reduced motion | `opacity` only | 120ms | 0 | `ease-out` | the same states, no movement |
 
 The content swap snapshots the outgoing view before React mutates the DOM, so the copy is the view that was on screen rather than the new route's: it stays inert and `aria-hidden`, keeps the reader's scroll position, and has its inner animations and transitions neutralised so it paints at rest.
 
-**Close B.** Esc and the backdrop step a study back to the index; on the index they close the drawer. The logo closes from anywhere. "← Work" is the same step back, and browser Back is the platform's. A step back uses `router.back()` only when the entry behind this one is the index; after "Next project" the entry behind is another study, so the index is pushed instead.
+**Close B.** Esc and the backdrop step a study back to the index; on the index they close the drawer. The logo closes from anywhere. The shared "← Work" BackLink is the same step back, and browser Back is the platform's. A step back uses `router.back()` only when the entry behind this one is the index; after "Next project" the entry behind is another study, so the index is pushed instead.
 
 **Esc guard.** One burst of presses cannot step back and then close: Esc is ignored while a step-back transition is in flight, and for `ESC_BURST_MS = 350ms` after the index lands. Auto-repeat from a held key is ignored too (`event.repeat`). A single deliberate press is unchanged: one steps back, a later one closes.
 
@@ -731,7 +732,8 @@ The content swap snapshots the outgoing view before React mutates the DOM, so th
 - `src/components/work/drawer-actions.tsx:53` — auto-repeat is not a fresh press
 - `src/components/work/use-morph.ts:673` — `stepBack`
 - `src/components/work/use-morph.ts:676` — uses history only when the index is the entry behind
-- `src/components/work/reader-rail.tsx:88` — "← Work" calls the same step back
+- `src/components/work/back-link.tsx` — the shared "← Home"/"← Work" control; its reader action calls `stepBack`
+- `src/components/work/work-list.tsx` — the index's Soft-focus slot for the BackLink
 - `src/components/work/use-morph.ts:301` — the one lifecycle machine
 - `src/components/work/use-morph.ts:338` — `commit`: generation bump, flight stop, phase
 - `src/components/work/use-morph.ts:880` — `close`: play, then settle, no latch
@@ -755,16 +757,20 @@ The /work index is one list of case studies inside the drawer panel, under the n
 | Dividers next to the current row | item `::before` `opacity` | 200ms | 0 | same | 1 → 0 |
 | Visible rows enter with the drawer | `opacity` / `transform` / `filter` | 700ms | `40ms × slot` (max 12 rows) | `--ease-calm` | 0 / `7px` down / `8px` blur → 1 / 0 / none |
 | Index arrives with the panel | `.wd-index-scroll` `opacity` | 300ms (`--duration-medium-5`) | held at 0 until `data-reveal="on"` | `--ease-emphasized-decelerate` | 0 → 1, one pass |
+| "← Home" enters with the index | `.wd-back` `opacity` / `transform` / `filter` | 700ms | 0 | `--ease-calm` | 0 / `7px` down / `8px` blur → 1 / 0 / none |
 
 - **1:1 tracking, no smoothing.** Each pointer move schedules one `requestAnimationFrame` write of `translate3d(cursor − layer origin − half the box, 0)` from the latest `clientX`/`clientY`. There is no lerp, spring or `dt`. The outer box only ever transforms; the inner layer owns opacity and scale, so the entrance cannot fight the tracking.
 - **Cursor none.** The OS cursor paints above the DOM, so the list sets `cursor: none` on the rows while a pointer owns the thumbnail. It is keyed to the pointer (not to keyboard focus) and is removed on leaving the rows or the list, and over the nav or the dev-only surfaces; keyboard focus parks the thumbnail with the normal cursor, and touch never hides it.
 - **The 0.6 start.** The thumbnail's first painted frame is already 60% opaque, so the frame that hides the cursor always has an image under it. The scale still starts at 0.96 and both run on the same 200ms curve. The exit keeps its 150ms fade.
 - **Dim and dividers.** The 40% dim sits on the row child, not the list item, so the item's `--outline-variant` hairline stays at full opacity. A list-level dim state with an 80ms grace keeps it from flashing between rows, including while a stationary pointer is tracked through a scroll. The current row and the row after it drop their lines so the rounded hover fill never sits on one.
 - **Entrance.** Only the rows visible at open stagger, capped at 12; rows below the fold are already visible and never animate on scroll. The animation uses `fill-mode: backwards`: the from-state holds through the stagger delay and the final state returns to the cascade, so the 40% dim still applies after the animation. (`both` held `opacity: 1` over the dim rule — the dim bug this replaced.)
+- **Ways home.** The shared BackLink is the list's first Soft-focus beat, with no delay; the rows keep their own 40ms stagger. In the reader the same component sits above the article and has no entrance of its own: it rides the scroll column's reveal. Neither animates on scroll.
 - **Reduced motion.** The thumbnail is opacity-only over 120ms (no scale), the row dim and divider fades are 120ms, and the entrance does not run. The 1:1 cursor tracking stays: it is direct manipulation, not an animation.
 - **Touch.** No thumbnail at all; the list is the plain links, with the normal cursor.
 
 - `src/components/work/work-list.tsx` — placement and the 1:1 rAF write; focus parking; the 80ms dim grace; the 12-row entrance cap; the portal layer
-- `src/components/work/work-list.css` — the 0.6 entry, 150ms exit, crossfade, dim, divider fade, reduced motion
+- `src/components/work/work-list.css` — the 0.6 entry, 150ms exit, crossfade, dim, divider fade, reduced motion; the BackLink's Soft-focus beat
 - `src/components/work/work-index.css` — the column and the arrival fade
+- `src/components/work/back-link.tsx` / `back-link.css` — the shared way back, its hover/press/focus and the future menu seam
+- `src/components/work/reader.css` — the reader's back row and the reach-to-top rail
 

@@ -332,14 +332,17 @@ describe("NavDock", () => {
       readFileSync(join(process.cwd(), ...parts), "utf8");
     const globals = read("src", "app", "globals.css");
     const readerCss = read("src", "components", "work", "reader.css");
+    const indexCss = read("src", "components", "work", "work-index.css");
 
     expect(globals.match(/--wd-nav-content-gap:/g)).toHaveLength(2);
     expect(globals).toMatch(/--wd-nav-content-gap: 24px;/);
     expect(globals).toMatch(/--wd-nav-content-gap: 32px;/);
 
-    // The column clearance and the rail both read it, with no leftover 12px.
-    expect(readerCss.match(/var\(--wd-nav-content-gap\)/g)).toHaveLength(2);
+    // The reader's back row owns its column's clearance, and the index column
+    // reads the same token; no leftover 12px.
+    expect(readerCss.match(/var\(--wd-nav-content-gap\)/g)).toHaveLength(1);
     expect(readerCss).not.toMatch(/--wd-nav-height\) \+ 12px/);
+    expect(indexCss).toMatch(/var\(--wd-nav-content-gap\)/);
   });
 
   it("scales the Day row out of the corner nearest the toggle", () => {
