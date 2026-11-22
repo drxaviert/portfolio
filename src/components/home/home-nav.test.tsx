@@ -94,9 +94,18 @@ describe("HomeNav", () => {
     }
   });
 
-  it("gives the labels, the glyph and the orb a 44px hit area", () => {
+  it("shows a pointer cursor on the design-system glyph", () => {
     renderNav();
 
+    // The labels get it from their button reset class; the glyph is a button
+    // too, so it must not fall back to the UA arrow.
+    expect(screen.getByRole("button", { name: "Design system" })).toHaveClass(
+      "cursor-pointer",
+    );
+  });
+
+  it("gives the labels, the glyph and the orb a 44px hit area", () => {
+    renderNav();
     // 6px of the bar's padding on each edge: the 32px label and glyph become 44,
     // and the 36px orb 44 too. The pseudo-elements are transparent, so the
     // resting boxes, the capsule and the nav's look are untouched — and every
@@ -174,6 +183,19 @@ describe("HomeNav", () => {
     );
     expect(itemsCss).toMatch(
       /\[data-tooltip-warm="true"\] \.nav-glyph:hover \.nav-tooltip \{\s*transition: none;/,
+    );
+  });
+
+  it("ships the neutral 5% hover fill", () => {
+    const itemsCss = readFileSync(
+      join(process.cwd(), "src", "components", "home", "nav-items.css"),
+      "utf8",
+    );
+
+    // The chosen hover: the ink at 5% into the container, revealed at the
+    // original 0.55 weight.
+    expect(itemsCss).toMatch(
+      /\.nav-run \{\s*--nav-hover-fill: color-mix\(\s*in oklab,\s*var\(--on-surface\) 5%,\s*var\(--surface-container\)\s*\);/,
     );
   });
 });

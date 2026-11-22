@@ -31,6 +31,22 @@
 /* ---------- Glide: one capsule under the item run ---------- */
 
 /*
+ * The pill's colour: a neutral 5% mix of the ink into the container surface,
+ * revealed at the original 0.55 weight. It reads as a soft grey step in every
+ * phase without pulling the accent hue into the nav.
+ *
+ * Declared on the run, not on each target, so the capsule and the
+ * reduced-motion item fill inherit one value.
+ */
+.nav-run {
+  --nav-hover-fill: color-mix(
+    in oklab,
+    var(--on-surface) 5%,
+    var(--surface-container)
+  );
+}
+
+/*
  * The layer spans the run and carries the pill as a clip, so a frame writes
  * one paint-only property: no width, no layout.
  */
@@ -41,7 +57,7 @@
   z-index: 0;
   width: 100%;
   height: 2rem;
-  background-color: var(--surface-container);
+  background-color: var(--nav-hover-fill);
   clip-path: inset(0 100% 0 0 round var(--radius-md, 6px));
   opacity: 0;
   pointer-events: none;
@@ -155,7 +171,7 @@
   .nav-glyph:hover {
     background-color: color-mix(
       in oklab,
-      var(--surface-container) 55%,
+      var(--nav-hover-fill) 55%,
       transparent
     );
   }
