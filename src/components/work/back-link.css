@@ -65,12 +65,10 @@
   }
 }
 
-/* The future Work/Home menu hangs from the wrapper; nothing fills it yet. */
+/* The Work/Home hover menu hangs from the wrapper (back-menu.tsx). The slot is
+   layout-free: each variant positions itself against the button. */
 .wd-back-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 2;
+  display: contents;
 }
 
 @media (prefers-reduced-motion: reduce) {

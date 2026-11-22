@@ -1,6 +1,6 @@
 "use client";
 
-import type { MouseEvent, ReactNode } from "react";
+import type { KeyboardEventHandler, MouseEvent, ReactNode, Ref } from "react";
 import { useDrawerActions } from "./drawer-actions";
 import "./back-link.css";
 
@@ -15,9 +15,9 @@ import "./back-link.css";
  * modified click is left to the browser, which follows the href — the homepage
  * from the index, the index from a study.
  *
- * The wrapper is the future menu's anchor. When the Work/Home hover menu ships,
- * pass it as `menu`; the wrapper already carries `data-back-menu-anchor` and the
- * menu node gets `data-back-menu-slot`. Nothing renders a menu today.
+ * The wrapper is the hover menu's anchor. The reader passes its Work/Home menu
+ * as `menu`; the wrapper carries `data-back-menu-anchor` and the menu node gets
+ * `data-back-menu-slot`. The index passes nothing and stays a plain link.
  */
 export type BackLinkProps = {
   /** The visible word: "Home" or "Work". */
@@ -27,17 +27,34 @@ export type BackLinkProps = {
   /** The fallback route for a modified click or a reader with no drawer. */
   href: string;
   onBack?: () => void;
-  /** Reserved seam for the reader's future Work/Home hover menu. */
+  /** The reader's Work/Home hover menu. */
   menu?: ReactNode;
 };
 
-export function BackLink({
+/** The anchor alone, shared with the menu wrapper (back-menu.tsx). */
+export type BackLinkAnchorProps = {
+  label: string;
+  ariaLabel: string;
+  href: string;
+  onBack?: () => void;
+  linkRef?: Ref<HTMLAnchorElement>;
+  ariaControls?: string;
+  ariaExpanded?: boolean;
+  ariaHasPopup?: "menu";
+  onKeyDown?: KeyboardEventHandler<HTMLAnchorElement>;
+};
+
+export function BackLinkAnchor({
   label,
   ariaLabel,
   href,
   onBack,
-  menu,
-}: BackLinkProps) {
+  linkRef,
+  ariaControls,
+  ariaExpanded,
+  ariaHasPopup,
+  onKeyDown,
+}: BackLinkAnchorProps) {
   function onClick(event: MouseEvent<HTMLAnchorElement>) {
     if (!onBack) return;
     if (event.button !== 0) return;
@@ -50,16 +67,38 @@ export function BackLink({
   }
 
   return (
+    <a
+      ref={linkRef}
+      href={href}
+      aria-label={ariaLabel}
+      className="wd-back-link"
+      aria-controls={ariaControls}
+      aria-expanded={ariaExpanded}
+      aria-haspopup={ariaHasPopup}
+      onKeyDown={onKeyDown}
+      onClick={onClick}
+    >
+      <LeftArrowIcon />
+      <span className="wd-back-label">{label}</span>
+    </a>
+  );
+}
+
+export function BackLink({
+  label,
+  ariaLabel,
+  href,
+  onBack,
+  menu,
+}: BackLinkProps) {
+  return (
     <div className="wd-back" data-back-menu-anchor="">
-      <a
+      <BackLinkAnchor
+        label={label}
+        ariaLabel={ariaLabel}
         href={href}
-        aria-label={ariaLabel}
-        className="wd-back-link"
-        onClick={onClick}
-      >
-        <LeftArrowIcon />
-        <span className="wd-back-label">{label}</span>
-      </a>
+        onBack={onBack}
+      />
 
       {menu ? (
         <div className="wd-back-menu" data-back-menu-slot="">
@@ -100,7 +139,7 @@ export function ReaderBackLink({ menu }: { menu?: ReactNode }) {
 }
 
 /** The left arrow, in the work icons' 20px / 1.5px stroke set. */
-function LeftArrowIcon() {
+export function LeftArrowIcon() {
   return (
     <svg
       viewBox="0 0 20 20"

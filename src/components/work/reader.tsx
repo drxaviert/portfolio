@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { nextWork } from "@/lib/work";
 import type { WorkMeta } from "@/lib/work";
-import { ReaderBackLink } from "./back-link";
+import { ReaderBackMenu } from "./back-menu/back-menu";
 import { Intro, NextLink, READER_SCROLL_ID } from "./parts";
 import { Hero } from "./media-parts";
 import { ReaderMobileActions, ReaderRail } from "./reader-rail";
@@ -33,7 +33,7 @@ export function Reader({ meta, children }: ReaderProps) {
 
       <div id={READER_SCROLL_ID} className="wd-reader-scroll">
         <div className="wd-reader-back-row">
-          <ReaderBackLink />
+          <ReaderBackMenu title={meta.title} />
         </div>
 
         <div className="wd-reader-column">

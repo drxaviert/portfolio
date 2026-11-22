@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { HomeScreen } from "@/components/home/home-screen";
+import { BackMenuDevSwitch } from "@/components/work/back-menu/dev-switch";
 import { WorkDrawer } from "@/components/work/work-drawer";
 
 /**
@@ -16,6 +17,7 @@ export default function WorkLayout({ children }: { children: ReactNode }) {
     <>
       <HomeScreen />
       <WorkDrawer>{children}</WorkDrawer>
+      <BackMenuDevSwitch />
     </>
   );
 }

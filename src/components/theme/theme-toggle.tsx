@@ -278,8 +278,8 @@ function readRowExitMs(row: HTMLElement | null): number {
 const SEGMENT_WIDTH = 34;
 const TRACK_INSET = 4;
 
-function trackWidth(segments: number): string {
-  return `${segments * SEGMENT_WIDTH + TRACK_INSET}px`;
+function trackWidth(segments: number, segmentWidth = SEGMENT_WIDTH): string {
+  return `${segments * segmentWidth + TRACK_INSET}px`;
 }
 
 /* ---------- Selection highlight: stretch & snap ---------- */
@@ -337,8 +337,8 @@ function pillPath(x: number, width: number): string {
   ].join("");
 }
 
-function segmentLeft(index: number): number {
-  return SHAPE_PADDING + index * SEGMENT_WIDTH;
+function segmentLeft(index: number, segmentWidth = SEGMENT_WIDTH): number {
+  return SHAPE_PADDING + index * segmentWidth;
 }
 
 function prefersReducedMotion(): boolean {
@@ -377,12 +377,16 @@ function createHighlightState(): HighlightState {
   };
 }
 
-function snapHighlight(st: HighlightState, index: number): void {
-  const left = segmentLeft(index);
+function snapHighlight(
+  st: HighlightState,
+  index: number,
+  segmentWidth = SEGMENT_WIDTH,
+): void {
+  const left = segmentLeft(index, segmentWidth);
 
   st.targetIndex = index;
   st.edgeLeft = left;
-  st.edgeRight = left + SEGMENT_WIDTH;
+  st.edgeRight = left + segmentWidth;
   st.flight = null;
 }
 
@@ -402,6 +406,7 @@ function drawHighlight(path: SVGPathElement, st: HighlightState): void {
  */
 function StretchHighlight({
   width,
+  segmentWidth = SEGMENT_WIDTH,
   targetIndex,
   active,
   visible = true,
@@ -409,6 +414,7 @@ function StretchHighlight({
   layerRef,
 }: {
   width: number;
+  segmentWidth?: number;
   targetIndex: number;
   active: boolean;
   visible?: boolean;
@@ -434,7 +440,7 @@ function StretchHighlight({
     };
 
     if (!st.placed) {
-      snapHighlight(st, targetIndex);
+      snapHighlight(st, targetIndex, segmentWidth);
       st.placed = true;
       st.lastVisible = visible;
       drawHighlight(path, st);
@@ -444,7 +450,7 @@ function StretchHighlight({
 
     if (!active || prefersReducedMotion()) {
       stop();
-      snapHighlight(st, targetIndex);
+      snapHighlight(st, targetIndex, segmentWidth);
       drawHighlight(path, st);
 
       return;
@@ -460,7 +466,7 @@ function StretchHighlight({
       // The hover pill appears where the pointer already is, with no travel.
       st.lastVisible = true;
       stop();
-      snapHighlight(st, targetIndex);
+      snapHighlight(st, targetIndex, segmentWidth);
       drawHighlight(path, st);
 
       return;
@@ -472,9 +478,9 @@ function StretchHighlight({
       return;
     }
 
-    const left = segmentLeft(targetIndex);
+    const left = segmentLeft(targetIndex, segmentWidth);
     const center = (st.edgeLeft + st.edgeRight) / 2;
-    const movingRight = left + SEGMENT_WIDTH / 2 >= center;
+    const movingRight = left + segmentWidth / 2 >= center;
 
     st.targetIndex = targetIndex;
     st.flight = {
@@ -519,7 +525,7 @@ function StretchHighlight({
       drawHighlight(path, st);
 
       if (leadProgress >= 1 && trailProgress >= 1) {
-        snapHighlight(st, targetIndex);
+        snapHighlight(st, targetIndex, segmentWidth);
         drawHighlight(path, st);
         st.raf = 0;
 
@@ -532,7 +538,7 @@ function StretchHighlight({
     st.raf = window.requestAnimationFrame(loop);
 
     return stop;
-  }, [targetIndex, active, visible, width]);
+  }, [targetIndex, active, visible, width, segmentWidth]);
 
   useEffect(() => {
     const st = stateRef.current;
@@ -598,6 +604,8 @@ type SegmentTrackProps = {
   segments: number;
   /** Index of the checked segment; the highlight rests on it. */
   selectedIndex: number;
+  /** Segment width in px; the theme tracks use 34. */
+  segmentWidth?: number;
   /** False while the track is hidden (the phase row before it opens). */
   active?: boolean;
   /** The parent needs the root node; a callback keeps React refs out of props. */
@@ -613,6 +621,7 @@ export function SegmentTrack({
   label,
   segments,
   selectedIndex,
+  segmentWidth = SEGMENT_WIDTH,
   active = true,
   trackRef,
   className,
@@ -623,7 +632,7 @@ export function SegmentTrack({
   const hoveredIndex = useRef<number | null>(null);
   const [hoverTarget, setHoverTarget] = useState<number | null>(null);
   const hoverLayer = useRef<HTMLSpanElement>(null);
-  const width = segments * SEGMENT_WIDTH + TRACK_INSET;
+  const width = segments * segmentWidth + TRACK_INSET;
 
   function hidePill() {
     hoveredIndex.current = null;
@@ -689,7 +698,7 @@ export function SegmentTrack({
       ref={trackRef}
       role="radiogroup"
       aria-label={label}
-      style={{ width: trackWidth(segments) }}
+      style={{ width: trackWidth(segments, segmentWidth) }}
       onPointerOver={showPill}
       onPointerLeave={(event) => {
         hidePill();
@@ -704,6 +713,7 @@ export function SegmentTrack({
     >
       <StretchHighlight
         width={width}
+        segmentWidth={segmentWidth}
         targetIndex={hoverTarget ?? selectedIndex}
         active={active}
         visible={hoverTarget !== null}
@@ -712,6 +722,7 @@ export function SegmentTrack({
       />
       <StretchHighlight
         width={width}
+        segmentWidth={segmentWidth}
         targetIndex={selectedIndex}
         active={active}
       />
@@ -722,7 +733,7 @@ export function SegmentTrack({
 type SegmentProps = {
   selected: boolean;
   label: string;
-  tooltip: string;
+  tooltip?: string;
   /** The theme's own glyphs; other tracks pass their icon as children. */
   glyph?: Glyph;
   children?: ReactNode;
@@ -771,7 +782,7 @@ export function Segment({
         .join(" ")}
     >
       {glyph ? <GlyphIcon glyph={glyph} /> : children}
-      <Tooltip>{tooltip}</Tooltip>
+      {tooltip ? <Tooltip>{tooltip}</Tooltip> : null}
     </button>
   );
 }

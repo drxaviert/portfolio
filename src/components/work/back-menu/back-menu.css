@@ -1,0 +1,359 @@
+/*
+ * The reader's "← Work" hover menu prototypes (back-menu.tsx).
+ *
+ * One open/close transition for all four variants: opacity plus a 0.97 scale
+ * from the button's edge, 150ms on the entrance curve, 120ms ease-in out.
+ * Only transform and opacity are animated; every body is absolutely
+ * positioned, so the article never moves and the scroll container never
+ * reflows. The dropdown and side cards use the popover surface
+ * (surface-container-low + shadow-card, no border), rows are 8px capsules and
+ * the hover fill is the nav's own.
+ */
+
+.bm-panel {
+  position: absolute;
+  z-index: 2;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: scale(0.97);
+  transform-origin: 0 50%;
+  transition:
+    opacity var(--duration-short-2) var(--ease-accelerate),
+    transform var(--duration-short-2) var(--ease-accelerate),
+    visibility 0s linear var(--duration-short-2);
+}
+
+.bm-panel[data-open="true"] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: none;
+  transition:
+    opacity var(--duration-short-3) var(--ease-emphasized-decelerate),
+    transform var(--duration-short-3) var(--ease-emphasized-decelerate),
+    visibility 0s;
+}
+
+/* A card is the popover language: low surface, card shadow, no stroke. */
+.bm-dropdown,
+.bm-side {
+  padding: 4px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-low);
+  box-shadow: var(--shadow-card);
+}
+
+.bm-dropdown {
+  top: calc(100% + 6px);
+  left: 0;
+  width: max-content;
+  min-width: 200px;
+  transform-origin: 0 0;
+}
+
+.bm-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bm-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--duration-short-3) var(--ease-decelerate);
+}
+
+.bm-row:hover,
+.bm-row:focus-visible {
+  color: var(--on-surface);
+}
+
+.bm-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.bm-icon {
+  display: inline-flex;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.bm-label {
+  min-width: 0;
+}
+
+.bm-hint {
+  margin-left: auto;
+  color: var(--on-surface-variant);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+/* One capsule under the rows. It glides on the toggle's trailing-edge beat. */
+.bm-capsule {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  left: 4px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--nav-hover-fill);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(var(--bm-index, 0) * 38px));
+  transition:
+    opacity var(--duration-short-3) var(--ease-decelerate),
+    transform var(--duration-short-6) var(--ease-emphasized-decelerate);
+}
+
+.bm-capsule[data-visible="true"] {
+  opacity: 1;
+}
+
+.bm-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  margin-top: 2px;
+  color: var(--on-surface-variant);
+  font-size: var(--text-xs);
+  line-height: 1;
+}
+
+.bm-kbd {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.bm-footer-hint {
+  opacity: 0.8;
+}
+
+/* Side: to the right, centred on the button unless the nav is in the way. */
+.bm-side {
+  top: var(--bm-side-top, 50%);
+  left: calc(100% + 8px);
+  width: 220px;
+  padding: 6px;
+}
+
+.bm-side .bm-capsule {
+  top: 6px;
+  right: 6px;
+  left: 6px;
+  height: 48px;
+  transform: translateY(calc(var(--bm-index, 0) * 50px));
+}
+
+.bm-side .bm-row {
+  display: grid;
+  grid-template-rows: auto auto;
+  grid-template-columns: 20px 1fr;
+  align-content: center;
+  column-gap: 10px;
+  height: 48px;
+  padding: 0 10px;
+}
+
+.bm-side .bm-icon {
+  grid-row: 1 / span 2;
+  width: 20px;
+  height: 20px;
+}
+
+.bm-side .bm-label {
+  grid-row: 1;
+  grid-column: 2;
+  color: inherit;
+  font-size: var(--text-base);
+  line-height: 1.15;
+}
+
+.bm-side .bm-hint {
+  grid-row: 2;
+  grid-column: 2;
+  margin: 0;
+  line-height: 1.2;
+}
+
+/* Inline: the theme toggle's track, two labels, no floating surface. */
+.bm-inline {
+  top: 0;
+  left: 0;
+}
+
+.bm-inline [role="radio"] {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+/* Crumb: the label expands, the left edge stays put. */
+.bm-crumb {
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 4px;
+  border-radius: var(--radius-md);
+  background: var(--surface-container-low);
+  box-shadow: var(--shadow-card);
+  color: var(--on-surface-variant);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.bm-crumb-item {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  color: var(--on-surface-variant);
+  text-decoration: none;
+  transition:
+    color var(--duration-short-3) var(--ease-decelerate),
+    background-color var(--duration-short-3) var(--ease-decelerate);
+}
+
+.bm-crumb-item:hover,
+.bm-crumb-item:focus-visible {
+  background: var(--nav-hover-fill);
+  color: var(--on-surface);
+}
+
+.bm-crumb-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.bm-crumb-sep {
+  color: var(--outline);
+  font-weight: 400;
+}
+
+.bm-crumb-current {
+  max-width: 240px;
+  overflow: hidden;
+  padding: 0 8px 0 4px;
+  color: var(--on-surface-variant);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Reduced motion: opacity only, and no longer than a state change. */
+@media (prefers-reduced-motion: reduce) {
+  .bm-panel,
+  .bm-panel[data-open="true"] {
+    transform: none;
+  }
+
+  .bm-panel {
+    transition:
+      opacity var(--duration-short-2) var(--ease-decelerate),
+      visibility 0s linear var(--duration-short-2);
+  }
+
+  .bm-panel[data-open="true"] {
+    transition:
+      opacity var(--duration-short-2) var(--ease-decelerate),
+      visibility 0s;
+  }
+
+  .bm-capsule {
+    transition: opacity var(--duration-short-2) var(--ease-decelerate);
+  }
+}
+
+/* The prototype's switch: dev chrome, clear of Next's bottom-left badge. */
+.bm-dev {
+  position: fixed;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 60px;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-low);
+  box-shadow: var(--shadow-card);
+  color: var(--on-surface-variant);
+  font-size: var(--text-xs);
+}
+
+.bm-dev-label {
+  padding: 0 6px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.bm-dev-option {
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.bm-dev-option:hover {
+  color: var(--on-surface);
+}
+
+.bm-dev-option[aria-pressed="true"] {
+  background: var(--surface-container);
+  color: var(--on-surface);
+}
+
+.bm-dev-option:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+/*
+ * Forced colours: a card's only edge is its shadow, so give it a real
+ * CanvasText line when shadows are dropped.
+ */
+@media (forced-colors: active) {
+  .bm-dropdown,
+  .bm-side,
+  .bm-crumb {
+    border: 1px solid CanvasText;
+  }
+}
