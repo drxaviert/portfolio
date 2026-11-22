@@ -5,7 +5,6 @@ import { Breadcrumb } from "./breadcrumb";
 import { Intro, NextLink, READER_SCROLL_ID } from "./parts";
 import { Hero } from "./media-parts";
 import { ReaderMobileActions, ReaderRail } from "./reader-rail";
-import { ScrollRuler } from "./scroll-ruler";
 import { BlurStack } from "./blur-stack";
 import "@/components/home/ring-hover.css";
 import "./reader.css";
@@ -56,10 +55,6 @@ export function Reader({ meta, children }: ReaderProps) {
           </div>
         </div>
       </div>
-
-      {/* Beside the scroll box, not inside it: the ruler marks the article's
-          position and must not scroll away with it. */}
-      <ScrollRuler studySlug={meta.slug} />
 
       {/* Below 1024px the reach-to-top button is fixed to the panel's foot,
           outside the scroll container so it stays put while the article moves.
