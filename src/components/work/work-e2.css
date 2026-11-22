@@ -1,0 +1,269 @@
+/*
+ * E2 — the shipped list alone, with one shared thumbnail in the left margin.
+ *
+ * The row keeps the list's voice and geometry: an 80px year column, a flexible
+ * title (20px/500) + summary (14px) column, a 160px right-aligned role, a 16px
+ * gap, 18x16 padding, a 12px radius and the surface-container hover fill.
+ *
+ * The thumbnail is one absolutely positioned element, never a row child. In
+ * the wide case it hangs in the left margin (120x90, its right edge 16px from
+ * the row); its outer layer glides vertically while its inner layer plays the
+ * 8px enter and fade. The two image layers crossfade inside it.
+ *
+ * The narrow fallback reserves the thumbnail's 136px inside the row and hides
+ * the year, so the title starts beside the thumbnail rather than under it.
+ */
+
+.wd-e2-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+  outline: none;
+}
+
+.wd-index-column.wd-e2-column {
+  /* The list is the page: no header, no count, no grid/list switch. The column
+     is 64px narrower than the shipped list so the 120px thumbnail has a real
+     left margin at 1440 instead of sitting flush against the panel edge. */
+  max-width: 1120px;
+  min-width: 0;
+}
+
+.wd-e2-list-wrap {
+  position: relative;
+}
+
+.wd-e2-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wd-e2-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) 160px;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 16px;
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.wd-e2-row--fake {
+  cursor: default;
+}
+
+/* Fallback: the thumbnail's width lives in the row's left padding, and the
+   year column goes away so the title starts beside it. The text never sits
+   under the thumbnail. */
+.wd-e2-list-wrap[data-e2-mode="inset"] .wd-e2-row {
+  grid-template-columns: minmax(0, 1fr) 160px;
+  padding-left: 152px;
+}
+
+.wd-e2-list-wrap[data-e2-mode="inset"] .wd-e2-year {
+  display: none;
+}
+
+.wd-e2-list-wrap[data-e2-mode="inset"] .wd-e2-thumb {
+  left: 16px;
+}
+
+.wd-e2-year {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  color: var(--on-surface-variant);
+}
+
+.wd-e2-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wd-e2-title {
+  font-size: var(--text-xl);
+  line-height: 1.2;
+  font-weight: 500;
+  text-wrap: balance;
+}
+
+.wd-e2-summary {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+  text-wrap: pretty;
+}
+
+.wd-e2-role {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--on-surface-variant);
+  text-align: end;
+  white-space: nowrap;
+}
+
+@media (max-width: 767.98px) {
+  .wd-e2-row,
+  .wd-e2-list-wrap[data-e2-mode="inset"] .wd-e2-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wd-e2-role {
+    display: none;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .wd-e2-row {
+    /* The task's 200ms feedback beat; no scale step owns it. */
+    transition: background-color 200ms var(--ease-decelerate);
+  }
+
+  .wd-e2-row:hover {
+    background: var(--surface-container);
+  }
+}
+
+.wd-e2-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  background: var(--surface-container);
+}
+
+/* ---------- The shared thumbnail ---------- */
+
+.wd-e2-thumb {
+  position: absolute;
+  top: 0;
+  left: -136px;
+  z-index: 3;
+  width: 120px;
+  height: 90px;
+  pointer-events: none;
+  transform: translateY(var(--e2-y, 0px));
+  transition: transform 240ms var(--ease-emphasized-decelerate);
+}
+
+/* First appearance: place it beside the row without a vertical glide. */
+.wd-e2-thumb[data-e2-snap] {
+  transition: none;
+}
+
+.wd-e2-thumb-in {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--surface-container);
+  box-shadow: var(--shadow-card);
+  opacity: 0;
+  transform: translateX(8px);
+  transition:
+    opacity 150ms var(--ease-decelerate),
+    transform 200ms var(--ease-emphasized-decelerate);
+}
+
+.wd-e2-list-wrap[data-e2-active] .wd-e2-thumb-in {
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity 200ms var(--ease-emphasized-decelerate),
+    transform 200ms var(--ease-emphasized-decelerate);
+}
+
+.wd-e2-thumb-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 200ms var(--ease-emphasized-decelerate);
+}
+
+.wd-e2-thumb-layer[data-front] {
+  opacity: 1;
+}
+
+.wd-e2-thumb-layer > * {
+  height: 100%;
+}
+
+.wd-e2-thumb-grad {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background-position: center;
+  background-size: cover;
+}
+
+/* Touch has no hover to drive it: the list stays exactly as it is today. */
+@media (hover: none) {
+  .wd-e2-thumb {
+    display: none;
+  }
+}
+
+/* ---------- Row entrance ---------- */
+
+/*
+ * The A bands' Soft focus, applied to the list: 7px rise, 8px defocus, 40ms
+ * top-down. It starts on the drawer's open beat and never on a mount at rest.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .wd-expand-layer[data-phase="opening"] .wd-e2-row-item {
+    opacity: 0;
+  }
+
+  .wd-e2-column[data-e2-anim="on"] .wd-e2-row-item {
+    animation: wd-e2-soft 700ms var(--ease-calm) both;
+    animation-delay: calc(var(--e2-i, 0) * 40ms);
+  }
+}
+
+@keyframes wd-e2-soft {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: none;
+  }
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-e2-thumb {
+    transition: none;
+  }
+
+  .wd-e2-thumb-in,
+  .wd-e2-list-wrap[data-e2-active] .wd-e2-thumb-in {
+    transform: none;
+    transition: opacity 120ms ease-out;
+  }
+
+  .wd-e2-thumb-layer {
+    transition: opacity 120ms ease-out;
+  }
+}
+
+/* ---------- Forced colours ---------- */
+
+@media (forced-colors: active) {
+  .wd-e2-thumb-in {
+    border: 1px solid CanvasText;
+  }
+}

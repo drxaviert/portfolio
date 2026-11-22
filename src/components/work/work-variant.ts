@@ -10,13 +10,14 @@ import { useSyncExternalStore } from "react";
  * server, so the server snapshot is always `current` and hydration settles on
  * the remembered value a beat later — the pill and the index swap together.
  */
-export type WorkVariant = "current" | "a-full" | "a-grow" | "a-plain";
+export type WorkVariant = "current" | "a-full" | "a-grow" | "a-plain" | "e2";
 
 export const WORK_VARIANTS: readonly WorkVariant[] = [
   "current",
   "a-full",
   "a-grow",
   "a-plain",
+  "e2",
 ];
 
 export const WORK_VARIANT_LABELS: Record<WorkVariant, string> = {
@@ -24,6 +25,7 @@ export const WORK_VARIANT_LABELS: Record<WorkVariant, string> = {
   "a-full": "A · full",
   "a-grow": "A · grow",
   "a-plain": "A · plain",
+  e2: "E2",
 };
 
 export const WORK_VARIANT_NOTES: Record<WorkVariant, string> = {
@@ -31,6 +33,7 @@ export const WORK_VARIANT_NOTES: Record<WorkVariant, string> = {
   "a-full": "Storyboard: surface, grow, bands, list (~2.4s)",
   "a-grow": "Recommended: surface and one shared card (~1.1s)",
   "a-plain": "Surface open only, no shared element",
+  e2: "List only, with one shared left-margin thumbnail",
 };
 
 const STORAGE_KEY = "wd-work-variant";

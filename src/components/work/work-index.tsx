@@ -14,6 +14,7 @@ import {
 } from "./layout-preference";
 import type { WorkLayout } from "./layout-preference";
 import { WorkBands } from "./work-bands";
+import { WorkIndexListE2 } from "./work-e2";
 import { WorkGrid } from "./work-grid";
 import { INDEX_SCROLL_ID, INDEX_TITLE_ID } from "./work-index-ids";
 import { WorkIndexList } from "./work-index-list";
@@ -245,9 +246,12 @@ export function WorkIndex({ works }: { works: WorkMeta[] }) {
     void height.finished.then(finish, finish);
   }, [layout]);
 
-  // Prototype A replaces the header, count, switch and both layouts with the
-  // composed bands. `current` keeps every rule below unchanged, including the
-  // pre-paint `data-work-layout` contract.
+  // E2 is the list alone: no header, count or switch, and one shared
+  // left-margin thumbnail. The A variants replace the whole index.
+  if (variant === "e2") {
+    return <WorkIndexListE2 works={works} />;
+  }
+
   if (variant !== "current") {
     return <WorkBands works={works} variant={variant} />;
   }

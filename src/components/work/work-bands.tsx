@@ -26,7 +26,7 @@ import "./work-bands.css";
  * `current` never renders this component; WorkIndex keeps its shipped markup.
  */
 
-type ABandVariant = Exclude<WorkVariant, "current">;
+type ABandVariant = Exclude<WorkVariant, "current" | "e2">;
 
 /**
  * The `tags[0]` the frontmatter does not carry yet. Kept as a study-owned

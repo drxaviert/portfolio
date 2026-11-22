@@ -37,7 +37,19 @@ export function WorkVariantSwitcher() {
     setWorkVariant(next);
     noteWorkVariantParam();
 
-    const href = `/?wv=${next}`;
+    // Keep the review's fake-row flag when moving to E2, so a `?fake=1` link
+    // can be switched around and back without losing the placeholders.
+    let fake = false;
+
+    try {
+      fake =
+        next === "e2" &&
+        new URLSearchParams(window.location.search).get("fake") === "1";
+    } catch {
+      fake = false;
+    }
+
+    const href = `/?wv=${next}${fake ? "&fake=1" : ""}`;
 
     // Off the homepage the choice is a reset: the route has to change so the
     // next Work click is a fresh open. On `/` the query alone is enough, and
