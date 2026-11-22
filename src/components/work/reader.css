@@ -24,8 +24,8 @@
 /*
  * The shared way back, above the reading column. It borrows the index's column
  * geometry (1120px, 16/32px inline, the nav clearance on top) so the same
- * BackLink component lands on the same rectangle as the index's "← Home"; the
- * reading column below therefore drops its own nav clearance.
+ * Breadcrumb component lands on the same rectangle as the index's Home / Work;
+ * the reading column below therefore drops its own nav clearance.
  */
 .wd-reader-back-row {
   width: 100%;
@@ -63,7 +63,7 @@
  * The left margin rail from 1024px: "↑ Top" near the foot of the panel. It uses
  * the margin notes' type and has no surface, so the rail reads as a note beside
  * the article rather than as chrome. The way back to the index is the shared
- * BackLink above the column on every width (back-link.tsx).
+ * Breadcrumb above the column on every width (breadcrumb.tsx).
  *
  * The rail is the column's own box; its one child is sticky to the foot of the
  * scroll area.
@@ -184,7 +184,7 @@
     inset-inline-start: max(16px, env(safe-area-inset-left));
     inset-inline-end: max(16px, env(safe-area-inset-right));
     bottom: max(16px, env(safe-area-inset-bottom));
-    /* The way back is the shared BackLink above the article now; only the
+    /* The way back is the shared Breadcrumb above the article now; only the
        reach-to-top button is left, and it keeps the right corner. */
     justify-content: flex-end;
     pointer-events: none;

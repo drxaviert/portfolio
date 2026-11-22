@@ -73,7 +73,7 @@ describe("ReaderRail", () => {
   it("keeps only the reach-to-top control in the rail", () => {
     render(<ReaderRail />);
 
-    // The way back is the shared BackLink above the article now.
+    // The way back is the shared Breadcrumb above the article now.
     expect(screen.queryByRole("link", { name: "Work" })).toBeNull();
     expect(screen.getByLabelText("Back to top")).toHaveClass("wd-rail-top");
   });

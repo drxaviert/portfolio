@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { nextWork } from "@/lib/work";
 import type { WorkMeta } from "@/lib/work";
-import { ReaderBackLink } from "./back-link";
+import { Breadcrumb } from "./breadcrumb";
 import { Intro, NextLink, READER_SCROLL_ID } from "./parts";
 import { Hero } from "./media-parts";
 import { ReaderMobileActions, ReaderRail } from "./reader-rail";
@@ -33,14 +33,14 @@ export function Reader({ meta, children }: ReaderProps) {
 
       <div id={READER_SCROLL_ID} className="wd-reader-scroll">
         <div className="wd-reader-back-row">
-          <ReaderBackLink />
+          <Breadcrumb title={meta.title} />
         </div>
 
         <div className="wd-reader-column">
           {/* The rail is anchored to the whole column, not to the article
               below the cover: "↑ Top" pins to the scroll area's foot from the
               first paint, and the rail still spans the full article. The way
-              back to the index is the shared BackLink above, not the rail. */}
+              back to the index is the shared Breadcrumb above, not the rail. */}
           <div className="wd-rail">
             <ReaderRail />
           </div>
@@ -63,7 +63,7 @@ export function Reader({ meta, children }: ReaderProps) {
 
       {/* Below 1024px the reach-to-top button is fixed to the panel's foot,
           outside the scroll container so it stays put while the article moves.
-          The way back is the shared BackLink at the top, on every width. */}
+          The way back is the shared Breadcrumb at the top, on every width. */}
       <ReaderMobileActions />
     </>
   );

@@ -6,7 +6,7 @@ import { useShowTop } from "./use-show-top";
 
 /**
  * The reader's reach-to-top controls. The way back to the index is the shared
- * BackLink above the article (back-link.tsx), on every width; these are only
+ * Breadcrumb above the article (breadcrumb.tsx), on every width; these are only
  * the second half of the old pair: "↑ Top" in the desktop margin rail and the
  * thumb-reach button at the panel's foot below 1024px.
  */

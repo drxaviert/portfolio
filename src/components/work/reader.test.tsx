@@ -13,6 +13,7 @@ const { push, replace } = vi.hoisted(() => ({
   replace: vi.fn(),
 }));
 const stepBack = vi.fn();
+const close = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace }),
@@ -47,6 +48,7 @@ beforeEach(() => {
   push.mockReset();
   replace.mockReset();
   stepBack.mockReset();
+  close.mockReset();
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -69,7 +71,7 @@ afterEach(() => {
 function renderReader(children: ReactNode) {
   return render(
     <ThemeProvider>
-      <DrawerActionsProvider close={vi.fn()} stepBack={stepBack} exit={vi.fn()}>
+      <DrawerActionsProvider close={close} stepBack={stepBack} exit={vi.fn()}>
         <Reader meta={featured()}>{children}</Reader>
       </DrawerActionsProvider>
     </ThemeProvider>,
@@ -86,24 +88,37 @@ describe("reader content", () => {
     expect(document.getElementById(READER_TITLE_ID)).toBeInTheDocument();
   });
 
-  it("puts the shared way back above the article, before the column", () => {
+  it("puts the shared Breadcrumb above the article, before the column", () => {
     renderReader(<p>Case-study body</p>);
 
-    const back = screen.getByRole("link", { name: "Back to work" });
+    const nav = screen.getByRole("navigation", { name: "Breadcrumb" });
+    const home = screen.getByRole("link", { name: "Home" });
+    const work = screen.getByRole("link", { name: "Work" });
+    const title = screen.getByText("Systems in motion", {
+      selector: ".breadcrumb-current",
+    });
     const row = document.querySelector(".wd-reader-back-row");
     const column = document.querySelector(".wd-reader-column");
 
-    expect(back).toHaveTextContent("Work");
-    expect(back).toHaveAttribute("href", "/work");
-    expect(back.closest(".wd-reader-back-row")).toBe(row);
+    expect(nav).toHaveTextContent("Home/Work/Systems in motion");
+    expect(home).toHaveAttribute("href", "/");
+    expect(work).toHaveAttribute("href", "/work");
+    expect(title).toHaveAttribute("aria-current", "page");
+    expect(title.closest("a")).toBeNull();
+    expect(nav.closest(".wd-reader-back-row")).toBe(row);
     expect(
       row!.compareDocumentPosition(column!) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
-    const click = createEvent.click(back);
-    fireEvent(back, click);
-    expect(click.defaultPrevented).toBe(true);
+    const workClick = createEvent.click(work);
+    fireEvent(work, workClick);
+    expect(workClick.defaultPrevented).toBe(true);
     expect(stepBack).toHaveBeenCalledTimes(1);
+
+    const homeClick = createEvent.click(home);
+    fireEvent(home, homeClick);
+    expect(homeClick.defaultPrevented).toBe(true);
+    expect(close).toHaveBeenCalledTimes(1);
   });
 
   it("no longer puts the way back in the rail or the thumb pair", () => {
