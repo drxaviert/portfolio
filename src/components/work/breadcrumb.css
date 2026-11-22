@@ -39,15 +39,18 @@
 }
 
 /*
- * The slash is the nav divider's outline-variant, at the nav label's 16px.
- * The items' own 8px padding leaves 8px on each side, the nav's 16px label
- * gap; the separator adds no width of its own.
+ * The slash uses the resting label's ink, on-surface-variant, at the nav
+ * label's 16px and weight 400. It is the same token as "Home", but the lighter
+ * weight and a single glyph keep it quieter than the labels. (outline-variant
+ * is only 1.2:1 on the surface; outline peaks at 2.85:1 in Day, so neither
+ * clears the 3:1 floor in both phases.) The items' own 8px padding leaves 8px
+ * on each side, the nav's 16px label gap; the separator adds no width.
  */
 .breadcrumb-sep {
   display: flex;
   align-items: center;
   height: 32px;
-  color: var(--outline-variant);
+  color: var(--on-surface-variant);
   font-size: var(--text-base);
   font-weight: 400;
   line-height: 1.25;

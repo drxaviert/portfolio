@@ -182,7 +182,7 @@ Both sides of the drawer use one `Breadcrumb` (`src/components/work/breadcrumb.t
 | Item | `32px` high, `0 8px` padding, `8px` radius, `16px` / `500` / `on-surface-variant`; current and hover → `on-surface` | `nav-item-class.ts`, `nav-items.css` | `--text-base`, `--radius-md`, `--on-surface-variant`, `--on-surface` |
 | Hover motion | the nav's `GlideCapsule` unchanged: the same two spring edges, leading/trailing timing and `0.55` `--nav-hover-fill` capsule; focus is the nav item's `2px` `primary` ring at offset `0` | `src/components/home/glide-capsule.tsx`, `nav-items.css` | `--nav-hover-fill`, `--primary` |
 | Reduced motion | no capsule travel; the hovered item crossfades the same `--nav-hover-fill` at `0.55` in `120ms` | `nav-items.css` | `--nav-hover-fill`, `--duration-short-2` |
-| Separator | `/` at `16px` / `400` in `outline-variant`; the items' own `8px` padding leaves the nav's `16px` gap on either side | `breadcrumb.css` | `--text-base`, `--outline-variant` |
+| Separator | `/` at `16px` / `400` in `on-surface-variant` (the resting "Home" ink; `8.59:1` Day / `8.29:1` Night); the items' own `8px` padding leaves the nav's `16px` gap on either side | `breadcrumb.css` | `--text-base`, `--on-surface-variant` |
 | Index content | Home / Work; Home is a link, Work is static with `aria-current="page"` | `breadcrumb.tsx` | — |
 | Reader content | Home / Work / the study title; the title is static with `aria-current="page"` and clips to `240px` with an ellipsis | `breadcrumb.tsx`, `breadcrumb.css` | — |
 | Index action | Home runs the drawer's `exit` (step-back-or-close, generation + 350ms burst guards); a plain click is prevented, a modified click follows the `/` href | `breadcrumb.tsx`, `drawer-shell.tsx` | — |
@@ -192,6 +192,10 @@ Both sides of the drawer use one `Breadcrumb` (`src/components/work/breadcrumb.t
 | Landmark | `<nav aria-label="Breadcrumb"><ol>`; separators are `aria-hidden`; Home and Work are links, the current segment is not | `breadcrumb.tsx` | — |
 | Orb on `/work*` | clicking it runs the drawer close (the dock captures the link) and lands on `/` | `src/components/nav/nav-dock.tsx` | — |
 | Orb on `/` | a no-op link: no history entry and no scroll jump | `nav-dock.tsx` | — |
+
+The current segment takes its weight from the nav's selected label, not a
+literal: `NAV_ITEM_CLASS` supplies `font-medium` (`500`), and the crumb adds no
+second weight, so the row's height and every item's position stay put.
 
 The index Breadcrumb's Home link is the panel's first focusable, so the tab trap restarts a stranded heading's navigation on it: Tab from the focused `Work` title reaches it. In the reader it is the first focusable in the scroll column. The reader keeps its reach-to-top controls (the desktop rail's `↑ Top` and the thumb button below `lg`); only the way back moved.
 
