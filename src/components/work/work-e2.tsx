@@ -34,8 +34,8 @@ import "./work-e2.css";
  *
  * The row keeps the shipped list's voice: an 80px year, a 20px/500 title with
  * a 14px summary, 18x16 padding, a 12px radius and the surface-container hover
- * fill. The v1-style rows (v1, v3, v4, v5) use a 200px end-aligned role and
- * a hairline --outline-variant divider between rows; v2 keeps its shipped
+ * fill. The v1-style rows (v1, v3, v4, v5, v6) use a 200px end-aligned role
+ * and a hairline --outline-variant divider between rows; v2 keeps its shipped
  * 160px right-aligned role and no dividers.
  *
  * Scrolling uses the pointer's last position: a rAF-throttled scroll handler
@@ -228,6 +228,13 @@ function ThumbVisual({ item }: { item: E2Item }) {
 
 type Slots = { front: 0 | 1; items: [number | null, number | null] };
 
+export type WorkE2Version = "v1" | "v2" | "v3" | "v4" | "v5" | "v6";
+
+/** v5 and v6 share the cursor thumbnail; v6 only changes the column edges. */
+function isCursorVersion(version: WorkE2Version) {
+  return version === "v5" || version === "v6";
+}
+
 // The v5 layer needs the body after hydration; an external-store read is the
 // lint-safe way to know the client render is live without a mount effect.
 const subscribeClient = () => () => {};
@@ -239,7 +246,7 @@ export function WorkIndexListE2({
   version,
 }: {
   works: WorkMeta[];
-  version: "v1" | "v2" | "v3" | "v4" | "v5";
+  version: WorkE2Version;
 }) {
   const [fake] = useState<FakeMode>(() =>
     typeof window !== "undefined" ? readFakeMode() : 0,
@@ -313,7 +320,9 @@ export function WorkIndexListE2({
             ? "e2-v4"
             : version === "v5"
               ? "e2-v5"
-              : "e2";
+              : version === "v6"
+                ? "e2-v6"
+                : "e2";
 
     try {
       const url = new URL(window.location.href);
@@ -380,7 +389,7 @@ export function WorkIndexListE2({
   // minimum; under 120 it uses v1's 152px in-row fallback. The panel's opening
   // scale is divided out so the chosen mode is right on the first frame.
   useLayoutEffect(() => {
-    if (version === "v2" || version === "v5") return;
+    if (version === "v2" || isCursorVersion(version)) return;
 
     const measure = () => {
       const list = listColumnRef.current;
@@ -521,14 +530,14 @@ export function WorkIndexListE2({
     [version, mode, wide, v4Width],
   );
 
-  // e2-v5 sits on the cursor with no easing: the outer box is translated by
+  // e2-v5/v6 sit on the cursor with no easing: the outer box is translated by
   // (cursor - layer origin - half the 480x360 box), so its centre is the
   // pointer. The layer is portalled to the body above the nav and clipped only
   // by the viewport, so the box is never shifted back inside: anything past an
   // edge is simply cut. Keyboard focus parks the same box at the focused row's
   // right end.
   const placeV5 = useCallback(() => {
-    if (version !== "v5") return;
+    if (!isCursorVersion(version)) return;
 
     const thumb = thumbRef.current;
     const layer = v5LayerRef.current;
@@ -569,7 +578,7 @@ export function WorkIndexListE2({
 
   // One write per frame, always from the latest pointer event.
   const scheduleV5 = useCallback(() => {
-    if (version !== "v5" || v5FrameRef.current) return;
+    if (!isCursorVersion(version) || v5FrameRef.current) return;
 
     v5FrameRef.current = requestAnimationFrame(() => {
       v5FrameRef.current = 0;
@@ -642,7 +651,7 @@ export function WorkIndexListE2({
 
     if (focusedRef.current === null) {
       setDimActive(false);
-    } else if (version === "v5") {
+    } else if (isCursorVersion(version)) {
       // A keyboard focus still owns the thumbnail after the pointer leaves;
       // bring its image back if the hover had replaced it.
       setSlotsFor(focusedRef.current);
@@ -667,7 +676,7 @@ export function WorkIndexListE2({
     clearDimTimer();
     setDimActive(true);
 
-    if (version === "v5" && hoveredRef.current === null) {
+    if (isCursorVersion(version) && hoveredRef.current === null) {
       setSlotsFor(index);
       scheduleV5();
     }
@@ -699,10 +708,10 @@ export function WorkIndexListE2({
   }, []);
 
   // Place the thumbnail after a hover (mouse or scroll). The first appearance
-  // snaps vertically; the 8px enter and fade still play from the CSS. v5 has
-  // its own cursor rAF instead.
+  // snaps vertically; the 8px enter and fade still play from the CSS. v5/v6
+  // have their own cursor rAF instead.
   useLayoutEffect(() => {
-    if (version === "v5" || hovered === null) return;
+    if (isCursorVersion(version) || hovered === null) return;
 
     placeThumb(hovered, !shownRef.current);
     shownRef.current = true;
@@ -712,13 +721,13 @@ export function WorkIndexListE2({
   // width step) keeps the same hovered row but changes the rail, size, x and
   // vertical alignment; re-place it in the new layout.
   useLayoutEffect(() => {
-    if (version === "v5") return;
+    if (isCursorVersion(version)) return;
     if (hoveredRef.current !== null) placeThumb(hoveredRef.current);
   }, [version, mode, wide, v4Width, placeThumb]);
 
   // A resize moves the clamp edges under the same row.
   useEffect(() => {
-    if (version === "v5") return;
+    if (isCursorVersion(version)) return;
 
     const onResize = () => {
       if (hoveredRef.current !== null) placeThumb(hoveredRef.current);
@@ -787,7 +796,7 @@ export function WorkIndexListE2({
       // stays put until the scroll settles: crossfading thirty covers while the
       // list flies is the jitter, not the 120ms glide.
       if (!fastRef.current) show(index);
-      if (version === "v5") scheduleV5();
+      if (isCursorVersion(version)) scheduleV5();
       else placeThumb(index);
     };
 
@@ -834,12 +843,12 @@ export function WorkIndexListE2({
     };
   }, [hide, leaveList, placeThumb, scheduleV5, show, version]);
 
-  // v5 tracks the pointer exactly, so there is no loop and no easing to read:
-  // every move schedules one write, and the image crossfade stays on the inner
-  // element. The layer is portalled to the body so it can paint above the nav;
-  // portalReady keeps the server render free of it.
+  // e2-v5/v6 track the pointer exactly, so there is no loop and no easing to
+  // read: every move schedules one write, and the image crossfade stays on the
+  // inner element. The layer is portalled to the body so it can paint above the
+  // nav; portalReady keeps the server render free of it.
   useEffect(() => {
-    if (version !== "v5" || !portalReady) return;
+    if (!isCursorVersion(version) || !portalReady) return;
 
     if (pointerRef.current || focusedRef.current !== null) scheduleV5();
   }, [portalReady, scheduleV5, version]);
@@ -948,7 +957,7 @@ export function WorkIndexListE2({
 
   const currentRow = hovered ?? focused;
   const thumbActive =
-    hovered !== null || (version === "v5" && focused !== null);
+    hovered !== null || (isCursorVersion(version) && focused !== null);
 
   const thumbNode = (
     <div
@@ -990,6 +999,7 @@ export function WorkIndexListE2({
       <div
         id={INDEX_SCROLL_ID}
         className="wd-index-scroll wd-e2-scroll"
+        data-e2-version={version}
         ref={scrollRef}
       >
         <div
@@ -1006,6 +1016,7 @@ export function WorkIndexListE2({
             className="wd-e2-group"
             data-e2-layout={version === "v2" ? "rail" : "margin"}
             data-e2-version={version}
+            data-e2-cursor={isCursorVersion(version) ? "" : undefined}
             data-e2-mode={
               version === "v1" || version === "v3" || version === "v4"
                 ? mode
@@ -1013,7 +1024,7 @@ export function WorkIndexListE2({
             }
             data-e2-wide={version === "v3" && wide ? "" : undefined}
             data-e2-dim={
-              (version === "v4" || version === "v5") && dimActive
+              (version === "v4" || isCursorVersion(version)) && dimActive
                 ? ""
                 : undefined
             }
@@ -1073,12 +1084,12 @@ export function WorkIndexListE2({
               </ul>
             </div>
 
-            {version === "v5" ? null : thumbNode}
+            {isCursorVersion(version) ? null : thumbNode}
           </div>
         </div>
       </div>
 
-      {version === "v5" && portalReady
+      {isCursorVersion(version) && portalReady
         ? createPortal(
             <div
               className="wd-e2-v5-layer"

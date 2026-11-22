@@ -1,6 +1,11 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import type { WorkMeta } from "@/lib/work";
 import { BlurStack } from "./blur-stack";
 import { LayoutToggle } from "./layout-toggle";
@@ -253,24 +258,23 @@ export function WorkIndex({ works }: { works: WorkMeta[] }) {
     variant === "e2-v1" ||
     variant === "e2-v3" ||
     variant === "e2-v4" ||
-    variant === "e2-v5"
+    variant === "e2-v5" ||
+    variant === "e2-v6"
   ) {
-    return (
-      <WorkIndexListE2
-        works={works}
-        version={
-          variant === "e2"
-            ? "v2"
-            : variant === "e2-v1"
-              ? "v1"
-              : variant === "e2-v3"
-                ? "v3"
-                : variant === "e2-v4"
-                  ? "v4"
-                  : "v5"
-        }
-      />
-    );
+    const version =
+      variant === "e2"
+        ? "v2"
+        : variant === "e2-v1"
+          ? "v1"
+          : variant === "e2-v3"
+            ? "v3"
+            : variant === "e2-v4"
+              ? "v4"
+              : variant === "e2-v5"
+                ? "v5"
+                : "v6";
+
+    return <WorkIndexListE2 works={works} version={version} />;
   }
 
   if (variant !== "current") {

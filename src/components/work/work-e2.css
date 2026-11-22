@@ -145,7 +145,7 @@
 /*
  * The longest role, "Type and motion designer", fits on one line at 200px; the
  * extra 40px comes out of the flexible main column. The rows used by v1, v3,
- * v4 and v5 share this, with the role right-aligned to the divider's right
+ * v4, v5 and v6 share this, with the role right-aligned to the divider's right
  * edge. v2 keeps its shipped 160px, right-aligned rail row.
  */
 .wd-e2-group:not([data-e2-version="v2"]) .wd-e2-row {
@@ -164,6 +164,7 @@
  */
 .wd-e2-group:not([data-e2-version="v2"]) .wd-e2-row-item {
   --e2-line-left: 16px;
+  --e2-line-right: 16px;
 
   position: relative;
 }
@@ -172,7 +173,7 @@
   content: "";
   position: absolute;
   top: 0;
-  right: 16px;
+  right: var(--e2-line-right);
   left: var(--e2-line-left);
   height: 1px;
   background: var(--outline-variant);
@@ -477,7 +478,7 @@
 }
 
 .wd-e2-group[data-e2-version="v4"] .wd-e2-row-item > .wd-e2-row,
-.wd-e2-group[data-e2-version="v5"] .wd-e2-row-item > .wd-e2-row {
+.wd-e2-group[data-e2-cursor] .wd-e2-row-item > .wd-e2-row {
   transition:
     opacity 200ms var(--ease-emphasized-decelerate),
     background-color 200ms var(--ease-decelerate);
@@ -487,7 +488,7 @@
   .wd-e2-group[data-e2-version="v4"][data-e2-dim]
     .wd-e2-row-item:not([data-e2-current])
     > .wd-e2-row,
-  .wd-e2-group[data-e2-version="v5"][data-e2-dim]
+  .wd-e2-group[data-e2-cursor][data-e2-dim]
     .wd-e2-row-item:not([data-e2-current])
     > .wd-e2-row {
     opacity: 0.4;
@@ -496,42 +497,87 @@
 
 @media (prefers-reduced-motion: reduce) {
   .wd-e2-group[data-e2-version="v4"] .wd-e2-row-item > .wd-e2-row,
-  .wd-e2-group[data-e2-version="v5"] .wd-e2-row-item > .wd-e2-row {
+  .wd-e2-group[data-e2-cursor] .wd-e2-row-item > .wd-e2-row {
     transition:
       opacity 120ms ease-out,
       background-color 120ms ease-out;
   }
 }
 
-/* ---------- e2-v5: cursor-following thumbnail ---------- */
+/* ---------- e2-v5/v6: cursor-following thumbnail ---------- */
 
-/* Keep the v1 row layout at every width: the v5 thumbnail needs no margin or
-   in-row fallback, so the year stays put. */
-.wd-e2-group[data-e2-version="v5"] .wd-e2-row {
+/* Keep the v1 row layout at every width: the cursor thumbnail needs no margin
+   or in-row fallback, so the year stays put. */
+.wd-e2-group[data-e2-cursor] .wd-e2-row {
   grid-template-columns: 80px minmax(0, 1fr) 200px;
   padding-left: 16px;
 }
 
-.wd-e2-group[data-e2-version="v5"] .wd-e2-year {
+.wd-e2-group[data-e2-cursor] .wd-e2-year {
   display: block;
 }
 
-/* v5 keeps the year at every width, so the hairline always starts at 16px. */
-.wd-e2-group[data-e2-version="v5"] .wd-e2-row-item {
+/* The cursor versions keep the year at every width, so the hairline always
+   starts at 16px. */
+.wd-e2-group[data-e2-cursor] .wd-e2-row-item {
   --e2-line-left: 16px;
 }
 
 @media (max-width: 767.98px) {
-  .wd-e2-group[data-e2-version="v5"] .wd-e2-row {
+  .wd-e2-group[data-e2-cursor] .wd-e2-row {
     grid-template-columns: 4rem minmax(0, 1fr);
   }
 
-  .wd-e2-group[data-e2-version="v5"] .wd-e2-role {
+  .wd-e2-group[data-e2-cursor] .wd-e2-role {
     display: none;
   }
 }
 
-/* The v5 layer is portalled to the body and fixed to the viewport, so it is
+/* ---------- e2-v6: the nav-width column ---------- */
+
+/*
+ * Mirrors nav-dock.css: the bar is min(1136px, 100vw - 2 * --wd-frame-pad)
+ * wide and centred, so its left edge is max(--wd-frame-pad, 50vw - 568px).
+ * Both are the no-JS token path; 100vw is the document width here because the
+ * document never scrolls (the list has its own scroller). The column is that
+ * bar plus 16px a side: its content box is the bar, so the year's text and the
+ * role/divider land on the bar's outer edges, and the 16px gutter is the hover
+ * fill's bleed. Below 768 it falls back to the v5 mobile row.
+ */
+@media (min-width: 768px) {
+  .wd-index-column.wd-e2-column[data-e2-version="v6"] {
+    width: calc(min(1136px, 100vw - var(--wd-frame-pad) * 2) + 32px);
+    max-width: none;
+    margin-left: calc(
+      max(var(--wd-frame-pad), 50vw - 568px) - var(--wd-panel-inset) - 16px
+    );
+    margin-right: auto;
+    padding-inline: 16px;
+  }
+
+  /* The row bleeds into the column's gutters; its 16px padding puts the text
+     back on the nav edges, so the hover fill is 16px wider on both sides. */
+  .wd-e2-group[data-e2-version="v6"] .wd-e2-row {
+    margin-inline: -16px;
+  }
+
+  /* The divider spans the item, which is exactly the bar's width. */
+  .wd-e2-group[data-e2-version="v6"] .wd-e2-row-item {
+    --e2-line-left: 0px;
+    --e2-line-right: 0px;
+  }
+}
+
+/* At 1024 and 800 the bar is the panel minus the 15px scrollbar gutter, so
+   the last 15px of the fill (never the text) is clipped rather than becoming
+   a horizontal scroll. */
+@media (min-width: 768px) {
+  .wd-index-scroll[data-e2-version="v6"] {
+    overflow-x: hidden;
+  }
+}
+
+/* The v5/v6 layer is portalled to the body and fixed to the viewport, so it is
    clipped only by the viewport and paints above the nav (z 60). It never takes
    a pointer, so the nav stays clickable underneath. */
 .wd-e2-v5-layer {

@@ -42,7 +42,8 @@ export function WorkVariantSwitcher() {
       value === "e2-v1" ||
       value === "e2-v3" ||
       value === "e2-v4" ||
-      value === "e2-v5";
+      value === "e2-v5" ||
+      value === "e2-v6";
 
     // Keep the review's fake-row flag when moving between E2 variants, so a
     // `?fake=1` or `?fake=2` link can be switched around without losing the

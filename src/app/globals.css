@@ -191,6 +191,10 @@
  * nav dock (root layout). The nav's height is HomeNav's h-16, and the reader's
  * blur zone, column clearance and rail offset all derive from it.
  *
+ * --wd-frame-pad is the nav bar's inset from the viewport at each breakpoint.
+ * The docked nav is `min(1136px, 100% - 2 * --wd-frame-pad)` wide and centred;
+ * the v6 work list reads the same token to line its text up with the bar.
+ *
  * --wd-nav-inset is how far the docked nav sits inside the panel. The drawer's
  * top edge read as cramped against the top of the page, so it carries one
  * spacing step more than the 8/12px it started at; the blur zone, the column
@@ -206,6 +210,7 @@
  */
 :root {
   --wd-panel-inset: 0px;
+  --wd-frame-pad: 16px;
   --wd-nav-inset: 16px;
   --wd-nav-height: 4rem;
   --wd-nav-content-gap: 24px;
@@ -221,8 +226,15 @@
 @media (min-width: 768px) {
   :root {
     --wd-panel-inset: 16px;
+    --wd-frame-pad: 32px;
     --wd-nav-inset: 28px;
     --wd-nav-content-gap: 32px;
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --wd-frame-pad: 60px;
   }
 }
 

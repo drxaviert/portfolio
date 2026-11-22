@@ -13,7 +13,6 @@
  */
 
 .wd-nav-dock {
-  --wd-frame-pad: 16px;
   --wd-nav-offset: 824px;
 
   position: absolute;
@@ -36,7 +35,6 @@
 
 @media (min-width: 768px) {
   .wd-nav-dock {
-    --wd-frame-pad: 32px;
     --wd-nav-offset: 804px;
   }
 }
@@ -49,7 +47,6 @@
 
 @media (min-width: 1280px) {
   .wd-nav-dock {
-    --wd-frame-pad: 60px;
     --wd-nav-offset: 716px;
   }
 }

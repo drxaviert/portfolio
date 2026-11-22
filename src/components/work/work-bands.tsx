@@ -28,7 +28,7 @@ import "./work-bands.css";
 
 type ABandVariant = Exclude<
   WorkVariant,
-  "current" | "e2-v1" | "e2" | "e2-v3" | "e2-v4" | "e2-v5"
+  "current" | "e2-v1" | "e2" | "e2-v3" | "e2-v4" | "e2-v5" | "e2-v6"
 >;
 
 /**

@@ -19,7 +19,8 @@ export type WorkVariant =
   | "e2"
   | "e2-v3"
   | "e2-v4"
-  | "e2-v5";
+  | "e2-v5"
+  | "e2-v6";
 
 export const WORK_VARIANTS: readonly WorkVariant[] = [
   "current",
@@ -31,6 +32,7 @@ export const WORK_VARIANTS: readonly WorkVariant[] = [
   "e2-v3",
   "e2-v4",
   "e2-v5",
+  "e2-v6",
 ];
 
 export const WORK_VARIANT_LABELS: Record<WorkVariant, string> = {
@@ -43,6 +45,7 @@ export const WORK_VARIANT_LABELS: Record<WorkVariant, string> = {
   "e2-v3": "E2 v3 (240, margin, top)",
   "e2-v4": "E2 v4 (fluid, dim)",
   "e2-v5": "E2 v5 (cursor)",
+  "e2-v6": "E2 v6 (nav width)",
 };
 
 export const WORK_VARIANT_NOTES: Record<WorkVariant, string> = {
@@ -55,6 +58,7 @@ export const WORK_VARIANT_NOTES: Record<WorkVariant, string> = {
   "e2-v3": "v1 layout with a 240px top-aligned margin thumbnail",
   "e2-v4": "v1 layout with a fluid margin thumbnail and row dimming",
   "e2-v5": "v4 layout with a cursor-following thumbnail",
+  "e2-v6": "v5 with the list aligned to the drawer nav's outer edges",
 };
 
 const STORAGE_KEY = "wd-work-variant";
