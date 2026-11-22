@@ -180,6 +180,7 @@ Both sides of the drawer use one `Breadcrumb` (`src/components/work/breadcrumb.t
 | Alignment | wrapper `margin-left: 8px` + item `padding-left: 8px`; the first segment's ink lands on the year column's x | `breadcrumb.css`, `work-list.css` | — |
 | Row | `32px` high, no vertical padding; the same row as the nav item | `breadcrumb.css`, `nav-item-class.ts` | — |
 | Item | `32px` high, `0 8px` padding, `8px` radius, `16px` / `500` / `on-surface-variant`; current and hover → `on-surface` | `nav-item-class.ts`, `nav-items.css` | `--text-base`, `--radius-md`, `--on-surface-variant`, `--on-surface` |
+| Current | the `aria-current="page"` segment takes the title weight, `600` (`font-semibold`), while links keep `500`; the fixed row means its wider label grows right without moving Home | `breadcrumb.tsx` | `font-semibold` |
 | Hover motion | the nav's `GlideCapsule` unchanged: the same two spring edges, leading/trailing timing and `0.55` `--nav-hover-fill` capsule; focus is the nav item's `2px` `primary` ring at offset `0` | `src/components/home/glide-capsule.tsx`, `nav-items.css` | `--nav-hover-fill`, `--primary` |
 | Reduced motion | no capsule travel; the hovered item crossfades the same `--nav-hover-fill` at `0.55` in `120ms` | `nav-items.css` | `--nav-hover-fill`, `--duration-short-2` |
 | Separator | `/` at `16px` / `400` in `on-surface-variant` (the resting "Home" ink; `8.59:1` Day / `8.29:1` Night); the items' own `8px` padding leaves the nav's `16px` gap on either side | `breadcrumb.css` | `--text-base`, `--on-surface-variant` |
@@ -193,9 +194,13 @@ Both sides of the drawer use one `Breadcrumb` (`src/components/work/breadcrumb.t
 | Orb on `/work*` | clicking it runs the drawer close (the dock captures the link) and lands on `/` | `src/components/nav/nav-dock.tsx` | — |
 | Orb on `/` | a no-op link: no history entry and no scroll jump | `nav-dock.tsx` | — |
 
-The current segment takes its weight from the nav's selected label, not a
-literal: `NAV_ITEM_CLASS` supplies `font-medium` (`500`), and the crumb adds no
-second weight, so the row's height and every item's position stay put.
+The current segment takes the title weight, not the nav's selected weight:
+`font-semibold` (`600`), the same class the type scale's titles use, because it
+is a "you are here" label rather than a tab. The crumb swaps `NAV_ITEM_CLASS`'s
+`font-medium` for `font-semibold` instead of stacking a second weight, so only
+one weight class applies. The row stays a fixed `32px` and the links keep their
+boxes, so the bolder current label grows to the right without moving Home or
+the row.
 
 The index Breadcrumb's Home link is the panel's first focusable, so the tab trap restarts a stranded heading's navigation on it: Tab from the focused `Work` title reaches it. In the reader it is the first focusable in the scroll column. The reader keeps its reach-to-top controls (the desktop rail's `↑ Top` and the thumb button below `lg`); only the way back moved.
 

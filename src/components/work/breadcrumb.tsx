@@ -16,11 +16,25 @@ export type BreadcrumbProps = {
 };
 
 /**
+ * The current segment's label classes: the nav item's with its 500 swapped for
+ * the title weight (`font-semibold`, 600). A crumb is a "you are here" label,
+ * not a tab, so it reads at the weight the type scale's titles use. Swapping
+ * the class instead of stacking a second weight keeps one weight class on the
+ * element, so the cascade cannot pick the wrong one.
+ */
+const CURRENT_ITEM_CLASS = NAV_ITEM_CLASS.replace(
+  "font-medium",
+  "font-semibold",
+);
+
+/**
  * The drawer's one way back, shared by the index and every study.
  *
  * The segments are the home nav's items down to the class names: the same
- * 32px box, 8px padding, 8px radius, 16px/500 label and `on-surface-variant` →
- * `on-surface` colour. The same GlideCapsule runs underneath, so hovering
+ * 32px box, 8px padding, 8px radius, 16px label and `on-surface-variant` →
+ * `on-surface` colour. Links keep the nav's 500; the current segment takes the
+ * title weight (600), because it is a "you are here" label rather than a tab.
+ * The same GlideCapsule runs underneath, so hovering
  * between Home and Work uses the nav's spring pair and the same 0.55 fill;
  * reduced motion drops the travel and crossfades the nav's item fill instead.
  *
@@ -117,7 +131,7 @@ export function Breadcrumb({ title }: BreadcrumbProps) {
               </Link>
             ) : (
               <span
-                className={`${NAV_ITEM_CLASS} text-on-surface`}
+                className={`${CURRENT_ITEM_CLASS} text-on-surface`}
                 aria-current="page"
               >
                 Work
@@ -132,7 +146,7 @@ export function Breadcrumb({ title }: BreadcrumbProps) {
               </li>
               <li className="breadcrumb-item">
                 <span
-                  className={`${NAV_ITEM_CLASS} breadcrumb-current text-on-surface`}
+                  className={`${CURRENT_ITEM_CLASS} breadcrumb-current text-on-surface`}
                   aria-current="page"
                   title={title}
                 >

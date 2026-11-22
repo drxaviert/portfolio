@@ -156,7 +156,7 @@ describe("Breadcrumb", () => {
     );
   });
 
-  it("keeps the current segment at the nav's selected label weight", () => {
+  it("gives the current segment the title weight, not the nav's", () => {
     renderBreadcrumb("Systems in motion");
 
     const title = screen.getByText("Systems in motion", {
@@ -164,13 +164,15 @@ describe("Breadcrumb", () => {
     });
     const home = screen.getByRole("link", { name: "Home" });
 
-    // NAV_ITEM_CLASS carries the nav's `font-medium` (500); the current
-    // segment adds no second weight, so it cannot drift from the selected nav
-    // label or reflow the row.
-    expect(title).toHaveClass("font-medium");
-    expect(title).not.toHaveClass("font-semibold");
+    // `font-semibold` is the 600 the type scale's titles use. The current
+    // segment is a "you are here" label, not a nav tab, so it takes that
+    // weight; the links keep the nav's `font-medium` (500). Swapping the class
+    // rather than stacking a second weight keeps the cascade deterministic.
+    expect(title).toHaveClass("font-semibold");
+    expect(title).not.toHaveClass("font-medium");
     expect(title).not.toHaveClass("font-bold");
     expect(home).toHaveClass("font-medium");
+    expect(home).not.toHaveClass("font-semibold");
   });
 
   it("documents the 240px title clip and the separator token", () => {
