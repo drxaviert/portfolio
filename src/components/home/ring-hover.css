@@ -73,7 +73,7 @@
      clips at the same box the clip-path does, so nothing visible changes. */
   overflow: clip;
   /* Always one pixel outside the surface; transparent at rest so no stroke
-     shows. Fades in immediately on hover, and out only after the clip closes. */
+     shows. Fades in and out immediately, alongside the clip. */
   clip-path: inset(
     calc(var(--ring-grow-y) - 1px) calc(var(--ring-grow-x) - 1px) round
       var(--ring-radius)
@@ -81,7 +81,7 @@
   opacity: 0;
   transition:
     clip-path var(--ring-grow) var(--ring-ease),
-    opacity var(--duration-short-1) var(--ease-linear) var(--ring-grow);
+    opacity var(--duration-short-1) var(--ease-linear);
 }
 
 .ring-glow {
