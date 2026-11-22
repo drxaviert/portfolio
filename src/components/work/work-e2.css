@@ -140,6 +140,78 @@
   background: var(--surface-container);
 }
 
+/* ---------- The v1-style row: 200px role column, hairline dividers ---------- */
+
+/*
+ * The longest role, "Type and motion designer", fits on one line at 200px; the
+ * extra 40px comes out of the flexible main column. The rows used by v1, v3,
+ * v4 and v5 share this. v2 keeps its shipped 160px, right-aligned rail row.
+ */
+.wd-e2-group:not([data-e2-version="v2"]) .wd-e2-row {
+  grid-template-columns: 80px minmax(0, 1fr) 200px;
+}
+
+.wd-e2-group:not([data-e2-version="v2"]) .wd-e2-role {
+  text-align: start;
+}
+
+/*
+ * One hairline on each item's top edge, so there is no line above the first
+ * row and none after the last. --outline-variant is the a8 black/white
+ * hairline token from globals.css, subtle in both Day and Night. The current
+ * row and the row after it drop their lines over the hover fill's 200ms.
+ */
+.wd-e2-group:not([data-e2-version="v2"]) .wd-e2-row-item {
+  --e2-line-left: 16px;
+
+  position: relative;
+}
+
+.wd-e2-group:not([data-e2-version="v2"]) .wd-e2-row-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 16px;
+  left: var(--e2-line-left);
+  height: 1px;
+  background: var(--outline-variant);
+  opacity: 1;
+  transition: opacity 200ms var(--ease-emphasized-decelerate);
+  pointer-events: none;
+}
+
+.wd-e2-group:not([data-e2-version="v2"]) .wd-e2-row-item:first-child::before {
+  display: none;
+}
+
+.wd-e2-group:not([data-e2-version="v2"])
+  .wd-e2-row-item[data-e2-current]::before,
+.wd-e2-group:not([data-e2-version="v2"])
+  .wd-e2-row-item[data-e2-current]
+  + .wd-e2-row-item::before {
+  opacity: 0;
+}
+
+@media (max-width: 1199.98px) {
+  .wd-e2-group:not([data-e2-version="v2"]) .wd-e2-row {
+    grid-template-columns: minmax(0, 1fr) 200px;
+  }
+
+  .wd-e2-group:not([data-e2-version="v2"]) .wd-e2-row-item {
+    --e2-line-left: 152px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .wd-e2-group:not([data-e2-version="v2"]) .wd-e2-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wd-e2-group:not([data-e2-version="v2"]) .wd-e2-row-item {
+    --e2-line-left: 152px;
+  }
+}
+
 /* ---------- Narrow fallback: the thumbnail moves into the row ---------- */
 
 @media (max-width: 1199.98px) {
@@ -343,8 +415,13 @@
 /* Below 1200, or when the margin is under 136px, the thumbnail moves into the
    row's 152px left padding and the year gives up its column. */
 .wd-e2-group[data-e2-layout="margin"][data-e2-mode="inset"] .wd-e2-row {
-  grid-template-columns: minmax(0, 1fr) 160px;
+  grid-template-columns: minmax(0, 1fr) 200px;
   padding-left: 152px;
+}
+
+/* The in-row fallback starts at the 152px text edge, not the year column. */
+.wd-e2-group[data-e2-layout="margin"][data-e2-mode="inset"] .wd-e2-row-item {
+  --e2-line-left: 152px;
 }
 
 .wd-e2-group[data-e2-layout="margin"][data-e2-mode="inset"] .wd-e2-year {
@@ -365,8 +442,14 @@
 @media (hover: none) {
   .wd-e2-group[data-e2-layout="margin"] .wd-e2-row,
   .wd-e2-group[data-e2-layout="margin"][data-e2-mode="inset"] .wd-e2-row {
-    grid-template-columns: 80px minmax(0, 1fr) 160px;
+    grid-template-columns: 80px minmax(0, 1fr) 200px;
     padding-left: 16px;
+  }
+
+  /* Touch shows the year, so the hairline starts at the row's content edge. */
+  .wd-e2-group[data-e2-layout="margin"] .wd-e2-row-item,
+  .wd-e2-group[data-e2-layout="margin"][data-e2-mode="inset"] .wd-e2-row-item {
+    --e2-line-left: 16px;
   }
 
   .wd-e2-group[data-e2-layout="margin"] .wd-e2-year {
@@ -392,24 +475,30 @@
   border-radius: var(--radius-lg);
 }
 
-.wd-e2-group[data-e2-version="v4"] .wd-e2-row-item,
-.wd-e2-group[data-e2-version="v5"] .wd-e2-row-item {
-  transition: opacity 200ms var(--ease-emphasized-decelerate);
+.wd-e2-group[data-e2-version="v4"] .wd-e2-row-item > .wd-e2-row,
+.wd-e2-group[data-e2-version="v5"] .wd-e2-row-item > .wd-e2-row {
+  transition:
+    opacity 200ms var(--ease-emphasized-decelerate),
+    background-color 200ms var(--ease-decelerate);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .wd-e2-group[data-e2-version="v4"][data-e2-dim]
-    .wd-e2-row-item:not([data-e2-current]),
+    .wd-e2-row-item:not([data-e2-current])
+    > .wd-e2-row,
   .wd-e2-group[data-e2-version="v5"][data-e2-dim]
-    .wd-e2-row-item:not([data-e2-current]) {
+    .wd-e2-row-item:not([data-e2-current])
+    > .wd-e2-row {
     opacity: 0.4;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wd-e2-group[data-e2-version="v4"] .wd-e2-row-item,
-  .wd-e2-group[data-e2-version="v5"] .wd-e2-row-item {
-    transition: opacity 120ms ease-out;
+  .wd-e2-group[data-e2-version="v4"] .wd-e2-row-item > .wd-e2-row,
+  .wd-e2-group[data-e2-version="v5"] .wd-e2-row-item > .wd-e2-row {
+    transition:
+      opacity 120ms ease-out,
+      background-color 120ms ease-out;
   }
 }
 
@@ -418,12 +507,17 @@
 /* Keep the v1 row layout at every width: the v5 thumbnail needs no margin or
    in-row fallback, so the year stays put. */
 .wd-e2-group[data-e2-version="v5"] .wd-e2-row {
-  grid-template-columns: 80px minmax(0, 1fr) 160px;
+  grid-template-columns: 80px minmax(0, 1fr) 200px;
   padding-left: 16px;
 }
 
 .wd-e2-group[data-e2-version="v5"] .wd-e2-year {
   display: block;
+}
+
+/* v5 keeps the year at every width, so the hairline always starts at 16px. */
+.wd-e2-group[data-e2-version="v5"] .wd-e2-row-item {
+  --e2-line-left: 16px;
 }
 
 @media (max-width: 767.98px) {
@@ -527,6 +621,10 @@
   .wd-e2-v5-layer .wd-e2-thumb-in,
   .wd-e2-v5-layer[data-e2-active] .wd-e2-thumb-in {
     transform: none;
+    transition: opacity 120ms ease-out;
+  }
+
+  .wd-e2-group:not([data-e2-version="v2"]) .wd-e2-row-item::before {
     transition: opacity 120ms ease-out;
   }
 }

@@ -33,8 +33,10 @@ import "./work-e2.css";
  * year hidden so the title starts beside it.
  *
  * The row keeps the shipped list's voice: an 80px year, a 20px/500 title with
- * a 14px summary, a 160px right role, 18x16 padding, a 12px radius and the
- * surface-container hover fill.
+ * a 14px summary, 18x16 padding, a 12px radius and the surface-container hover
+ * fill. The v1-style rows (v1, v3, v4, v5) use a 200px start-aligned role and
+ * a hairline --outline-variant divider between rows; v2 keeps its shipped
+ * 160px right-aligned role and no dividers.
  *
  * Scrolling uses the pointer's last position: a rAF-throttled scroll handler
  * finds the row under it with elementFromPoint and moves the same thumbnail,
@@ -1040,10 +1042,7 @@ export function WorkIndexListE2({
                     className="wd-e2-row-item"
                     data-e2-index={index}
                     data-e2-current={
-                      (version === "v4" || version === "v5") &&
-                      currentRow === index
-                        ? ""
-                        : undefined
+                      version !== "v2" && currentRow === index ? "" : undefined
                     }
                   >
                     {item.slug ? (
