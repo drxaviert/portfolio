@@ -156,7 +156,7 @@ describe("Breadcrumb", () => {
     );
   });
 
-  it("gives the current segment the title weight, not the nav's", () => {
+  it("keeps the current segment at the nav's weight, marked by an underline", () => {
     renderBreadcrumb("Systems in motion");
 
     const title = screen.getByText("Systems in motion", {
@@ -164,15 +164,33 @@ describe("Breadcrumb", () => {
     });
     const home = screen.getByRole("link", { name: "Home" });
 
-    // `font-semibold` is the 600 the type scale's titles use. The current
-    // segment is a "you are here" label, not a nav tab, so it takes that
-    // weight; the links keep the nav's `font-medium` (500). Swapping the class
-    // rather than stacking a second weight keeps the cascade deterministic.
-    expect(title).toHaveClass("font-semibold");
-    expect(title).not.toHaveClass("font-medium");
+    // The current crumb is not a tab, but it carries no extra weight either:
+    // it stays at the nav's `font-medium` (500) and breadcrumb.css underlines
+    // it. The links keep the nav weight and stay un-underlined.
+    expect(title).toHaveClass("font-medium");
+    expect(title).not.toHaveClass("font-semibold");
     expect(title).not.toHaveClass("font-bold");
     expect(home).toHaveClass("font-medium");
+    expect(home).toHaveClass("no-underline");
     expect(home).not.toHaveClass("font-semibold");
+  });
+
+  it("underlines only the current segment, at 1px and 4px offset", () => {
+    const css = readFileSync(
+      join(process.cwd(), "src", "components", "work", "breadcrumb.css"),
+      "utf8",
+    );
+
+    const rule = css.match(
+      /\.breadcrumb-list \[aria-current="page"\] \{[^}]*\}/,
+    )?.[0];
+
+    expect(rule).toBeDefined();
+    expect(rule).toMatch(/text-decoration-line: underline;/);
+    expect(rule).toMatch(/text-decoration-thickness: 1px;/);
+    expect(rule).toMatch(/text-underline-offset: 4px;/);
+    expect(rule).toMatch(/text-decoration-skip-ink: auto;/);
+    expect(rule).toMatch(/text-decoration-color: currentColor;/);
   });
 
   it("documents the 240px title clip and the separator token", () => {
