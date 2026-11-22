@@ -156,7 +156,24 @@ describe("Breadcrumb", () => {
     );
   });
 
-  it("documents the 240px title clip and the nav separator token", () => {
+  it("keeps the current segment at the nav's selected label weight", () => {
+    renderBreadcrumb("Systems in motion");
+
+    const title = screen.getByText("Systems in motion", {
+      selector: ".breadcrumb-current",
+    });
+    const home = screen.getByRole("link", { name: "Home" });
+
+    // NAV_ITEM_CLASS carries the nav's `font-medium` (500); the current
+    // segment adds no second weight, so it cannot drift from the selected nav
+    // label or reflow the row.
+    expect(title).toHaveClass("font-medium");
+    expect(title).not.toHaveClass("font-semibold");
+    expect(title).not.toHaveClass("font-bold");
+    expect(home).toHaveClass("font-medium");
+  });
+
+  it("documents the 240px title clip and the separator token", () => {
     const css = readFileSync(
       join(process.cwd(), "src", "components", "work", "breadcrumb.css"),
       "utf8",
@@ -164,7 +181,7 @@ describe("Breadcrumb", () => {
 
     expect(css).toMatch(/\.breadcrumb-current \{[^}]*max-width: 240px;/);
     expect(css).toMatch(
-      /\.breadcrumb-sep \{[^}]*color: var\(--outline-variant\);[^}]*font-size: var\(--text-base\);/,
+      /\.breadcrumb-sep \{[^}]*color: var\(--on-surface-variant\);[^}]*font-size: var\(--text-base\);[^}]*font-weight: 400;/,
     );
   });
 });
