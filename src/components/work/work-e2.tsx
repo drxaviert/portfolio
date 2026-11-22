@@ -261,9 +261,8 @@ export function WorkIndexListE2({
   const fastTimerRef = useRef<number | null>(null);
   const lastScrollRef = useRef({ top: 0, time: 0 });
   const velocityRef = useRef(0);
-  const v5PosRef = useRef({ x: 0, y: 0 });
-  const v5WasActiveRef = useRef(false);
-  const reduceV5Ref = useRef(false);
+  const v5LayerRef = useRef<HTMLDivElement | null>(null);
+  const v5FrameRef = useRef(0);
 
   const items = useMemo(() => {
     const real = works.map(toE2Item);
@@ -507,6 +506,61 @@ export function WorkIndexListE2({
     [version, mode, wide, v4Width],
   );
 
+  // e2-v5 sits on the cursor with no easing: the outer box is translated by
+  // (cursor - layer origin - half the 240x180 box), so its centre is the
+  // pointer. The clipping layer is the panel, so the box is never shifted back
+  // inside: anything past the panel edge (or under the docked nav) is simply
+  // clipped. Keyboard focus parks the same box at the focused row's right end.
+  const placeV5 = useCallback(() => {
+    if (version !== "v5") return;
+
+    const thumb = thumbRef.current;
+    const layer = v5LayerRef.current;
+
+    if (!thumb || !layer) return;
+
+    const layerRect = layer.getBoundingClientRect();
+    const point = pointerRef.current;
+    let x: number;
+    let y: number;
+
+    if (hoveredRef.current !== null && point) {
+      x = point.x - layerRect.left - 120;
+      y = point.y - layerRect.top - 90;
+    } else if (focusedRef.current !== null) {
+      const row = rowRefs.current[focusedRef.current];
+      const scroll = scrollRef.current;
+      const list = listColumnRef.current;
+
+      if (!row || !scroll || !list) return;
+
+      const scrollRect = scroll.getBoundingClientRect();
+      const listRect = list.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      const minTop = visibleTop(scrollRect);
+
+      x =
+        Math.max(listRect.left + 12, rowRect.right - 240 - 16) - layerRect.left;
+      y =
+        Math.max(minTop, Math.min(rowRect.top, scrollRect.bottom - 180 - 12)) -
+        layerRect.top;
+    } else {
+      return;
+    }
+
+    thumb.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  }, [version]);
+
+  // One write per frame, always from the latest pointer event.
+  const scheduleV5 = useCallback(() => {
+    if (version !== "v5" || v5FrameRef.current) return;
+
+    v5FrameRef.current = requestAnimationFrame(() => {
+      v5FrameRef.current = 0;
+      placeV5();
+    });
+  }, [placeV5, version]);
+
   const clearDimTimer = useCallback(() => {
     if (dimTimerRef.current) {
       window.clearTimeout(dimTimerRef.current);
@@ -599,6 +653,7 @@ export function WorkIndexListE2({
 
     if (version === "v5" && hoveredRef.current === null) {
       setSlotsFor(index);
+      scheduleV5();
     }
   };
 
@@ -716,7 +771,8 @@ export function WorkIndexListE2({
       // stays put until the scroll settles: crossfading thirty covers while the
       // list flies is the jitter, not the 120ms glide.
       if (!fastRef.current) show(index);
-      if (version !== "v5") placeThumb(index);
+      if (version === "v5") scheduleV5();
+      else placeThumb(index);
     };
 
     const onScroll = () => {
@@ -760,110 +816,23 @@ export function WorkIndexListE2({
       if (fastTimerRef.current) window.clearTimeout(fastTimerRef.current);
       thumb?.removeAttribute("data-e2-fast");
     };
-  }, [hide, leaveList, placeThumb, show, version]);
+  }, [hide, leaveList, placeThumb, scheduleV5, show, version]);
 
-  // e2-v5: the thumbnail follows the cursor. A rAF loop computes the target
-  // (cursor + 24, flipped at the panel's right/bottom and clamped below the nav)
-  // and lerps toward it frame-rate independently. The first frame of an entry
-  // snaps to the cursor so there is no fly-in from elsewhere; keyboard focus
-  // targets the focused row's right end inside the list.
+  // v5 tracks the pointer exactly, so there is no loop and no easing to read:
+  // every move schedules one write, and the image crossfade stays on the inner
+  // element. Switching into v5 with the pointer already over the list places it
+  // on the next frame.
   useEffect(() => {
     if (version !== "v5") return;
 
-    const thumb = thumbRef.current;
-    const scroll = scrollRef.current;
-    const list = listColumnRef.current;
+    if (pointerRef.current || focusedRef.current !== null) scheduleV5();
+  }, [scheduleV5, version]);
 
-    if (!thumb || !scroll || !list) return;
-
-    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const readReduce = () => {
-      reduceV5Ref.current = motion.matches;
-    };
-    readReduce();
-    motion.addEventListener("change", readReduce);
-
-    const cursorTarget = (point: { x: number; y: number }) => {
-      const rect = scroll.getBoundingClientRect();
-      const width = 240;
-      const height = 180;
-      const offset = 24;
-      let x = point.x + offset;
-      let y = point.y + offset;
-
-      if (x + width > rect.right - 12) x = point.x - offset - width;
-      if (y + height > rect.bottom - 12) y = point.y - offset - height;
-
-      const minTop = visibleTop(rect);
-      x = Math.max(rect.left + 12, Math.min(x, rect.right - width - 12));
-      y = Math.max(minTop, Math.min(y, rect.bottom - height - 12));
-
-      return { x, y };
-    };
-
-    const focusTarget = (row: HTMLLIElement) => {
-      const rect = scroll.getBoundingClientRect();
-      const listRect = list.getBoundingClientRect();
-      const rowRect = row.getBoundingClientRect();
-      const width = 240;
-      const height = 180;
-      const minTop = visibleTop(rect);
-      const x = Math.max(listRect.left + 12, rowRect.right - width - 16);
-      const y = Math.max(
-        minTop,
-        Math.min(rowRect.top, rect.bottom - height - 12),
-      );
-
-      return { x, y };
-    };
-
-    let raf = 0;
-    let last = performance.now();
-
-    const loop = (now: number) => {
-      const dt = Math.min(32, now - last);
-      last = now;
-
-      const point = pointerRef.current;
-      let target: { x: number; y: number } | null = null;
-
-      if (hoveredRef.current !== null && point) {
-        target = cursorTarget(point);
-      } else if (focusedRef.current !== null) {
-        const row = rowRefs.current[focusedRef.current];
-        if (row) target = focusTarget(row);
-      }
-
-      if (!target) {
-        v5WasActiveRef.current = false;
-        raf = requestAnimationFrame(loop);
-        return;
-      }
-
-      const pos = v5PosRef.current;
-
-      if (!v5WasActiveRef.current || reduceV5Ref.current) {
-        pos.x = target.x;
-        pos.y = target.y;
-        v5WasActiveRef.current = true;
-      } else {
-        const k = 1 - Math.pow(1 - 0.18, dt / (1000 / 60));
-        pos.x += (target.x - pos.x) * k;
-        pos.y += (target.y - pos.y) * k;
-      }
-
-      thumb.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0)`;
-      raf = requestAnimationFrame(loop);
-    };
-
-    raf = requestAnimationFrame(loop);
-
+  useEffect(() => {
     return () => {
-      cancelAnimationFrame(raf);
-      motion.removeEventListener("change", readReduce);
-      thumb.style.removeProperty("transform");
+      if (v5FrameRef.current) cancelAnimationFrame(v5FrameRef.current);
     };
-  }, [version]);
+  }, []);
 
   // The row entrance joins the drawer's open beat. Only the rows visible at
   // that moment stagger (capped at twelve); everything below the fold is
@@ -941,6 +910,7 @@ export function WorkIndexListE2({
     if (!canHover()) return;
 
     pointerRef.current = { x: event.clientX, y: event.clientY };
+    scheduleV5();
 
     const row = (event.target as Element).closest<HTMLElement>(
       "[data-e2-index]",
@@ -963,6 +933,39 @@ export function WorkIndexListE2({
   const currentRow = hovered ?? focused;
   const thumbActive =
     hovered !== null || (version === "v5" && focused !== null);
+
+  const thumbNode = (
+    <div
+      className="wd-e2-thumb"
+      ref={thumbRef}
+      aria-hidden="true"
+      style={
+        version === "v4"
+          ? ({
+              "--e2-thumb-w": `${v4Width}px`,
+              "--e2-thumb-h": `${v4Width * 0.75}px`,
+            } as CSSProperties)
+          : undefined
+      }
+    >
+      <div className="wd-e2-thumb-in">
+        {([0, 1] as const).map((slot) => {
+          const index = slots.items[slot];
+          const item = index === null ? null : items[index];
+
+          return (
+            <div
+              key={slot}
+              className="wd-e2-thumb-layer"
+              data-front={slots.front === slot ? "" : undefined}
+            >
+              {item ? <ThumbVisual item={item} /> : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -1057,36 +1060,17 @@ export function WorkIndexListE2({
               </ul>
             </div>
 
-            <div
-              className="wd-e2-thumb"
-              ref={thumbRef}
-              aria-hidden="true"
-              style={
-                version === "v4"
-                  ? ({
-                      "--e2-thumb-w": `${v4Width}px`,
-                      "--e2-thumb-h": `${v4Width * 0.75}px`,
-                    } as CSSProperties)
-                  : undefined
-              }
-            >
-              <div className="wd-e2-thumb-in">
-                {([0, 1] as const).map((slot) => {
-                  const index = slots.items[slot];
-                  const item = index === null ? null : items[index];
-
-                  return (
-                    <div
-                      key={slot}
-                      className="wd-e2-thumb-layer"
-                      data-front={slots.front === slot ? "" : undefined}
-                    >
-                      {item ? <ThumbVisual item={item} /> : null}
-                    </div>
-                  );
-                })}
+            {version === "v5" ? (
+              <div
+                className="wd-e2-v5-layer"
+                ref={v5LayerRef}
+                aria-hidden="true"
+              >
+                {thumbNode}
               </div>
-            </div>
+            ) : (
+              thumbNode
+            )}
           </div>
         </div>
       </div>

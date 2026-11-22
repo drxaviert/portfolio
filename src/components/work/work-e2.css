@@ -437,11 +437,33 @@
   }
 }
 
+/* The panel-sized clip. v5's box is never shifted to fit: its centre stays on
+   the pointer and anything past the panel edge is cut here. The nav (z 60)
+   paints over this layer, so a box near the top runs under it. */
+.wd-e2-group[data-e2-version="v5"] .wd-e2-v5-layer {
+  position: fixed;
+  inset: var(--wd-panel-inset);
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  .wd-e2-group[data-e2-version="v5"] .wd-e2-v5-layer {
+    /* The panel's own corner, so the cut edge follows it. */
+    border-radius: 12px;
+  }
+}
+
 .wd-e2-group[data-e2-version="v5"] .wd-e2-thumb {
   --e2-thumb-w: 240px;
   --e2-thumb-h: 180px;
 
-  /* The rAF writes translate3d; no CSS transform transition may fight it. */
+  /* Inside the clip, so the rAF writes are layer-relative. No CSS transform
+     transition may fight the 1:1 tracking. */
+  position: absolute;
+  top: 0;
+  left: 0;
   transition: none;
 }
 
