@@ -11,10 +11,14 @@ import type { ReactNode } from "react";
  * `close` leaves the whole drawer (the logo, and Esc on the index).
  * `stepBack` goes from a project to the index inside the drawer ("← Work",
  * browser Back, Esc and the backdrop on a project).
+ * `exit` is Esc's whole gesture: step back from a project, close from the
+ * index, including the 350ms burst guard that follows a step-back. The index's
+ * × uses it, so it closes through the same lifecycle and guards as Esc.
  */
 export type DrawerActions = {
   close: () => void;
   stepBack: () => void;
+  exit: () => void;
 };
 
 const DrawerActionsContext = createContext<DrawerActions | null>(null);
@@ -22,10 +26,11 @@ const DrawerActionsContext = createContext<DrawerActions | null>(null);
 export function DrawerActionsProvider({
   close,
   stepBack,
+  exit,
   children,
 }: DrawerActions & { children: ReactNode }) {
   return (
-    <DrawerActionsContext.Provider value={{ close, stepBack }}>
+    <DrawerActionsContext.Provider value={{ close, stepBack, exit }}>
       {children}
     </DrawerActionsContext.Provider>
   );

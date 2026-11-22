@@ -35,10 +35,10 @@
  * revealed at the original 0.55 weight. It reads as a soft grey step in every
  * phase without pulling the accent hue into the nav.
  *
- * Declared on the run, not on each target, so the capsule and the
- * reduced-motion item fill inherit one value.
+ * Declared on the bar, not on each target, so the capsule, the reduced-motion
+ * item fill and the orb's own hover capsule share one value.
  */
-.nav-run {
+.nav-bar {
   --nav-hover-fill: color-mix(
     in oklab,
     var(--on-surface) 5%,
@@ -82,19 +82,21 @@
   }
 }
 
-/* ---------- Glyph tooltip: the toggle's timing ---------- */
+/* ---------- Glyph and orb tooltips: the toggle's timing ---------- */
 
 .nav-tooltip {
   opacity: 0;
 }
 
-.nav-glyph:focus-visible .nav-tooltip {
+.nav-glyph:focus-visible .nav-tooltip,
+.nav-logo:focus-visible .nav-tooltip {
   opacity: 1;
   transition: opacity var(--duration-short-3) var(--ease-decelerate);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .nav-glyph:hover .nav-tooltip {
+  .nav-glyph:hover .nav-tooltip,
+  .nav-logo:hover .nav-tooltip {
     opacity: 1;
     transition: opacity var(--duration-short-3) var(--ease-decelerate)
       var(--duration-medium-5);
@@ -102,13 +104,49 @@
 }
 
 /* Warm group: the first label paid the delay, the next one is instant. */
-[data-tooltip-warm="true"] .nav-glyph:hover .nav-tooltip {
+[data-tooltip-warm="true"] .nav-glyph:hover .nav-tooltip,
+[data-tooltip-warm="true"] .nav-logo:hover .nav-tooltip {
   transition: none;
 }
 
 /* Released state keeps no transition, so a theme fade cannot stretch it. */
-.nav-glyph:not(:focus-visible):not(:hover) .nav-tooltip {
+.nav-glyph:not(:focus-visible):not(:hover) .nav-tooltip,
+.nav-logo:not(:focus-visible):not(:hover) .nav-tooltip {
   transition-property: none;
+}
+
+/* ---------- Orb: hover and press ---------- */
+
+/*
+ * The orb sits outside the glide run (the run starts at "Work"), so it cannot
+ * borrow the travelling capsule. It takes the nav's own hover fill instead: the
+ * same 5% ink mix at the same 0.55 weight as the capsule, in a 36px round
+ * capsule over the orb, plus the item run's 0.96 press. The fill is an overlay
+ * pseudo-element because the orb's gradient is painted by its own child.
+ */
+.nav-logo {
+  transition: scale var(--duration-short-3) var(--ease-decelerate);
+}
+
+.nav-logo::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: color-mix(in oklab, var(--nav-hover-fill) 55%, transparent);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-short-3) var(--ease-decelerate);
+}
+
+.nav-logo:active {
+  scale: 0.96;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nav-logo:hover::after {
+    opacity: 1;
+  }
 }
 
 /* ---------- Touch targets ---------- */
@@ -146,14 +184,16 @@
 
 @media (prefers-reduced-motion: reduce) {
   .nav-item,
-  .nav-glyph {
+  .nav-glyph,
+  .nav-logo {
     transition:
       color var(--duration-short-2) var(--ease-decelerate),
       background-color var(--duration-short-2) var(--ease-decelerate);
   }
 
   .nav-item:active,
-  .nav-glyph:active {
+  .nav-glyph:active,
+  .nav-logo:active {
     scale: 1;
   }
 

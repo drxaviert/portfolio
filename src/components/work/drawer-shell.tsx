@@ -2,10 +2,19 @@
 
 import { useReducedMotion } from "motion/react";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 import { navigatingByKeyboard } from "@/components/nav/input-modality";
-import { DOCK_SELECTOR, registerReaderClose } from "@/components/nav/nav-flight";
+import {
+  DOCK_SELECTOR,
+  registerReaderClose,
+} from "@/components/nav/nav-flight";
 import { DrawerActionsProvider, useEscToClose } from "./drawer-actions";
 import { READER_TITLE_ID } from "./parts";
 import {
@@ -14,7 +23,11 @@ import {
   visibleCard,
   useDrawerMorph,
 } from "./use-morph";
-import { readScrollOffsets, snapshotElement, writeScrollOffsets } from "./view-snapshot";
+import {
+  readScrollOffsets,
+  snapshotElement,
+  writeScrollOffsets,
+} from "./view-snapshot";
 import { useOverlayBehaviour } from "./use-overlay-behaviour";
 import { INDEX_TITLE_ID } from "./work-index";
 import "./drawer-shell.css";
@@ -308,7 +321,11 @@ export function DrawerShell({
           // modal in behaviour without telling screen readers to hide it.
           aria-labelledby={titleId}
         >
-          <DrawerActionsProvider close={close} stepBack={stepBack}>
+          <DrawerActionsProvider
+            close={close}
+            stepBack={stepBack}
+            exit={requestExit}
+          >
             <div className="wd-drawer-stack" ref={stackRef}>
               <div
                 key={view.key}

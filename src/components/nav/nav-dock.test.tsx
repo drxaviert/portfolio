@@ -143,6 +143,35 @@ describe("NavDock", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the logo a no-op on the homepage", () => {
+    // "/" is the page already on screen: the click must not add a history entry
+    // or scroll the page to the top.
+    renderDock();
+    const close = vi.fn();
+    registerReaderClose(close);
+
+    const logo = screen.getByRole("link", { name: "Home" });
+    const click = createEvent.click(logo);
+    fireEvent(logo, click);
+
+    expect(click.defaultPrevented).toBe(true);
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it("leaves the logo to the router away from home", () => {
+    mocks.pathname = "/play";
+    renderDock();
+    const close = vi.fn();
+    registerReaderClose(close);
+
+    const logo = screen.getByRole("link", { name: "Home" });
+    const click = createEvent.click(logo);
+    fireEvent(logo, click);
+
+    expect(click.defaultPrevented).toBe(false);
+    expect(close).not.toHaveBeenCalled();
+  });
+
   it("leaves Work to the router, so it steps the drawer back to the index", () => {
     // Work is the drawer's own section: on a study it is the way back to the
     // index, and on the index it is the page already on screen. Neither is a

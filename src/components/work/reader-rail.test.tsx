@@ -94,7 +94,7 @@ describe("ReaderRail", () => {
     const close = vi.fn();
 
     render(
-      <DrawerActionsProvider close={vi.fn()} stepBack={close}>
+      <DrawerActionsProvider close={vi.fn()} stepBack={close} exit={vi.fn()}>
         <ReaderRail />
       </DrawerActionsProvider>,
     );
@@ -187,7 +187,10 @@ describe("ReaderMobileActions", () => {
   it("labels both thumb-reach buttons", () => {
     render(<ReaderMobileActions />);
 
-    expect(screen.getByLabelText("Back to work")).toHaveAttribute("href", "/work");
+    expect(screen.getByLabelText("Back to work")).toHaveAttribute(
+      "href",
+      "/work",
+    );
     expect(screen.getByLabelText("Back to top")).toBeInTheDocument();
   });
 
@@ -195,7 +198,7 @@ describe("ReaderMobileActions", () => {
     const close = vi.fn();
 
     render(
-      <DrawerActionsProvider close={vi.fn()} stepBack={close}>
+      <DrawerActionsProvider close={vi.fn()} stepBack={close} exit={vi.fn()}>
         <ReaderMobileActions />
       </DrawerActionsProvider>,
     );

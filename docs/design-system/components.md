@@ -21,6 +21,8 @@ The same `HomeNav` is the home bar and the reader's top row; one dock in the roo
 | Nav slot on the home page | `64px` (`h-16`) | `src/components/home/home-layout.tsx:216` | — |
 | Orb | `36px` (`size-9`), `50%` radius | `home-nav.tsx:32` | `--orb-gradient` |
 | Orb eyes | `8 × 3.4px`, top `10.5px`, left `13.5px` / `20.6px`, white | `home-nav.tsx:35-36` | — |
+| Orb link | `/`, `aria-label="Home"`, `scroll` default; hover fill = the nav's `--nav-hover-fill` at `0.55` in a round capsule; press `scale(0.96)` | `home-nav.tsx:60-72`, `nav-items.css` | `--nav-hover-fill`, `--duration-short-3` |
+| Orb tooltip | `Home`, `aria-hidden`, above the orb on `/` and below it in the drawer; 150ms fade after the group's 300ms delay | `home-nav.tsx:66-71`, `nav-items.css` | `--duration-short-3`, `--duration-medium-5` |
 | Item | `32px` high (`h-8`), `8px` inline padding (`px-2`), `8px` radius (`rounded-md`) | `src/components/home/nav-items.tsx:25` | `--radius-md` |
 | Item type | `16px` / `20px` (`leading-5`) / `500` | `nav-items.tsx:26` | `--text-base` |
 | Glyph | `32 × 32px` (`size-8`), `8px` radius | `nav-items.tsx:37` | `--radius-md` |
@@ -166,6 +168,24 @@ The index lives in the drawer panel, under the same nav, in the reader's own col
 | Forced colours | thumbnail gets a `1px CanvasText` border | `work-list.css` | none |
 
 Motion: in `motion.md`, "Work index — hover thumbnail list".
+
+### Ways home
+
+The index has a close button; the reader keeps the ways back it already had (the `← Work` rail from `lg`, the thumb-reach back button below it) and gets no second close.
+
+| Item | Value | Source | Tokens |
+| --- | --- | --- | --- |
+| Index close position | `absolute`, top `nav inset + nav height + 4px`, right `max(16px, calc(50% - 568px))` — the nav's right outer edge (the dock's `1136px` frame is centred in the panel) | `src/components/work/work-index.tsx`, `src/components/work/work-index.css` | `--wd-nav-inset`, `--wd-nav-height` |
+| Index close box | `32 × 32px` visual, `8px` radius, no border; `::after` at `-4px` gives the `40px` hit area | `work-index.css` | `--radius-md` |
+| Index close icon | `20 × 20px` stroke `1.5` in the work icon set | `work-index.tsx` | `currentColor` |
+| Index close states | icon `on-surface-variant` → `on-surface` on hover; hover fill is the nav capsule's `--nav-hover-fill` at `0.55`; press `scale(0.96)`; focus `2px` `primary`, offset `2px` | `work-index.css` | `--on-surface-variant`, `--on-surface`, `--primary`, `--duration-short-3` |
+| Index close action | the drawer's `exit` (Esc's step-back-or-close, with the generation and 350ms burst guards), never a route push; the index lands on `/` on the pinned 300ms close | `src/components/work/drawer-actions.tsx`, `src/components/work/drawer-shell.tsx` | — |
+| Index close tooltip | `Close` + `<kbd>Esc</kbd>`, `aria-hidden`, right-aligned below the button; 150ms fade after 300ms | `work-index.tsx`, `work-index.css` | `--on-surface`, `--surface`, `--text-xs` |
+| Index close entrance | held `opacity: 0` while `data-reveal="pending"`, one opacity pass with the list on reveal; no independent animation | `work-index.css` | `--duration-medium-5` |
+| Orb on `/work*` | clicking it runs the same close as the × (the dock captures the link), so it plays the pinned close and lands on `/` | `src/components/nav/nav-dock.tsx` | — |
+| Orb on `/` | a no-op link: the dock clears the click, so no history entry and no scroll jump | `nav-dock.tsx` | — |
+
+The × is the panel's first focusable, so the drawer's tab trap restarts a stranded heading's sequential navigation on it; Tab from the focused `Work` title reaches it, and Enter or Space closes.
 
 ## Layering (z-index)
 

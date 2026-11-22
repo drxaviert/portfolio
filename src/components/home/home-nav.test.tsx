@@ -50,6 +50,19 @@ describe("HomeNav", () => {
     );
   });
 
+  it("gives the orb a Home tooltip outside the accessibility tree", () => {
+    renderNav();
+
+    const logo = screen.getByRole("link", { name: "Home" });
+    const tooltip = logo.querySelector(".nav-tooltip");
+
+    // The accessible name stays the short "Home"; the tooltip is the visible
+    // label, so a screen reader must not hear it twice.
+    expect(tooltip).toHaveTextContent("Home");
+    expect(tooltip).toHaveAttribute("aria-hidden", "true");
+    expect(logo).toHaveAccessibleName("Home");
+  });
+
   it("links Work to the work sheet", () => {
     renderNav();
 
@@ -182,7 +195,23 @@ describe("HomeNav", () => {
       /\[data-tooltip-warm="true"\] \.segment:hover \.segment-tooltip \{\s*transition: none;/,
     );
     expect(itemsCss).toMatch(
-      /\[data-tooltip-warm="true"\] \.nav-glyph:hover \.nav-tooltip \{\s*transition: none;/,
+      /\[data-tooltip-warm="true"\] \.nav-glyph:hover \.nav-tooltip,\s*\[data-tooltip-warm="true"\] \.nav-logo:hover \.nav-tooltip \{\s*transition: none;/,
+    );
+  });
+
+  it("gives the orb the glyph's tooltip timing", () => {
+    const itemsCss = readFileSync(
+      join(process.cwd(), "src", "components", "home", "nav-items.css"),
+      "utf8",
+    );
+
+    // The same 150ms fade in after the group's 300ms delay, and the same
+    // release with no transition.
+    expect(itemsCss).toMatch(
+      /\.nav-glyph:hover \.nav-tooltip,\s*\.nav-logo:hover \.nav-tooltip \{[^}]*var\(--duration-short-3\) var\(--ease-decelerate\)\s*var\(--duration-medium-5\);/,
+    );
+    expect(itemsCss).toMatch(
+      /\.nav-glyph:focus-visible \.nav-tooltip,\s*\.nav-logo:focus-visible \.nav-tooltip \{[^}]*opacity: 1;/,
     );
   });
 
@@ -193,9 +222,13 @@ describe("HomeNav", () => {
     );
 
     // The chosen hover: the ink at 5% into the container, revealed at the
-    // original 0.55 weight.
+    // original 0.55 weight. It lives on the bar so the orb, outside the glide
+    // run, can carry the same fill.
     expect(itemsCss).toMatch(
-      /\.nav-run \{\s*--nav-hover-fill: color-mix\(\s*in oklab,\s*var\(--on-surface\) 5%,\s*var\(--surface-container\)\s*\);/,
+      /\.nav-bar \{\s*--nav-hover-fill: color-mix\(\s*in oklab,\s*var\(--on-surface\) 5%,\s*var\(--surface-container\)\s*\);/,
+    );
+    expect(itemsCss).toMatch(
+      /\.nav-logo::after \{[^}]*var\(--nav-hover-fill\) 55%/,
     );
   });
 });
