@@ -24,7 +24,7 @@ import { useDrawerActions } from "../drawer-actions";
 import { useBackMenuVariant } from "./use-back-menu-variant";
 import "./back-menu.css";
 
-/** Hover intent: a quick pass over the link does not flash a menu open. */
+/** Hover intent: a quick pass over the split control does not flash a card. */
 export const BACK_MENU_OPEN_DELAY_MS = 150;
 
 /** Long enough for the pointer to cross the 6-8px gap into the menu. */
@@ -63,34 +63,157 @@ function isPlainLeftClick(event: ReactMouseEvent<HTMLAnchorElement>): boolean {
   );
 }
 
+/** The drawer's own two destinations, shared by every resting layout. */
+function useBackMenuActions() {
+  const actions = useDrawerActions();
+  const router = useRouter();
+
+  const goWork = useCallback(() => {
+    if (actions) {
+      actions.stepBack();
+      return;
+    }
+
+    router.push("/work");
+  }, [actions, router]);
+
+  // The orb and Esc-to-home both run the drawer's own close; this is that
+  // action, not a route push, so its generation owns the exit and `/` is the
+  // homepage the drawer was above.
+  const goHome = useCallback(() => {
+    if (actions) {
+      void actions.close();
+      return;
+    }
+
+    router.replace("/");
+  }, [actions, router]);
+
+  return { goWork, goHome };
+}
+
 /**
- * The reader's "← Work" with the prototype hover menu behind `?bm=`.
- *
- * One wrapper owns the intent delays, the grace period, the keyboard and the
- * Escape hand-off; each variant only draws its own body. The link itself is
- * still the BackLink anchor: a click, Enter or a modified click behaves exactly
- * as it did before the menu.
+ * The reader's way back. The variant now determines the resting control, not
+ * a hover menu: inline and crumb are always extended, while dropdown and side
+ * keep the shared "← Work" label and add a split chevron.
  */
 export function ReaderBackMenu({ title }: ReaderBackMenuProps) {
-  const actions = useDrawerActions();
   const variant = useBackMenuVariant();
-  const router = useRouter();
+
+  if (variant === "inline") return <InlineBackMenu />;
+  if (variant === "crumb") return <CrumbBackMenu title={title} />;
+
+  return <SplitBackMenu key={variant} variant={variant} />;
+}
+
+/** Inline: the segmented Work | Home pair, always on screen. */
+function InlineBackMenu() {
+  const { goWork, goHome } = useBackMenuActions();
+
+  return (
+    <div
+      className="wd-back bm-root"
+      data-back-menu-anchor=""
+      data-bm-variant="inline"
+    >
+      <SegmentTrack
+        label="Work navigation"
+        groupRole="group"
+        segments={2}
+        selectedIndex={0}
+        segmentWidth={INLINE_SEGMENT_WIDTH}
+        followFocus
+        className="bm-inline-track"
+      >
+        <Segment
+          selected
+          role="button"
+          tabIndex={0}
+          label="Work"
+          onClick={goWork}
+          onKeyDown={() => undefined}
+        >
+          Work
+        </Segment>
+        <Segment
+          selected={false}
+          role="button"
+          tabIndex={0}
+          label="Home"
+          onClick={goHome}
+          onKeyDown={() => undefined}
+        >
+          Home
+        </Segment>
+      </SegmentTrack>
+    </div>
+  );
+}
+
+/** Crumb: Home / Work / title, always on screen. */
+function CrumbBackMenu({ title }: { title: string }) {
+  const { goWork, goHome } = useBackMenuActions();
+
+  function onCrumbClick(
+    event: ReactMouseEvent<HTMLAnchorElement>,
+    action: () => void,
+  ) {
+    if (!isPlainLeftClick(event)) return;
+
+    event.preventDefault();
+    action();
+  }
+
+  return (
+    <div
+      className="wd-back bm-root"
+      data-back-menu-anchor=""
+      data-bm-variant="crumb"
+    >
+      <nav className="bm-crumb" aria-label="Breadcrumb">
+        <Link
+          href="/"
+          className="bm-crumb-item"
+          onClick={(event) => onCrumbClick(event, goHome)}
+        >
+          Home
+        </Link>
+        <span className="bm-crumb-sep" aria-hidden="true">
+          /
+        </span>
+        <Link
+          href="/work"
+          className="bm-crumb-item"
+          onClick={(event) => onCrumbClick(event, goWork)}
+        >
+          Work
+        </Link>
+        <span className="bm-crumb-sep" aria-hidden="true">
+          /
+        </span>
+        <span className="bm-crumb-current" aria-current="page" title={title}>
+          {title}
+        </span>
+      </nav>
+    </div>
+  );
+}
+
+/** Dropdown and side: the split "← Work" control with a chevron. */
+function SplitBackMenu({ variant }: { variant: "dropdown" | "side" }) {
+  const { goWork, goHome } = useBackMenuActions();
   const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLAnchorElement>(null);
+  const labelRef = useRef<HTMLAnchorElement>(null);
+  const chevronRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const openTimer = useRef<number | null>(null);
   const closeTimer = useRef<number | null>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
   const menuId = useId();
 
   const [open, setOpen] = useState(false);
-  const [openFor, setOpenFor] = useState(variant);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [focusIndex, setFocusIndex] = useState(0);
-  const [inlineIndex, setInlineIndex] = useState(0);
-
-  // A variant switch retires the open menu in the same render: no effect, no
-  // stale body left holding focus while the next variant paints.
-  const menuOpen = open && openFor === variant;
 
   const clearTimers = useCallback(() => {
     if (openTimer.current !== null) {
@@ -105,9 +228,8 @@ export function ReaderBackMenu({ title }: ReaderBackMenuProps) {
   }, []);
 
   const focusItem = useCallback((index: number) => {
-    const items = menuRef.current?.querySelectorAll<HTMLElement>(
-      '[data-bm-item], [role="radio"]',
-    );
+    const items =
+      menuRef.current?.querySelectorAll<HTMLElement>("[data-bm-item]");
 
     items?.[index]?.focus();
   }, []);
@@ -115,16 +237,21 @@ export function ReaderBackMenu({ title }: ReaderBackMenuProps) {
   const openMenu = useCallback(
     (focusFirst: boolean) => {
       clearTimers();
-      setOpenFor(variant);
       setFocusIndex(0);
-      if (variant === "inline") setInlineIndex(0);
       setOpen(true);
+
+      const active = document.activeElement;
+
+      openerRef.current =
+        active instanceof HTMLElement && rootRef.current?.contains(active)
+          ? active
+          : chevronRef.current;
 
       if (focusFirst) {
         requestAnimationFrame(() => focusItem(0));
       }
     },
-    [clearTimers, focusItem, variant],
+    [clearTimers, focusItem],
   );
 
   const closeMenu = useCallback(
@@ -133,7 +260,13 @@ export function ReaderBackMenu({ title }: ReaderBackMenuProps) {
       setOpen(false);
       setActiveIndex(null);
 
-      if (restoreFocus) triggerRef.current?.focus();
+      if (restoreFocus) {
+        const opener = openerRef.current;
+        const target =
+          opener && opener.isConnected ? opener : chevronRef.current;
+
+        target?.focus();
+      }
     },
     [clearTimers],
   );
@@ -145,11 +278,11 @@ export function ReaderBackMenu({ title }: ReaderBackMenuProps) {
     };
   }, []);
 
-  // The menu owns Escape while it is open. `preventDefault` is the drawer's
-  // contract (useEscToClose ignores a handled Escape), so one press dismisses
-  // the menu and the next one steps the reader back.
+  // The open card owns Escape. `preventDefault` is the drawer's contract
+  // (useEscToClose ignores a handled Escape), so one press dismisses the card
+  // and the next one steps the reader back.
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!open) return;
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
@@ -177,12 +310,12 @@ export function ReaderBackMenu({ title }: ReaderBackMenuProps) {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown, true);
     };
-  }, [menuOpen, closeMenu]);
+  }, [open, closeMenu]);
 
-  // The side card is vertically centred on the button, unless that would put
+  // The side card is vertically centred on the control, unless that would put
   // it under the fixed nav: then its top is clamped below the nav row.
   useLayoutEffect(() => {
-    if (variant !== "side" || !menuOpen) return;
+    if (variant !== "side" || !open) return;
 
     const root = rootRef.current;
     const panel = menuRef.current;
@@ -200,28 +333,7 @@ export function ReaderBackMenu({ title }: ReaderBackMenuProps) {
       "--bm-side-top",
       `${Math.max(0, top - rootRect.top)}px`,
     );
-  }, [variant, menuOpen]);
-
-  const goWork = useCallback(() => {
-    if (actions) {
-      actions.stepBack();
-      return;
-    }
-
-    router.push("/work");
-  }, [actions, router]);
-
-  // The orb and Esc-to-home both run the drawer's own close; this is that
-  // action, not a route push, so its generation owns the exit and `/` is the
-  // homepage the drawer was above.
-  const goHome = useCallback(() => {
-    if (actions) {
-      void actions.close();
-      return;
-    }
-
-    router.replace("/");
-  }, [actions, router]);
+  }, [variant, open]);
 
   const items: MenuItem[] = [
     {
@@ -254,7 +366,7 @@ export function ReaderBackMenu({ title }: ReaderBackMenuProps) {
       closeTimer.current = null;
     }
 
-    if (menuOpen || openTimer.current !== null) return;
+    if (open || openTimer.current !== null) return;
 
     openTimer.current = window.setTimeout(() => {
       openTimer.current = null;
@@ -270,7 +382,7 @@ export function ReaderBackMenu({ title }: ReaderBackMenuProps) {
       openTimer.current = null;
     }
 
-    if (!menuOpen) return;
+    if (!open) return;
 
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
 
@@ -285,20 +397,35 @@ export function ReaderBackMenu({ title }: ReaderBackMenuProps) {
 
     if (next && rootRef.current?.contains(next)) return;
 
-    if (menuOpen) closeMenu(false);
+    if (open) closeMenu(false);
   }
 
-  function onTriggerKeyDown(event: ReactKeyboardEvent<HTMLAnchorElement>) {
+  function onLabelKeyDown(event: ReactKeyboardEvent<HTMLAnchorElement>) {
     if (event.key !== "ArrowDown" && event.key !== " ") return;
 
     event.preventDefault();
     openMenu(true);
   }
 
+  function onChevronKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== "ArrowDown") return;
+
+    event.preventDefault();
+    openMenu(true);
+  }
+
+  function onChevronClick() {
+    if (open) {
+      closeMenu(false);
+      return;
+    }
+
+    openMenu(true);
+  }
+
   function onMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    const nodes = menuRef.current?.querySelectorAll<HTMLElement>(
-      '[data-bm-item], [role="radio"]',
-    );
+    const nodes =
+      menuRef.current?.querySelectorAll<HTMLElement>("[data-bm-item]");
     const items = nodes ? Array.from(nodes) : [];
     const current = items.indexOf(document.activeElement as HTMLElement);
 
@@ -327,24 +454,10 @@ export function ReaderBackMenu({ title }: ReaderBackMenuProps) {
     focusItem(next);
   }
 
-  function onCrumbClick(
-    event: ReactMouseEvent<HTMLAnchorElement>,
-    action: () => void,
-  ) {
-    if (!isPlainLeftClick(event)) return;
-
-    event.preventDefault();
-    run(action);
-  }
-
   function itemFocus(index: number) {
     setFocusIndex(index);
     setActiveIndex(index);
-
-    if (variant === "inline") setInlineIndex(index);
   }
-
-  const panelOpen = { "data-open": menuOpen };
 
   return (
     <div
@@ -356,156 +469,101 @@ export function ReaderBackMenu({ title }: ReaderBackMenuProps) {
       onPointerLeave={onRootPointerLeave}
       onBlur={onRootBlur}
     >
-      <BackLinkAnchor
-        label="Work"
-        ariaLabel="Back to work"
-        href="/work"
-        onBack={actions?.stepBack}
-        linkRef={triggerRef}
-        ariaControls={menuId}
-        ariaExpanded={menuOpen}
-        ariaHasPopup={
-          variant === "dropdown" || variant === "side" ? "menu" : undefined
-        }
-        onKeyDown={onTriggerKeyDown}
-      />
+      <div className="bm-split">
+        <BackLinkAnchor
+          label="Work"
+          ariaLabel="Back to work"
+          href="/work"
+          onBack={goWork}
+          linkRef={labelRef}
+          onKeyDown={onLabelKeyDown}
+        />
+        <button
+          ref={chevronRef}
+          type="button"
+          className="bm-chevron"
+          aria-label={open ? "Close work menu" : "Open work menu"}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls={menuId}
+          onClick={onChevronClick}
+          onKeyDown={onChevronKeyDown}
+        >
+          <ChevronIcon direction={variant === "side" ? "right" : "down"} />
+        </button>
+      </div>
 
-      <div className="wd-back-menu" data-back-menu-slot="">
-        {variant === "inline" ? (
-          <div
-            id={menuId}
-            ref={menuRef}
-            role="group"
-            aria-label="Work navigation"
-            className="bm-panel bm-inline"
-            inert={!menuOpen}
-            aria-hidden={!menuOpen}
-            onKeyDown={onMenuKeyDown}
-            {...panelOpen}
-          >
-            <SegmentTrack
-              label="Work navigation"
-              segments={2}
-              selectedIndex={inlineIndex}
-              segmentWidth={INLINE_SEGMENT_WIDTH}
-              active={menuOpen}
-              className="bm-inline-track"
-            >
-              <Segment
-                selected={inlineIndex === 0}
-                label="Work"
-                onClick={() => run(goWork)}
-                onKeyDown={() => undefined}
-                onFocus={() => itemFocus(0)}
+      <div id={menuId} className="wd-back-menu" data-back-menu-slot="">
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label="Work navigation"
+          className={`bm-panel bm-${variant}`}
+          inert={!open}
+          aria-hidden={!open}
+          data-open={open}
+          onKeyDown={onMenuKeyDown}
+          onPointerLeave={() => setActiveIndex(null)}
+        >
+          <span
+            className="bm-capsule"
+            aria-hidden="true"
+            data-visible={activeIndex !== null}
+            style={{ "--bm-index": activeIndex ?? 0 } as CSSProperties}
+          />
+          <div className="bm-rows">
+            {items.map((item, index) => (
+              <button
+                key={item.id}
+                type="button"
+                role="menuitem"
+                data-bm-item={item.id}
+                tabIndex={open && focusIndex === index ? 0 : -1}
+                aria-label={`${item.label}, ${item.hint}`}
+                className="bm-row"
+                onPointerEnter={() => setActiveIndex(index)}
+                onFocus={() => itemFocus(index)}
+                onClick={() => run(item.action)}
               >
-                Work
-              </Segment>
-              <Segment
-                selected={inlineIndex === 1}
-                label="Home"
-                onClick={() => run(goHome)}
-                onKeyDown={() => undefined}
-                onFocus={() => itemFocus(1)}
-              >
-                Home
-              </Segment>
-            </SegmentTrack>
+                <span className="bm-icon" aria-hidden="true">
+                  {item.icon}
+                </span>
+                <span className="bm-label">{item.label}</span>
+                <span className="bm-hint">{item.hint}</span>
+              </button>
+            ))}
           </div>
-        ) : variant === "crumb" ? (
-          <div
-            id={menuId}
-            ref={menuRef}
-            role="group"
-            aria-label="Breadcrumb"
-            className="bm-panel bm-crumb"
-            inert={!menuOpen}
-            aria-hidden={!menuOpen}
-            onKeyDown={onMenuKeyDown}
-            {...panelOpen}
-          >
-            <Link
-              href="/"
-              className="bm-crumb-item"
-              data-bm-item="home"
-              tabIndex={menuOpen && focusIndex === 0 ? 0 : -1}
-              onClick={(event) => onCrumbClick(event, goHome)}
-              onFocus={() => itemFocus(0)}
-            >
-              Home
-            </Link>
-            <span className="bm-crumb-sep" aria-hidden="true">
-              /
-            </span>
-            <Link
-              href="/work"
-              className="bm-crumb-item"
-              data-bm-item="work"
-              tabIndex={menuOpen && focusIndex === 1 ? 0 : -1}
-              onClick={(event) => onCrumbClick(event, goWork)}
-              onFocus={() => itemFocus(1)}
-            >
-              Work
-            </Link>
-            <span className="bm-crumb-sep" aria-hidden="true">
-              /
-            </span>
-            <span
-              className="bm-crumb-current"
-              aria-current="page"
-              title={title}
-            >
-              {title}
-            </span>
+          <div className="bm-footer">
+            <kbd className="bm-kbd">Esc</kbd>
+            <span className="bm-footer-hint">to close</span>
           </div>
-        ) : (
-          <div
-            id={menuId}
-            ref={menuRef}
-            role="menu"
-            aria-label="Work navigation"
-            className={`bm-panel bm-${variant}`}
-            inert={!menuOpen}
-            aria-hidden={!menuOpen}
-            onKeyDown={onMenuKeyDown}
-            onPointerLeave={() => setActiveIndex(null)}
-            {...panelOpen}
-          >
-            <span
-              className="bm-capsule"
-              aria-hidden="true"
-              data-visible={activeIndex !== null}
-              style={{ "--bm-index": activeIndex ?? 0 } as CSSProperties}
-            />
-            <div className="bm-rows">
-              {items.map((item, index) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="menuitem"
-                  data-bm-item={item.id}
-                  tabIndex={menuOpen && focusIndex === index ? 0 : -1}
-                  aria-label={`${item.label}, ${item.hint}`}
-                  className="bm-row"
-                  onPointerEnter={() => setActiveIndex(index)}
-                  onFocus={() => itemFocus(index)}
-                  onClick={() => run(item.action)}
-                >
-                  <span className="bm-icon" aria-hidden="true">
-                    {item.icon}
-                  </span>
-                  <span className="bm-label">{item.label}</span>
-                  <span className="bm-hint">{item.hint}</span>
-                </button>
-              ))}
-            </div>
-            <div className="bm-footer">
-              <kbd className="bm-kbd">Esc</kbd>
-              <span className="bm-footer-hint">to close</span>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
+  );
+}
+
+/** A 14px chevron in the back link's 1.5px stroke set. */
+function ChevronIcon({ direction }: { direction: "down" | "right" }) {
+  return (
+    <svg
+      viewBox="0 0 14 14"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {direction === "down" ? (
+        <path d="M3 5.25 7 9.25 11 5.25" />
+      ) : (
+        <path d="M5.25 3 9.25 7 5.25 11" />
+      )}
+    </svg>
   );
 }
 

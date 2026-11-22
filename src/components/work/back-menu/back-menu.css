@@ -1,13 +1,14 @@
 /*
- * The reader's "← Work" hover menu prototypes (back-menu.tsx).
+ * The reader's resting back controls (back-menu.tsx).
  *
- * One open/close transition for all four variants: opacity plus a 0.97 scale
- * from the button's edge, 150ms on the entrance curve, 120ms ease-in out.
- * Only transform and opacity are animated; every body is absolutely
- * positioned, so the article never moves and the scroll container never
- * reflows. The dropdown and side cards use the popover surface
- * (surface-container-low + shadow-card, no border), rows are 8px capsules and
- * the hover fill is the nav's own.
+ * Inline and crumb are always on screen: no hover menu, no expansion. The
+ * dropdown and side variants keep the shared split control and open their card
+ * with opacity plus a 0.97 scale from the button's edge, 150ms on the entrance
+ * curve, 120ms ease-in out. Only transform and opacity animate; cards are
+ * absolutely positioned, so the article never moves and the scroll container
+ * never reflows. Cards use the popover surface (surface-container-low +
+ * shadow-card, no border), rows are 8px capsules and the hover fill is the
+ * nav's own.
  */
 
 .bm-panel {
@@ -206,23 +207,89 @@
   line-height: 1.2;
 }
 
-/* Inline: the theme toggle's track, two labels, no floating surface. */
-.bm-inline {
-  top: 0;
-  left: 0;
+/*
+ * The split control: one 32px row, the label link and the visible chevron.
+ * The fill belongs to the group, so hovering either half reads as one control.
+ */
+.bm-split {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  border-radius: var(--radius-md);
 }
 
-.bm-inline [role="radio"] {
+.bm-split .wd-back-link {
+  background-color: transparent;
+}
+
+.bm-split .wd-back-link:hover {
+  background-color: transparent;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .bm-split:hover {
+    background-color: color-mix(
+      in oklab,
+      var(--nav-hover-fill) 55%,
+      transparent
+    );
+  }
+}
+
+.bm-chevron {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 32px;
+  padding: 0 6px 0 2px;
+  border: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: color var(--duration-short-3) var(--ease-decelerate);
+}
+
+.bm-chevron:hover {
+  color: var(--on-surface);
+}
+
+.bm-chevron:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Inline: the theme toggle's track, two labels, no floating surface. */
+.bm-inline-track {
+  flex: none;
+}
+
+.bm-inline-track [data-segment] {
   font-size: var(--text-sm);
   font-weight: 500;
 }
 
-/* Crumb: the label expands, the left edge stays put. */
+/*
+ * The resting Work capsule is the SVG highlight, exactly like the theme
+ * toggle's checked segment. The button's own selected fill would double it in
+ * the default path; reduced motion hides the SVG layer and keeps that fill as
+ * its 120ms crossfade.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .bm-inline-track [data-segment="Work"] {
+    background-color: transparent;
+  }
+}
+
+/* Crumb: always visible, flush with the shared back-link edge. */
 .bm-crumb {
-  top: 0;
-  left: 0;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
+  width: max-content;
+  max-width: 100%;
   height: 32px;
   padding: 0 4px;
   border-radius: var(--radius-md);

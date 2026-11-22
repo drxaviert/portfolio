@@ -608,6 +608,10 @@ type SegmentTrackProps = {
   segmentWidth?: number;
   /** False while the track is hidden (the phase row before it opens). */
   active?: boolean;
+  /** The theme tracks are radiogroups; action tracks use a plain group. */
+  groupRole?: "radiogroup" | "group";
+  /** Move the faint capsule with keyboard focus as well as the pointer. */
+  followFocus?: boolean;
   /** The parent needs the root node; a callback keeps React refs out of props. */
   trackRef?: (node: HTMLDivElement | null) => void;
 } & ComponentPropsWithoutRef<"div">;
@@ -623,6 +627,8 @@ export function SegmentTrack({
   selectedIndex,
   segmentWidth = SEGMENT_WIDTH,
   active = true,
+  groupRole = "radiogroup",
+  followFocus = false,
   trackRef,
   className,
   children,
@@ -640,22 +646,18 @@ export function SegmentTrack({
     hoverLayer.current?.classList.remove("is-visible");
   }
 
-  /** Moves the faint hover capsule under the segment the pointer is on. */
-  function showPill(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!canHover()) {
-      return;
-    }
-
-    const target = (event.target as Element).closest<HTMLElement>(
-      '[role="radio"]',
-    );
-
-    if (!target || !event.currentTarget.contains(target)) {
+  /** Moves the faint capsule under the segment the pointer is on. */
+  function showPillFor(
+    target: HTMLElement,
+    track: HTMLDivElement,
+    hoverOnly: boolean,
+  ) {
+    if (hoverOnly && !canHover()) {
       return;
     }
 
     const buttons = Array.from(
-      event.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]'),
+      track.querySelectorAll<HTMLElement>("[data-segment]"),
     );
     const index = buttons.indexOf(target);
 
@@ -669,22 +671,23 @@ export function SegmentTrack({
       return;
     }
 
-    // The hovered icon replays the entrance settle once. The row skips this
-    // while its own entrance is still running so the CSS settle continues
-    // without a second animation.
-    const isRow = event.currentTarget.hasAttribute("data-phase-row");
-    const entering =
-      event.currentTarget.getAttribute("data-entering") === "true";
-    const reduced = window.matchMedia?.(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
+    if (hoverOnly) {
+      // The hovered icon replays the entrance settle once. The row skips this
+      // while its own entrance is still running so the CSS settle continues
+      // without a second animation.
+      const isRow = track.hasAttribute("data-phase-row");
+      const entering = track.getAttribute("data-entering") === "true";
+      const reduced = window.matchMedia?.(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
 
-    if (!reduced && !(isRow && entering)) {
-      playIconSettle(target);
+      if (!reduced && !(isRow && entering)) {
+        playIconSettle(target);
+      }
     }
 
-    // Fine-pointer hover only: touch has no hover to follow.
-    if (canHoverHighlight()) {
+    // Fine-pointer hover, or a keyboard focus on a track that follows it.
+    if (!hoverOnly || canHoverHighlight()) {
       setHoverTarget(index);
       hoverLayer.current?.classList.add("is-visible");
     }
@@ -692,18 +695,96 @@ export function SegmentTrack({
     hoveredIndex.current = index;
   }
 
+  function showPill(event: ReactPointerEvent<HTMLDivElement>) {
+    const target = (event.target as Element).closest<HTMLElement>(
+      "[data-segment]",
+    );
+
+    if (!target || !event.currentTarget.contains(target)) {
+      return;
+    }
+
+    showPillFor(target, event.currentTarget, true);
+  }
+
+  function showFocusPill(event: React.FocusEvent<HTMLDivElement>) {
+    if (!followFocus) {
+      return;
+    }
+
+    const target = (event.target as Element).closest<HTMLElement>(
+      "[data-segment]",
+    );
+
+    if (!target || !event.currentTarget.contains(target)) {
+      return;
+    }
+
+    showPillFor(target, event.currentTarget, false);
+  }
+
+  function hideFocusPill(event: React.FocusEvent<HTMLDivElement>) {
+    if (!followFocus) {
+      return;
+    }
+
+    const next = event.relatedTarget as Node | null;
+
+    if (next && event.currentTarget.contains(next)) {
+      return;
+    }
+
+    // The pointer may still be over a segment; hand the capsule back to it.
+    const hovered = event.currentTarget.querySelector<HTMLElement>(
+      "[data-segment]:hover",
+    );
+
+    if (hovered) {
+      showPillFor(hovered, event.currentTarget, true);
+      return;
+    }
+
+    hidePill();
+  }
+
+  /** Put the capsule back on the focused segment when the pointer leaves. */
+  function hidePointerPill(track: HTMLDivElement) {
+    if (followFocus) {
+      const focused = (
+        document.activeElement as HTMLElement | null
+      )?.closest<HTMLElement>("[data-segment]");
+
+      if (focused && track.contains(focused)) {
+        showPillFor(focused, track, false);
+        return;
+      }
+    }
+
+    hidePill();
+  }
+
   return (
     <div
       {...rest}
       ref={trackRef}
-      role="radiogroup"
+      role={groupRole}
       aria-label={label}
       style={{ width: trackWidth(segments, segmentWidth) }}
       onPointerOver={showPill}
       onPointerLeave={(event) => {
+        // A keyboard focus keeps the capsule where it is when the pointer
+        // happens to leave; focus moving out clears it below.
+        if (followFocus) {
+          hidePointerPill(event.currentTarget);
+          onPointerLeave?.(event);
+          return;
+        }
+
         hidePill();
         onPointerLeave?.(event);
       }}
+      onFocus={showFocusPill}
+      onBlur={hideFocusPill}
       className={[
         "flex h-8 items-center rounded-md bg-toggle-track p-0.5",
         className,
@@ -737,6 +818,10 @@ type SegmentProps = {
   /** The theme's own glyphs; other tracks pass their icon as children. */
   glyph?: Glyph;
   children?: ReactNode;
+  /** Theme segments are radios; action segments are plain buttons. */
+  role?: "radio" | "button";
+  /** Override the theme's roving tab stop (action tracks put every item in). */
+  tabIndex?: number;
   onClick: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
   buttonRef?: Ref<HTMLButtonElement>;
@@ -753,6 +838,8 @@ export function Segment({
   tooltip,
   glyph,
   children,
+  role = "radio",
+  tabIndex,
   onClick,
   onKeyDown,
   buttonRef,
@@ -765,10 +852,11 @@ export function Segment({
     <button
       ref={buttonRef}
       type="button"
-      role="radio"
-      aria-checked={selected}
+      role={role}
+      aria-checked={role === "radio" ? selected : undefined}
       aria-label={label}
-      tabIndex={selected ? 0 : -1}
+      tabIndex={tabIndex ?? (selected ? 0 : -1)}
+      data-segment={label}
       onClick={onClick}
       onKeyDown={onKeyDown}
       onPointerEnter={onPointerEnter}

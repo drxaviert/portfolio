@@ -3,9 +3,11 @@
  *
  * Usage: node scripts/verify-back-menu-switch.mjs [baseUrl]
  *
- * Clicks each option with the pointer, then hovers "← Work" and checks the DOM.
- * It also switches on the index before a study mounts, and proves the switch
- * still works when localStorage and history.replaceState are both blocked.
+ * Clicks each option with the pointer and checks the resting control in the
+ * reader: inline and crumb are always extended, dropdown and side show the
+ * split chevron. It also switches on the index before a study mounts, and
+ * proves the switch still works when localStorage and history.replaceState are
+ * both blocked.
  */
 
 import { chromium, firefox, webkit } from "playwright";
@@ -35,20 +37,6 @@ function expect(name, condition, detail) {
   else fail(name, detail);
 }
 
-async function moveAway(page, width) {
-  await page.mouse.move(width - 40, 320);
-  await page.waitForTimeout(280);
-}
-
-async function hoverBack(page) {
-  const link = page.locator(".wd-back-link");
-  const box = await link.boundingBox();
-  if (!box) throw new Error("back link has no box");
-
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.waitForTimeout(500);
-}
-
 async function openStudyFromIndex(page) {
   await page.waitForSelector(".wd-work-row");
   await page.waitForTimeout(1200);
@@ -58,26 +46,22 @@ async function openStudyFromIndex(page) {
   await page.waitForTimeout(850);
 }
 
-async function menuState(page) {
+async function restingState(page) {
   return page.evaluate(() => {
     const roots = [...document.querySelectorAll(".bm-root")].map((root) => ({
       variant: root.getAttribute("data-bm-variant"),
       visible: getComputedStyle(root).visibility !== "hidden",
-      expanded: root
-        .querySelector(".wd-back-link")
-        ?.getAttribute("aria-expanded"),
-      panels: [...root.querySelectorAll(".bm-panel")].map((panel) => ({
-        className: panel.className,
-        open: panel.getAttribute("data-open"),
-      })),
+      inline: Boolean(root.querySelector(".bm-inline-track")),
+      crumb: Boolean(root.querySelector(".bm-crumb")),
+      split: Boolean(root.querySelector(".bm-split")),
+      chevron: Boolean(root.querySelector(".bm-chevron")),
+      menuOpen: [...root.querySelectorAll(".bm-panel")].some(
+        (panel) => panel.getAttribute("data-open") === "true",
+      ),
     }));
-    const visibleRoots = roots.filter(
-      (root) => root.visible && root.expanded === "true",
-    );
 
     return {
       path: window.location.pathname,
-      search: window.location.search,
       storage: window.localStorage.getItem("portfolio.back-menu"),
       pressed: [...document.querySelectorAll(".bm-dev-option")].map(
         (button) => ({
@@ -85,20 +69,20 @@ async function menuState(page) {
           pressed: button.getAttribute("aria-pressed") === "true",
         }),
       ),
-      visibleRoots,
+      roots,
     };
   });
 }
 
 async function clickPill(page, variant) {
-  const button = page.getByRole("button", { name: variant, exact: true });
-  await button.click();
+  await page.getByRole("button", { name: variant, exact: true }).click();
   await page.waitForTimeout(350);
 }
 
 async function assertVariant(page, variant, label, { storage = true } = {}) {
-  const state = await menuState(page);
+  const state = await restingState(page);
   const onlyOne = state.pressed.filter((option) => option.pressed);
+  const visibleRoots = state.roots.filter((root) => root.visible);
 
   expect(
     `${label}: the pill marks ${variant} active`,
@@ -114,50 +98,42 @@ async function assertVariant(page, variant, label, { storage = true } = {}) {
     );
   }
 
-  const roots = state.visibleRoots;
   expect(
-    `${label}: one visible reader opened`,
-    roots.length === 1,
-    JSON.stringify(roots),
+    `${label}: one resting reader is visible`,
+    visibleRoots.length === 1,
+    JSON.stringify(state.roots),
   );
 
-  const root = roots[0];
+  const root = visibleRoots[0];
 
   if (!root) return;
 
   expect(
-    `${label}: the visible reader is ${variant}`,
+    `${label}: the resting reader is ${variant}`,
     root.variant === variant,
     root.variant,
   );
-  expect(
-    `${label}: its ${variant} panel is open`,
-    root.panels.some(
-      (panel) =>
-        panel.open === "true" && panel.className.includes(`bm-${variant}`),
-    ),
-    JSON.stringify(root.panels),
-  );
-  expect(
-    `${label}: no other variant panel is open`,
-    root.panels.every(
-      (panel) =>
-        panel.open !== "true" ||
-        VARIANTS.filter((name) => name !== variant).every(
-          (name) => !panel.className.includes(`bm-${name}`),
-        ),
-    ),
-    JSON.stringify(root.panels),
-  );
-}
 
-async function switchInReader(page, variant) {
-  await moveAway(page, page.viewportSize().width);
-  await clickPill(page, variant);
-  await hoverBack(page);
-  await assertVariant(page, variant, `reader ${variant}`);
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(260);
+  if (variant === "inline") {
+    expect(
+      `${label}: the inline pair is on screen`,
+      root.inline && !root.split && !root.crumb,
+      JSON.stringify(root),
+    );
+  } else if (variant === "crumb") {
+    expect(
+      `${label}: the breadcrumb is on screen`,
+      root.crumb && !root.inline && !root.split,
+      JSON.stringify(root),
+    );
+  } else {
+    expect(
+      `${label}: the split label and chevron are on screen`,
+      root.split && root.chevron && !root.inline && !root.crumb,
+      JSON.stringify(root),
+    );
+    expect(`${label}: the card starts closed`, !root.menuOpen);
+  }
 }
 
 async function runReaderFlow(page) {
@@ -168,7 +144,10 @@ async function runReaderFlow(page) {
   await openStudyFromIndex(page);
 
   for (const variant of VARIANTS) {
-    await switchInReader(page, variant);
+    await page.mouse.move(1200, 320);
+    await page.waitForTimeout(220);
+    await clickPill(page, variant);
+    await assertVariant(page, variant, `reader ${variant}`);
   }
 }
 
@@ -182,7 +161,7 @@ async function runIndexFlow(page) {
 
   for (const variant of VARIANTS) {
     await clickPill(page, variant);
-    const state = await menuState(page);
+    const state = await restingState(page);
     const pressed = state.pressed.filter((option) => option.pressed);
 
     expect(
@@ -195,14 +174,15 @@ async function runIndexFlow(page) {
       state.storage === variant,
       state.storage,
     );
+    expect(
+      `index ${variant}: the Home BackLink stays plain`,
+      state.roots.length === 0,
+    );
   }
 
   // Leave the last option (side) selected, then prove the reader mounts into it.
   await openStudyFromIndex(page);
-  await hoverBack(page);
   await assertVariant(page, "side", "reader after index switch");
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(260);
 }
 
 async function runBlockedPersistenceFlow(page) {
@@ -211,7 +191,6 @@ async function runBlockedPersistenceFlow(page) {
     waitUntil: "domcontentloaded",
   });
   await openStudyFromIndex(page);
-  await moveAway(page, page.viewportSize().width);
 
   await page.evaluate(() => {
     window.history.replaceState = () => {
@@ -223,12 +202,9 @@ async function runBlockedPersistenceFlow(page) {
   });
 
   await clickPill(page, "inline");
-  await hoverBack(page);
   await assertVariant(page, "inline", "blocked persistence", {
     storage: false,
   });
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(260);
 }
 
 const browser = await engine.launch();
