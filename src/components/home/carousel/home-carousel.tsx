@@ -262,8 +262,8 @@ function Slide({
   const first = slot === 0 && !ghost;
   const offscreen = slot >= VISIBLE_SLOTS;
   const key = peek ? "peekL" : `${ghost ? "g" : "m"}${index}`;
-  // The featured slot's card grows its ring with transform scale; the narrow
-  // columns keep the clip-path grow (ring-hover.css).
+  // The featured slot carries `.ring-card` as a marker only; every ring host
+  // grows its ring by `inset` (ring-hover.css).
   const hostClass = `car-host ring-host rounded-lg${first ? " ring-card" : ""}`;
   // The peek's outer edges carry the blur: the copy's left edge, and the
   // right-most visible card's right edge (slot 2, once the 4th has been pushed

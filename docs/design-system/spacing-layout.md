@@ -253,7 +253,6 @@ its horizon.
 | Frame gap | `clamp(0, (100dvh − 780)/2, 64)` | `home-layout.tsx:24` |
 | Column top / rail top / scroll margin | `nav inset + nav height + content gap` | `reader.css:66-69`, `:122-124`; `scroll-ruler.css:207-211` |
 | Ring inner radius | `--radius-lg − 1px` | `ring-hover.css:26` |
-| Featured-card ring scale | `1 + 2·(grow − 1px)/card size` per breakpoint → `1.014/1.0238` (375), `1.0113/1.0179` (768), `1.0076/1.0278` (1024), `1.0066/1.024` (1280) | `src/components/home/ring-hover.css:284-321` |
 | Ruler gap | `max(40, (room − width)/2)`, then `room − gap − width` written to `--wd-ruler-right` | `scroll-ruler.tsx:354-357` |
 | Hero scale | `689 = 753 − 2·32`; shift/scale by `753/689` | `reader.css:427-432` |
 | Blur stack height | `nav inset + nav height` | `src/components/work/reader.tsx:43` |

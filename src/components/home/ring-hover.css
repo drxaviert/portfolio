@@ -2,12 +2,17 @@
  * Ring hover — promoted from /dev/proto/card-hover ("Ring + nav bar").
  *
  * Every host is one ring surface: a frame (the 1px edge), a glow inside that
- * frame, and the host's fill one pixel inside the frame. Both layers are
- * oversized by the grow amounts; at rest the fill is clipped back to the host
- * box (the Figma card, no stroke) and the frame sits one pixel outside it,
- * transparent. On hover the fill and frame clips open together, so the ring
+ * frame, and the host's fill one pixel inside the frame. At rest the fill is
+ * the host box (the Figma card, no stroke) and the frame sits one pixel outside
+ * it, transparent. On hover both layers' `inset` opens together, so the ring
  * keeps a constant 1px edge while it grows outward past the Figma box into
  * the gutters; the edge fades in fast and the glow trails the cursor.
+ *
+ * The grow animates layout `inset`, not `clip-path` or `transform: scale`:
+ * clip and transform edges are antialiased at fractional positions, so mid-grow
+ * the 1px ring straddled two device pixels and then thinned to one when the
+ * animation ended. Layout edges are pixel-snapped, and frame and fill always
+ * differ by exactly 1px, so the ring is one crisp pixel at every frame.
  *
  * Numbers are the decided defaults from the decision doc; the only values that
  * differ per host are the geometry vars below.
@@ -61,26 +66,22 @@
 
 .ring-frame {
   position: absolute;
-  inset: calc(var(--ring-grow-y) * -1) calc(var(--ring-grow-x) * -1);
+  inset: -1px;
   z-index: -2;
   border-radius: var(--ring-radius);
   background-color: var(--ring-line);
   /* The glow is a 614px layer inside the frame. Its paint is already cut to
-     this box by the frame's own clip-path, but its layout box still counted
+     this box by the frame's own overflow clip, but its layout box still counted
      toward the page's scrollable overflow: the nav sits outside the home
      main's `overflow: hidden`, so hovering a toggle near the right edge moved
      the glow's box past the viewport and added a scrollbar. Containing it here
-     clips at the same box the clip-path does, so nothing visible changes. */
+     clips at the same box, so nothing visible changes. */
   overflow: clip;
   /* Always one pixel outside the surface; transparent at rest so no stroke
-     shows. Fades in and out immediately, alongside the clip. */
-  clip-path: inset(
-    calc(var(--ring-grow-y) - 1px) calc(var(--ring-grow-x) - 1px) round
-      var(--ring-radius)
-  );
+     shows. Fades in and out immediately, alongside the grow. */
   opacity: 0;
   transition:
-    clip-path var(--ring-grow) var(--ring-ease),
+    inset var(--ring-grow) var(--ring-ease),
     opacity var(--duration-short-1) var(--ease-linear);
 }
 
@@ -113,14 +114,13 @@
 
 .ring-surface {
   position: absolute;
-  inset: calc(var(--ring-grow-y) * -1) calc(var(--ring-grow-x) * -1);
+  /* At rest the box is the host box exactly: the Figma card, radius 12. */
+  inset: 0;
   z-index: -1;
   border-radius: var(--ring-radius);
-  /* At rest the clip is the host box exactly: the Figma card, radius 12. */
-  clip-path: inset(
-    var(--ring-grow-y) var(--ring-grow-x) round var(--ring-radius)
-  );
-  transition: clip-path var(--ring-grow) var(--ring-ease);
+  transition:
+    inset var(--ring-grow) var(--ring-ease),
+    border-radius var(--ring-grow) var(--ring-ease);
 }
 
 .ring-title {
@@ -133,15 +133,17 @@
   }
 
   .ring-host:hover .ring-frame {
-    clip-path: inset(0 round var(--ring-radius));
+    inset: calc(var(--ring-grow-y) * -1) calc(var(--ring-grow-x) * -1);
     opacity: 1;
     transition:
-      clip-path var(--ring-grow) var(--ring-ease),
+      inset var(--ring-grow) var(--ring-ease),
       opacity var(--duration-short-1) var(--ease-linear);
   }
 
   .ring-host:hover .ring-surface {
-    clip-path: inset(1px round var(--ring-inner-radius));
+    inset: calc((var(--ring-grow-y) - 1px) * -1)
+      calc((var(--ring-grow-x) - 1px) * -1);
+    border-radius: var(--ring-inner-radius);
   }
 
   .ring-host:hover .ring-glow {
@@ -192,16 +194,18 @@
 
 .ring-host:focus-visible .ring-frame,
 .ring-host:has(:focus-visible) .ring-frame {
-  clip-path: inset(0 round var(--ring-radius));
+  inset: calc(var(--ring-grow-y) * -1) calc(var(--ring-grow-x) * -1);
   opacity: 1;
   transition:
-    clip-path var(--ring-grow) var(--ring-ease),
+    inset var(--ring-grow) var(--ring-ease),
     opacity var(--duration-short-1) var(--ease-linear);
 }
 
 .ring-host:focus-visible .ring-surface,
 .ring-host:has(:focus-visible) .ring-surface {
-  clip-path: inset(1px round var(--ring-inner-radius));
+  inset: calc((var(--ring-grow-y) - 1px) * -1)
+    calc((var(--ring-grow-x) - 1px) * -1);
+  border-radius: var(--ring-inner-radius);
 }
 
 /* Keyboard: the glow only fades in, so it needs no promoted layer. */
@@ -226,26 +230,20 @@
   .ring-host:hover .ring-frame,
   .ring-host:focus-visible .ring-frame,
   .ring-host:has(:focus-visible) .ring-frame {
-    clip-path: inset(
-      var(--ring-grow-y) var(--ring-grow-x) round var(--ring-radius)
-    );
+    inset: 0;
     transition: opacity var(--duration-short-1) var(--ease-linear);
   }
 
   .ring-surface {
-    clip-path: inset(
-      var(--ring-grow-y) var(--ring-grow-x) round var(--ring-radius)
-    );
+    inset: 0;
     transition: none;
   }
 
   .ring-host:hover .ring-surface,
   .ring-host:focus-visible .ring-surface,
   .ring-host:has(:focus-visible) .ring-surface {
-    clip-path: inset(
-      calc(var(--ring-grow-y) + 1px) calc(var(--ring-grow-x) + 1px) round
-        var(--ring-inner-radius)
-    );
+    inset: 1px;
+    border-radius: var(--ring-inner-radius);
     transition: none;
   }
 
@@ -264,124 +262,5 @@
   .ring-host:focus-visible,
   .ring-host:has(:focus-visible) {
     z-index: auto;
-  }
-}
-
-/*
- * The featured card's ring: the same ring every host carries, but grown by
- * `transform: scale` instead of an animated `clip-path`.
- *
- * Both clips stay put — the surface's is the host box (the Figma card, no
- * stroke) and the frame's is one pixel larger — so a shared scale keeps the
- * ring's 1px edge while the fill and the frame grow outward. Only the
- * transform animates, on the same 0.8s spring as the clip path it replaced,
- * and because the clips are static a hover no longer repaints the frame
- * layer, which carries the 614px glow: one 1440x900 hover measured raster at
- * 11.8ms / 443 tasks and GPU at 121.2ms before, 0.1ms / 7 tasks and 25.3ms
- * after.
- *
- * A scale cannot add a fixed number of pixels, so the factors are tuned per
- * breakpoint to the featured card: 1 + 2 x (grow - 1px) / card size, for
- * 358x420 stacked, 444x560 at md, 656x360 at lg and 753x416 at xl. At those
- * sizes the fill grows the shipped 2.5px x / 5px y and the frame edge lands on
- * the shipped 3.5px x / 6px y.
- *
- * Scope is the featured card only (`.ring-card`). The nav, the slivers and the
- * narrower carousel columns keep the clip-path grow: a proportional scale
- * would grow a 180px column about 0.6px sideways instead of 3.5px.
- *
- * Reduced motion never reaches this block, so it keeps the rules above: no
- * growth, the ring reveals inside the card.
- */
-@media (prefers-reduced-motion: no-preference) {
-  .ring-card {
-    --ring-card-scale-x: 1.014;
-    --ring-card-scale-y: 1.0238;
-  }
-
-  @media (min-width: 768px) {
-    .ring-card {
-      --ring-card-scale-x: 1.0113;
-      --ring-card-scale-y: 1.0179;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .ring-card {
-      --ring-card-scale-x: 1.0076;
-      --ring-card-scale-y: 1.0278;
-    }
-  }
-
-  @media (min-width: 1280px) {
-    .ring-card {
-      --ring-card-scale-x: 1.0066;
-      --ring-card-scale-y: 1.024;
-    }
-  }
-
-  /*
-   * Rest: the surface is the Figma box exactly, so its clip never moves; the
-   * frame carries the extra pixel the fill leaves for the edge. The delay
-   * lists are left to the rules above, so a theme switch still postpones the
-   * exit (the data-phase-switching block).
-   */
-  .ring-card .ring-frame {
-    clip-path: inset(
-      calc(var(--ring-grow-y) - 1px) calc(var(--ring-grow-x) - 1px) round
-        var(--ring-radius)
-    );
-    transform: scale(1);
-    transition-property: transform, opacity;
-    transition-duration: var(--ring-grow), var(--duration-short-1);
-    transition-timing-function: var(--ring-ease), var(--ease-linear);
-  }
-
-  .ring-card .ring-surface {
-    transform: scale(1);
-    transition-property: transform;
-    transition-duration: var(--ring-grow);
-    transition-timing-function: var(--ring-ease);
-  }
-
-  /* Keyboard mirrors hover: the same scale, the same static clips. */
-  .ring-card:focus-visible .ring-frame,
-  .ring-card:has(:focus-visible) .ring-frame {
-    clip-path: inset(
-      calc(var(--ring-grow-y) - 1px) calc(var(--ring-grow-x) - 1px) round
-        var(--ring-radius)
-    );
-    transform: scale(var(--ring-card-scale-x), var(--ring-card-scale-y));
-    transition-property: transform, opacity;
-    transition-duration: var(--ring-grow), var(--duration-short-1);
-    transition-timing-function: var(--ring-ease), var(--ease-linear);
-  }
-
-  .ring-card:focus-visible .ring-surface,
-  .ring-card:has(:focus-visible) .ring-surface {
-    clip-path: inset(
-      var(--ring-grow-y) var(--ring-grow-x) round var(--ring-radius)
-    );
-    transform: scale(var(--ring-card-scale-x), var(--ring-card-scale-y));
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
-  .ring-card:hover .ring-frame {
-    clip-path: inset(
-      calc(var(--ring-grow-y) - 1px) calc(var(--ring-grow-x) - 1px) round
-        var(--ring-radius)
-    );
-    transform: scale(var(--ring-card-scale-x), var(--ring-card-scale-y));
-    transition-property: transform, opacity;
-    transition-duration: var(--ring-grow), var(--duration-short-1);
-    transition-timing-function: var(--ring-ease), var(--ease-linear);
-  }
-
-  .ring-card:hover .ring-surface {
-    clip-path: inset(
-      var(--ring-grow-y) var(--ring-grow-x) round var(--ring-radius)
-    );
-    transform: scale(var(--ring-card-scale-x), var(--ring-card-scale-y));
   }
 }

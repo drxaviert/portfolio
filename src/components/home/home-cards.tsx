@@ -57,7 +57,7 @@ type ProjectCardProps = {
   onOpen?: (element: HTMLElement) => void;
 };
 
-/** The featured card; `.ring-card` grows its hover ring with transform scale. */
+/** The featured card; `.ring-card` is only a marker, every ring host grows by `inset` (ring-hover.css). */
 const CARD_CLASS =
   "ring-host ring-card flex h-[420px] flex-col justify-end rounded-lg p-5 md:h-auto md:p-8";
 

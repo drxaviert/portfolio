@@ -230,36 +230,25 @@ A frame writes one property: the capsule keeps the run's width and carries the p
 
 ## Home card hover ring
 
-The featured card's ring is the same surface every host carries (a frame, the glow inside it, and the fill), but its growth is a transform, not a clip. Both layers are clipped once — the surface to the Figma card box, the frame one pixel larger — and a shared `scale` moves those clips outward, so the 1px edge survives while the fill grows 2.5px x / 5px y into the gutters. The clips never animate, so a hover no longer repaints the frame layer, which carries the 614px glow.
+Every ring host (the home cards, the tracker widget, the carousel columns, the nav bar) is one surface: a frame, the glow inside it, and the fill. Growth animates the layers' layout `inset`, not a `clip-path` or a `transform`. At rest the fill is the Figma card box and the frame is one pixel larger and transparent. On hover or focus the fill grows to (grow − 1px) and the frame to grow, so the 1px edge keeps its width while the fill grows 2.5px x / 5px y into the gutters (`--ring-grow-x` 3.5px, `--ring-grow-y` 6px for the frame edge).
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
-| Card hovered | surface + frame `transform` | 800ms (`--duration-long-3`, `--ring-grow`) | 0 | `cubic-bezier(0.165, 0.84, 0.44, 1)` (`--ease-spring-grow`) | `scale(1)` → `scale(1.0066, 1.024)` at xl |
+| Card hovered | surface `inset` + `border-radius` | 800ms (`--duration-long-3`, `--ring-grow`) | 0 | `cubic-bezier(0.165, 0.84, 0.44, 1)` (`--ease-spring-grow`) | `0` → `-(grow − 1px)`, radius 12 → 11 |
+| Card hovered | frame `inset` | 800ms (`--duration-long-3`, `--ring-grow`) | 0 | `cubic-bezier(0.165, 0.84, 0.44, 1)` (`--ease-spring-grow`) | `-1px` → `-grow` |
 | Card hovered | frame `opacity` | 100ms (`--duration-short-1`) | 0 | `linear` (`--ease-linear`) | 0 → 1 |
-| Pointer leaves | surface + frame `transform` | 800ms (`--duration-long-3`, `--ring-grow`) | 0 | `cubic-bezier(0.165, 0.84, 0.44, 1)` (`--ease-spring-grow`) | `scale(…)` → `scale(1)` |
-| Pointer leaves | frame `opacity` | 100ms (`--duration-short-1`) | 800ms (`--ring-grow`) | `linear` (`--ease-linear`) | 1 → 0, after the ring has closed |
+| Pointer leaves | surface + frame `inset` | 800ms (`--duration-long-3`, `--ring-grow`) | 0 | `cubic-bezier(0.165, 0.84, 0.44, 1)` (`--ease-spring-grow`) | back to rest |
+| Pointer leaves | frame `opacity` | 100ms (`--duration-short-1`) | 0 | `linear` (`--ease-linear`) | 1 → 0 |
 | Keyboard focus | same as hover | same | same | same | the focused card grows too |
 
-| Card | Surface | `--ring-card-scale-x` / `-y` | Fill growth |
-| --- | --- | --- | --- |
-| Stacked, below md | 358×420 | 1.014 / 1.0238 | 2.5px x / 5px y |
-| md | 444×560 | 1.0113 / 1.0179 | 2.5px x / 5px y |
-| lg | 656×360 | 1.0076 / 1.0278 | 2.5px x / 5px y |
-| xl | 753×416 | 1.0066 / 1.024 | 2.5px x / 5px y |
+Why `inset`: clip-path and transform edges are antialiased at fractional positions, so mid-grow the 1px ring straddled two device pixels (about 2px wide for most of the 800ms) and then settled to one crisp pixel when the animation ended. Layout edges are pixel-snapped and the frame and fill always differ by exactly 1px, so the ring is one pixel at every frame. Measured at DSF 1 on the nav bar, a carousel column and the featured card, day and night: two-pixel rows at 100ms to 400ms before, one pixel at every sample after.
 
-The factors are `1 + 2 × (grow − 1px) / card size`, with `--ring-grow-x` 3.5px and `--ring-grow-y` 6px. The subtracted pixel is the edge the fill leaves for the frame, so each card lands its frame on the shipped 3.5px x / 6px y outer boundary. A scale cannot add fixed pixels to every width, so the scope is the featured card only (`home-cards.tsx`, and the carousel's front slot): the nav, the slivers and the narrower carousel columns keep the clip-path grow.
+Cost (headless Chromium trace of one 1440x900 hover, three runs): layout 0.7 to 1.1ms over 4 to 6 layouts (the transform version ran none); the featured card's `RasterTask` was 37 to 69ms over 124 to 168 tasks against 14 to 46ms over 48 to 57 for the transform version; the nav bar was about the same either way. Headless software rendering ran every frame near 150ms in both versions, so dropped frames could not be compared; check a real-GPU Chrome trace. The ring-follow glow variables (`ring-pointer.tsx`) still own the style recalc.
 
-Why transform: animating `clip-path` repaints the ring layer every frame. Measured over one 1440×900 hover, `RasterTask` was 11.8ms across 443 tasks with `GPUTask` at 121.2ms, and 0.1ms across 7 tasks with 25.3ms after. Neither version runs layout; the remaining style recalc (~0.4ms a frame) belongs to the pointer-follow glow variables (`ring-pointer.tsx`), not the ring.
+Reduced motion is unchanged: the reduced path above reveals the ring inside the card with no growth.
 
-Reduced motion is untouched: the growth block sits inside `prefers-reduced-motion: no-preference`, so the reduced path above still reveals the ring inside the card with no growth.
-
-- `src/components/home/ring-hover.css:271` — the card ring: static clips, transform growth
-- `src/components/home/ring-hover.css:296` — growth only under `no-preference`
-- `src/components/home/ring-hover.css:298` — scale factors, base and per breakpoint (md 304, lg 311, xl 318)
-- `src/components/home/ring-hover.css:329` — rest: surface clip on the Figma box, frame 1px larger
-- `src/components/home/ring-hover.css:381` — hover: one scale on the surface and the frame
-- `src/components/home/home-cards.tsx:59` — `.ring-card` on the featured card
-- `src/components/home/carousel/home-carousel.tsx:244` — the front slot carries `.ring-card`
+- `src/components/home/ring-hover.css` — `.ring-frame`, `.ring-surface` rest geometry and the `inset` transitions; hover, focus and reduced-motion rules
+- `src/components/home/home-cards.tsx` — `.ring-card` is now only a marker on the featured card
 - `src/components/home/ring-pointer.tsx:6` — the glow's pointer-follow variables
 
 ## Day phase row entrance — "Stagger + icons"
