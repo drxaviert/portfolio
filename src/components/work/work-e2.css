@@ -609,12 +609,37 @@
     transform 200ms var(--ease-emphasized-decelerate);
 }
 
+/*
+ * e2-v5 hides the OS cursor over its rows so the image can sit on top of it.
+ * The entry starts at 0.6, not 0, so the first frame that hides the cursor is
+ * already showing the thumbnail: there is no hidden-cursor-over-nothing frame.
+ * The scale stays on the transition so reduced motion can drop it.
+ */
+@keyframes wd-e2-thumb-enter {
+  from {
+    opacity: 0.6;
+  }
+}
+
 .wd-e2-v5-layer[data-e2-active] .wd-e2-thumb-in {
   opacity: 1;
   transform: scale(1);
   transition:
     opacity 200ms var(--ease-emphasized-decelerate),
     transform 200ms var(--ease-emphasized-decelerate);
+}
+
+/* v5 only: the entry starts at 0.6 so the first frame that hides the cursor
+   is already showing the thumbnail. v6 keeps its 0 -> 1 fade. */
+.wd-e2-v5-layer[data-e2-version="v5"][data-e2-active] .wd-e2-thumb-in {
+  animation: wd-e2-thumb-enter 200ms var(--ease-emphasized-decelerate);
+}
+
+/* Only over a v5 row that owns the thumbnail: keyboard focus and the rest of
+   the page keep the normal cursor. */
+.wd-e2-group[data-e2-version="v5"][data-e2-pointer] .wd-e2-list-column,
+.wd-e2-group[data-e2-version="v5"][data-e2-pointer] .wd-e2-row {
+  cursor: none;
 }
 
 /* ---------- Row entrance ---------- */
@@ -669,6 +694,12 @@
   .wd-e2-v5-layer[data-e2-active] .wd-e2-thumb-in {
     transform: none;
     transition: opacity 120ms ease-out;
+  }
+
+  /* Still starts from 0.6: the first hidden-cursor frame shows the image. */
+  .wd-e2-v5-layer[data-e2-version="v5"][data-e2-active] .wd-e2-thumb-in {
+    animation-duration: 120ms;
+    animation-timing-function: ease-out;
   }
 
   .wd-e2-group:not([data-e2-version="v2"]) .wd-e2-row-item::before {

@@ -1030,6 +1030,7 @@ export function WorkIndexListE2({
             }
             ref={groupRef}
             data-e2-active={thumbActive ? "" : undefined}
+            data-e2-pointer={hovered !== null ? "" : undefined}
           >
             {version === "v2" ? (
               <div className="wd-e2-rail" aria-hidden="true" />
@@ -1093,6 +1094,7 @@ export function WorkIndexListE2({
         ? createPortal(
             <div
               className="wd-e2-v5-layer"
+              data-e2-version={version}
               ref={v5LayerRef}
               aria-hidden="true"
               data-e2-active={thumbActive ? "" : undefined}
