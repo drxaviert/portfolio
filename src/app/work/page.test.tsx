@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import WorkIndexPage from "./page";
@@ -28,7 +28,6 @@ beforeEach(() => {
     })),
   );
   window.localStorage.clear();
-  document.documentElement.removeAttribute("data-work-layout");
 });
 
 afterEach(() => {
@@ -44,12 +43,12 @@ function renderPage() {
 }
 
 describe("work index page", () => {
-  it("renders the index, in the order the homepage leads with", () => {
+  it("renders one list row per study, in the order the homepage leads with", () => {
     const { container } = renderPage();
 
     const links = [
       ...container.querySelectorAll<HTMLAnchorElement>(
-        '[data-layout="grid"] a[href^="/work/"]',
+        ".wd-work-row[href^='/work/']",
       ),
     ];
 
@@ -60,25 +59,15 @@ describe("work index page", () => {
     expect(container.querySelector("[data-work-card]")).toBeNull();
   });
 
-  it("renders both layouts, with the grid chosen by default", () => {
-    // Both are in the markup so the stored choice can be applied before paint
-    // by the inline script; the stylesheet picks one from <html>.
+  it("is a single list, with no grid, switch or preview", () => {
     const { container } = renderPage();
 
-    expect(container.querySelector('[data-layout="grid"] .wd-grid')).not.toBeNull();
-    expect(
-      container.querySelector('[data-layout="list"] .wd-index-list'),
-    ).not.toBeNull();
-
-    expect(screen.getByRole("radiogroup", { name: "Layout" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Grid view" })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    expect(document.documentElement).toHaveAttribute(
-      "data-work-layout",
-      "grid",
-    );
+    expect(container.querySelector(".wd-work-list")).not.toBeNull();
+    expect(container.querySelector("[data-layout]")).toBeNull();
+    expect(container.querySelector(".wd-grid")).toBeNull();
+    expect(container.querySelector(".wd-index-preview")).toBeNull();
+    expect(container.querySelector('[role="radiogroup"]')).toBeNull();
+    expect(document.documentElement).not.toHaveAttribute("data-work-layout");
   });
 
   it("names the route Work", async () => {

@@ -1,0 +1,332 @@
+/*
+ * The /work list: one row per study with a hairline divider and one shared
+ * 480x360 hover thumbnail.
+ *
+ * The row keeps the shipped list's voice: an 80px year, a 20px/500 title, a
+ * 14px summary, a 200px right-aligned role, a 16px gap, 18x16 padding, a 12px
+ * radius and the surface-container hover fill. While a row is current the
+ * others drop to 40%, and the dividers around it fade out over the same 200ms.
+ *
+ * The thumbnail is centred on the cursor and follows it 1:1 (one rAF write of
+ * translate3d per frame, no easing). Its fixed layer is portalled to the body
+ * at z-index 70, above the nav, clipped only by the viewport. The inner layer
+ * owns the radius, shadow, fade and scale; the crossfade between rows is two
+ * stacked images. Touch has no thumbnail.
+ */
+
+.wd-work-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+  outline: none;
+}
+
+.wd-work-group {
+  position: relative;
+}
+
+.wd-work-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wd-work-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) 200px;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 16px;
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.wd-work-year {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  color: var(--on-surface-variant);
+}
+
+.wd-work-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wd-work-title {
+  font-size: var(--text-xl);
+  line-height: 1.2;
+  font-weight: 500;
+  text-wrap: balance;
+}
+
+.wd-work-summary {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+  text-wrap: pretty;
+}
+
+.wd-work-role {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--on-surface-variant);
+  text-align: end;
+  white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .wd-work-row {
+    transition: background-color 200ms var(--ease-decelerate);
+  }
+
+  .wd-work-row:hover {
+    background: var(--surface-container);
+  }
+}
+
+.wd-work-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  background: var(--surface-container);
+}
+
+/* ---------- Dividers ---------- */
+
+/*
+ * One hairline on each item's top edge, so there is no line above the first
+ * row and none after the last. --outline-variant is the a8 black/white
+ * hairline token from globals.css, subtle in both Day and Night. The current
+ * row and the row after it drop their lines so the rounded hover fill never
+ * sits on one.
+ */
+.wd-work-row-item {
+  position: relative;
+}
+
+.wd-work-row-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 16px;
+  left: 16px;
+  height: 1px;
+  background: var(--outline-variant);
+  opacity: 1;
+  transition: opacity 200ms var(--ease-emphasized-decelerate);
+  pointer-events: none;
+}
+
+.wd-work-row-item:first-child::before {
+  display: none;
+}
+
+.wd-work-row-item[data-work-current]::before,
+.wd-work-row-item[data-work-current] + .wd-work-row-item::before {
+  opacity: 0;
+}
+
+/* ---------- Row dim ---------- */
+
+/*
+ * The dim sits on the row child, not the item: the text and hover fill drop to
+ * 40% while the item's hairline stays at full opacity as structure.
+ */
+.wd-work-row-item > .wd-work-row {
+  transition:
+    opacity 200ms var(--ease-emphasized-decelerate),
+    background-color 200ms var(--ease-decelerate);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .wd-work-group[data-work-dim]
+    .wd-work-row-item:not([data-work-current])
+    > .wd-work-row {
+    opacity: 0.4;
+  }
+}
+
+/* ---------- Cursor ---------- */
+
+/* Hidden only while a row owns the thumbnail; restored on leave, and never on
+   keyboard focus (which parks the thumbnail without a pointer). */
+.wd-work-group[data-work-pointer] .wd-work-list-column,
+.wd-work-group[data-work-pointer] .wd-work-row {
+  cursor: none;
+}
+
+/* ---------- Narrow ---------- */
+
+@media (max-width: 767.98px) {
+  .wd-work-row {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .wd-work-role {
+    display: none;
+  }
+}
+
+/* ---------- Entrance ---------- */
+
+/*
+ * The rows visible at open get the A bands' Soft focus, capped at twelve by
+ * the parent. Everything below the fold is already visible and never animates
+ * on scroll. `backwards` holds the 0 start through the stagger delay and lets
+ * the final state return to the cascade, so the 40% dim still applies after
+ * the animation (the dim bug this replaced).
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .wd-expand-layer[data-phase="opening"] .wd-work-row-item {
+    opacity: 0;
+  }
+
+  .wd-work-column[data-work-anim="on"] .wd-work-row-item[data-work-enter] {
+    animation: wd-work-soft 700ms var(--ease-calm) backwards;
+    animation-delay: calc(var(--work-enter-i, 0) * 40ms);
+  }
+}
+
+@keyframes wd-work-soft {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: none;
+  }
+}
+
+/* ---------- The hover thumbnail ---------- */
+
+.wd-work-thumb-clip {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.wd-work-thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 480px;
+  height: 360px;
+  pointer-events: none;
+  /* The rAF writes translate3d; no CSS transform transition may fight it. */
+  transition: none;
+}
+
+.wd-work-thumb-in {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container);
+  box-shadow: var(--shadow-card);
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity 150ms var(--ease-decelerate),
+    transform 200ms var(--ease-emphasized-decelerate);
+}
+
+/*
+ * The entry starts at 0.6, not 0: the same frame hides the cursor over the
+ * row, so there is never a hidden cursor over an empty frame. The scale stays
+ * a transition so reduced motion can drop it.
+ */
+@keyframes wd-work-thumb-enter {
+  from {
+    opacity: 0.6;
+  }
+}
+
+.wd-work-thumb-clip[data-work-active] .wd-work-thumb-in {
+  opacity: 1;
+  transform: scale(1);
+  animation: wd-work-thumb-enter 200ms var(--ease-emphasized-decelerate);
+  transition:
+    opacity 200ms var(--ease-emphasized-decelerate),
+    transform 200ms var(--ease-emphasized-decelerate);
+}
+
+/* Two stacked images; the front one is the row's cover. Moving rows crossfades
+   them. A fling cuts the crossfade to 120ms so the list is not a slideshow. */
+.wd-work-thumb-img {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 200ms var(--ease-emphasized-decelerate);
+}
+
+.wd-work-thumb-img[data-front] {
+  opacity: 1;
+}
+
+.wd-work-thumb[data-work-fast] .wd-work-thumb-img {
+  transition-duration: 120ms;
+}
+
+.wd-work-thumb-img > * {
+  height: 100%;
+}
+
+/* Touch never sees a thumbnail. */
+@media (hover: none) {
+  .wd-work-thumb-clip {
+    display: none;
+  }
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-work-row-item > .wd-work-row {
+    transition:
+      opacity 120ms ease-out,
+      background-color 120ms ease-out;
+  }
+
+  .wd-work-row-item::before {
+    transition: opacity 120ms ease-out;
+  }
+
+  .wd-work-thumb-in,
+  .wd-work-thumb-clip[data-work-active] .wd-work-thumb-in {
+    transform: none;
+    transition: opacity 120ms ease-out;
+  }
+
+  /* The 0.6 start is kept: the hidden cursor still lands on a visible image. */
+  .wd-work-thumb-clip[data-work-active] .wd-work-thumb-in {
+    animation-duration: 120ms;
+    animation-timing-function: ease-out;
+  }
+
+  .wd-work-thumb-img {
+    transition-duration: 120ms;
+  }
+}
+
+/* ---------- Forced colours ---------- */
+
+@media (forced-colors: active) {
+  .wd-work-thumb-in {
+    border: 1px solid CanvasText;
+  }
+}

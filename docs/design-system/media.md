@@ -48,9 +48,8 @@ A media cover resolves through `coverImageFor` to one picture: the widest AVIF a
 below 1280 (`src/lib/media.ts:268-292`), or a video's poster. The home cards and the carousel pass
 that picture through (`src/components/home/home-cards.tsx:84`,
 `src/components/home/carousel/home-carousel.tsx:293-297`); the study hero does too
-(`src/components/work/reader.tsx:43`). The work index passes only the scene
-(`src/components/work/work-grid.tsx:27`, `work-index-list.tsx:31`), so a media cover shows the
-neutral surface there today.
+(`src/components/work/reader.tsx:43`). The work index's hover thumbnail passes the scene and the
+resolved picture too (`src/components/work/work-list.tsx`), so a media cover shows there as well.
 
 ## Ratio and fit
 

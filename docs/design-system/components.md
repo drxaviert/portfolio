@@ -150,22 +150,22 @@ term in the nav's top calculation (`nav-dock.css:20-23`, `:52`).
 
 ## Work index (/work)
 
-The index lives in the drawer panel, under the same nav, in the reader's own column geometry. It carries the grid / list switch beside the title and renders both layouts; `data-work-layout` on `<html>` picks one (grid default). Cards use the shadow, never a stroke; hover is guarded by `(hover: hover) and (pointer: fine)`.
+The index lives in the drawer panel, under the same nav, in the reader's own column geometry. It is one list of studies: while a row is hovered — or keyboard-focused with no pointer — one 480x360 thumbnail follows or parks, the other rows drop to 40%, and the dividers around the current row fade. There is no grid, no layout switch and no per-row preview.
 
 | Item | Value | Source | Tokens |
 | --- | --- | --- | --- |
-| Column | `max-width: 1184px`; top `nav inset + nav height + content gap`; inline `16px`, `md` `32px`; bottom `64px` + safe area | `src/components/work/work-index.css:19-34` | `--wd-nav-inset`, `--wd-nav-height`, `--wd-nav-content-gap` |
-| Title | `--text-title-sm` (`md`+ `--text-title`), weight 600, with their own leading and tracking | `work-index.css:78-94` | `--text-title(-sm)`, `--text-title(-sm)--line-height`, `--text-title(-sm)--letter-spacing` |
-| Count | `--text-sm`, `--on-surface-variant` | `work-index.css:96-100` | `--text-sm` |
-| Layout switch | two-segment icon radiogroup, the theme toggle's `SegmentTrack` / `Segment`, 40px finger target | `src/components/work/layout-toggle.tsx` | none |
-| Grid | `1 / 2 / 3` columns at `<640` / `640` / `1024`, `16px` gap | `work-index.css:123-142` | none |
-| Grid card | `ring-host` link, `--radius-lg`, `bg-surface-container` ring fill, cover `4 / 3` with `--radius-lg` top corners, meta padding `14px 16px 18px`, title `--text-lg` / 500, sub `--text-sm` | `work-index.css:144-183`; `src/components/work/work-grid.tsx` | `--radius-lg`, `--surface-container(-high)`, `--text-lg` |
-| Grid hover | cover scene `scale(1.02)`, `--duration-long-2` `--ease-spring-follow`, fine pointer and no reduced motion only | `work-index.css:185-194` | `--duration-long-2`, `--ease-spring-follow` |
-| List row | grid `4.5rem / 1fr / auto` (`md`+ `5rem / 1fr / 10rem`), `18px 16px` padding, `--radius-lg`; hover fill `--surface-container` over 180ms | `work-index.css:205-262`, `:296-308`; `src/components/work/work-index-list.tsx` | `--duration-short-6`, `--ease-decelerate` |
-| List preview | from `1024`: `180px` wide, `16 / 10`, `--radius-md`, `--shadow-card`, fades and scales `0.98 → 1` on hover / focus-visible; the row's `212px` right padding reserves its slot | `work-index.css:265-325` | `--radius-md`, `--shadow-card` |
-| Forced colours | grid card and preview get a `1px CanvasText` border | `work-index.css:327-336` | none |
+| Column | `max-width: 1120px`; top `nav inset + nav height + content gap`; inline `16px`, `md` `32px`; bottom `96px` + safe area | `work-index.css` | `--wd-nav-inset`, `--wd-nav-height`, `--wd-nav-content-gap` |
+| Row | grid `80px / 1fr / 200px`, `16px` gap, `18px 16px` padding, 12px radius; hover fill `--surface-container` over 200ms | `work-list.css`, `work-list.tsx` | `--text-xl`, `--text-sm`, `--surface-container`, `--on-surface-variant` |
+| Divider | `1px` `--outline-variant`, `16px` in from the row's text edges; none above the first row; the current row and the row after fade theirs over 200ms | `work-list.css` | `--outline-variant` |
+| Row dim | non-current row child `opacity: 0.4`, 200ms with an 80ms grace between rows; the divider stays at full opacity | `work-list.tsx`, `work-list.css` | `--ease-emphasized-decelerate` |
+| Thumbnail | `480 × 360`, `--radius-lg`, `--shadow-card`, no border; the inner layer enters from `opacity: 0.6` and `scale(0.96)` | `work-list.tsx`, `work-list.css` | `--radius-lg`, `--shadow-card` |
+| Thumbnail layer | fixed `inset: 0`, viewport clip only, `z-index: 70` above the nav, `pointer-events: none`, portalled to `<body>`, follows the cursor 1:1 with one rAF `translate3d` per frame | `work-list.tsx`, `work-list.css` | none |
+| Cursor | `none` only over a hovered row that owns the thumbnail; normal on the nav, the rest of the page and for keyboard focus | `work-list.css` | none |
+| Reduced motion | thumbnail opacity only over 120ms, row dim and divider fades 120ms, no entrance; tracking stays 1:1 | `work-list.css` | none |
+| Touch | no thumbnail | `work-list.css` | none |
+| Forced colours | thumbnail gets a `1px CanvasText` border | `work-list.css` | none |
 
-Motion: the arrival fade and the layout switch are in `motion.md`, "Work index".
+Motion: in `motion.md`, "Work index — hover thumbnail list".
 
 ## Layering (z-index)
 
@@ -191,6 +191,7 @@ host, so they stay under their own card rather than under the page.
 | Entrance veil | `10` | `src/components/home/home-entrance.css:44` |
 | Drawer layer and backdrop | `50` | `src/components/work/expand-shell.css:27` |
 | Nav dock | `60` | `src/components/nav/nav-dock.css:28` |
+| Work hover thumbnail (above the nav, below nothing) | `70` | `src/components/work/work-list.css` |
 | View-transition old root | `1` | `src/app/globals.css:109` |
 | Faux-UI cursor / panel (inside the 753 × 416 scene) | `6` / `50` | `src/components/faux-ui/faux-ui.css:313`, `:904-912` |
 

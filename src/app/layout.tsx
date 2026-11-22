@@ -6,7 +6,6 @@ import { NavDock } from "@/components/nav/nav-dock";
 import { MobileGate } from "@/components/system/mobile-gate";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
-import { LAYOUT_INIT_SCRIPT } from "@/lib/layout-script";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 import "./globals.css";
 
@@ -62,16 +61,11 @@ export const viewport: Viewport = {
  */
 const MOBILE_GATE_INIT_SCRIPT = `(function(){try{if(window.sessionStorage.getItem("mobile-gate:desktop")!=="1")return;var root=document.documentElement;root.setAttribute("data-desktop-view","");var apply=function(){var meta=document.querySelector('meta[name="viewport"]');if(!meta)return false;meta.setAttribute("content","width=1280");return true;};if(!apply()){var observer=new MutationObserver(function(){if(apply())observer.disconnect();});observer.observe(document.head,{childList:true,subtree:true});window.setTimeout(function(){observer.disconnect();},1000);}var check=function(){if(!window.matchMedia("(max-width: 767.98px)").matches)return;root.removeAttribute("data-desktop-view");try{window.sessionStorage.removeItem("mobile-gate:desktop");}catch(error){}};var afterLoad=function(){requestAnimationFrame(check);};if(document.readyState==="complete"){afterLoad();}else{window.addEventListener("load",afterLoad);}}catch(error){}})();`;
 
-export default function RootLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={workSans.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-        <script dangerouslySetInnerHTML={{ __html: LAYOUT_INIT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: MOBILE_GATE_INIT_SCRIPT }} />
       </head>
       <body>
