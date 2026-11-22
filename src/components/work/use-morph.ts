@@ -510,6 +510,12 @@ export function useDrawerMorph(
         "opening",
         mode === "entry" ? "pending" : "on",
       );
+      // The open's wall-clock start, for the prototype's shared-element flight:
+      // it rides the same 900ms curve with a negative delay so a child mounted a
+      // few frames late joins at the panel's progress instead of starting over.
+      panel
+        ?.closest<HTMLElement>(".wd-expand-layer")
+        ?.setAttribute("data-open-started", String(performance.now()));
       const box =
         visual ??
         (entry.origin && laidOut(entry.origin)

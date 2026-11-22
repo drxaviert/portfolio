@@ -1,0 +1,480 @@
+/*
+ * Variant A — "Composed bands".
+ *
+ * The drawer's own scroll box and nav clearance are unchanged; inside it the
+ * shipped header and grid are replaced by one 1136px column: the featured study
+ * as a full-width 560px card, the other two in one 416px row (one wide, one
+ * 416px square), then the index list. Every band gap is 12px.
+ *
+ * The cards are the homepage's card language: the ring host (surface, shadow,
+ * no border, hover ring growing outward), a cover under a bottom-left scrim,
+ * and the 40px/600 title with a 12px uppercase kicker that fades in above it.
+ */
+
+.wb-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 1136px;
+  margin-inline: auto;
+  /* Clears the header nav: its top inset, its bar and the shared gap. */
+  padding: calc(
+      var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
+    )
+    16px calc(64px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  .wb-column {
+    padding-inline: 32px;
+  }
+}
+
+.wb-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+  outline: none;
+}
+
+.wb-empty {
+  margin: 0;
+  padding: 48px 0;
+  font-size: var(--text-base);
+  color: var(--on-surface-variant);
+}
+
+/* ---------- Bands ---------- */
+
+.wb-bands {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wb-band-1 {
+  height: 420px;
+}
+
+.wb-band-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.wb-band-2-cell {
+  min-width: 0;
+  aspect-ratio: 4 / 3;
+}
+
+.wb-band-1 .wb-card,
+.wb-band-2-cell .wb-card {
+  height: 100%;
+}
+
+@media (min-width: 768px) {
+  .wb-band-1 {
+    height: 560px;
+  }
+
+  .wb-band-2 {
+    grid-template-columns: minmax(0, 1fr) 416px;
+    height: 416px;
+  }
+
+  .wb-band-2-cell {
+    aspect-ratio: auto;
+    height: 100%;
+  }
+}
+
+/* ---------- Card ---------- */
+
+.wb-card {
+  --wb-pad: 20px;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: var(--wb-pad);
+  border-radius: var(--radius-lg);
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (min-width: 768px) {
+  .wb-card {
+    --wb-pad: 32px;
+  }
+}
+
+/* The cover lives in its own clipped box so the card itself can stay unclipped
+   and let the ring grow outward into the gutters. */
+.wb-clip {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  pointer-events: none;
+}
+
+.wb-cover {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transform-origin: center;
+}
+
+.wb-cover > * {
+  height: 100%;
+}
+
+/* The homepage card's own fade, brought back over the shot's bottom-left: the
+   scene's colour returns under the title so the picture recedes instead of
+   running through the text. Values are the shipped `.card-fade`. */
+.wb-scrim {
+  position: absolute;
+  inset: var(--wb-pad);
+  display: block;
+  border-radius: 8px;
+  background: radial-gradient(
+    74% 54% at 0% 100%,
+    color-mix(in oklab, var(--surface-dim) 96%, transparent) 0%,
+    color-mix(in oklab, var(--surface-dim) 86.4%, transparent) 30%,
+    color-mix(in oklab, var(--surface-dim) 48%, transparent) 55%,
+    transparent 80%
+  );
+  pointer-events: none;
+}
+
+.wb-caption {
+  position: absolute;
+  inset: var(--wb-pad);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.wb-title-wrap {
+  position: relative;
+  display: block;
+}
+
+.wb-kicker {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  width: max-content;
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--on-surface);
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.wb-title {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  font-size: var(--text-title-sm);
+  line-height: var(--text-title-sm--line-height);
+  font-weight: 600;
+  letter-spacing: var(--text-title-sm--letter-spacing);
+  text-wrap: balance;
+  color: var(--on-surface);
+}
+
+@media (min-width: 768px) {
+  .wb-title {
+    font-size: var(--text-title);
+    line-height: var(--text-title--line-height);
+    letter-spacing: var(--text-title--letter-spacing);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .wb-kicker {
+    transition:
+      opacity 200ms var(--ease-emphasized-decelerate),
+      transform 200ms var(--ease-emphasized-decelerate);
+  }
+}
+
+.wb-card:focus-visible .wb-kicker {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .wb-card:hover .wb-kicker {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .wb-cover {
+    transition: transform var(--duration-long-2) var(--ease-spring-follow);
+  }
+
+  .wb-card:hover .wb-cover {
+    transform: scale(1.02);
+  }
+}
+
+.wb-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Index list ---------- */
+
+.wb-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wb-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 15px 12px;
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+}
+
+.wb-row-year,
+.wb-row-technique,
+.wb-row-role {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--on-surface-variant);
+}
+
+.wb-row-year {
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-row-title {
+  min-width: 0;
+  font-size: var(--text-base);
+  line-height: 1.3;
+  font-weight: 500;
+  text-wrap: pretty;
+}
+
+.wb-row-technique,
+.wb-row-role {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .wb-row {
+    grid-template-columns: 4rem minmax(0, 1fr) 9rem 10rem;
+    gap: 20px;
+  }
+
+  .wb-row-technique,
+  .wb-row-role {
+    display: block;
+  }
+
+  .wb-row-role {
+    text-align: end;
+    white-space: nowrap;
+  }
+}
+
+@media (min-width: 1024px) {
+  .wb-row {
+    grid-template-columns: 4rem minmax(0, 1fr) 10rem 12rem;
+    /* The preview's own gutter: it floats to the right of the role column. */
+    padding-right: 184px;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .wb-row {
+    transition: background-color var(--duration-short-6) var(--ease-decelerate);
+  }
+
+  .wb-row:hover {
+    background: var(--surface-container);
+  }
+}
+
+.wb-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  background: var(--surface-container);
+}
+
+.wb-row-preview {
+  display: none;
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 160px;
+  height: 120px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container);
+  box-shadow: var(--shadow-card);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-50%) scale(0.96);
+}
+
+.wb-row-preview > * {
+  height: 100%;
+}
+
+@media (min-width: 1024px) {
+  .wb-row-preview {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .wb-row-preview {
+    transition:
+      opacity 200ms var(--ease-emphasized-decelerate),
+      transform 200ms var(--ease-emphasized-decelerate);
+  }
+}
+
+.wb-row:hover .wb-row-preview,
+.wb-row:focus-visible .wb-row-preview {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-row-preview,
+  .wb-row:hover .wb-row-preview,
+  .wb-row:focus-visible .wb-row-preview {
+    transform: translateY(-50%);
+  }
+}
+
+/* ---------- Entry choreography ---------- */
+
+/*
+ * The content is held back while the panel travels; the phase mutation to
+ * `open` starts the entrance in the same frame. Reduced motion never hides it:
+ * the surface's own 120ms fade is the state change.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .wd-expand-layer[data-phase="opening"] .wb-band-1,
+  .wd-expand-layer[data-phase="opening"] .wb-band-2,
+  .wd-expand-layer[data-phase="opening"] .wb-row-item {
+    opacity: 0;
+  }
+}
+
+/*
+ * a-plain: Band 1, then the two Band 2 cards, then the rows at 40ms each.
+ * a-grow: the same after the shared card has landed, with no Band 1 beat.
+ * a-full: the storyboard — Band 2 at 0/60ms, rows from 400ms.
+ */
+@keyframes wb-soft {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: none;
+  }
+}
+
+.wb-column[data-wb-anim="a-plain"] [data-wb-band="1"] {
+  animation: wb-soft 700ms var(--ease-calm) both;
+}
+
+.wb-column[data-wb-anim="a-plain"] [data-wb-band="2"] > *,
+.wb-column[data-wb-anim="a-grow"] [data-wb-band="2"] > * {
+  animation: wb-soft 700ms var(--ease-calm) both;
+  animation-delay: calc(var(--wb-i, 0) * 60ms);
+}
+
+.wb-column[data-wb-anim="a-plain"] .wb-row-item,
+.wb-column[data-wb-anim="a-grow"] .wb-row-item {
+  animation: wb-soft 700ms var(--ease-calm) both;
+  animation-delay: calc(160ms + var(--wb-i, 0) * 40ms);
+}
+
+.wb-column[data-wb-anim="a-full"] [data-wb-band="2"] > * {
+  animation: wb-soft 380ms var(--ease-calm) both;
+  animation-delay: calc(var(--wb-i, 0) * 60ms);
+}
+
+.wb-column[data-wb-anim="a-full"] .wb-row-item {
+  animation: wb-soft 1000ms var(--ease-calm) both;
+  animation-delay: calc(400ms + var(--wb-i, 0) * 40ms);
+}
+
+/* ---------- The travelling card (a-grow / a-full) ---------- */
+
+.wb-morph {
+  position: fixed !important;
+  z-index: 70;
+  margin: 0 !important;
+  transform-origin: top left;
+  pointer-events: none !important;
+  will-change: transform;
+}
+
+.wb-morph-title {
+  position: fixed;
+  inset: auto;
+  z-index: 71;
+  margin: 0 !important;
+  transform-origin: top left;
+  pointer-events: none !important;
+  will-change: transform;
+}
+
+.wb-morph *,
+.wb-morph-title * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.wb-morph-title .wb-kicker {
+  display: none;
+}
+
+/* ---------- Forced colours ---------- */
+
+@media (forced-colors: active) {
+  .wb-card,
+  .wb-row-preview {
+    border: 1px solid CanvasText;
+  }
+}

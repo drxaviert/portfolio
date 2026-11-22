@@ -5,6 +5,7 @@ import { SharedHorizon } from "@/components/horizon/shared-horizon";
 import { NavDock } from "@/components/nav/nav-dock";
 import { MobileGate } from "@/components/system/mobile-gate";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { WorkVariantSwitcher } from "@/components/work/work-variant-switcher";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import { LAYOUT_INIT_SCRIPT } from "@/lib/layout-script";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
@@ -82,6 +83,7 @@ export default function RootLayout({
               trap can cycle from the panel into it. The homepage's edge blur is
               mounted by `/` itself (app/page.tsx), not here. */}
           <NavDock />
+          <WorkVariantSwitcher />
           <MobileGate />
         </ThemeProvider>
       </body>

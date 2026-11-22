@@ -13,12 +13,14 @@ import {
   subscribeToLayout,
 } from "./layout-preference";
 import type { WorkLayout } from "./layout-preference";
+import { WorkBands } from "./work-bands";
 import { WorkGrid } from "./work-grid";
+import { INDEX_SCROLL_ID, INDEX_TITLE_ID } from "./work-index-ids";
 import { WorkIndexList } from "./work-index-list";
+import { useWorkVariant } from "./work-variant";
 import "./work-index.css";
 
-export const INDEX_TITLE_ID = "wd-index-title";
-export const INDEX_SCROLL_ID = "wd-index-scroll";
+export { INDEX_SCROLL_ID, INDEX_TITLE_ID };
 
 /**
  * The crossfade between layouts: short, ease-out, and interruptible. WAAPI
@@ -57,6 +59,7 @@ function prefersReducedMotion(): boolean {
  * same safe bottom padding, and one scroll container of its own.
  */
 export function WorkIndex({ works }: { works: WorkMeta[] }) {
+  const variant = useWorkVariant();
   const layout = useSyncExternalStore(
     subscribeToLayout,
     getLayoutSnapshot,
@@ -241,6 +244,13 @@ export function WorkIndex({ works }: { works: WorkMeta[] }) {
     switchRef.current = { finish };
     void height.finished.then(finish, finish);
   }, [layout]);
+
+  // Prototype A replaces the header, count, switch and both layouts with the
+  // composed bands. `current` keeps every rule below unchanged, including the
+  // pre-paint `data-work-layout` contract.
+  if (variant !== "current") {
+    return <WorkBands works={works} variant={variant} />;
+  }
 
   return (
     <>

@@ -1,0 +1,112 @@
+/*
+ * The /work review pill. It is a dev surface, so it is allowed to sit above the
+ * nav (z 60) and the drawer (z 50); it is deliberately quiet — the panel and the
+ * motion are the thing being reviewed, not the control.
+ */
+
+.wd-wv-pill {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  /* Clear of the nav's home row on `/`, where the bar sits at the foot. */
+  bottom: calc(140px + env(safe-area-inset-bottom));
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-high);
+  box-shadow: var(--shadow-card);
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  line-height: 1;
+  user-select: none;
+}
+
+.wd-wv-pill-label {
+  padding: 0 6px 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+
+.wd-wv-option {
+  appearance: none;
+  margin: 0;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-short-6) var(--ease-decelerate),
+    color var(--duration-short-6) var(--ease-decelerate);
+}
+
+.wd-wv-option[aria-pressed="true"] {
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+}
+
+/* The drawer's nav sits at the top, so on /work the pill can use the corner
+   without covering the bar (or the list preview above it). */
+.wd-wv-pill[data-on-work] {
+  bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .wd-wv-option:hover {
+    color: var(--on-surface);
+  }
+
+  .wd-wv-option[aria-pressed="false"]:hover {
+    background: color-mix(
+      in oklab,
+      var(--surface-container-low) 55%,
+      transparent
+    );
+  }
+}
+
+.wd-wv-option:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+@media (max-width: 767.98px) {
+  .wd-wv-pill {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(120px + env(safe-area-inset-bottom));
+  }
+
+  .wd-wv-pill[data-on-work] {
+    bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .wd-wv-pill-label {
+    display: none;
+  }
+
+  .wd-wv-option {
+    padding: 7px 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-wv-option {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .wd-wv-pill,
+  .wd-wv-option[aria-pressed="true"] {
+    border: 1px solid CanvasText;
+  }
+}
