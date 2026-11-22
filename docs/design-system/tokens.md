@@ -172,7 +172,7 @@ resting card at its full layout box, so that is what the code paints at rest.
 | Radius | 12px outer, 11px inner fill; no per-corner overrides |
 | Rest stroke | none (the 1px edge is transparent at rest) |
 | Hover growth | outward past the Figma box by 6px vertical / 3.5px horizontal per side, into the 12px gutters |
-| Transition | 800ms `cubic-bezier(0.165, 0.84, 0.44, 1)`, clip-path only |
+| Transition | 800ms `cubic-bezier(0.165, 0.84, 0.44, 1)`, `inset` + `border-radius` only (layout edges snap to whole pixels, so the ring stays 1px) |
 | Edge | 1px `frame-line`, held 1px outside the fill for the whole grow; fades in over 100ms on hover/focus and out 100ms after the 800ms clip closes |
 | Glow | 614px radial in the phase horizon palette; follows the pointer over 1000ms, fades over 250ms |
 | Raise | `z-index: 1` on the hovered host, 100ms `steps(1)`, so it paints over neighbours |
