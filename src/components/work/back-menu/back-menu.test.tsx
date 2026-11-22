@@ -2,7 +2,10 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DrawerActionsProvider } from "../drawer-actions";
 import { ReaderBackMenu } from "./back-menu";
-import { BACK_MENU_STORAGE_KEY } from "./back-menu-variant";
+import {
+  BACK_MENU_STORAGE_KEY,
+  syncBackMenuVariantFromEnvironment,
+} from "./back-menu-variant";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => undefined, replace: () => undefined }),
@@ -10,6 +13,7 @@ vi.mock("next/navigation", () => ({
 
 function setVariant(variant: string) {
   window.history.replaceState({}, "", `/work/systems-in-motion?bm=${variant}`);
+  syncBackMenuVariantFromEnvironment();
 }
 
 function renderMenu() {
@@ -50,6 +54,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   window.localStorage.clear();
   setVariant("dropdown");
+  syncBackMenuVariantFromEnvironment();
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -278,6 +283,7 @@ describe("ReaderBackMenu variants", () => {
   it("falls back to the remembered variant without a query", () => {
     window.localStorage.setItem(BACK_MENU_STORAGE_KEY, "crumb");
     window.history.replaceState({}, "", "/work/systems-in-motion");
+    syncBackMenuVariantFromEnvironment();
 
     renderMenu();
 

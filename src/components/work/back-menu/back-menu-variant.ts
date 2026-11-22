@@ -56,9 +56,69 @@ export function initialBackMenuVariant(): BackMenuVariant {
   );
 }
 
+/*
+ * The one in-memory source of truth. Reading the URL and localStorage in
+ * `getSnapshot` looked equivalent, but it left a mounted reader on the URL's
+ * old `?bm=` whenever replaceState did not land (a blocked write, a sandboxed
+ * frame, or another tab's stale URL): the pill had changed the memory, yet the
+ * snapshot still answered with the old query. Every BackLink now subscribes to
+ * this module store, so the visible tree updates even when persistence does
+ * not.
+ */
+let currentVariant: BackMenuVariant | null = null;
+const listeners = new Set<() => void>();
+let globalsBound = false;
+
+function notify() {
+  for (const listener of listeners) listener();
+}
+
+function applyVariant(next: BackMenuVariant) {
+  if (currentVariant === next) return;
+
+  currentVariant = next;
+  notify();
+}
+
+/** One set of window listeners per module instance, however many readers. */
+function bindGlobalListeners() {
+  if (globalsBound || typeof window === "undefined") return;
+
+  globalsBound = true;
+
+  window.addEventListener(BACK_MENU_EVENT, (event) => {
+    if (event instanceof CustomEvent && isBackMenuVariant(event.detail)) {
+      applyVariant(event.detail);
+    }
+  });
+
+  window.addEventListener("storage", (event) => {
+    if (event.key !== BACK_MENU_STORAGE_KEY) return;
+    if (isBackMenuVariant(event.newValue)) applyVariant(event.newValue);
+  });
+
+  // Back/Forward may restore a URL with a different `?bm=`.
+  window.addEventListener("popstate", () => {
+    applyVariant(initialBackMenuVariant());
+  });
+}
+
 /** The snapshot `useSyncExternalStore` reads; a string is referentially stable. */
 export function currentBackMenuVariant(): BackMenuVariant {
-  return initialBackMenuVariant();
+  if (typeof window === "undefined") return "dropdown";
+
+  if (currentVariant === null) currentVariant = initialBackMenuVariant();
+
+  return currentVariant;
+}
+
+/** Re-read the environment (history traversal; tests resetting the store). */
+export function syncBackMenuVariantFromEnvironment(): BackMenuVariant {
+  const next = initialBackMenuVariant();
+
+  applyVariant(next);
+
+  return next;
 }
 
 /** Dev shows the pill always; production only when a review URL asked for it. */
@@ -73,7 +133,7 @@ export function storeBackMenuVariant(variant: BackMenuVariant): void {
   try {
     window.localStorage.setItem(BACK_MENU_STORAGE_KEY, variant);
   } catch {
-    // The prototype still switches for this page; it just will not remember.
+    // The store still switches this page; it just will not remember.
   }
 }
 
@@ -85,9 +145,10 @@ function writeVariantToUrl(variant: BackMenuVariant): void {
     if (url.searchParams.get("bm") === variant) return;
 
     url.searchParams.set("bm", variant);
-    window.history.replaceState(window.history.state, "", url);
+    window.history.replaceState(window.history.state, "", url.toString());
   } catch {
-    // A replaceState failure (a sandboxed frame) is not worth breaking a click.
+    // A replaceState failure (a sandboxed frame) must not break the switch:
+    // the module store already has the new variant and will notify React.
   }
 }
 
@@ -95,34 +156,29 @@ export function setBackMenuVariant(
   variant: BackMenuVariant,
   options: { url?: boolean } = {},
 ): void {
+  // Memory first: the click is the source of truth for this page from here on.
+  currentVariant = variant;
   storeBackMenuVariant(variant);
 
   if (options.url !== false) writeVariantToUrl(variant);
 
+  notify();
+
+  // Other copies of this module (layout and reader can land in different
+  // chunks) follow the same window event; this copy sees it as a no-op.
   window.dispatchEvent(
     new CustomEvent<BackMenuVariant>(BACK_MENU_EVENT, { detail: variant }),
   );
 }
 
-/** Follow the pill and other tabs. Returns the unsubscribe. */
-export function subscribeBackMenuVariant(
-  listener: (variant: BackMenuVariant) => void,
-): () => void {
-  function onVariant(event: Event) {
-    if (!(event instanceof CustomEvent)) return;
-    if (isBackMenuVariant(event.detail)) listener(event.detail);
-  }
+/** Subscribe a React tree to the store. Returns the unsubscribe. */
+export function subscribeBackMenuVariant(listener: () => void): () => void {
+  bindGlobalListeners();
+  listeners.add(listener);
 
-  function onStorage(event: StorageEvent) {
-    if (event.key !== BACK_MENU_STORAGE_KEY) return;
-    if (isBackMenuVariant(event.newValue)) listener(event.newValue);
-  }
-
-  window.addEventListener(BACK_MENU_EVENT, onVariant);
-  window.addEventListener("storage", onStorage);
+  if (currentVariant === null) currentVariant = initialBackMenuVariant();
 
   return () => {
-    window.removeEventListener(BACK_MENU_EVENT, onVariant);
-    window.removeEventListener("storage", onStorage);
+    listeners.delete(listener);
   };
 }
