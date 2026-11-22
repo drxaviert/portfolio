@@ -387,8 +387,7 @@
 
 /* ---------- e2-v4: homepage card radius + row dimming ---------- */
 
-.wd-e2-group[data-e2-version="v4"] .wd-e2-thumb-in,
-.wd-e2-group[data-e2-version="v5"] .wd-e2-thumb-in {
+.wd-e2-group[data-e2-version="v4"] .wd-e2-thumb-in {
   /* Confirmed in globals.css: --radius-lg: 0.75rem (12px). */
   border-radius: var(--radius-lg);
 }
@@ -437,37 +436,31 @@
   }
 }
 
-/* The panel-sized clip. v5's box is never shifted to fit: its centre stays on
-   the pointer and anything past the panel edge is cut here. The nav (z 60)
-   paints over this layer, so a box near the top runs under it. */
-.wd-e2-group[data-e2-version="v5"] .wd-e2-v5-layer {
+/* The v5 layer is portalled to the body and fixed to the viewport, so it is
+   clipped only by the viewport and paints above the nav (z 60). It never takes
+   a pointer, so the nav stays clickable underneath. */
+.wd-e2-v5-layer {
   position: fixed;
-  inset: var(--wd-panel-inset);
-  z-index: 3;
+  inset: 0;
+  z-index: 70;
   overflow: hidden;
   pointer-events: none;
 }
 
-@media (min-width: 768px) {
-  .wd-e2-group[data-e2-version="v5"] .wd-e2-v5-layer {
-    /* The panel's own corner, so the cut edge follows it. */
-    border-radius: 12px;
-  }
-}
+.wd-e2-v5-layer .wd-e2-thumb {
+  --e2-thumb-w: 480px;
+  --e2-thumb-h: 360px;
 
-.wd-e2-group[data-e2-version="v5"] .wd-e2-thumb {
-  --e2-thumb-w: 240px;
-  --e2-thumb-h: 180px;
-
-  /* Inside the clip, so the rAF writes are layer-relative. No CSS transform
-     transition may fight the 1:1 tracking. */
+  /* Inside the layer, so the rAF writes are viewport-relative. No CSS
+     transform transition may fight the 1:1 tracking. */
   position: absolute;
   top: 0;
   left: 0;
   transition: none;
 }
 
-.wd-e2-group[data-e2-version="v5"] .wd-e2-thumb-in {
+.wd-e2-v5-layer .wd-e2-thumb-in {
+  border-radius: var(--radius-lg);
   opacity: 0;
   transform: scale(0.96);
   transition:
@@ -475,7 +468,7 @@
     transform 200ms var(--ease-emphasized-decelerate);
 }
 
-.wd-e2-group[data-e2-version="v5"][data-e2-active] .wd-e2-thumb-in {
+.wd-e2-v5-layer[data-e2-active] .wd-e2-thumb-in {
   opacity: 1;
   transform: scale(1);
   transition:
@@ -496,7 +489,7 @@
   }
 
   .wd-e2-column[data-e2-anim="on"] .wd-e2-row-item[data-e2-enter] {
-    animation: wd-e2-soft 700ms var(--ease-calm) both;
+    animation: wd-e2-soft 700ms var(--ease-calm) backwards;
     animation-delay: calc(var(--e2-enter-i, 0) * 40ms);
   }
 }
@@ -531,8 +524,8 @@
     transition: opacity 120ms ease-out;
   }
 
-  .wd-e2-group[data-e2-version="v5"] .wd-e2-thumb-in,
-  .wd-e2-group[data-e2-version="v5"][data-e2-active] .wd-e2-thumb-in {
+  .wd-e2-v5-layer .wd-e2-thumb-in,
+  .wd-e2-v5-layer[data-e2-active] .wd-e2-thumb-in {
     transform: none;
     transition: opacity 120ms ease-out;
   }

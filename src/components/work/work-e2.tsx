@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import type {
   CSSProperties,
   FocusEvent as ReactFocusEvent,
@@ -13,6 +14,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { Cover } from "@/components/work/cover";
 import type { WorkMeta } from "@/lib/work";
@@ -224,6 +226,12 @@ function ThumbVisual({ item }: { item: E2Item }) {
 
 type Slots = { front: 0 | 1; items: [number | null, number | null] };
 
+// The v5 layer needs the body after hydration; an external-store read is the
+// lint-safe way to know the client render is live without a mount effect.
+const subscribeClient = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
+
 export function WorkIndexListE2({
   works,
   version,
@@ -240,6 +248,11 @@ export function WorkIndexListE2({
   const [hovered, setHovered] = useState<number | null>(null);
   const [focused, setFocused] = useState<number | null>(null);
   const [dimActive, setDimActive] = useState(false);
+  const portalReady = useSyncExternalStore(
+    subscribeClient,
+    getClientSnapshot,
+    getServerSnapshot,
+  );
   const [slots, setSlots] = useState<Slots>({
     front: 1,
     items: [null, null],
@@ -507,10 +520,11 @@ export function WorkIndexListE2({
   );
 
   // e2-v5 sits on the cursor with no easing: the outer box is translated by
-  // (cursor - layer origin - half the 240x180 box), so its centre is the
-  // pointer. The clipping layer is the panel, so the box is never shifted back
-  // inside: anything past the panel edge (or under the docked nav) is simply
-  // clipped. Keyboard focus parks the same box at the focused row's right end.
+  // (cursor - layer origin - half the 480x360 box), so its centre is the
+  // pointer. The layer is portalled to the body above the nav and clipped only
+  // by the viewport, so the box is never shifted back inside: anything past an
+  // edge is simply cut. Keyboard focus parks the same box at the focused row's
+  // right end.
   const placeV5 = useCallback(() => {
     if (version !== "v5") return;
 
@@ -525,8 +539,8 @@ export function WorkIndexListE2({
     let y: number;
 
     if (hoveredRef.current !== null && point) {
-      x = point.x - layerRect.left - 120;
-      y = point.y - layerRect.top - 90;
+      x = point.x - layerRect.left - 240;
+      y = point.y - layerRect.top - 180;
     } else if (focusedRef.current !== null) {
       const row = rowRefs.current[focusedRef.current];
       const scroll = scrollRef.current;
@@ -540,9 +554,9 @@ export function WorkIndexListE2({
       const minTop = visibleTop(scrollRect);
 
       x =
-        Math.max(listRect.left + 12, rowRect.right - 240 - 16) - layerRect.left;
+        Math.max(listRect.left + 12, rowRect.right - 480 - 16) - layerRect.left;
       y =
-        Math.max(minTop, Math.min(rowRect.top, scrollRect.bottom - 180 - 12)) -
+        Math.max(minTop, Math.min(rowRect.top, scrollRect.bottom - 360 - 12)) -
         layerRect.top;
     } else {
       return;
@@ -820,13 +834,13 @@ export function WorkIndexListE2({
 
   // v5 tracks the pointer exactly, so there is no loop and no easing to read:
   // every move schedules one write, and the image crossfade stays on the inner
-  // element. Switching into v5 with the pointer already over the list places it
-  // on the next frame.
+  // element. The layer is portalled to the body so it can paint above the nav;
+  // portalReady keeps the server render free of it.
   useEffect(() => {
-    if (version !== "v5") return;
+    if (version !== "v5" || !portalReady) return;
 
     if (pointerRef.current || focusedRef.current !== null) scheduleV5();
-  }, [scheduleV5, version]);
+  }, [portalReady, scheduleV5, version]);
 
   useEffect(() => {
     return () => {
@@ -1060,20 +1074,24 @@ export function WorkIndexListE2({
               </ul>
             </div>
 
-            {version === "v5" ? (
-              <div
-                className="wd-e2-v5-layer"
-                ref={v5LayerRef}
-                aria-hidden="true"
-              >
-                {thumbNode}
-              </div>
-            ) : (
-              thumbNode
-            )}
+            {version === "v5" ? null : thumbNode}
           </div>
         </div>
       </div>
+
+      {version === "v5" && portalReady
+        ? createPortal(
+            <div
+              className="wd-e2-v5-layer"
+              ref={v5LayerRef}
+              aria-hidden="true"
+              data-e2-active={thumbActive ? "" : undefined}
+            >
+              {thumbNode}
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }
