@@ -20,8 +20,10 @@ export type BreadcrumbProps = {
  *
  * The segments are the home nav's items down to the class names: the same
  * 32px box, 8px padding, 8px radius, 16px/500 label and `on-surface-variant` →
- * `on-surface` colour. The same GlideCapsule runs underneath, so hovering
- * between Home and Work uses the nav's spring pair and the same 0.55 fill;
+ * `on-surface` colour. Links keep the nav's 500 and no underline; the current
+ * segment keeps that weight too and is marked by its `on-surface` ink plus the
+ * 1px underline in breadcrumb.css. The same GlideCapsule runs underneath, so
+ * hovering between Home and Work uses the nav's spring pair and the same 0.55 fill;
  * reduced motion drops the travel and crossfades the nav's item fill instead.
  *
  * The actions are the drawer's own, never a route push: on the index Home runs

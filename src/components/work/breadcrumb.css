@@ -56,6 +56,23 @@
   line-height: 1.25;
 }
 
+/*
+ * The current segment is a "you are here" label, not a tab: it keeps the links'
+ * 500 weight and is marked instead by its on-surface ink and a 1px underline in
+ * currentColor, 4px below the baseline. skip-ink: auto cuts the stroke around
+ * descenders (the "y" in a title) so the label stays legible. An underline adds
+ * no box, so the 32px row and Home's position do not move; links are never
+ * current and carry no underline. The item is not interactive, so it has no
+ * hover response of its own.
+ */
+.breadcrumb-list [aria-current="page"] {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  text-decoration-skip-ink: auto;
+  text-decoration-color: currentColor;
+}
+
 .breadcrumb-current {
   max-width: 240px;
   overflow: hidden;
