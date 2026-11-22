@@ -225,12 +225,13 @@ export function WorkIndexListE2({
   version,
 }: {
   works: WorkMeta[];
-  version: "v1" | "v2";
+  version: "v1" | "v2" | "v3";
 }) {
   const [fake] = useState<FakeMode>(() =>
     typeof window !== "undefined" ? readFakeMode() : 0,
   );
   const [mode, setMode] = useState<"margin" | "inset">("margin");
+  const [wide, setWide] = useState(false);
   const [hovered, setHovered] = useState<number | null>(null);
   const [slots, setSlots] = useState<Slots>({
     front: 1,
@@ -277,7 +278,8 @@ export function WorkIndexListE2({
   useEffect(() => {
     if (!fake) return;
 
-    const variantParam = version === "v1" ? "e2-v1" : "e2";
+    const variantParam =
+      version === "v1" ? "e2-v1" : version === "v3" ? "e2-v3" : "e2";
 
     try {
       const url = new URL(window.location.href);
@@ -338,12 +340,13 @@ export function WorkIndexListE2({
     };
   }, []);
 
-  // e2-v1 keeps the 2fb7c3f margin rule: the thumbnail hangs in the margin only
-  // when the row has at least 136px to its left; below 1200, or with a narrower
-  // margin, it moves into the row's 152px left padding. The panel's opening
-  // scale is divided out so the mode is right on the first frame.
+  // e2-v1 and e2-v3 keep the 2fb7c3f margin rule: below 1200, or with less
+  // than 136px to the row's left, the 120px thumbnail moves into the row's
+  // 152px left padding. e2-v3 additionally uses the 240px top-aligned form
+  // only when the margin can hold 256px (240 + 16). The panel's opening scale
+  // is divided out so the chosen mode is right on the first frame.
   useLayoutEffect(() => {
-    if (version !== "v1") return;
+    if (version === "v2") return;
 
     const measure = () => {
       const list = listColumnRef.current;
@@ -358,8 +361,11 @@ export function WorkIndexListE2({
         (row.getBoundingClientRect().left - panelRect.left) / (scale || 1);
       const next =
         window.innerWidth >= 1200 && space >= 136 ? "margin" : "inset";
+      const nextWide =
+        version === "v3" && window.innerWidth >= 1200 && space >= 256;
 
       setMode((previous) => (previous === next ? previous : next));
+      setWide((previous) => (previous === nextWide ? previous : nextWide));
     };
 
     measure();
@@ -406,17 +412,22 @@ export function WorkIndexListE2({
       const height = thumb.offsetHeight || THUMB_FALLBACK_H;
       const minTop = visibleTop(scrollRect);
       const maxTop = scrollRect.bottom - height - 12;
-      const desired = rowRect.top + rowRect.height / 2 - height / 2;
+      const v3Wide = version === "v3" && wide;
+      const desired = v3Wide
+        ? rowRect.top
+        : rowRect.top + rowRect.height / 2 - height / 2;
       const clamped = Math.min(
         Math.max(desired, minTop),
         Math.max(minTop, maxTop),
       );
-      const railMode =
-        window.matchMedia("(min-width: 1200px)").matches && canHover();
       const listRect = list.getBoundingClientRect();
       let left: string;
 
-      if (version === "v1") {
+      if (v3Wide) {
+        // v3: the 240px thumbnail's top sits on the row's top and its right edge
+        // stays 16px left of the row; the margin has 256px to give it.
+        left = `${rowRect.left - 256}px`;
+      } else if (version === "v1" || version === "v3") {
         // 2fb7c3f: the 120px thumbnail hangs 16px left of the row in the margin;
         // the fallback reserves 152px inside the row and puts it 16px in.
         left =
@@ -426,6 +437,8 @@ export function WorkIndexListE2({
       } else {
         // 3d07ab9: the 240px thumbnail fills the rail; the fallback uses the
         // row's left padding.
+        const railMode =
+          window.matchMedia("(min-width: 1200px)").matches && canHover();
         left = `${railMode ? group.getBoundingClientRect().left : listRect.left + 16}px`;
       }
 
@@ -440,7 +453,7 @@ export function WorkIndexListE2({
         });
       }
     },
-    [version, mode],
+    [version, mode, wide],
   );
 
   const show = useCallback((index: number) => {
@@ -487,11 +500,12 @@ export function WorkIndexListE2({
     shownRef.current = true;
   }, [hovered, placeThumb]);
 
-  // Switching E2 versions (or crossing the v1 margin threshold) keeps the same
-  // hovered row but changes the rail, size and x; re-place it in the new layout.
+  // Switching E2 versions (or crossing a v1/v3 margin threshold) keeps the same
+  // hovered row but changes the rail, size, x and vertical alignment; re-place
+  // it in the new layout.
   useLayoutEffect(() => {
     if (hoveredRef.current !== null) placeThumb(hoveredRef.current);
-  }, [version, mode, placeThumb]);
+  }, [version, mode, wide, placeThumb]);
 
   // A resize moves the clamp edges under the same row.
   useEffect(() => {
@@ -715,6 +729,7 @@ export function WorkIndexListE2({
       >
         <div
           className="wd-index-column wd-e2-column"
+          data-e2-layout={version === "v2" ? "rail" : "margin"}
           data-e2-version={version}
           ref={rootRef}
         >
@@ -724,8 +739,12 @@ export function WorkIndexListE2({
 
           <div
             className="wd-e2-group"
+            data-e2-layout={version === "v2" ? "rail" : "margin"}
             data-e2-version={version}
-            data-e2-mode={version === "v1" ? mode : undefined}
+            data-e2-mode={
+              version === "v1" || version === "v3" ? mode : undefined
+            }
+            data-e2-wide={version === "v3" && wide ? "" : undefined}
             ref={groupRef}
             data-e2-active={hovered !== null ? "" : undefined}
           >

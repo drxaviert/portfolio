@@ -37,7 +37,8 @@ export function WorkVariantSwitcher() {
     setWorkVariant(next);
     noteWorkVariantParam();
 
-    const isE2 = (value: string) => value === "e2" || value === "e2-v1";
+    const isE2 = (value: string) =>
+      value === "e2" || value === "e2-v1" || value === "e2-v3";
 
     // Keep the review's fake-row flag when moving between E2 variants, so a
     // `?fake=1` or `?fake=2` link can be switched around without losing the
