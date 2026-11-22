@@ -145,14 +145,15 @@
 /*
  * The longest role, "Type and motion designer", fits on one line at 200px; the
  * extra 40px comes out of the flexible main column. The rows used by v1, v3,
- * v4 and v5 share this. v2 keeps its shipped 160px, right-aligned rail row.
+ * v4 and v5 share this, with the role right-aligned to the divider's right
+ * edge. v2 keeps its shipped 160px, right-aligned rail row.
  */
 .wd-e2-group:not([data-e2-version="v2"]) .wd-e2-row {
   grid-template-columns: 80px minmax(0, 1fr) 200px;
 }
 
 .wd-e2-group:not([data-e2-version="v2"]) .wd-e2-role {
-  text-align: start;
+  text-align: end;
 }
 
 /*

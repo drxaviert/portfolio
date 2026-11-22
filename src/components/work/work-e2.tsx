@@ -34,7 +34,7 @@ import "./work-e2.css";
  *
  * The row keeps the shipped list's voice: an 80px year, a 20px/500 title with
  * a 14px summary, 18x16 padding, a 12px radius and the surface-container hover
- * fill. The v1-style rows (v1, v3, v4, v5) use a 200px start-aligned role and
+ * fill. The v1-style rows (v1, v3, v4, v5) use a 200px end-aligned role and
  * a hairline --outline-variant divider between rows; v2 keeps its shipped
  * 160px right-aligned role and no dividers.
  *
