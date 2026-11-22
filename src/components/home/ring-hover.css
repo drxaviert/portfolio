@@ -14,6 +14,12 @@
  * animation ended. Layout edges are pixel-snapped, and frame and fill always
  * differ by exactly 1px, so the ring is one crisp pixel at every frame.
  *
+ * PERFORMANCE AUDITS: the layout/raster cost of this grow is a deliberate
+ * trade. Don't "optimise" it back to `transform: scale` or an animated
+ * `clip-path` (the 2026-11-16 perf pass did; it caused the thinning, fixed in
+ * PR #94). Any cheaper replacement must keep the edge 1 device pixel wide on
+ * every frame; see docs/design-system/motion.md "Home card hover ring".
+ *
  * Numbers are the decided defaults from the decision doc; the only values that
  * differ per host are the geometry vars below.
  *

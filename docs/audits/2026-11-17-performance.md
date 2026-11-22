@@ -127,3 +127,17 @@ signal, not a measurement.
 
 Not reported by design: hover ring without click, shadow-not-border cards, the dim tracker palette,
 Figma resting geometry, and the kept motion itself (only its measured load cost is in F1).
+
+## Follow-up 2026-11-21 · hover ring: don't trade the 1px edge for paint
+
+The 2026-11-16 perf pass (`7fcb219`) moved the featured card's hover ring from an animated `clip-path` to
+`transform: scale` to avoid repainting the glow layer. Both techniques antialias the edge at fractional
+positions, so the 1px ring smeared across 2 device pixels mid-grow and then "thinned" when the 800ms grow
+ended. That happened on every ring host, not just the featured one. PR #94 switched every host to animating
+layout `inset`, which snaps edges to whole pixels. The cost was measured in headless Chromium: ~1ms layout
+per hover, and featured-card raster about 2–3× higher.
+
+**For future audits:** treat that cost as accepted. Don't revert to `scale`/`clip-path`. Any cheaper
+approach must keep the edge exactly 1 device pixel on every frame (sample the top edge at 100/200/400/800ms,
+day and night, DSF 1 and 2). Still open: a real-GPU Chrome trace for dropped frames. Details are in
+`docs/design-system/motion.md` → "Home card hover ring".

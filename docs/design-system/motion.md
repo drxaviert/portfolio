@@ -245,6 +245,8 @@ Why `inset`: clip-path and transform edges are antialiased at fractional positio
 
 Cost (headless Chromium trace of one 1440x900 hover, three runs): layout 0.7 to 1.1ms over 4 to 6 layouts (the transform version ran none); the featured card's `RasterTask` was 37 to 69ms over 124 to 168 tasks against 14 to 46ms over 48 to 57 for the transform version; the nav bar was about the same either way. Headless software rendering ran every frame near 150ms in both versions, so dropped frames could not be compared; check a real-GPU Chrome trace. The ring-follow glow variables (`ring-pointer.tsx`) still own the style recalc.
 
+> **Note for performance audits (2026-11-21).** The extra layout and raster work is the price of a 1px edge that stays sharp, and was accepted on purpose. Do not switch the grow back to `transform: scale` or an animated `clip-path` to save paint: the 2026-11-16 perf pass (`7fcb219`) moved the featured card to `scale`, and that (plus the older clip-path grow on every other host) is what made the ring "light up, then thin" on hover. Fixed in PR #94. A cheaper approach is welcome only if it keeps the edge exactly 1 device pixel on every frame. Verify by sampling the top edge at 100/200/400/800ms in day and night, at DSF 1 and 2. Still open: a real-GPU Chrome trace to confirm no dropped frames.
+
 Reduced motion is unchanged: the reduced path above reveals the ring inside the card with no growth.
 
 - `src/components/home/ring-hover.css` — `.ring-frame`, `.ring-surface` rest geometry and the `inset` transitions; hover, focus and reduced-motion rules
