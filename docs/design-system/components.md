@@ -172,24 +172,28 @@ Motion: in `motion.md`, "Work index — hover thumbnail list".
 
 ### Ways home
 
-Both sides of the drawer use one `BackLink` (`src/components/work/back-link.tsx`): **← Home** on the index and **← Work** in a study. They are the same component at the same rectangle — the top-left of the content area, below the nav, with the arrow on the list's year-column edge — so the control does not move when a study opens or the index comes back.
+Both sides of the drawer use one `Breadcrumb` (`src/components/work/breadcrumb.tsx`), built from the home nav's items and its shared Glide capsule. It sits at the same rectangle — the top-left of the content area, below the nav, with the first segment on the list's year-column edge — so the control does not move when a study opens or the index comes back.
 
 | Item | Value | Source | Tokens |
 | --- | --- | --- | --- |
-| Position | index: first child of the 1120px list column; reader: a matching 1120px back row above the 582px reading column; both with the same top clearance and 16/32px inline padding | `src/components/work/back-link.css`, `work-index.css`, `reader.css` | `--wd-nav-inset`, `--wd-nav-height`, `--wd-nav-content-gap` |
-| Alignment | wrapper `margin-left: 8px` + link `padding-left: 8px`; the arrow's ink lands on the year text's x (`200.5px` at 1440) | `back-link.css`, `work-list.css` | — |
-| Box | `32px` high, `8px` radius, `0 8px` padding, `6px` gap; the label slot is `min-inline-size: 40px`, so "Home" (40px) and "Work" (35.4px) produce the same `78px` box | `back-link.css` | `--radius-md` |
-| Type and icon | `14px` / `500` / `on-surface-variant`; left arrow from the work icon set's `20px` viewBox at `1.5` stroke, drawn at `16px` | `back-link.tsx`, `back-link.css` | `--text-sm`, `--on-surface-variant` |
-| Hover, press, focus | text → `on-surface` plus the nav's `--nav-hover-fill` at `0.55`; press `scale(0.98)`; focus `2px` `primary`, offset `2px` | `back-link.css` | `--on-surface`, `--nav-hover-fill`, `--primary` |
-| Index action | the drawer's `exit` (step-back-or-close, generation + 350ms burst guards); a plain click is prevented, a modified click follows the `/` href | `back-link.tsx`, `drawer-shell.tsx` | — |
-| Reader action | `stepBack`: history back when the index is the entry behind, else `/work`; the panel stays and the list's scroll is restored; a modified click follows the `/work` href | `back-link.tsx`, `use-morph.ts` | — |
+| Position | index: first child of the 1120px list column; reader: a matching 1120px back row above the 582px reading column; both with the same top clearance and 16/32px inline padding | `src/components/work/breadcrumb.css`, `work-index.css`, `reader.css` | `--wd-nav-inset`, `--wd-nav-height`, `--wd-nav-content-gap` |
+| Alignment | wrapper `margin-left: 8px` + item `padding-left: 8px`; the first segment's ink lands on the year column's x | `breadcrumb.css`, `work-list.css` | — |
+| Row | `32px` high, no vertical padding; the same row as the nav item | `breadcrumb.css`, `nav-item-class.ts` | — |
+| Item | `32px` high, `0 8px` padding, `8px` radius, `16px` / `500` / `on-surface-variant`; current and hover → `on-surface` | `nav-item-class.ts`, `nav-items.css` | `--text-base`, `--radius-md`, `--on-surface-variant`, `--on-surface` |
+| Hover motion | the nav's `GlideCapsule` unchanged: the same two spring edges, leading/trailing timing and `0.55` `--nav-hover-fill` capsule; focus is the nav item's `2px` `primary` ring at offset `0` | `src/components/home/glide-capsule.tsx`, `nav-items.css` | `--nav-hover-fill`, `--primary` |
+| Reduced motion | no capsule travel; the hovered item crossfades the same `--nav-hover-fill` at `0.55` in `120ms` | `nav-items.css` | `--nav-hover-fill`, `--duration-short-2` |
+| Separator | `/` at `16px` / `400` in `outline-variant`; the items' own `8px` padding leaves the nav's `16px` gap on either side | `breadcrumb.css` | `--text-base`, `--outline-variant` |
+| Index content | Home / Work; Home is a link, Work is static with `aria-current="page"` | `breadcrumb.tsx` | — |
+| Reader content | Home / Work / the study title; the title is static with `aria-current="page"` and clips to `240px` with an ellipsis | `breadcrumb.tsx`, `breadcrumb.css` | — |
+| Index action | Home runs the drawer's `exit` (step-back-or-close, generation + 350ms burst guards); a plain click is prevented, a modified click follows the `/` href | `breadcrumb.tsx`, `drawer-shell.tsx` | — |
+| Reader actions | Home closes the whole drawer to `/`; Work runs `stepBack`: history back when the index is the entry behind, else `/work`, with the panel and the list's scroll kept; modified clicks follow the hrefs | `breadcrumb.tsx`, `use-morph.ts` | — |
 | Index entrance | the list's Soft-focus: `opacity: 0` while `data-phase="opening"`, then `wd-work-soft` 700ms with no delay; the rows follow their own 40ms stagger | `work-list.css` | `--ease-calm` |
 | Reader entrance | rides the scroll column's reveal; the component has no animation of its own | `entrance.css`, `reader.css` | — |
-| Future menu seam | the wrapper is `data-back-menu-anchor`; `BackLink` takes a `menu` node and renders it at `[data-back-menu-slot]`. `ReaderBackLink` forwards `menu` for the future Work/Home hover menu; nothing renders one today. | `back-link.tsx` | — |
+| Landmark | `<nav aria-label="Breadcrumb"><ol>`; separators are `aria-hidden`; Home and Work are links, the current segment is not | `breadcrumb.tsx` | — |
 | Orb on `/work*` | clicking it runs the drawer close (the dock captures the link) and lands on `/` | `src/components/nav/nav-dock.tsx` | — |
 | Orb on `/` | a no-op link: no history entry and no scroll jump | `nav-dock.tsx` | — |
 
-The index's BackLink is the panel's first focusable, so the tab trap restarts a stranded heading's navigation on it: Tab from the focused `Work` title reaches it. In the reader it is the first focusable in the scroll column. The reader keeps its reach-to-top controls (the desktop rail's `↑ Top` and the thumb button below `lg`); only the way back moved.
+The index Breadcrumb's Home link is the panel's first focusable, so the tab trap restarts a stranded heading's navigation on it: Tab from the focused `Work` title reaches it. In the reader it is the first focusable in the scroll column. The reader keeps its reach-to-top controls (the desktop rail's `↑ Top` and the thumb button below `lg`); only the way back moved.
 
 ## Layering (z-index)
 

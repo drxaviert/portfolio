@@ -700,14 +700,14 @@ The drawer is one surface for `/work` and every `/work/<slug>`: it opens from th
 | Study opened (homepage card) | panel `transform` | 900ms | 0 | same | the clicked card's live rect → panel box |
 | Index → study, study → index, study → study | outgoing view `opacity` | 160ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 1 → 0, frozen over the incoming view |
 | Same swap | incoming view `opacity` | 240ms (`--duration-medium-1`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 0 → 1 |
-| "← Work" (shared BackLink) | the same cross-fade, towards `/work` | 160ms / 240ms | 0 | same | the study's view → the index's view; the panel does not move |
+| "← Work" (shared Breadcrumb) | the same cross-fade, towards `/work` | 160ms / 240ms | 0 | same | the study's view → the index's view; the panel does not move |
 | Close (index Esc/backdrop, or the logo anywhere) | panel `transform` | 300ms | 0 | `ease` (`0.25, 0.1, 0.25, 1`) | current pose → the capsule or card's live rect (scale + fade when there is no origin) |
 | Opened, reduced motion | panel `opacity` | 120ms | 0 | `ease-out` | 0 → 1, no transform |
 | Swap/close, reduced motion | `opacity` only | 120ms | 0 | `ease-out` | the same states, no movement |
 
 The content swap snapshots the outgoing view before React mutates the DOM, so the copy is the view that was on screen rather than the new route's: it stays inert and `aria-hidden`, keeps the reader's scroll position, and has its inner animations and transitions neutralised so it paints at rest.
 
-**Close B.** Esc and the backdrop step a study back to the index; on the index they close the drawer. The logo closes from anywhere. The shared "← Work" BackLink is the same step back, and browser Back is the platform's. A step back uses `router.back()` only when the entry behind this one is the index; after "Next project" the entry behind is another study, so the index is pushed instead.
+**Close B.** Esc and the backdrop step a study back to the index; on the index they close the drawer. The logo closes from anywhere. The shared "← Work" Breadcrumb is the same step back, and browser Back is the platform's. A step back uses `router.back()` only when the entry behind this one is the index; after "Next project" the entry behind is another study, so the index is pushed instead.
 
 **Esc guard.** One burst of presses cannot step back and then close: Esc is ignored while a step-back transition is in flight, and for `ESC_BURST_MS = 350ms` after the index lands. Auto-repeat from a held key is ignored too (`event.repeat`). A single deliberate press is unchanged: one steps back, a later one closes.
 
@@ -732,8 +732,8 @@ The content swap snapshots the outgoing view before React mutates the DOM, so th
 - `src/components/work/drawer-actions.tsx:53` — auto-repeat is not a fresh press
 - `src/components/work/use-morph.ts:673` — `stepBack`
 - `src/components/work/use-morph.ts:676` — uses history only when the index is the entry behind
-- `src/components/work/back-link.tsx` — the shared "← Home"/"← Work" control; its reader action calls `stepBack`
-- `src/components/work/work-list.tsx` — the index's Soft-focus slot for the BackLink
+- `src/components/work/breadcrumb.tsx` — the shared "Home"/"Work"/title Breadcrumb; its reader actions call `close` and `stepBack`
+- `src/components/work/work-list.tsx` — the index's Soft-focus slot for the Breadcrumb
 - `src/components/work/use-morph.ts:301` — the one lifecycle machine
 - `src/components/work/use-morph.ts:338` — `commit`: generation bump, flight stop, phase
 - `src/components/work/use-morph.ts:880` — `close`: play, then settle, no latch
@@ -757,20 +757,20 @@ The /work index is one list of case studies inside the drawer panel, under the n
 | Dividers next to the current row | item `::before` `opacity` | 200ms | 0 | same | 1 → 0 |
 | Visible rows enter with the drawer | `opacity` / `transform` / `filter` | 700ms | `40ms × slot` (max 12 rows) | `--ease-calm` | 0 / `7px` down / `8px` blur → 1 / 0 / none |
 | Index arrives with the panel | `.wd-index-scroll` `opacity` | 300ms (`--duration-medium-5`) | held at 0 until `data-reveal="on"` | `--ease-emphasized-decelerate` | 0 → 1, one pass |
-| "← Home" enters with the index | `.wd-back` `opacity` / `transform` / `filter` | 700ms | 0 | `--ease-calm` | 0 / `7px` down / `8px` blur → 1 / 0 / none |
+| "← Home" enters with the index | `.wd-breadcrumb` `opacity` / `transform` / `filter` | 700ms | 0 | `--ease-calm` | 0 / `7px` down / `8px` blur → 1 / 0 / none |
 
 - **1:1 tracking, no smoothing.** Each pointer move schedules one `requestAnimationFrame` write of `translate3d(cursor − layer origin − half the box, 0)` from the latest `clientX`/`clientY`. There is no lerp, spring or `dt`. The outer box only ever transforms; the inner layer owns opacity and scale, so the entrance cannot fight the tracking.
 - **Cursor none.** The OS cursor paints above the DOM, so the list sets `cursor: none` on the rows while a pointer owns the thumbnail. It is keyed to the pointer (not to keyboard focus) and is removed on leaving the rows or the list, and over the nav or the dev-only surfaces; keyboard focus parks the thumbnail with the normal cursor, and touch never hides it.
 - **The 0.6 start.** The thumbnail's first painted frame is already 60% opaque, so the frame that hides the cursor always has an image under it. The scale still starts at 0.96 and both run on the same 200ms curve. The exit keeps its 150ms fade.
 - **Dim and dividers.** The 40% dim sits on the row child, not the list item, so the item's `--outline-variant` hairline stays at full opacity. A list-level dim state with an 80ms grace keeps it from flashing between rows, including while a stationary pointer is tracked through a scroll. The current row and the row after it drop their lines so the rounded hover fill never sits on one.
 - **Entrance.** Only the rows visible at open stagger, capped at 12; rows below the fold are already visible and never animate on scroll. The animation uses `fill-mode: backwards`: the from-state holds through the stagger delay and the final state returns to the cascade, so the 40% dim still applies after the animation. (`both` held `opacity: 1` over the dim rule — the dim bug this replaced.)
-- **Ways home.** The shared BackLink is the list's first Soft-focus beat, with no delay; the rows keep their own 40ms stagger. In the reader the same component sits above the article and has no entrance of its own: it rides the scroll column's reveal. Neither animates on scroll.
+- **Ways home.** The shared Breadcrumb is the list's first Soft-focus beat, with no delay; the rows keep their own 40ms stagger. In the reader the same component sits above the article and has no entrance of its own: it rides the scroll column's reveal. Neither animates on scroll.
 - **Reduced motion.** The thumbnail is opacity-only over 120ms (no scale), the row dim and divider fades are 120ms, and the entrance does not run. The 1:1 cursor tracking stays: it is direct manipulation, not an animation.
 - **Touch.** No thumbnail at all; the list is the plain links, with the normal cursor.
 
 - `src/components/work/work-list.tsx` — placement and the 1:1 rAF write; focus parking; the 80ms dim grace; the 12-row entrance cap; the portal layer
-- `src/components/work/work-list.css` — the 0.6 entry, 150ms exit, crossfade, dim, divider fade, reduced motion; the BackLink's Soft-focus beat
+- `src/components/work/work-list.css` — the 0.6 entry, 150ms exit, crossfade, dim, divider fade, reduced motion; the Breadcrumb's Soft-focus beat
 - `src/components/work/work-index.css` — the column and the arrival fade
-- `src/components/work/back-link.tsx` / `back-link.css` — the shared way back, its hover/press/focus and the future menu seam
+- `src/components/work/breadcrumb.tsx` / `breadcrumb.css` — the shared way back, its nav-item hover/press/focus and the Glide capsule reuse
 - `src/components/work/reader.css` — the reader's back row and the reach-to-top rail
 

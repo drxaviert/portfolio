@@ -1,0 +1,61 @@
+/*
+ * The drawer's shared Breadcrumb (breadcrumb.tsx).
+ *
+ * It borrows the home nav's item classes and Glide capsule wholesale, so the
+ * geometry, colour and motion stay the nav's. This file only owns the shared
+ * left edge/row height, the separator, and the 240px title clip.
+ */
+
+.wd-breadcrumb {
+  /* The same neutral 5% ink mix the nav bar declares for its capsule. */
+  --nav-hover-fill: color-mix(
+    in oklab,
+    var(--on-surface) 5%,
+    var(--surface-container)
+  );
+
+  /* The list column's 8px overhang, shared by the index and the reader. */
+  width: fit-content;
+  margin: 0 0 12px 8px;
+}
+
+.breadcrumb-nav {
+  position: relative;
+  width: fit-content;
+}
+
+.breadcrumb-list {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+}
+
+/*
+ * The slash is the nav divider's outline-variant, at the nav label's 16px.
+ * The items' own 8px padding leaves 8px on each side, the nav's 16px label
+ * gap; the separator adds no width of its own.
+ */
+.breadcrumb-sep {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  color: var(--outline-variant);
+  font-size: var(--text-base);
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.breadcrumb-current {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

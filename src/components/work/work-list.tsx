@@ -85,7 +85,7 @@ export function WorkList({
   topControl,
 }: {
   works: WorkMeta[];
-  /** Chrome above the rows (the `back` close variant), part of the column. */
+  /** Chrome above the rows (the shared Breadcrumb), part of the column. */
   topControl?: ReactNode;
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
