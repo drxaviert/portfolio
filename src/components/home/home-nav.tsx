@@ -20,7 +20,10 @@ import "./ring-hover.css";
  *
  * The logo is a link home, and "Work" is the link home inside that run (see
  * nav-items.tsx). The reader's nav captures those two and plays the reverse
- * morph instead of navigating; Play and About stay focusable placeholders.
+ * morph instead of navigating; Play and About stay focusable placeholders. The
+ * orb carries a "Home" tooltip like the glyph's, and on the homepage it is the
+ * page already on screen, so the dock swallows its click (no history entry, no
+ * scroll jump).
  *
  * The bar is one hover host: its own fill moves to the ring surface, and
  * keyboard focus inside it (the theme toggle, the links) opens the ring.
@@ -47,7 +50,7 @@ export function HomeNav() {
   return (
     <nav
       aria-label="Primary"
-      className="ring-host flex h-16 items-center justify-between rounded-lg px-4"
+      className="nav-bar ring-host flex h-16 items-center justify-between rounded-lg px-4"
       data-tooltip-warm={tooltips.warm}
       onPointerEnter={tooltips.onPointerEnter}
       onPointerLeave={tooltips.onPointerLeave}
@@ -60,6 +63,12 @@ export function HomeNav() {
         className={`nav-logo relative shrink-0 rounded-full no-underline ${FOCUS_RING}`}
       >
         <OrbHead />
+        <span
+          aria-hidden="true"
+          className="nav-tooltip pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface"
+        >
+          Home
+        </span>
       </Link>
 
       <div className="flex min-w-0 items-center gap-3">

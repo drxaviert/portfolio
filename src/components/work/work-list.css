@@ -195,6 +195,15 @@
     animation: wd-work-soft 700ms var(--ease-calm) backwards;
     animation-delay: calc(var(--work-enter-i, 0) * 40ms);
   }
+
+  /* The shared "← Home" is the list's first entrance beat, with no delay. */
+  .wd-expand-layer[data-phase="opening"] .wd-work-column .wd-back {
+    opacity: 0;
+  }
+
+  .wd-work-column[data-work-anim="on"] .wd-back {
+    animation: wd-work-soft 700ms var(--ease-calm) backwards;
+  }
 }
 
 @keyframes wd-work-soft {

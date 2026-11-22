@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type {
   FocusEvent as ReactFocusEvent,
   PointerEvent as ReactPointerEvent,
+  ReactNode,
 } from "react";
 import {
   useCallback,
@@ -79,7 +80,14 @@ const getServerSnapshot = () => false;
  * thumbnail. Scroll tracking finds the row under the stationary pointer, and
  * the cursor is hidden only while the thumbnail is showing over a row.
  */
-export function WorkList({ works }: { works: WorkMeta[] }) {
+export function WorkList({
+  works,
+  topControl,
+}: {
+  works: WorkMeta[];
+  /** Chrome above the rows (the `back` close variant), part of the column. */
+  topControl?: ReactNode;
+}) {
   const [hovered, setHovered] = useState<number | null>(null);
   const [focused, setFocused] = useState<number | null>(null);
   const [dimActive, setDimActive] = useState(false);
@@ -554,6 +562,8 @@ export function WorkList({ works }: { works: WorkMeta[] }) {
           <h1 id={INDEX_TITLE_ID} tabIndex={-1} className="wd-work-sr-only">
             Work
           </h1>
+
+          {topControl}
 
           <div
             className="wd-work-group"

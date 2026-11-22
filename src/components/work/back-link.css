@@ -1,0 +1,86 @@
+/*
+ * The shared "← Home" / "← Work" control (back-link.tsx).
+ *
+ * One geometry for both pages: the wrapper carries the list column's 8px
+ * overhang, the link is a 32px nav-style item, and the label gets a fixed slot
+ * so "Home" and "Work" produce the same box (40px is "Home" at 14px/500 in Work
+ * Sans; "Work" is narrower and fills the slot). That is what lets the index and
+ * the reader put the same rectangle in the same place, within a pixel.
+ */
+
+.wd-expand-layer {
+  --nav-hover-fill: color-mix(
+    in oklab,
+    var(--on-surface) 5%,
+    var(--surface-container)
+  );
+}
+
+.wd-back {
+  position: relative;
+  width: fit-content;
+  margin: 0 0 12px 8px;
+}
+
+.wd-back-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  color: var(--on-surface-variant);
+  font-size: var(--text-sm);
+  line-height: 1;
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    color var(--duration-short-3) var(--ease-decelerate),
+    background-color var(--duration-short-3) var(--ease-decelerate),
+    scale var(--duration-short-3) var(--ease-decelerate);
+}
+
+.wd-back-label {
+  min-inline-size: 40px;
+  text-align: start;
+}
+
+.wd-back-link:active {
+  scale: 0.98;
+}
+
+.wd-back-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .wd-back-link:hover {
+    color: var(--on-surface);
+    background-color: color-mix(
+      in oklab,
+      var(--nav-hover-fill) 55%,
+      transparent
+    );
+  }
+}
+
+/* The future Work/Home menu hangs from the wrapper; nothing fills it yet. */
+.wd-back-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-back-link {
+    transition:
+      color var(--duration-short-2) var(--ease-decelerate),
+      background-color var(--duration-short-2) var(--ease-decelerate);
+  }
+
+  .wd-back-link:active {
+    scale: 1;
+  }
+}

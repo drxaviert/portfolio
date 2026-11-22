@@ -21,16 +21,35 @@
   container-type: inline-size;
 }
 
+/*
+ * The shared way back, above the reading column. It borrows the index's column
+ * geometry (1120px, 16/32px inline, the nav clearance on top) so the same
+ * BackLink component lands on the same rectangle as the index's "← Home"; the
+ * reading column below therefore drops its own nav clearance.
+ */
+.wd-reader-back-row {
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+  padding: calc(
+      var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
+    )
+    16px 0;
+}
+
+@media (min-width: 768px) {
+  .wd-reader-back-row {
+    padding-inline: 32px;
+  }
+}
+
 .wd-reader-column {
   position: relative;
   width: 100%;
   max-width: 582px; /* 550px measure + 2 × 16px gutters */
   margin-inline: auto;
-  /* Clears the header nav: its top inset, its bar and the shared gap. */
-  padding: calc(
-      var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
-    )
-    16px 64px;
+  /* The back row above owns the header nav's clearance. */
+  padding: 0 16px 64px;
 }
 
 /* Anchors the margin notes and the wide breakouts without pixel geometry. */
@@ -41,14 +60,13 @@
 /* ------------------------------------------------------------ ways back ---- */
 
 /*
- * The left margin rail from 1024px: "← Work" pinned under the nav for the whole
- * scroll, "↑ Top" near the foot of the panel. Both use the margin notes' type
- * and neither has a surface, so the rail reads as a note beside the article
- * rather than as chrome.
+ * The left margin rail from 1024px: "↑ Top" near the foot of the panel. It uses
+ * the margin notes' type and has no surface, so the rail reads as a note beside
+ * the article rather than as chrome. The way back to the index is the shared
+ * BackLink above the column on every width (back-link.tsx).
  *
- * The rail is the column's own box, so its sticky child starts at the top of
- * the scroll area (not at the article below the cover, where "← Work" used to
- * scroll away with the title) and holds there until the article ends.
+ * The rail is the column's own box; its one child is sticky to the foot of the
+ * scroll area.
  */
 .wd-rail {
   display: none;
@@ -58,7 +76,7 @@
   .wd-rail {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: flex-end;
     position: absolute;
     /* Above the 880px breakouts, which are positioned later in the DOM and
        would otherwise paint over the rail's label and its click target. */
@@ -70,29 +88,12 @@
   }
 }
 
-.wd-rail-work,
 .wd-rail-top {
   align-self: flex-start;
   color: var(--on-surface-variant);
   font-size: var(--text-xs);
   line-height: 1.42;
   text-decoration: none;
-}
-
-.wd-rail-work {
-  position: sticky;
-  /* The nav's bottom edge, which is the blur zone's edge, plus the reading
-     column's own clearance. */
-  top: calc(
-    var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
-  );
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding-block: 2px;
-}
-
-.wd-rail-top {
   position: sticky;
   bottom: 16px;
   display: inline-flex;
@@ -107,10 +108,9 @@
   cursor: pointer;
 }
 
-/* The rail's labels keep their size; the target grows to the 44px floor
-   without moving the sticky box or the text inside it. Both items are alone at
-   their ends of the rail, so the taller target has nothing to overlap. */
-.wd-rail-work::after,
+/* The rail's label keeps its size; the target grows to the 44px floor without
+   moving the sticky box or the text inside it. The item is alone at its end of
+   the rail, so the taller target has nothing to overlap. */
 .wd-rail-top::after {
   content: "";
   position: absolute;
@@ -121,12 +121,10 @@
   translate: 0 -50%;
 }
 
-.wd-rail-work:hover,
 .wd-rail-top:hover {
   color: var(--on-surface);
 }
 
-.wd-rail-work:focus-visible,
 .wd-rail-top:focus-visible {
   border-radius: 4px;
   outline: 2px solid var(--primary);
@@ -186,7 +184,9 @@
     inset-inline-start: max(16px, env(safe-area-inset-left));
     inset-inline-end: max(16px, env(safe-area-inset-right));
     bottom: max(16px, env(safe-area-inset-bottom));
-    justify-content: space-between;
+    /* The way back is the shared BackLink above the article now; only the
+       reach-to-top button is left, and it keeps the right corner. */
+    justify-content: flex-end;
     pointer-events: none;
   }
 

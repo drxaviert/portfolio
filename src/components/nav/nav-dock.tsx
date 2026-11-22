@@ -262,13 +262,22 @@ export function NavDock() {
     }
 
     const target = event.target as Element;
+    const logo = target.closest('a[href="/"]');
+
+    // On the homepage the logo is the page already on screen. Keep it a no-op
+    // link: no new history entry, and no scroll jump for a visitor who clicks
+    // the orb while scrolled down.
+    if (pathname === "/" && logo) {
+      event.preventDefault();
+      return;
+    }
 
     // In the drawer the logo is the way home: it closes the whole drawer, with
     // the reverse morph, instead of navigating behind it. "Work" is the drawer's
     // own section: from a study it goes to the index (a normal link, which the
     // shell cross-fades), and on the index it is the page already on screen.
     if (stateRef.current === "reader") {
-      if (!target.closest('a[href="/"]')) return;
+      if (!logo) return;
       if (!hasReaderClose()) return;
 
       event.preventDefault();

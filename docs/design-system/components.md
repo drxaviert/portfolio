@@ -21,6 +21,8 @@ The same `HomeNav` is the home bar and the reader's top row; one dock in the roo
 | Nav slot on the home page | `64px` (`h-16`) | `src/components/home/home-layout.tsx:216` | — |
 | Orb | `36px` (`size-9`), `50%` radius | `home-nav.tsx:32` | `--orb-gradient` |
 | Orb eyes | `8 × 3.4px`, top `10.5px`, left `13.5px` / `20.6px`, white | `home-nav.tsx:35-36` | — |
+| Orb link | `/`, `aria-label="Home"`, `scroll` default; hover fill = the nav's `--nav-hover-fill` at `0.55` in a round capsule; press `scale(0.96)` | `home-nav.tsx:60-72`, `nav-items.css` | `--nav-hover-fill`, `--duration-short-3` |
+| Orb tooltip | `Home`, `aria-hidden`, above the orb on `/` and below it in the drawer; 150ms fade after the group's 300ms delay | `home-nav.tsx:66-71`, `nav-items.css` | `--duration-short-3`, `--duration-medium-5` |
 | Item | `32px` high (`h-8`), `8px` inline padding (`px-2`), `8px` radius (`rounded-md`) | `src/components/home/nav-items.tsx:25` | `--radius-md` |
 | Item type | `16px` / `20px` (`leading-5`) / `500` | `nav-items.tsx:26` | `--text-base` |
 | Glyph | `32 × 32px` (`size-8`), `8px` radius | `nav-items.tsx:37` | `--radius-md` |
@@ -122,12 +124,13 @@ The carousel remembers its position in memory for the life of the document (`src
 | Nav inset | `16px`; `md` `28px` | `globals.css:209`, `:218` | `--wd-nav-inset` |
 | Nav height | `64px` (`4rem`) | `globals.css:210` | `--wd-nav-height` |
 | Nav → content gap | `24px`; `md` `32px` | `globals.css:211`, `:219` | `--wd-nav-content-gap` |
-| Column | `max-width: 582px` (`550px` measure + `2 × 16px` gutters) | `reader.css:63` | — |
-| Column padding | top `nav inset + nav height + content gap`, inline `16px`, bottom `64px` | `reader.css:66-69` | `--wd-*` |
-| Column bottom, no rail | `88px` below 1024 | `reader.css:246-249` | — |
-| Body measure | `68ch` | `reader.css:492-502` | `--text-base` |
-| Rail at `lg`+ | `170px` wide, `right: calc(100% + 4px)`, `z-index: 1` | `reader.css:93-107` | — |
-| Thumb targets below `lg` | `44 × 44px`, `999px` radius, `z-index: 1` | `reader.css:215-235` | `--surface-container-low`, `--shadow-card` |
+| Column | `max-width: 582px` (`550px` measure + `2 × 16px` gutters) | `reader.css` | — |
+| Back row | `max-width: 1120px`, inline `16px` / `md` `32px`, top `nav inset + nav height + content gap`; the reading column below has no top padding | `reader.css` | `--wd-nav-inset`, `--wd-nav-height`, `--wd-nav-content-gap` |
+| Column padding | inline `16px`, top `0` (the back row clears the nav), bottom `64px` | `reader.css` | — |
+| Column bottom, no rail | `88px` below 1024 | `reader.css` | — |
+| Body measure | `68ch` | `reader.css` | `--text-base` |
+| Rail at `lg`+ | `170px` wide, `right: calc(100% + 4px)`, `z-index: 1`; the reach-to-top control only | `reader.css` | — |
+| Reach-to-top thumb below `lg` | `44 × 44px`, `999px` radius, `z-index: 1`, bottom-right | `reader.css` | `--surface-container-low`, `--shadow-card` |
 | Hero | `689 / 352` aspect, `12px` radius | `reader.css:420-424` | — |
 | Blur stack | height `nav inset + nav height`; six bands `1/2/4/8/16/32px`; `z-index: 1` | `src/components/work/reader.tsx:43`; `src/components/work/blur-stack.css:26`, `:57-92` | `--wd-nav-inset`, `--wd-nav-height` |
 | Blur stack props | `edge="bottom"` sets `data-edge="bottom"` and flips the band masks to build toward the bottom edge (default top); `tint={false}` sets `data-tint="none"` and drops the panel-surface gradient under the bands (the homepage edge bands use it so the glow keeps its colour); `--wd-blur-height` sets the stack height, falling back to `100%` of the containing block | `src/components/work/blur-stack.tsx:12-41`; `blur-stack.css:27`, `:101`, `:116` | `--wd-blur-height` |
@@ -166,6 +169,27 @@ The index lives in the drawer panel, under the same nav, in the reader's own col
 | Forced colours | thumbnail gets a `1px CanvasText` border | `work-list.css` | none |
 
 Motion: in `motion.md`, "Work index — hover thumbnail list".
+
+### Ways home
+
+Both sides of the drawer use one `BackLink` (`src/components/work/back-link.tsx`): **← Home** on the index and **← Work** in a study. They are the same component at the same rectangle — the top-left of the content area, below the nav, with the arrow on the list's year-column edge — so the control does not move when a study opens or the index comes back.
+
+| Item | Value | Source | Tokens |
+| --- | --- | --- | --- |
+| Position | index: first child of the 1120px list column; reader: a matching 1120px back row above the 582px reading column; both with the same top clearance and 16/32px inline padding | `src/components/work/back-link.css`, `work-index.css`, `reader.css` | `--wd-nav-inset`, `--wd-nav-height`, `--wd-nav-content-gap` |
+| Alignment | wrapper `margin-left: 8px` + link `padding-left: 8px`; the arrow's ink lands on the year text's x (`200.5px` at 1440) | `back-link.css`, `work-list.css` | — |
+| Box | `32px` high, `8px` radius, `0 8px` padding, `6px` gap; the label slot is `min-inline-size: 40px`, so "Home" (40px) and "Work" (35.4px) produce the same `78px` box | `back-link.css` | `--radius-md` |
+| Type and icon | `14px` / `500` / `on-surface-variant`; left arrow from the work icon set's `20px` viewBox at `1.5` stroke, drawn at `16px` | `back-link.tsx`, `back-link.css` | `--text-sm`, `--on-surface-variant` |
+| Hover, press, focus | text → `on-surface` plus the nav's `--nav-hover-fill` at `0.55`; press `scale(0.98)`; focus `2px` `primary`, offset `2px` | `back-link.css` | `--on-surface`, `--nav-hover-fill`, `--primary` |
+| Index action | the drawer's `exit` (step-back-or-close, generation + 350ms burst guards); a plain click is prevented, a modified click follows the `/` href | `back-link.tsx`, `drawer-shell.tsx` | — |
+| Reader action | `stepBack`: history back when the index is the entry behind, else `/work`; the panel stays and the list's scroll is restored; a modified click follows the `/work` href | `back-link.tsx`, `use-morph.ts` | — |
+| Index entrance | the list's Soft-focus: `opacity: 0` while `data-phase="opening"`, then `wd-work-soft` 700ms with no delay; the rows follow their own 40ms stagger | `work-list.css` | `--ease-calm` |
+| Reader entrance | rides the scroll column's reveal; the component has no animation of its own | `entrance.css`, `reader.css` | — |
+| Future menu seam | the wrapper is `data-back-menu-anchor`; `BackLink` takes a `menu` node and renders it at `[data-back-menu-slot]`. `ReaderBackLink` forwards `menu` for the future Work/Home hover menu; nothing renders one today. | `back-link.tsx` | — |
+| Orb on `/work*` | clicking it runs the drawer close (the dock captures the link) and lands on `/` | `src/components/nav/nav-dock.tsx` | — |
+| Orb on `/` | a no-op link: no history entry and no scroll jump | `nav-dock.tsx` | — |
+
+The index's BackLink is the panel's first focusable, so the tab trap restarts a stranded heading's navigation on it: Tab from the focused `Work` title reaches it. In the reader it is the first focusable in the scroll column. The reader keeps its reach-to-top controls (the desktop rail's `↑ Top` and the thumb button below `lg`); only the way back moved.
 
 ## Layering (z-index)
 
