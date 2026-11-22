@@ -229,7 +229,7 @@ export function WorkIndexListE2({
   version,
 }: {
   works: WorkMeta[];
-  version: "v1" | "v2" | "v3" | "v4";
+  version: "v1" | "v2" | "v3" | "v4" | "v5";
 }) {
   const [fake] = useState<FakeMode>(() =>
     typeof window !== "undefined" ? readFakeMode() : 0,
@@ -261,6 +261,9 @@ export function WorkIndexListE2({
   const fastTimerRef = useRef<number | null>(null);
   const lastScrollRef = useRef({ top: 0, time: 0 });
   const velocityRef = useRef(0);
+  const v5PosRef = useRef({ x: 0, y: 0 });
+  const v5WasActiveRef = useRef(false);
+  const reduceV5Ref = useRef(false);
 
   const items = useMemo(() => {
     const real = works.map(toE2Item);
@@ -294,7 +297,9 @@ export function WorkIndexListE2({
           ? "e2-v3"
           : version === "v4"
             ? "e2-v4"
-            : "e2";
+            : version === "v5"
+              ? "e2-v5"
+              : "e2";
 
     try {
       const url = new URL(window.location.href);
@@ -361,7 +366,7 @@ export function WorkIndexListE2({
   // minimum; under 120 it uses v1's 152px in-row fallback. The panel's opening
   // scale is divided out so the chosen mode is right on the first frame.
   useLayoutEffect(() => {
-    if (version === "v2") return;
+    if (version === "v2" || version === "v5") return;
 
     const measure = () => {
       const list = listColumnRef.current;
@@ -519,6 +524,21 @@ export function WorkIndexListE2({
     }, 80);
   }, [clearDimTimer]);
 
+  const setSlotsFor = useCallback((index: number) => {
+    setSlots((previous) => {
+      if (previous.items[previous.front] === index) return previous;
+
+      const front: 0 | 1 = previous.front === 0 ? 1 : 0;
+      const next: [number | null, number | null] = [
+        previous.items[0],
+        previous.items[1],
+      ];
+      next[front] = index;
+
+      return { front, items: next };
+    });
+  }, []);
+
   const show = useCallback(
     (index: number) => {
       if (!canHover()) return;
@@ -530,20 +550,9 @@ export function WorkIndexListE2({
 
       hoveredRef.current = index;
       setHovered(index);
-      setSlots((previous) => {
-        if (previous.items[previous.front] === index) return previous;
-
-        const front: 0 | 1 = previous.front === 0 ? 1 : 0;
-        const next: [number | null, number | null] = [
-          previous.items[0],
-          previous.items[1],
-        ];
-        next[front] = index;
-
-        return { front, items: next };
-      });
+      setSlotsFor(index);
     },
-    [clearDimTimer],
+    [clearDimTimer, setSlotsFor],
   );
 
   const hide = useCallback(() => {
@@ -561,8 +570,14 @@ export function WorkIndexListE2({
     setHovered(null);
     clearDimTimer();
 
-    if (focusedRef.current === null) setDimActive(false);
-  }, [clearDimTimer]);
+    if (focusedRef.current === null) {
+      setDimActive(false);
+    } else if (version === "v5") {
+      // A keyboard focus still owns the thumbnail after the pointer leaves;
+      // bring its image back if the hover had replaced it.
+      setSlotsFor(focusedRef.current);
+    }
+  }, [clearDimTimer, setSlotsFor, version]);
 
   const onFocus = (event: ReactFocusEvent<HTMLDivElement>) => {
     const target = event.target;
@@ -581,6 +596,10 @@ export function WorkIndexListE2({
     setFocused(index);
     clearDimTimer();
     setDimActive(true);
+
+    if (version === "v5" && hoveredRef.current === null) {
+      setSlotsFor(index);
+    }
   };
 
   const onBlur = (event: ReactFocusEvent<HTMLDivElement>) => {
@@ -609,23 +628,27 @@ export function WorkIndexListE2({
   }, []);
 
   // Place the thumbnail after a hover (mouse or scroll). The first appearance
-  // snaps vertically; the 8px enter and fade still play from the CSS.
+  // snaps vertically; the 8px enter and fade still play from the CSS. v5 has
+  // its own cursor rAF instead.
   useLayoutEffect(() => {
-    if (hovered === null) return;
+    if (version === "v5" || hovered === null) return;
 
     placeThumb(hovered, !shownRef.current);
     shownRef.current = true;
-  }, [hovered, placeThumb]);
+  }, [hovered, placeThumb, version]);
 
   // Switching E2 versions (or crossing a v1/v3/v4 margin threshold or a v4
   // width step) keeps the same hovered row but changes the rail, size, x and
   // vertical alignment; re-place it in the new layout.
   useLayoutEffect(() => {
+    if (version === "v5") return;
     if (hoveredRef.current !== null) placeThumb(hoveredRef.current);
   }, [version, mode, wide, v4Width, placeThumb]);
 
   // A resize moves the clamp edges under the same row.
   useEffect(() => {
+    if (version === "v5") return;
+
     const onResize = () => {
       if (hoveredRef.current !== null) placeThumb(hoveredRef.current);
     };
@@ -633,7 +656,7 @@ export function WorkIndexListE2({
     window.addEventListener("resize", onResize);
 
     return () => window.removeEventListener("resize", onResize);
-  }, [placeThumb]);
+  }, [placeThumb, version]);
 
   // Scroll with a stationary pointer: find the row now under the last pointer
   // position and move the same thumbnail onto it. The scroll velocity switches
@@ -693,7 +716,7 @@ export function WorkIndexListE2({
       // stays put until the scroll settles: crossfading thirty covers while the
       // list flies is the jitter, not the 120ms glide.
       if (!fastRef.current) show(index);
-      placeThumb(index);
+      if (version !== "v5") placeThumb(index);
     };
 
     const onScroll = () => {
@@ -737,7 +760,110 @@ export function WorkIndexListE2({
       if (fastTimerRef.current) window.clearTimeout(fastTimerRef.current);
       thumb?.removeAttribute("data-e2-fast");
     };
-  }, [hide, leaveList, placeThumb, show]);
+  }, [hide, leaveList, placeThumb, show, version]);
+
+  // e2-v5: the thumbnail follows the cursor. A rAF loop computes the target
+  // (cursor + 24, flipped at the panel's right/bottom and clamped below the nav)
+  // and lerps toward it frame-rate independently. The first frame of an entry
+  // snaps to the cursor so there is no fly-in from elsewhere; keyboard focus
+  // targets the focused row's right end inside the list.
+  useEffect(() => {
+    if (version !== "v5") return;
+
+    const thumb = thumbRef.current;
+    const scroll = scrollRef.current;
+    const list = listColumnRef.current;
+
+    if (!thumb || !scroll || !list) return;
+
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const readReduce = () => {
+      reduceV5Ref.current = motion.matches;
+    };
+    readReduce();
+    motion.addEventListener("change", readReduce);
+
+    const cursorTarget = (point: { x: number; y: number }) => {
+      const rect = scroll.getBoundingClientRect();
+      const width = 240;
+      const height = 180;
+      const offset = 24;
+      let x = point.x + offset;
+      let y = point.y + offset;
+
+      if (x + width > rect.right - 12) x = point.x - offset - width;
+      if (y + height > rect.bottom - 12) y = point.y - offset - height;
+
+      const minTop = visibleTop(rect);
+      x = Math.max(rect.left + 12, Math.min(x, rect.right - width - 12));
+      y = Math.max(minTop, Math.min(y, rect.bottom - height - 12));
+
+      return { x, y };
+    };
+
+    const focusTarget = (row: HTMLLIElement) => {
+      const rect = scroll.getBoundingClientRect();
+      const listRect = list.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      const width = 240;
+      const height = 180;
+      const minTop = visibleTop(rect);
+      const x = Math.max(listRect.left + 12, rowRect.right - width - 16);
+      const y = Math.max(
+        minTop,
+        Math.min(rowRect.top, rect.bottom - height - 12),
+      );
+
+      return { x, y };
+    };
+
+    let raf = 0;
+    let last = performance.now();
+
+    const loop = (now: number) => {
+      const dt = Math.min(32, now - last);
+      last = now;
+
+      const point = pointerRef.current;
+      let target: { x: number; y: number } | null = null;
+
+      if (hoveredRef.current !== null && point) {
+        target = cursorTarget(point);
+      } else if (focusedRef.current !== null) {
+        const row = rowRefs.current[focusedRef.current];
+        if (row) target = focusTarget(row);
+      }
+
+      if (!target) {
+        v5WasActiveRef.current = false;
+        raf = requestAnimationFrame(loop);
+        return;
+      }
+
+      const pos = v5PosRef.current;
+
+      if (!v5WasActiveRef.current || reduceV5Ref.current) {
+        pos.x = target.x;
+        pos.y = target.y;
+        v5WasActiveRef.current = true;
+      } else {
+        const k = 1 - Math.pow(1 - 0.18, dt / (1000 / 60));
+        pos.x += (target.x - pos.x) * k;
+        pos.y += (target.y - pos.y) * k;
+      }
+
+      thumb.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0)`;
+      raf = requestAnimationFrame(loop);
+    };
+
+    raf = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      motion.removeEventListener("change", readReduce);
+      thumb.style.removeProperty("transform");
+    };
+  }, [version]);
 
   // The row entrance joins the drawer's open beat. Only the rows visible at
   // that moment stagger (capped at twelve); everything below the fold is
@@ -834,6 +960,10 @@ export function WorkIndexListE2({
     leaveList();
   };
 
+  const currentRow = hovered ?? focused;
+  const thumbActive =
+    hovered !== null || (version === "v5" && focused !== null);
+
   return (
     <>
       <BlurStack height="calc(var(--wd-nav-inset) + var(--wd-nav-height))" />
@@ -863,9 +993,13 @@ export function WorkIndexListE2({
                 : undefined
             }
             data-e2-wide={version === "v3" && wide ? "" : undefined}
-            data-e2-dim={version === "v4" && dimActive ? "" : undefined}
+            data-e2-dim={
+              (version === "v4" || version === "v5") && dimActive
+                ? ""
+                : undefined
+            }
             ref={groupRef}
-            data-e2-active={hovered !== null ? "" : undefined}
+            data-e2-active={thumbActive ? "" : undefined}
           >
             {version === "v2" ? (
               <div className="wd-e2-rail" aria-hidden="true" />
@@ -889,7 +1023,8 @@ export function WorkIndexListE2({
                     className="wd-e2-row-item"
                     data-e2-index={index}
                     data-e2-current={
-                      version === "v4" && (hovered ?? focused) === index
+                      (version === "v4" || version === "v5") &&
+                      currentRow === index
                         ? ""
                         : undefined
                     }

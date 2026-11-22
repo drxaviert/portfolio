@@ -387,26 +387,78 @@
 
 /* ---------- e2-v4: homepage card radius + row dimming ---------- */
 
-.wd-e2-group[data-e2-version="v4"] .wd-e2-thumb-in {
+.wd-e2-group[data-e2-version="v4"] .wd-e2-thumb-in,
+.wd-e2-group[data-e2-version="v5"] .wd-e2-thumb-in {
   /* Confirmed in globals.css: --radius-lg: 0.75rem (12px). */
   border-radius: var(--radius-lg);
 }
 
-.wd-e2-group[data-e2-version="v4"] .wd-e2-row-item {
+.wd-e2-group[data-e2-version="v4"] .wd-e2-row-item,
+.wd-e2-group[data-e2-version="v5"] .wd-e2-row-item {
   transition: opacity 200ms var(--ease-emphasized-decelerate);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .wd-e2-group[data-e2-version="v4"][data-e2-dim]
+    .wd-e2-row-item:not([data-e2-current]),
+  .wd-e2-group[data-e2-version="v5"][data-e2-dim]
     .wd-e2-row-item:not([data-e2-current]) {
     opacity: 0.4;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wd-e2-group[data-e2-version="v4"] .wd-e2-row-item {
+  .wd-e2-group[data-e2-version="v4"] .wd-e2-row-item,
+  .wd-e2-group[data-e2-version="v5"] .wd-e2-row-item {
     transition: opacity 120ms ease-out;
   }
+}
+
+/* ---------- e2-v5: cursor-following thumbnail ---------- */
+
+/* Keep the v1 row layout at every width: the v5 thumbnail needs no margin or
+   in-row fallback, so the year stays put. */
+.wd-e2-group[data-e2-version="v5"] .wd-e2-row {
+  grid-template-columns: 80px minmax(0, 1fr) 160px;
+  padding-left: 16px;
+}
+
+.wd-e2-group[data-e2-version="v5"] .wd-e2-year {
+  display: block;
+}
+
+@media (max-width: 767.98px) {
+  .wd-e2-group[data-e2-version="v5"] .wd-e2-row {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .wd-e2-group[data-e2-version="v5"] .wd-e2-role {
+    display: none;
+  }
+}
+
+.wd-e2-group[data-e2-version="v5"] .wd-e2-thumb {
+  --e2-thumb-w: 240px;
+  --e2-thumb-h: 180px;
+
+  /* The rAF writes translate3d; no CSS transform transition may fight it. */
+  transition: none;
+}
+
+.wd-e2-group[data-e2-version="v5"] .wd-e2-thumb-in {
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity 150ms var(--ease-decelerate),
+    transform 200ms var(--ease-emphasized-decelerate);
+}
+
+.wd-e2-group[data-e2-version="v5"][data-e2-active] .wd-e2-thumb-in {
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 200ms var(--ease-emphasized-decelerate),
+    transform 200ms var(--ease-emphasized-decelerate);
 }
 
 /* ---------- Row entrance ---------- */
@@ -454,6 +506,12 @@
   }
 
   .wd-e2-thumb-layer {
+    transition: opacity 120ms ease-out;
+  }
+
+  .wd-e2-group[data-e2-version="v5"] .wd-e2-thumb-in,
+  .wd-e2-group[data-e2-version="v5"][data-e2-active] .wd-e2-thumb-in {
+    transform: none;
     transition: opacity 120ms ease-out;
   }
 }
