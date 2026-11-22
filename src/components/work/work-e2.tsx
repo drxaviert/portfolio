@@ -1,8 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import type { CSSProperties } from "react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Cover } from "@/components/work/cover";
 import type { WorkMeta } from "@/lib/work";
 import { BlurStack } from "./blur-stack";
@@ -10,23 +17,23 @@ import { INDEX_SCROLL_ID, INDEX_TITLE_ID } from "./work-index-ids";
 import "./work-e2.css";
 
 /**
- * E2 — the shipped list, with one shared thumbnail that hangs in the left
- * margin beside the hovered row.
+ * E2 — the shipped list with a permanent left rail and one shared thumbnail.
  *
- * The row keeps the shipped list's geometry and voice (year, a 20px/500 title
- * with a 14px summary, a right-aligned role, 18x16 padding, a 12px radius and
- * the surface-container hover fill). What is removed is only the right-hand
- * preview, its gutter, the heading and the grid/list switch: this variant is
- * the list.
+ * At 1200px and up the index is a centred group: a 240px rail, a 24px gap and
+ * an 880px list column. The rail is empty at rest. One 240x180 thumbnail lives
+ * in it, aligned to the hovered row and clamped below the nav and above the
+ * panel's bottom edge. Below 1200 the rail collapses and the thumbnail moves
+ * into the row's left padding (160x120 from 768, 120x90 below that), with the
+ * year hidden so the title starts beside it.
  *
- * One thumbnail element exists for the whole list. Hovering a row places it
- * beside that row; moving between rows glides it vertically and crossfades the
- * cover; leaving the list fades it out. It never sits in a row's layout, so the
- * text cannot move under it.
+ * The row keeps the shipped list's voice: an 80px year, a 20px/500 title with
+ * a 14px summary, a 160px right role, 18x16 padding, a 12px radius and the
+ * surface-container hover fill.
  *
- * Below 1200px, or whenever the left margin cannot hold 136px (120px + 16px
- * gap), the fallback reserves that width inside the row instead: the year is
- * hidden and the thumbnail sits in the row's left padding, clear of the title.
+ * Scrolling uses the pointer's last position: a rAF-throttled scroll handler
+ * finds the row under it with elementFromPoint and moves the same thumbnail,
+ * so a stationary pointer stays attached to the row travelling under it. Fast
+ * scrolling shortens the glide to 120ms; leaving the list hides it.
  */
 
 type E2Item = {
@@ -41,10 +48,11 @@ type E2Item = {
   gradient?: string;
 };
 
-const THUMB_W = 120;
-const THUMB_H = 90;
-/** The thumbnail plus the 16px air between it and the row. */
-const MARGIN_NEED = THUMB_W + 16;
+type FakeMode = 0 | 1 | 2;
+
+const THUMB_FALLBACK_H = 120;
+const ENTRANCE_MAX = 12;
+const FAST_SCROLL_PX_PER_MS = 1.5;
 
 const FAKE_WORKS: Omit<E2Item, "key">[] = [
   {
@@ -112,6 +120,30 @@ const FAKE_WORKS: Omit<E2Item, "key">[] = [
   },
 ];
 
+/**
+ * fake=2: thirty placeholders from the nine names, plus three one-off
+ * variations. Years cycle through 2014-2025.
+ */
+const LONG_FAKE_WORKS: E2Item[] = (() => {
+  const variations = FAKE_WORKS.flatMap((work) => [
+    work,
+    { ...work, title: `${work.title} II` },
+    { ...work, title: `${work.title} (study)` },
+  ]);
+  const extras: Omit<E2Item, "key">[] = [
+    { ...FAKE_WORKS[0], title: "Tidal III" },
+    { ...FAKE_WORKS[4], title: "Paper planes — notes" },
+    { ...FAKE_WORKS[8], title: "Static (alt)" },
+  ];
+
+  return [...variations, ...extras].map((work, index) => ({
+    ...work,
+    key: `fake2-${index}-${work.title}`,
+    year: String(2014 + (index % 12)),
+    summary: "A placeholder study for the long-list review.",
+  }));
+})();
+
 /** The list's own scroll memory, like the shipped index's module variable. */
 let e2Scroll = 0;
 
@@ -129,12 +161,29 @@ function canHover(): boolean {
   );
 }
 
-function fakeFlag(): boolean {
+function readFakeMode(): FakeMode {
   try {
-    return new URLSearchParams(window.location.search).get("fake") === "1";
+    const value = new URLSearchParams(window.location.search).get("fake");
+    if (value === "2") return 2;
+    if (value === "1") return 1;
+    return 0;
   } catch {
-    return false;
+    return 0;
   }
+}
+
+/**
+ * The top of the usable scroll area: below the fixed nav dock, with a small
+ * gap. The dock is measured rather than derived from `--wd-nav-height`, which
+ * is expressed in `rem` and would read as "4" to parseFloat.
+ */
+function visibleTop(scrollRect: DOMRect): number {
+  const dock = document.querySelector<HTMLElement>("[data-nav-dock]");
+  const navBottom = dock
+    ? dock.getBoundingClientRect().bottom
+    : scrollRect.top + 92;
+
+  return Math.max(scrollRect.top + 8, navBottom + 12);
 }
 
 function toE2Item(work: WorkMeta): E2Item {
@@ -169,14 +218,12 @@ function ThumbVisual({ item }: { item: E2Item }) {
   );
 }
 
-type Slots = {
-  front: 0 | 1;
-  items: [number | null, number | null];
-};
+type Slots = { front: 0 | 1; items: [number | null, number | null] };
 
 export function WorkIndexListE2({ works }: { works: WorkMeta[] }) {
-  const [fake] = useState(() => typeof window !== "undefined" && fakeFlag());
-  const [mode, setMode] = useState<"margin" | "inset">("margin");
+  const [fake] = useState<FakeMode>(() =>
+    typeof window !== "undefined" ? readFakeMode() : 0,
+  );
   const [hovered, setHovered] = useState<number | null>(null);
   const [slots, setSlots] = useState<Slots>({
     front: 1,
@@ -185,45 +232,55 @@ export function WorkIndexListE2({ works }: { works: WorkMeta[] }) {
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const listRef = useRef<HTMLDivElement | null>(null);
+  const groupRef = useRef<HTMLDivElement | null>(null);
+  const listColumnRef = useRef<HTMLDivElement | null>(null);
   const thumbRef = useRef<HTMLDivElement | null>(null);
   const rowRefs = useRef<(HTMLLIElement | null)[]>([]);
   const shownRef = useRef(false);
+  const hoveredRef = useRef<number | null>(null);
+  const pointerRef = useRef<{ x: number; y: number } | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const fastRef = useRef(false);
+  const fastTimerRef = useRef<number | null>(null);
+  const lastScrollRef = useRef({ top: 0, time: 0 });
+  const velocityRef = useRef(0);
 
   const items = useMemo(() => {
     const real = works.map(toE2Item);
 
-    if (!fake) return real;
+    if (fake === 1) {
+      return [
+        ...real,
+        ...FAKE_WORKS.map((item) => ({
+          ...item,
+          key: `fake-${item.title}`,
+        })),
+      ];
+    }
 
-    return [
-      ...real,
-      ...FAKE_WORKS.map((item) => ({
-        ...item,
-        key: `fake-${item.title}`,
-      })),
-    ];
+    if (fake === 2) return [...real, ...LONG_FAKE_WORKS];
+
+    return real;
   }, [works, fake]);
 
-  // A `?fake=1` link on the homepage loses its query on the Work nav. If the
-  // flag was present when E2 mounted (the client router can still carry the old
-  // search for that render), put it back on /work so the URL always says why the
-  // placeholders are there, and share the explicit variant with it.
+  // A `?fake=1` or `?fake=2` link on the homepage loses its query on the Work
+  // nav. If the flag was present when E2 mounted (the client router can still
+  // carry the old search for that render), put it back on /work so the URL
+  // always says why the placeholders are there.
   useEffect(() => {
     if (!fake) return;
 
     try {
       const url = new URL(window.location.href);
+      const same =
+        url.searchParams.get("wv") === "e2" &&
+        url.searchParams.get("fake") === String(fake);
 
-      if (
-        url.searchParams.get("fake") === "1" &&
-        url.searchParams.get("wv") === "e2"
-      ) {
-        return;
-      }
+      if (same) return;
 
       url.pathname = "/work";
       url.searchParams.set("wv", "e2");
-      url.searchParams.set("fake", "1");
+      url.searchParams.set("fake", String(fake));
       window.history.replaceState(window.history.state, "", url);
     } catch {
       // The rows are already gated on the flag; a blocked URL write is harmless.
@@ -246,74 +303,238 @@ export function WorkIndexListE2({ works }: { works: WorkMeta[] }) {
     return () => scroll.removeEventListener("scroll", record);
   }, []);
 
-  // Measure the real left margin, not the panel's opening scale: dividing by
-  // the panel's scale makes the result the same during the FLIP and at rest.
-  // The thumbnail needs 136px; below 1200 the design uses the in-row fallback
-  // by rule even if a wide window could fit it. This is a layout effect so a
-  // direct load never paints the margin layout for a frame before switching.
+  // The scrollbar gutter makes the scroll content narrower than the panel. Put
+  // that width on the column's left padding so the rail + gap + list stays on
+  // the panel's true centre instead of half a gutter to its left.
   useLayoutEffect(() => {
-    const measure = () => {
-      const list = listRef.current;
-      const row = rowRefs.current[0];
-      const panel = list?.closest<HTMLElement>(".wd-reader-panel");
+    const scroll = scrollRef.current;
+    const root = rootRef.current;
 
-      if (!list || !row || !panel) return;
+    if (!scroll || !root) return;
 
-      const panelRect = panel.getBoundingClientRect();
-      const scale = panel.offsetWidth ? panelRect.width / panel.offsetWidth : 1;
-      const space =
-        (row.getBoundingClientRect().left - panelRect.left) / (scale || 1);
-
-      const next =
-        window.innerWidth >= 1200 && space >= MARGIN_NEED ? "margin" : "inset";
-
-      setMode((previous) => (previous === next ? previous : next));
+    const update = () => {
+      const gutter = Math.max(0, scroll.offsetWidth - scroll.clientWidth);
+      root.style.setProperty("--e2-gutter", `${gutter}px`);
     };
 
-    measure();
-    window.addEventListener("resize", measure);
+    update();
+    window.addEventListener("resize", update);
 
-    const layer = listRef.current?.closest<HTMLElement>(".wd-expand-layer");
-    const observer = new MutationObserver(measure);
-    if (layer) {
-      observer.observe(layer, {
-        attributes: true,
-        attributeFilter: ["data-phase"],
-      });
-    }
+    const observer = new ResizeObserver(update);
+    observer.observe(scroll);
 
     return () => {
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", update);
       observer.disconnect();
     };
-  }, [items.length]);
+  }, []);
 
-  // Place the one thumbnail beside the hovered row. The first appearance snaps
-  // vertically (only the 8px enter and fade play); later rows glide.
-  useLayoutEffect(() => {
-    if (hovered === null) return;
+  // The nav clearance is measured from the dock in `visibleTop`, so the value
+  // follows the drawer's actual nav row on resize and at both breakpoints.
 
+  /**
+   * Put the one thumbnail beside a row and clamp its viewport box between the
+   * nav's bottom edge and the panel's bottom edge. The y is written in the
+   * group's coordinates, so it survives the scroll and is recomputed each
+   * scroll frame.
+   */
+  const placeThumb = useCallback((index: number, snap = false) => {
     const thumb = thumbRef.current;
-    const row = rowRefs.current[hovered];
+    const group = groupRef.current;
+    const list = listColumnRef.current;
+    const scroll = scrollRef.current;
+    const row = rowRefs.current[index];
 
-    if (!thumb || !row) return;
+    if (!thumb || !group || !list || !scroll || !row) return;
 
-    const y = row.offsetTop + row.offsetHeight / 2 - THUMB_H / 2;
+    const rowRect = row.getBoundingClientRect();
+    const scrollRect = scroll.getBoundingClientRect();
+    const height = thumb.offsetHeight || THUMB_FALLBACK_H;
+    const minTop = visibleTop(scrollRect);
+    const maxTop = scrollRect.bottom - height - 12;
+    const desired = rowRect.top + rowRect.height / 2 - height / 2;
+    const clamped = Math.min(
+      Math.max(desired, minTop),
+      Math.max(minTop, maxTop),
+    );
+    const railMode =
+      window.matchMedia("(min-width: 1200px)").matches && canHover();
+    const left = `${railMode ? group.getBoundingClientRect().left : list.getBoundingClientRect().left + 16}px`;
 
-    thumb.style.setProperty("--e2-y", `${y}px`);
+    if (thumb.style.left !== left) thumb.style.left = left;
+    thumb.style.setProperty("--e2-y", `${clamped}px`);
 
-    if (!shownRef.current) {
-      shownRef.current = true;
+    if (snap) {
       thumb.dataset.e2Snap = "";
       void thumb.offsetHeight;
       requestAnimationFrame(() => {
         delete thumb.dataset.e2Snap;
       });
     }
-  }, [hovered]);
+  }, []);
 
-  // The row entrance joins the drawer's open, exactly as the A bands do. A
-  // mount at rest (direct load or a step back) stays still.
+  const show = useCallback((index: number) => {
+    if (!canHover()) return;
+    if (hoveredRef.current === index) return;
+
+    hoveredRef.current = index;
+    setHovered(index);
+    setSlots((previous) => {
+      if (previous.items[previous.front] === index) return previous;
+
+      const front: 0 | 1 = previous.front === 0 ? 1 : 0;
+      const next: [number | null, number | null] = [
+        previous.items[0],
+        previous.items[1],
+      ];
+      next[front] = index;
+
+      return { front, items: next };
+    });
+  }, []);
+
+  const hide = useCallback(() => {
+    if (hoveredRef.current === null) return;
+
+    hoveredRef.current = null;
+    setHovered(null);
+  }, []);
+
+  const clearEntrance = useCallback(() => {
+    for (const row of rowRefs.current) {
+      if (!row) continue;
+      row.removeAttribute("data-e2-enter");
+      row.style.removeProperty("--e2-enter-i");
+    }
+  }, []);
+
+  // Place the thumbnail after a hover (mouse or scroll). The first appearance
+  // snaps vertically; the 8px enter and fade still play from the CSS.
+  useLayoutEffect(() => {
+    if (hovered === null) return;
+
+    placeThumb(hovered, !shownRef.current);
+    shownRef.current = true;
+  }, [hovered, placeThumb]);
+
+  // A resize moves the clamp edges under the same row.
+  useEffect(() => {
+    const onResize = () => {
+      if (hoveredRef.current !== null) placeThumb(hoveredRef.current);
+    };
+
+    window.addEventListener("resize", onResize);
+
+    return () => window.removeEventListener("resize", onResize);
+  }, [placeThumb]);
+
+  // Scroll with a stationary pointer: find the row now under the last pointer
+  // position and move the same thumbnail onto it. The scroll velocity switches
+  // the glide and crossfade to 120ms so the thumbnail stays with the rows.
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    const list = listColumnRef.current;
+    const thumb = thumbRef.current;
+
+    if (!scroll || !list) return;
+
+    lastScrollRef.current = {
+      top: scroll.scrollTop,
+      time: performance.now(),
+    };
+
+    const updateFromPoint = () => {
+      const point = pointerRef.current;
+
+      if (!point) {
+        hide();
+        return;
+      }
+
+      const listRect = list.getBoundingClientRect();
+
+      if (
+        point.x < listRect.left ||
+        point.x > listRect.right ||
+        point.y < listRect.top ||
+        point.y > listRect.bottom
+      ) {
+        pointerRef.current = null;
+        hide();
+        return;
+      }
+
+      const element = document.elementFromPoint(point.x, point.y);
+      const row =
+        element instanceof Element
+          ? element.closest<HTMLElement>("[data-e2-index]")
+          : null;
+
+      if (!row || !list.contains(row)) {
+        if (!(element instanceof Element) || !list.contains(element)) {
+          pointerRef.current = null;
+        }
+        hide();
+        return;
+      }
+
+      const index = Number(row.dataset.e2Index);
+
+      if (!Number.isInteger(index)) return;
+
+      // During a fast fling the position still follows the row, but the cover
+      // stays put until the scroll settles: crossfading thirty covers while the
+      // list flies is the jitter, not the 120ms glide.
+      if (!fastRef.current) show(index);
+      placeThumb(index);
+    };
+
+    const onScroll = () => {
+      const now = performance.now();
+      const top = scroll.scrollTop;
+      const last = lastScrollRef.current;
+      const dt = Math.max(1, now - last.time);
+      const velocity = Math.abs(top - last.top) / dt;
+
+      lastScrollRef.current = { top, time: now };
+      velocityRef.current = Math.max(velocity, velocityRef.current * 0.8);
+
+      if (velocityRef.current > FAST_SCROLL_PX_PER_MS) {
+        fastRef.current = true;
+        thumb?.setAttribute("data-e2-fast", "");
+      }
+
+      if (fastRef.current) {
+        if (fastTimerRef.current) window.clearTimeout(fastTimerRef.current);
+        fastTimerRef.current = window.setTimeout(() => {
+          fastRef.current = false;
+          velocityRef.current = 0;
+          thumb?.removeAttribute("data-e2-fast");
+          updateFromPoint();
+        }, 140);
+      }
+
+      if (!rafRef.current) {
+        rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = null;
+          updateFromPoint();
+        });
+      }
+    };
+
+    scroll.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      scroll.removeEventListener("scroll", onScroll);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (fastTimerRef.current) window.clearTimeout(fastTimerRef.current);
+      thumb?.removeAttribute("data-e2-fast");
+    };
+  }, [hide, placeThumb, show]);
+
+  // The row entrance joins the drawer's open beat. Only the rows visible at
+  // that moment stagger (capped at twelve); everything below the fold is
+  // already visible and never animates on scroll.
   useEffect(() => {
     const root = rootRef.current;
     const layer = root?.closest<HTMLElement>(".wd-expand-layer");
@@ -329,15 +550,41 @@ export function WorkIndexListE2({ works }: { works: WorkMeta[] }) {
       if (phase === "open") {
         if (entered) return;
         entered = true;
-        if (!reduce) root.dataset.e2Anim = "on";
+
+        clearEntrance();
+
+        if (!reduce) {
+          const scroll = scrollRef.current;
+          const scrollRect = scroll?.getBoundingClientRect();
+
+          if (scroll && scrollRect) {
+            const top = visibleTop(scrollRect);
+            let stagger = 0;
+
+            for (const row of rowRefs.current) {
+              if (!row || stagger >= ENTRANCE_MAX) break;
+
+              const rect = row.getBoundingClientRect();
+
+              if (rect.bottom > top && rect.top < scrollRect.bottom) {
+                row.dataset.e2Enter = "";
+                row.style.setProperty("--e2-enter-i", String(stagger));
+                stagger += 1;
+              }
+            }
+
+            if (stagger > 0) root.dataset.e2Anim = "on";
+          }
+        }
+
         return;
       }
 
       if (phase === "closing" || phase === "closed") {
         entered = false;
         delete root.dataset.e2Anim;
-        // The pointer is still over a row while the panel leaves; a reopen must
-        // not show the last hover's thumbnail before the next hover.
+        clearEntrance();
+        hoveredRef.current = null;
         setHovered(null);
       }
     };
@@ -353,27 +600,32 @@ export function WorkIndexListE2({ works }: { works: WorkMeta[] }) {
     return () => {
       observer.disconnect();
       delete root.dataset.e2Anim;
+      clearEntrance();
     };
-  }, []);
+  }, [clearEntrance]);
 
-  const show = (index: number) => {
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!canHover()) return;
-    if (hovered === index) return;
 
-    setHovered(index);
-    setSlots((previous) => {
-      if (previous.items[previous.front] === index) return previous;
+    pointerRef.current = { x: event.clientX, y: event.clientY };
 
-      const front: 0 | 1 = previous.front === 0 ? 1 : 0;
-      const next: [number | null, number | null] = [...previous.items];
-      next[front] = index;
+    const row = (event.target as Element).closest<HTMLElement>(
+      "[data-e2-index]",
+    );
 
-      return { front, items: next };
-    });
+    if (!row) {
+      hide();
+      return;
+    }
+
+    const index = Number(row.dataset.e2Index);
+
+    if (Number.isInteger(index)) show(index);
   };
 
-  const hide = () => {
-    setHovered(null);
+  const onPointerLeave = () => {
+    pointerRef.current = null;
+    hide();
   };
 
   return (
@@ -391,52 +643,55 @@ export function WorkIndexListE2({ works }: { works: WorkMeta[] }) {
           </h1>
 
           <div
-            className="wd-e2-list-wrap"
-            ref={listRef}
-            data-e2-mode={mode}
+            className="wd-e2-group"
+            ref={groupRef}
             data-e2-active={hovered !== null ? "" : undefined}
-            onPointerLeave={hide}
           >
-            <ul className="wd-e2-list" aria-label="Case studies">
-              {items.map((item, index) => (
-                <li
-                  key={item.key}
-                  ref={(element) => {
-                    rowRefs.current[index] = element;
-                  }}
-                  className="wd-e2-row-item"
-                  style={{ "--e2-i": index } as CSSProperties}
-                >
-                  {item.slug ? (
-                    <Link
-                      href={`/work/${item.slug}`}
-                      className="wd-e2-row"
-                      aria-label={`${item.title}, ${item.year}, ${item.role}`}
-                      onPointerEnter={() => show(index)}
-                    >
-                      <span className="wd-e2-year">{item.year}</span>
-                      <span className="wd-e2-main">
-                        <span className="wd-e2-title">{item.title}</span>
-                        <span className="wd-e2-summary">{item.summary}</span>
-                      </span>
-                      <span className="wd-e2-role">{item.role}</span>
-                    </Link>
-                  ) : (
-                    <div
-                      className="wd-e2-row wd-e2-row--fake"
-                      onPointerEnter={() => show(index)}
-                    >
-                      <span className="wd-e2-year">{item.year}</span>
-                      <span className="wd-e2-main">
-                        <span className="wd-e2-title">{item.title}</span>
-                        <span className="wd-e2-summary">{item.summary}</span>
-                      </span>
-                      <span className="wd-e2-role">{item.role}</span>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <div className="wd-e2-rail" aria-hidden="true" />
+
+            <div
+              className="wd-e2-list-column"
+              ref={listColumnRef}
+              onPointerMove={onPointerMove}
+              onPointerLeave={onPointerLeave}
+            >
+              <ul className="wd-e2-list" aria-label="Case studies">
+                {items.map((item, index) => (
+                  <li
+                    key={item.key}
+                    ref={(element) => {
+                      rowRefs.current[index] = element;
+                    }}
+                    className="wd-e2-row-item"
+                    data-e2-index={index}
+                  >
+                    {item.slug ? (
+                      <Link
+                        href={`/work/${item.slug}`}
+                        className="wd-e2-row"
+                        aria-label={`${item.title}, ${item.year}, ${item.role}`}
+                      >
+                        <span className="wd-e2-year">{item.year}</span>
+                        <span className="wd-e2-main">
+                          <span className="wd-e2-title">{item.title}</span>
+                          <span className="wd-e2-summary">{item.summary}</span>
+                        </span>
+                        <span className="wd-e2-role">{item.role}</span>
+                      </Link>
+                    ) : (
+                      <div className="wd-e2-row wd-e2-row--fake">
+                        <span className="wd-e2-year">{item.year}</span>
+                        <span className="wd-e2-main">
+                          <span className="wd-e2-title">{item.title}</span>
+                          <span className="wd-e2-summary">{item.summary}</span>
+                        </span>
+                        <span className="wd-e2-role">{item.role}</span>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
 
             <div className="wd-e2-thumb" ref={thumbRef} aria-hidden="true">
               <div className="wd-e2-thumb-in">

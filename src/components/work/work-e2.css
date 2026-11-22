@@ -1,17 +1,19 @@
 /*
- * E2 — the shipped list alone, with one shared thumbnail in the left margin.
+ * E2 — the shipped list alone, with one shared thumbnail.
  *
- * The row keeps the list's voice and geometry: an 80px year column, a flexible
- * title (20px/500) + summary (14px) column, a 160px right-aligned role, a 16px
- * gap, 18x16 padding, a 12px radius and the surface-container hover fill.
+ * At 1200px and up the index is a centred group: [240px rail][24px gap]
+ * [880px list]. The rail is empty at rest; the one thumbnail lives in it and
+ * is clamped below the nav and above the panel's bottom edge.
  *
- * The thumbnail is one absolutely positioned element, never a row child. In
- * the wide case it hangs in the left margin (120x90, its right edge 16px from
- * the row); its outer layer glides vertically while its inner layer plays the
- * 8px enter and fade. The two image layers crossfade inside it.
+ * Below 1200 the rail collapses and the thumbnail lives inside the row's left
+ * padding: 160x120 from 768 to 1199 (the main column still has room), and
+ * 120x90 below 768. The year hides in both fallbacks so the title starts
+ * beside the thumbnail. Touch collapses the rail entirely and shows the
+ * shipped list without a thumbnail.
  *
- * The narrow fallback reserves the thumbnail's 136px inside the row and hides
- * the year, so the title starts beside the thumbnail rather than under it.
+ * The row keeps the list's geometry: an 80px year, a 20px/500 title, a 14px
+ * summary, a 160px right-aligned role, a 16px gap, 18x16 padding, a 12px
+ * radius and the surface-container hover fill.
  */
 
 .wd-e2-sr-only {
@@ -28,15 +30,39 @@
 }
 
 .wd-index-column.wd-e2-column {
-  /* The list is the page: no header, no count, no grid/list switch. The column
-     is 64px narrower than the shipped list so the 120px thumbnail has a real
-     left margin at 1440 instead of sitting flush against the panel edge. */
-  max-width: 1120px;
+  /* 240 rail + 24 gap + 880 list, plus the column's 2 x 32 padding. */
+  --e2-pad: 16px;
+
+  max-width: 1208px;
+  min-width: 0;
+  /* The scrollbar gutter is on the right; giving its width back on the left
+     centres the rail + list on the panel, not on the narrower scroll content. */
+  padding-left: calc(var(--e2-pad) + var(--e2-gutter, 0px));
+  /* Room for the last row to clear the panel's bottom edge and the clamp. */
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  .wd-index-column.wd-e2-column {
+    --e2-pad: 32px;
+  }
+}
+
+.wd-e2-group {
+  position: relative;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 880px);
+  column-gap: 24px;
+  justify-content: center;
+}
+
+.wd-e2-rail {
   min-width: 0;
 }
 
-.wd-e2-list-wrap {
-  position: relative;
+.wd-e2-list-column {
+  min-width: 0;
+  max-width: 880px;
 }
 
 .wd-e2-list {
@@ -59,22 +85,6 @@
 
 .wd-e2-row--fake {
   cursor: default;
-}
-
-/* Fallback: the thumbnail's width lives in the row's left padding, and the
-   year column goes away so the title starts beside it. The text never sits
-   under the thumbnail. */
-.wd-e2-list-wrap[data-e2-mode="inset"] .wd-e2-row {
-  grid-template-columns: minmax(0, 1fr) 160px;
-  padding-left: 152px;
-}
-
-.wd-e2-list-wrap[data-e2-mode="inset"] .wd-e2-year {
-  display: none;
-}
-
-.wd-e2-list-wrap[data-e2-mode="inset"] .wd-e2-thumb {
-  left: 16px;
 }
 
 .wd-e2-year {
@@ -113,17 +123,6 @@
   white-space: nowrap;
 }
 
-@media (max-width: 767.98px) {
-  .wd-e2-row,
-  .wd-e2-list-wrap[data-e2-mode="inset"] .wd-e2-row {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .wd-e2-role {
-    display: none;
-  }
-}
-
 @media (hover: hover) and (pointer: fine) {
   .wd-e2-row {
     /* The task's 200ms feedback beat; no scale step owns it. */
@@ -141,23 +140,124 @@
   background: var(--surface-container);
 }
 
+/* ---------- Narrow fallback: the thumbnail moves into the row ---------- */
+
+@media (max-width: 1199.98px) {
+  .wd-e2-group {
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 0;
+  }
+
+  .wd-e2-rail {
+    display: none;
+  }
+
+  .wd-e2-list-column {
+    max-width: none;
+  }
+
+  .wd-e2-row {
+    grid-template-columns: minmax(0, 1fr) 160px;
+    padding-left: 192px;
+  }
+
+  .wd-e2-year {
+    display: none;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .wd-e2-row {
+    grid-template-columns: minmax(0, 1fr);
+    padding-left: 152px;
+  }
+
+  .wd-e2-role {
+    display: none;
+  }
+}
+
+/* Touch keeps the shipped list, with no rail and no thumbnail. */
+@media (hover: none) {
+  .wd-e2-thumb {
+    display: none;
+  }
+
+  .wd-e2-group {
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 0;
+  }
+
+  .wd-e2-rail {
+    display: none;
+  }
+
+  .wd-e2-list-column {
+    max-width: none;
+  }
+
+  .wd-e2-row {
+    grid-template-columns: 80px minmax(0, 1fr) 160px;
+    padding-left: 16px;
+  }
+
+  .wd-e2-year {
+    display: block;
+  }
+}
+
+@media (hover: none) and (max-width: 767.98px) {
+  .wd-e2-row {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .wd-e2-role {
+    display: none;
+  }
+}
+
 /* ---------- The shared thumbnail ---------- */
 
 .wd-e2-thumb {
-  position: absolute;
+  --e2-thumb-w: 240px;
+  --e2-thumb-h: 180px;
+
+  /* Fixed to the panel viewport, not the scroll content: a scroll jump must not
+     throw the thumbnail offscreen before its transform catches up. */
+  position: fixed;
   top: 0;
-  left: -136px;
+  left: 0;
   z-index: 3;
-  width: 120px;
-  height: 90px;
+  width: var(--e2-thumb-w);
+  height: var(--e2-thumb-h);
   pointer-events: none;
-  transform: translateY(var(--e2-y, 0px));
+  transform: translate3d(0, var(--e2-y, 0px), 0);
   transition: transform 240ms var(--ease-emphasized-decelerate);
 }
 
 /* First appearance: place it beside the row without a vertical glide. */
 .wd-e2-thumb[data-e2-snap] {
   transition: none;
+}
+
+/* A fast scroll shortens the glide so the thumbnail stays with the rows. */
+.wd-e2-thumb[data-e2-fast] {
+  transition-duration: 120ms;
+}
+
+/* The in-row fallback sizes. These come after the base so they can win. */
+@media (max-width: 1199.98px) {
+  .wd-e2-thumb {
+    --e2-thumb-w: 160px;
+    --e2-thumb-h: 120px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .wd-e2-thumb {
+    --e2-thumb-w: 120px;
+    --e2-thumb-h: 90px;
+  }
 }
 
 .wd-e2-thumb-in {
@@ -174,7 +274,7 @@
     transform 200ms var(--ease-emphasized-decelerate);
 }
 
-.wd-e2-list-wrap[data-e2-active] .wd-e2-thumb-in {
+.wd-e2-group[data-e2-active] .wd-e2-thumb-in {
   opacity: 1;
   transform: translateX(0);
   transition:
@@ -193,6 +293,11 @@
   opacity: 1;
 }
 
+.wd-e2-thumb[data-e2-fast] .wd-e2-thumb-in,
+.wd-e2-thumb[data-e2-fast] .wd-e2-thumb-layer {
+  transition-duration: 120ms;
+}
+
 .wd-e2-thumb-layer > * {
   height: 100%;
 }
@@ -205,27 +310,21 @@
   background-size: cover;
 }
 
-/* Touch has no hover to drive it: the list stays exactly as it is today. */
-@media (hover: none) {
-  .wd-e2-thumb {
-    display: none;
-  }
-}
-
 /* ---------- Row entrance ---------- */
 
 /*
- * The A bands' Soft focus, applied to the list: 7px rise, 8px defocus, 40ms
- * top-down. It starts on the drawer's open beat and never on a mount at rest.
+ * The A bands' Soft focus, on the rows that are visible when the drawer opens.
+ * The stagger is assigned by the phase observer and capped at twelve; rows
+ * below the fold have no data-e2-enter and are simply visible.
  */
 @media (prefers-reduced-motion: no-preference) {
   .wd-expand-layer[data-phase="opening"] .wd-e2-row-item {
     opacity: 0;
   }
 
-  .wd-e2-column[data-e2-anim="on"] .wd-e2-row-item {
+  .wd-e2-column[data-e2-anim="on"] .wd-e2-row-item[data-e2-enter] {
     animation: wd-e2-soft 700ms var(--ease-calm) both;
-    animation-delay: calc(var(--e2-i, 0) * 40ms);
+    animation-delay: calc(var(--e2-enter-i, 0) * 40ms);
   }
 }
 
@@ -250,7 +349,7 @@
   }
 
   .wd-e2-thumb-in,
-  .wd-e2-list-wrap[data-e2-active] .wd-e2-thumb-in {
+  .wd-e2-group[data-e2-active] .wd-e2-thumb-in {
     transform: none;
     transition: opacity 120ms ease-out;
   }
