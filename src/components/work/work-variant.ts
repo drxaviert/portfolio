@@ -11,7 +11,14 @@ import { useSyncExternalStore } from "react";
  * the remembered value a beat later — the pill and the index swap together.
  */
 export type WorkVariant =
-  "current" | "a-full" | "a-grow" | "a-plain" | "e2-v1" | "e2" | "e2-v3";
+  | "current"
+  | "a-full"
+  | "a-grow"
+  | "a-plain"
+  | "e2-v1"
+  | "e2"
+  | "e2-v3"
+  | "e2-v4";
 
 export const WORK_VARIANTS: readonly WorkVariant[] = [
   "current",
@@ -21,6 +28,7 @@ export const WORK_VARIANTS: readonly WorkVariant[] = [
   "e2-v1",
   "e2",
   "e2-v3",
+  "e2-v4",
 ];
 
 export const WORK_VARIANT_LABELS: Record<WorkVariant, string> = {
@@ -31,6 +39,7 @@ export const WORK_VARIANT_LABELS: Record<WorkVariant, string> = {
   "e2-v1": "E2 v1 (120, margin)",
   e2: "E2 v2 (240, rail)",
   "e2-v3": "E2 v3 (240, margin, top)",
+  "e2-v4": "E2 v4 (fluid, dim)",
 };
 
 export const WORK_VARIANT_NOTES: Record<WorkVariant, string> = {
@@ -41,6 +50,7 @@ export const WORK_VARIANT_NOTES: Record<WorkVariant, string> = {
   "e2-v1": "List with a 120px margin thumbnail and the new scroll tracking",
   e2: "List with a 240px rail thumbnail and the new scroll tracking",
   "e2-v3": "v1 layout with a 240px top-aligned margin thumbnail",
+  "e2-v4": "v1 layout with a fluid margin thumbnail and row dimming",
 };
 
 const STORAGE_KEY = "wd-work-variant";

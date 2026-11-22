@@ -1,7 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type {
+  CSSProperties,
+  FocusEvent as ReactFocusEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   useCallback,
   useEffect,
@@ -225,14 +229,17 @@ export function WorkIndexListE2({
   version,
 }: {
   works: WorkMeta[];
-  version: "v1" | "v2" | "v3";
+  version: "v1" | "v2" | "v3" | "v4";
 }) {
   const [fake] = useState<FakeMode>(() =>
     typeof window !== "undefined" ? readFakeMode() : 0,
   );
   const [mode, setMode] = useState<"margin" | "inset">("margin");
   const [wide, setWide] = useState(false);
+  const [v4Width, setV4Width] = useState(240);
   const [hovered, setHovered] = useState<number | null>(null);
+  const [focused, setFocused] = useState<number | null>(null);
+  const [dimActive, setDimActive] = useState(false);
   const [slots, setSlots] = useState<Slots>({
     front: 1,
     items: [null, null],
@@ -246,6 +253,8 @@ export function WorkIndexListE2({
   const rowRefs = useRef<(HTMLLIElement | null)[]>([]);
   const shownRef = useRef(false);
   const hoveredRef = useRef<number | null>(null);
+  const focusedRef = useRef<number | null>(null);
+  const dimTimerRef = useRef<number | null>(null);
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
   const rafRef = useRef<number | null>(null);
   const fastRef = useRef(false);
@@ -279,7 +288,13 @@ export function WorkIndexListE2({
     if (!fake) return;
 
     const variantParam =
-      version === "v1" ? "e2-v1" : version === "v3" ? "e2-v3" : "e2";
+      version === "v1"
+        ? "e2-v1"
+        : version === "v3"
+          ? "e2-v3"
+          : version === "v4"
+            ? "e2-v4"
+            : "e2";
 
     try {
       const url = new URL(window.location.href);
@@ -340,11 +355,11 @@ export function WorkIndexListE2({
     };
   }, []);
 
-  // e2-v1 and e2-v3 keep the 2fb7c3f margin rule: below 1200, or with less
-  // than 136px to the row's left, the 120px thumbnail moves into the row's
-  // 152px left padding. e2-v3 additionally uses the 240px top-aligned form
-  // only when the margin can hold 256px (240 + 16). The panel's opening scale
-  // is divided out so the chosen mode is right on the first frame.
+  // e2-v1, v3 and v4 keep the 2fb7c3f margin rule. v1/v3 need 136px for their
+  // 120px thumbnail; v3's 240px form needs 256px. v4's thumbnail is fluid:
+  // width = min(240, space - 16 gap - 8 breathing), 4:3, with 120 as its
+  // minimum; under 120 it uses v1's 152px in-row fallback. The panel's opening
+  // scale is divided out so the chosen mode is right on the first frame.
   useLayoutEffect(() => {
     if (version === "v2") return;
 
@@ -359,13 +374,24 @@ export function WorkIndexListE2({
       const scale = panel.offsetWidth ? panelRect.width / panel.offsetWidth : 1;
       const space =
         (row.getBoundingClientRect().left - panelRect.left) / (scale || 1);
+      const fluid = Math.min(240, Math.max(0, space - 24));
       const next =
-        window.innerWidth >= 1200 && space >= 136 ? "margin" : "inset";
+        window.innerWidth >= 1200 &&
+        (version === "v4" ? fluid >= 120 : space >= 136)
+          ? "margin"
+          : "inset";
       const nextWide =
         version === "v3" && window.innerWidth >= 1200 && space >= 256;
 
       setMode((previous) => (previous === next ? previous : next));
       setWide((previous) => (previous === nextWide ? previous : nextWide));
+
+      if (version === "v4") {
+        const nextWidth = fluid >= 120 ? fluid : 120;
+        setV4Width((previous) =>
+          Math.abs(previous - nextWidth) < 0.25 ? previous : nextWidth,
+        );
+      }
     };
 
     measure();
@@ -374,6 +400,12 @@ export function WorkIndexListE2({
     const layer =
       listColumnRef.current?.closest<HTMLElement>(".wd-expand-layer");
     const observer = new MutationObserver(measure);
+    const panel =
+      listColumnRef.current?.closest<HTMLElement>(".wd-reader-panel");
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : null;
 
     if (layer) {
       observer.observe(layer, {
@@ -382,9 +414,16 @@ export function WorkIndexListE2({
       });
     }
 
+    if (listColumnRef.current) {
+      resizeObserver?.observe(listColumnRef.current);
+    }
+
+    if (panel) resizeObserver?.observe(panel);
+
     return () => {
       window.removeEventListener("resize", measure);
       observer.disconnect();
+      resizeObserver?.disconnect();
     };
   }, [version, items.length]);
 
@@ -413,7 +452,9 @@ export function WorkIndexListE2({
       const minTop = visibleTop(scrollRect);
       const maxTop = scrollRect.bottom - height - 12;
       const v3Wide = version === "v3" && wide;
-      const desired = v3Wide
+      const v4Fluid = version === "v4" && mode === "margin";
+      const topAligned = v3Wide || v4Fluid;
+      const desired = topAligned
         ? rowRect.top
         : rowRect.top + rowRect.height / 2 - height / 2;
       const clamped = Math.min(
@@ -423,11 +464,16 @@ export function WorkIndexListE2({
       const listRect = list.getBoundingClientRect();
       let left: string;
 
-      if (v3Wide) {
+      if (v4Fluid) {
+        // v4: fluid width = min(240, space - 24), right edge 16px left of the
+        // row, top aligned. The left keeps the 8px breathing room for the
+        // shadow until the width caps at 240.
+        left = `${rowRect.left - (v4Width + 16)}px`;
+      } else if (v3Wide) {
         // v3: the 240px thumbnail's top sits on the row's top and its right edge
         // stays 16px left of the row; the margin has 256px to give it.
         left = `${rowRect.left - 256}px`;
-      } else if (version === "v1" || version === "v3") {
+      } else if (version === "v1" || version === "v3" || version === "v4") {
         // 2fb7c3f: the 120px thumbnail hangs 16px left of the row in the margin;
         // the fallback reserves 152px inside the row and puts it 16px in.
         left =
@@ -453,34 +499,105 @@ export function WorkIndexListE2({
         });
       }
     },
-    [version, mode, wide],
+    [version, mode, wide, v4Width],
   );
 
-  const show = useCallback((index: number) => {
-    if (!canHover()) return;
-    if (hoveredRef.current === index) return;
-
-    hoveredRef.current = index;
-    setHovered(index);
-    setSlots((previous) => {
-      if (previous.items[previous.front] === index) return previous;
-
-      const front: 0 | 1 = previous.front === 0 ? 1 : 0;
-      const next: [number | null, number | null] = [
-        previous.items[0],
-        previous.items[1],
-      ];
-      next[front] = index;
-
-      return { front, items: next };
-    });
+  const clearDimTimer = useCallback(() => {
+    if (dimTimerRef.current) {
+      window.clearTimeout(dimTimerRef.current);
+      dimTimerRef.current = null;
+    }
   }, []);
+
+  const scheduleDimClear = useCallback(() => {
+    clearDimTimer();
+    dimTimerRef.current = window.setTimeout(() => {
+      dimTimerRef.current = null;
+      if (hoveredRef.current === null && focusedRef.current === null) {
+        setDimActive(false);
+      }
+    }, 80);
+  }, [clearDimTimer]);
+
+  const show = useCallback(
+    (index: number) => {
+      if (!canHover()) return;
+
+      clearDimTimer();
+      setDimActive(true);
+
+      if (hoveredRef.current === index) return;
+
+      hoveredRef.current = index;
+      setHovered(index);
+      setSlots((previous) => {
+        if (previous.items[previous.front] === index) return previous;
+
+        const front: 0 | 1 = previous.front === 0 ? 1 : 0;
+        const next: [number | null, number | null] = [
+          previous.items[0],
+          previous.items[1],
+        ];
+        next[front] = index;
+
+        return { front, items: next };
+      });
+    },
+    [clearDimTimer],
+  );
 
   const hide = useCallback(() => {
     if (hoveredRef.current === null) return;
 
     hoveredRef.current = null;
     setHovered(null);
+
+    if (focusedRef.current === null) scheduleDimClear();
+  }, [scheduleDimClear]);
+
+  const leaveList = useCallback(() => {
+    pointerRef.current = null;
+    hoveredRef.current = null;
+    setHovered(null);
+    clearDimTimer();
+
+    if (focusedRef.current === null) setDimActive(false);
+  }, [clearDimTimer]);
+
+  const onFocus = (event: ReactFocusEvent<HTMLDivElement>) => {
+    const target = event.target;
+
+    if (!(target instanceof HTMLElement) || !target.matches(":focus-visible")) {
+      return;
+    }
+
+    const row = target.closest<HTMLElement>("[data-e2-index]");
+    if (!row) return;
+
+    const index = Number(row.dataset.e2Index);
+    if (!Number.isInteger(index)) return;
+
+    focusedRef.current = index;
+    setFocused(index);
+    clearDimTimer();
+    setDimActive(true);
+  };
+
+  const onBlur = (event: ReactFocusEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget;
+
+    if (next instanceof Node && event.currentTarget.contains(next)) return;
+
+    focusedRef.current = null;
+    setFocused(null);
+
+    if (hoveredRef.current === null) scheduleDimClear();
+  };
+
+  useEffect(() => {
+    return () => {
+      if (dimTimerRef.current) window.clearTimeout(dimTimerRef.current);
+    };
   }, []);
 
   const clearEntrance = useCallback(() => {
@@ -500,12 +617,12 @@ export function WorkIndexListE2({
     shownRef.current = true;
   }, [hovered, placeThumb]);
 
-  // Switching E2 versions (or crossing a v1/v3 margin threshold) keeps the same
-  // hovered row but changes the rail, size, x and vertical alignment; re-place
-  // it in the new layout.
+  // Switching E2 versions (or crossing a v1/v3/v4 margin threshold or a v4
+  // width step) keeps the same hovered row but changes the rail, size, x and
+  // vertical alignment; re-place it in the new layout.
   useLayoutEffect(() => {
     if (hoveredRef.current !== null) placeThumb(hoveredRef.current);
-  }, [version, mode, wide, placeThumb]);
+  }, [version, mode, wide, v4Width, placeThumb]);
 
   // A resize moves the clamp edges under the same row.
   useEffect(() => {
@@ -549,8 +666,7 @@ export function WorkIndexListE2({
         point.y < listRect.top ||
         point.y > listRect.bottom
       ) {
-        pointerRef.current = null;
-        hide();
+        leaveList();
         return;
       }
 
@@ -562,7 +678,8 @@ export function WorkIndexListE2({
 
       if (!row || !list.contains(row)) {
         if (!(element instanceof Element) || !list.contains(element)) {
-          pointerRef.current = null;
+          leaveList();
+          return;
         }
         hide();
         return;
@@ -620,7 +737,7 @@ export function WorkIndexListE2({
       if (fastTimerRef.current) window.clearTimeout(fastTimerRef.current);
       thumb?.removeAttribute("data-e2-fast");
     };
-  }, [hide, placeThumb, show]);
+  }, [hide, leaveList, placeThumb, show]);
 
   // The row entrance joins the drawer's open beat. Only the rows visible at
   // that moment stagger (capped at twelve); everything below the fold is
@@ -714,8 +831,7 @@ export function WorkIndexListE2({
   };
 
   const onPointerLeave = () => {
-    pointerRef.current = null;
-    hide();
+    leaveList();
   };
 
   return (
@@ -742,9 +858,12 @@ export function WorkIndexListE2({
             data-e2-layout={version === "v2" ? "rail" : "margin"}
             data-e2-version={version}
             data-e2-mode={
-              version === "v1" || version === "v3" ? mode : undefined
+              version === "v1" || version === "v3" || version === "v4"
+                ? mode
+                : undefined
             }
             data-e2-wide={version === "v3" && wide ? "" : undefined}
+            data-e2-dim={version === "v4" && dimActive ? "" : undefined}
             ref={groupRef}
             data-e2-active={hovered !== null ? "" : undefined}
           >
@@ -757,6 +876,8 @@ export function WorkIndexListE2({
               ref={listColumnRef}
               onPointerMove={onPointerMove}
               onPointerLeave={onPointerLeave}
+              onFocus={onFocus}
+              onBlur={onBlur}
             >
               <ul className="wd-e2-list" aria-label="Case studies">
                 {items.map((item, index) => (
@@ -767,6 +888,11 @@ export function WorkIndexListE2({
                     }}
                     className="wd-e2-row-item"
                     data-e2-index={index}
+                    data-e2-current={
+                      version === "v4" && (hovered ?? focused) === index
+                        ? ""
+                        : undefined
+                    }
                   >
                     {item.slug ? (
                       <Link
@@ -796,7 +922,19 @@ export function WorkIndexListE2({
               </ul>
             </div>
 
-            <div className="wd-e2-thumb" ref={thumbRef} aria-hidden="true">
+            <div
+              className="wd-e2-thumb"
+              ref={thumbRef}
+              aria-hidden="true"
+              style={
+                version === "v4"
+                  ? ({
+                      "--e2-thumb-w": `${v4Width}px`,
+                      "--e2-thumb-h": `${v4Width * 0.75}px`,
+                    } as CSSProperties)
+                  : undefined
+              }
+            >
               <div className="wd-e2-thumb-in">
                 {([0, 1] as const).map((slot) => {
                   const index = slots.items[slot];

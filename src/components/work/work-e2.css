@@ -385,6 +385,30 @@
   }
 }
 
+/* ---------- e2-v4: homepage card radius + row dimming ---------- */
+
+.wd-e2-group[data-e2-version="v4"] .wd-e2-thumb-in {
+  /* Confirmed in globals.css: --radius-lg: 0.75rem (12px). */
+  border-radius: var(--radius-lg);
+}
+
+.wd-e2-group[data-e2-version="v4"] .wd-e2-row-item {
+  transition: opacity 200ms var(--ease-emphasized-decelerate);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .wd-e2-group[data-e2-version="v4"][data-e2-dim]
+    .wd-e2-row-item:not([data-e2-current]) {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-e2-group[data-e2-version="v4"] .wd-e2-row-item {
+    transition: opacity 120ms ease-out;
+  }
+}
+
 /* ---------- Row entrance ---------- */
 
 /*
