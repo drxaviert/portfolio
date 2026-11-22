@@ -58,6 +58,8 @@ let dock: NavDockControls | null = null;
  * has to be reachable again.
  */
 const closeReaders: (() => void)[] = [];
+/** Esc's whole gesture (step back or close), for the nav's own close control. */
+const exitReaders: (() => void)[] = [];
 
 export function registerNavDock(controls: NavDockControls): () => void {
   dock = controls;
@@ -88,6 +90,33 @@ export function hasReaderClose(): boolean {
 
 export function requestReaderClose(): void {
   closeReaders[closeReaders.length - 1]?.();
+}
+
+/**
+ * The same stack for Esc's gesture. It is not the same function as `close`: a
+ * study steps back to the index first, and the burst guard after that step is
+ * part of what the drawer's own close control has to respect.
+ */
+export function registerReaderExit(exit: (() => void) | null): () => void {
+  if (!exit) {
+    exitReaders.length = 0;
+    return () => undefined;
+  }
+
+  exitReaders.push(exit);
+
+  return () => {
+    const index = exitReaders.lastIndexOf(exit);
+    if (index !== -1) exitReaders.splice(index, 1);
+  };
+}
+
+export function hasReaderExit(): boolean {
+  return exitReaders.length > 0;
+}
+
+export function requestReaderExit(): void {
+  exitReaders[exitReaders.length - 1]?.();
 }
 
 export function moveNav(

@@ -173,15 +173,35 @@ export function useOverlayBehaviour(
 
       const panelStops = stops(root);
       const dockStops = stops(dock);
+      // Controls that live outside the panel by design (the corner chip, which
+      // must not be clipped by the panel) opt into the panel's end of the tab
+      // order with `data-overlay-stop`.
+      const layer = root.closest<HTMLElement>(".wd-expand-layer");
+      const extraStops = layer
+        ? [
+            ...layer.querySelectorAll<HTMLElement>("[data-overlay-stop]"),
+          ].filter(
+            (node) =>
+              !node.closest("[inert]") &&
+              node.getClientRects().length > 0 &&
+              !root.contains(node) &&
+              !(dock?.contains(node) ?? false),
+          )
+        : [];
 
       if (panelStops.length === 0 && dockStops.length === 0) return;
 
-      const panelFirst = panelStops[0];
-      const panelLast = panelStops[panelStops.length - 1];
+      // The panel's own stops run first, then the controls outside it, in DOM
+      // order. The end of the panel is the last of those.
+      const allPanelStops = [...panelStops, ...extraStops];
+      const panelFirst = allPanelStops[0];
+      const panelLast = allPanelStops[allPanelStops.length - 1];
       const dockFirst = dockStops[0];
       const dockLast = dockStops[dockStops.length - 1];
       const active = document.activeElement;
-      const inPanel = active instanceof HTMLElement && root.contains(active);
+      const inPanel =
+        active instanceof HTMLElement &&
+        (root.contains(active) || extraStops.includes(active));
       const inDock =
         active instanceof HTMLElement && (dock?.contains(active) ?? false);
       const inside = inPanel || inDock;
@@ -192,7 +212,7 @@ export function useOverlayBehaviour(
       const stranded =
         active instanceof HTMLElement &&
         inside &&
-        !panelStops.includes(active) &&
+        !allPanelStops.includes(active) &&
         !dockStops.includes(active);
 
       if (event.shiftKey) {

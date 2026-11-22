@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { listWork } from "@/lib/work";
+import { resetCloseVariantForTests, setCloseVariant } from "./close-variant";
 import { DrawerActionsProvider } from "./drawer-actions";
 import { WorkIndex } from "./work-index";
 
@@ -23,6 +24,9 @@ function renderIndex(exit = vi.fn(), close = vi.fn()) {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
+  window.history.replaceState({}, "", "/");
+  resetCloseVariantForTests();
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -39,11 +43,14 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.localStorage.clear();
+  window.history.replaceState({}, "", "/");
+  resetCloseVariantForTests();
   vi.unstubAllGlobals();
 });
 
 describe("work index close", () => {
-  it("renders one labelled close control on the index", () => {
+  it("renders the shipped below control by default", () => {
     renderIndex();
 
     const close = screen.getByRole("button", {
@@ -74,10 +81,10 @@ describe("work index close", () => {
     const button = screen.getByRole("button", {
       name: "Close work, back to home",
     });
-    const tooltip = button.querySelector(".wd-index-close-tooltip");
+    const tooltip = button.querySelector(".xv-hint");
 
     expect(tooltip).toHaveTextContent("Close");
-    expect(tooltip?.querySelector("kbd")).toHaveTextContent("Esc");
+    expect(tooltip?.querySelector(".xv-hint-key")).toHaveTextContent("Esc");
     expect(tooltip).toHaveAttribute("aria-hidden", "true");
     // The visible hint never joins the accessible name.
     expect(button).toHaveAccessibleName("Close work, back to home");
@@ -103,7 +110,58 @@ describe("work index close", () => {
     expect(exit).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps the 32px visual, the 40px hit area and the nav's own fill", () => {
+  it("moves the close to the list column for the back variant", async () => {
+    const user = userEvent.setup();
+    setCloseVariant("back");
+    const { exit } = renderIndex();
+
+    const back = screen.getByRole("button", {
+      name: "Close work, back to home",
+    });
+
+    expect(back).toHaveClass("xv-back");
+    expect(back).toHaveTextContent("Home");
+    expect(document.querySelector(".wd-index-close")).toBeNull();
+    // Inside the list's own column, above the rows.
+    expect(back.closest(".wd-work-column")).not.toBeNull();
+    expect(back.closest(".wd-work-list")).toBeNull();
+
+    await user.click(back);
+    expect(exit).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves the close to the bottom-centre pill for the pill variant", async () => {
+    const user = userEvent.setup();
+    setCloseVariant("pill");
+    const { exit } = renderIndex();
+
+    const pill = screen.getByRole("button", {
+      name: "Close work, back to home",
+    });
+
+    expect(pill).toHaveClass("xv-pill");
+    expect(pill).toHaveTextContent("Close");
+    expect(pill.querySelector(".xv-pill-key")).toHaveTextContent("Esc");
+    expect(document.querySelector(".wd-index-close")).toBeNull();
+
+    await user.click(pill);
+    expect(exit).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the nav and corner placements to the nav and the shell", () => {
+    for (const variant of ["nav", "corner"] as const) {
+      setCloseVariant(variant);
+      renderIndex();
+
+      expect(
+        screen.queryByRole("button", { name: "Close work, back to home" }),
+      ).toBeNull();
+
+      cleanup();
+    }
+  });
+
+  it("keeps the below geometry and the nav's own fill", () => {
     const css = readFileSync(
       join(process.cwd(), "src", "components", "work", "work-index.css"),
       "utf8",

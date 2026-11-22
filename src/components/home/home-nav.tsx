@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { useTooltipWarm } from "@/components/nav/use-tooltip-warm";
+import { NavClose } from "@/components/work/close-control";
 import { NavItems } from "./nav-items";
 import { RingLayers } from "./ring-hover";
 import "./ring-hover.css";
@@ -74,6 +75,7 @@ export function HomeNav() {
       <div className="flex min-w-0 items-center gap-3">
         <NavItems />
         <ThemeToggle />
+        <NavClose />
       </div>
     </nav>
   );

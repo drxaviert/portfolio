@@ -20,6 +20,7 @@ import { CAROUSEL_EASE, CAROUSEL_OPEN_S } from "./carousel-step";
 import { flipFrom } from "./morph";
 import type { Box } from "./morph";
 import { requestReaderClose } from "@/components/nav/nav-flight";
+import { resetCloseVariantForTests, setCloseVariant } from "./close-variant";
 
 const mocks = vi.hoisted(() => ({
   animate: vi.fn(),
@@ -1612,5 +1613,73 @@ describe("DrawerShell", () => {
     expect(layerElement()).toHaveAttribute("data-phase", "closed");
     expect(getComputedStyle(layerElement()).display).toBe("none");
     expect(document.body.style.overflow).toBe("");
+  });
+});
+
+describe("close placements", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.history.replaceState({}, "", "/work");
+    resetCloseVariantForTests();
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+    window.history.replaceState({}, "", "/work");
+    resetCloseVariantForTests();
+  });
+
+  it("renders the corner chip outside the panel on the index only", async () => {
+    setCloseVariant("corner");
+    const view = await renderOpen("/work");
+
+    const chip = document.querySelector(".xv-corner");
+    expect(chip).not.toBeNull();
+    expect(chip?.closest(".wd-reader-panel")).toBeNull();
+    expect(chip?.closest(".wd-expand-layer")).not.toBeNull();
+    expect(chip).toHaveAttribute("aria-label", "Close work, back to home");
+
+    view.unmount();
+
+    await renderOpen(STUDY, <Study />);
+    expect(document.querySelector(".xv-corner")).toBeNull();
+  });
+
+  it("closes to the homepage from the corner chip", async () => {
+    setCloseVariant("corner");
+    await renderOpen("/work");
+
+    fireEvent.click(document.querySelector(".xv-corner")!);
+
+    await waitFor(() => expect(mocks.back).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-phase", "closed"),
+    );
+  });
+
+  it("switches placement live from the dev pill", async () => {
+    await renderOpen("/work");
+
+    const dev = document.querySelector(".xv-dev")!;
+    const corner = within(dev as HTMLElement).getByRole("button", {
+      name: "corner",
+    });
+
+    fireEvent.click(corner);
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-xv", "corner"),
+    );
+    expect(corner).toHaveAttribute("aria-pressed", "true");
+    expect(document.querySelector(".xv-corner")).not.toBeNull();
+
+    fireEvent.click(
+      within(dev as HTMLElement).getByRole("button", { name: "below" }),
+    );
+
+    await waitFor(() =>
+      expect(layerElement()).toHaveAttribute("data-xv", "below"),
+    );
+    expect(document.querySelector(".xv-corner")).toBeNull();
   });
 });

@@ -14,7 +14,13 @@ import { navigatingByKeyboard } from "@/components/nav/input-modality";
 import {
   DOCK_SELECTOR,
   registerReaderClose,
+  registerReaderExit,
 } from "@/components/nav/nav-flight";
+import {
+  CloseVariantSwitch,
+  CornerClose,
+  useCloseVariant,
+} from "./close-control";
 import { DrawerActionsProvider, useEscToClose } from "./drawer-actions";
 import { READER_TITLE_ID } from "./parts";
 import {
@@ -66,6 +72,7 @@ export function DrawerShell({
     ? pathname.slice("/work/".length)
     : null;
   const onIndex = slug === null;
+  const variant = useCloseVariant();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const { phase, reveal, close, stepBack, originRef } = useDrawerMorph(
     panelRef,
@@ -223,6 +230,8 @@ export function DrawerShell({
 
   useEscToClose(requestExit);
   useEffect(() => registerReaderClose(close), [close]);
+  // The nav's own close control (the `nav` variant) reaches the same gesture.
+  useEffect(() => registerReaderExit(requestExit), [requestExit]);
 
   useOverlayBehaviour(panelRef, {
     // The shell owns the page while it is on screen: the lock and the inert
@@ -302,6 +311,7 @@ export function DrawerShell({
       data-phase={phase}
       data-reveal={reveal}
       data-view={onIndex ? "index" : "study"}
+      data-xv={variant}
     >
       <div
         className="wd-expand-backdrop"
@@ -343,7 +353,15 @@ export function DrawerShell({
             </div>
           </DrawerActionsProvider>
         </div>
+
+        {/* The corner chip lives outside the panel, over the scrim, so the
+            panel's own overflow clip never cuts it. */}
+        {onIndex && variant === "corner" ? (
+          <CornerClose onClose={requestExit} />
+        ) : null}
       </div>
+
+      <CloseVariantSwitch />
     </div>
   );
 }

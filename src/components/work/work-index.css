@@ -70,15 +70,10 @@
  * scrolls under it.
  *
  * Day and Night come from the shared tokens; the hover fill is the nav's own
- * 5% ink mix at the capsule's 0.55 weight (nav-items.css --nav-hover-fill).
+ * 5% ink mix at the capsule's 0.55 weight, declared on the drawer layer in
+ * close-control.css.
  */
 .wd-index-close {
-  --nav-hover-fill: color-mix(
-    in oklab,
-    var(--on-surface) 5%,
-    var(--surface-container)
-  );
-
   position: absolute;
   z-index: 2;
   top: calc(var(--wd-nav-inset) + var(--wd-nav-height) + 4px);
@@ -125,55 +120,6 @@
       transparent
     );
   }
-}
-
-/*
- * The tooltip: the nav's pattern and timing (150ms fade in, 300ms delay, no
- * fade in a warm group, released at once). Right-aligned to the button so it
- * grows inward and never crosses the panel's edge; it sits below the button
- * because the control is already under the nav.
- */
-.wd-index-close-tooltip {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: var(--radius-md);
-  background: var(--on-surface);
-  color: var(--surface);
-  font-size: var(--text-xs);
-  line-height: 1;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.wd-index-close:focus-visible .wd-index-close-tooltip {
-  opacity: 1;
-  transition: opacity var(--duration-short-3) var(--ease-decelerate);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .wd-index-close:hover .wd-index-close-tooltip {
-    opacity: 1;
-    transition: opacity var(--duration-short-3) var(--ease-decelerate)
-      var(--duration-medium-5);
-  }
-}
-
-.wd-index-close:not(:focus-visible):not(:hover) .wd-index-close-tooltip {
-  transition-property: none;
-}
-
-.wd-index-close-key {
-  padding: 1px 4px;
-  border: 1px solid color-mix(in oklab, currentColor 30%, transparent);
-  border-radius: 4px;
-  font: inherit;
-  line-height: 1.2;
 }
 
 /*
