@@ -248,8 +248,13 @@ export function WorkIndex({ works }: { works: WorkMeta[] }) {
 
   // E2 is the list alone: no header, count or switch, and one shared
   // left-margin thumbnail. The A variants replace the whole index.
-  if (variant === "e2") {
-    return <WorkIndexListE2 works={works} />;
+  if (variant === "e2" || variant === "e2-v1") {
+    return (
+      <WorkIndexListE2
+        works={works}
+        version={variant === "e2" ? "v2" : "v1"}
+      />
+    );
   }
 
   if (variant !== "current") {

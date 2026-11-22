@@ -37,17 +37,39 @@ export function WorkVariantSwitcher() {
     setWorkVariant(next);
     noteWorkVariantParam();
 
-    // Keep the review's fake-row flag when moving to E2, so a `?fake=1` link
-    // can be switched around and back without losing the placeholders.
+    const isE2 = (value: string) => value === "e2" || value === "e2-v1";
+
+    // Keep the review's fake-row flag when moving between E2 variants, so a
+    // `?fake=1` or `?fake=2` link can be switched around without losing the
+    // placeholders.
     let fake = false;
     let fakeValue = "";
 
     try {
       const value = new URLSearchParams(window.location.search).get("fake");
       fakeValue = value === "1" || value === "2" ? value : "";
-      fake = next === "e2" && fakeValue !== "";
+      fake = isE2(next) && fakeValue !== "";
     } catch {
       fake = false;
+    }
+
+    // Comparing the two E2s is a live switch: the drawer stays open, the list
+    // re-renders, and only the URL changes. The A variants still reset because
+    // their open has to be played from the homepage.
+    if (pathname.startsWith("/work") && isE2(next) && isE2(variant)) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("wv", next);
+
+        if (fake) url.searchParams.set("fake", fakeValue);
+        else url.searchParams.delete("fake");
+
+        window.history.replaceState(window.history.state, "", url);
+      } catch {
+        // The store already switched; only the URL annotation was missed.
+      }
+
+      return;
     }
 
     const href = `/?wv=${next}${fake ? `&fake=${fakeValue}` : ""}`;

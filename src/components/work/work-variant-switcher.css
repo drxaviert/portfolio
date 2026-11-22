@@ -11,8 +11,10 @@
   bottom: calc(140px + env(safe-area-inset-bottom));
   z-index: 70;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
+  max-width: calc(100vw - 32px);
   padding: 4px;
   border-radius: var(--radius-lg);
   background: var(--surface-container-high);

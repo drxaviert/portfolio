@@ -310,6 +310,73 @@
   background-size: cover;
 }
 
+/* ---------- e2-v1: the 2fb7c3f margin layout ---------- */
+
+.wd-index-column.wd-e2-column[data-e2-version="v1"] {
+  /* 2fb7c3f: the 1120px column; the gutter compensation is a v2-rail concern. */
+  max-width: 1120px;
+  padding-left: var(--e2-pad);
+}
+
+.wd-e2-group[data-e2-version="v1"] {
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: 0;
+}
+
+.wd-e2-group[data-e2-version="v1"] .wd-e2-list-column {
+  max-width: none;
+}
+
+.wd-e2-group[data-e2-version="v1"] .wd-e2-thumb {
+  --e2-thumb-w: 120px;
+  --e2-thumb-h: 90px;
+}
+
+/* Below 1200, or when the margin is under 136px, the thumbnail moves into the
+   row's 152px left padding and the year gives up its column. */
+.wd-e2-group[data-e2-version="v1"][data-e2-mode="inset"] .wd-e2-row {
+  grid-template-columns: minmax(0, 1fr) 160px;
+  padding-left: 152px;
+}
+
+.wd-e2-group[data-e2-version="v1"][data-e2-mode="inset"] .wd-e2-year {
+  display: none;
+}
+
+@media (max-width: 767.98px) {
+  .wd-e2-group[data-e2-version="v1"] .wd-e2-role {
+    display: none;
+  }
+
+  .wd-e2-group[data-e2-version="v1"][data-e2-mode="inset"] .wd-e2-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Touch: no thumbnail, and the list keeps its own row columns. */
+@media (hover: none) {
+  .wd-e2-group[data-e2-version="v1"] .wd-e2-row,
+  .wd-e2-group[data-e2-version="v1"][data-e2-mode="inset"] .wd-e2-row {
+    grid-template-columns: 80px minmax(0, 1fr) 160px;
+    padding-left: 16px;
+  }
+
+  .wd-e2-group[data-e2-version="v1"] .wd-e2-year {
+    display: block;
+  }
+}
+
+@media (hover: none) and (max-width: 767.98px) {
+  .wd-e2-group[data-e2-version="v1"] .wd-e2-row,
+  .wd-e2-group[data-e2-version="v1"][data-e2-mode="inset"] .wd-e2-row {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .wd-e2-group[data-e2-version="v1"] .wd-e2-role {
+    display: none;
+  }
+}
+
 /* ---------- Row entrance ---------- */
 
 /*

@@ -220,10 +220,17 @@ function ThumbVisual({ item }: { item: E2Item }) {
 
 type Slots = { front: 0 | 1; items: [number | null, number | null] };
 
-export function WorkIndexListE2({ works }: { works: WorkMeta[] }) {
+export function WorkIndexListE2({
+  works,
+  version,
+}: {
+  works: WorkMeta[];
+  version: "v1" | "v2";
+}) {
   const [fake] = useState<FakeMode>(() =>
     typeof window !== "undefined" ? readFakeMode() : 0,
   );
+  const [mode, setMode] = useState<"margin" | "inset">("margin");
   const [hovered, setHovered] = useState<number | null>(null);
   const [slots, setSlots] = useState<Slots>({
     front: 1,
@@ -266,26 +273,28 @@ export function WorkIndexListE2({ works }: { works: WorkMeta[] }) {
   // A `?fake=1` or `?fake=2` link on the homepage loses its query on the Work
   // nav. If the flag was present when E2 mounted (the client router can still
   // carry the old search for that render), put it back on /work so the URL
-  // always says why the placeholders are there.
+  // always says why the placeholders are there, and keep the version's own wv.
   useEffect(() => {
     if (!fake) return;
+
+    const variantParam = version === "v1" ? "e2-v1" : "e2";
 
     try {
       const url = new URL(window.location.href);
       const same =
-        url.searchParams.get("wv") === "e2" &&
+        url.searchParams.get("wv") === variantParam &&
         url.searchParams.get("fake") === String(fake);
 
       if (same) return;
 
       url.pathname = "/work";
-      url.searchParams.set("wv", "e2");
+      url.searchParams.set("wv", variantParam);
       url.searchParams.set("fake", String(fake));
       window.history.replaceState(window.history.state, "", url);
     } catch {
       // The rows are already gated on the flag; a blocked URL write is harmless.
     }
-  }, [fake]);
+  }, [fake, version]);
 
   // The list keeps its place while a study takes the panel.
   useLayoutEffect(() => {
@@ -329,6 +338,50 @@ export function WorkIndexListE2({ works }: { works: WorkMeta[] }) {
     };
   }, []);
 
+  // e2-v1 keeps the 2fb7c3f margin rule: the thumbnail hangs in the margin only
+  // when the row has at least 136px to its left; below 1200, or with a narrower
+  // margin, it moves into the row's 152px left padding. The panel's opening
+  // scale is divided out so the mode is right on the first frame.
+  useLayoutEffect(() => {
+    if (version !== "v1") return;
+
+    const measure = () => {
+      const list = listColumnRef.current;
+      const row = rowRefs.current[0];
+      const panel = list?.closest<HTMLElement>(".wd-reader-panel");
+
+      if (!list || !row || !panel) return;
+
+      const panelRect = panel.getBoundingClientRect();
+      const scale = panel.offsetWidth ? panelRect.width / panel.offsetWidth : 1;
+      const space =
+        (row.getBoundingClientRect().left - panelRect.left) / (scale || 1);
+      const next =
+        window.innerWidth >= 1200 && space >= 136 ? "margin" : "inset";
+
+      setMode((previous) => (previous === next ? previous : next));
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+
+    const layer =
+      listColumnRef.current?.closest<HTMLElement>(".wd-expand-layer");
+    const observer = new MutationObserver(measure);
+
+    if (layer) {
+      observer.observe(layer, {
+        attributes: true,
+        attributeFilter: ["data-phase"],
+      });
+    }
+
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer.disconnect();
+    };
+  }, [version, items.length]);
+
   // The nav clearance is measured from the dock in `visibleTop`, so the value
   // follows the drawer's actual nav row on resize and at both breakpoints.
 
@@ -338,40 +391,57 @@ export function WorkIndexListE2({ works }: { works: WorkMeta[] }) {
    * group's coordinates, so it survives the scroll and is recomputed each
    * scroll frame.
    */
-  const placeThumb = useCallback((index: number, snap = false) => {
-    const thumb = thumbRef.current;
-    const group = groupRef.current;
-    const list = listColumnRef.current;
-    const scroll = scrollRef.current;
-    const row = rowRefs.current[index];
+  const placeThumb = useCallback(
+    (index: number, snap = false) => {
+      const thumb = thumbRef.current;
+      const group = groupRef.current;
+      const list = listColumnRef.current;
+      const scroll = scrollRef.current;
+      const row = rowRefs.current[index];
 
-    if (!thumb || !group || !list || !scroll || !row) return;
+      if (!thumb || !group || !list || !scroll || !row) return;
 
-    const rowRect = row.getBoundingClientRect();
-    const scrollRect = scroll.getBoundingClientRect();
-    const height = thumb.offsetHeight || THUMB_FALLBACK_H;
-    const minTop = visibleTop(scrollRect);
-    const maxTop = scrollRect.bottom - height - 12;
-    const desired = rowRect.top + rowRect.height / 2 - height / 2;
-    const clamped = Math.min(
-      Math.max(desired, minTop),
-      Math.max(minTop, maxTop),
-    );
-    const railMode =
-      window.matchMedia("(min-width: 1200px)").matches && canHover();
-    const left = `${railMode ? group.getBoundingClientRect().left : list.getBoundingClientRect().left + 16}px`;
+      const rowRect = row.getBoundingClientRect();
+      const scrollRect = scroll.getBoundingClientRect();
+      const height = thumb.offsetHeight || THUMB_FALLBACK_H;
+      const minTop = visibleTop(scrollRect);
+      const maxTop = scrollRect.bottom - height - 12;
+      const desired = rowRect.top + rowRect.height / 2 - height / 2;
+      const clamped = Math.min(
+        Math.max(desired, minTop),
+        Math.max(minTop, maxTop),
+      );
+      const railMode =
+        window.matchMedia("(min-width: 1200px)").matches && canHover();
+      const listRect = list.getBoundingClientRect();
+      let left: string;
 
-    if (thumb.style.left !== left) thumb.style.left = left;
-    thumb.style.setProperty("--e2-y", `${clamped}px`);
+      if (version === "v1") {
+        // 2fb7c3f: the 120px thumbnail hangs 16px left of the row in the margin;
+        // the fallback reserves 152px inside the row and puts it 16px in.
+        left =
+          mode === "margin"
+            ? `${rowRect.left - 136}px`
+            : `${listRect.left + 16}px`;
+      } else {
+        // 3d07ab9: the 240px thumbnail fills the rail; the fallback uses the
+        // row's left padding.
+        left = `${railMode ? group.getBoundingClientRect().left : listRect.left + 16}px`;
+      }
 
-    if (snap) {
-      thumb.dataset.e2Snap = "";
-      void thumb.offsetHeight;
-      requestAnimationFrame(() => {
-        delete thumb.dataset.e2Snap;
-      });
-    }
-  }, []);
+      if (thumb.style.left !== left) thumb.style.left = left;
+      thumb.style.setProperty("--e2-y", `${clamped}px`);
+
+      if (snap) {
+        thumb.dataset.e2Snap = "";
+        void thumb.offsetHeight;
+        requestAnimationFrame(() => {
+          delete thumb.dataset.e2Snap;
+        });
+      }
+    },
+    [version, mode],
+  );
 
   const show = useCallback((index: number) => {
     if (!canHover()) return;
@@ -416,6 +486,12 @@ export function WorkIndexListE2({ works }: { works: WorkMeta[] }) {
     placeThumb(hovered, !shownRef.current);
     shownRef.current = true;
   }, [hovered, placeThumb]);
+
+  // Switching E2 versions (or crossing the v1 margin threshold) keeps the same
+  // hovered row but changes the rail, size and x; re-place it in the new layout.
+  useLayoutEffect(() => {
+    if (hoveredRef.current !== null) placeThumb(hoveredRef.current);
+  }, [version, mode, placeThumb]);
 
   // A resize moves the clamp edges under the same row.
   useEffect(() => {
@@ -637,17 +713,25 @@ export function WorkIndexListE2({ works }: { works: WorkMeta[] }) {
         className="wd-index-scroll wd-e2-scroll"
         ref={scrollRef}
       >
-        <div className="wd-index-column wd-e2-column" ref={rootRef}>
+        <div
+          className="wd-index-column wd-e2-column"
+          data-e2-version={version}
+          ref={rootRef}
+        >
           <h1 id={INDEX_TITLE_ID} tabIndex={-1} className="wd-e2-sr-only">
             Work
           </h1>
 
           <div
             className="wd-e2-group"
+            data-e2-version={version}
+            data-e2-mode={version === "v1" ? mode : undefined}
             ref={groupRef}
             data-e2-active={hovered !== null ? "" : undefined}
           >
-            <div className="wd-e2-rail" aria-hidden="true" />
+            {version === "v2" ? (
+              <div className="wd-e2-rail" aria-hidden="true" />
+            ) : null}
 
             <div
               className="wd-e2-list-column"
