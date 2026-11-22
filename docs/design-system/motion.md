@@ -1,6 +1,6 @@
 # Design system motion — 2026-11-13
 
-The shipped motion of the theme toggle, the Day phase row, the home nav's Glide capsule and the Work drawer, recorded from the code (toggle and nav from PR #12, `5bbfba9` / `d574d89`; drawer at `98b6429`; the shipped drawer, its close rules and the index layout switch approved at `cb6785a`, 2026-11-19, in the last two sections; the drawer close was later retuned to 300ms on `ease` in PR #80, and the nav motion blur added in PR #68). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
+The shipped motion of the theme toggle, the Day phase row, the home nav's Glide capsule and the Work drawer, recorded from the code (toggle and nav from PR #12, `5bbfba9` / `d574d89`; drawer at `98b6429`; the shipped drawer, its close rules and the index layout switch approved at `cb6785a`, 2026-11-19; the /work hover-thumbnail list approved 2026-11-22 in the last section; the drawer close was later retuned to 300ms on `ease` in PR #80, and the nav motion blur added in PR #68). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
 
 ## Principles
 
@@ -740,39 +740,31 @@ The content swap snapshots the outgoing view before React mutates the DOM, so th
 - `src/components/work/use-morph.ts:531` — re-entry, the only way back open
 - `src/components/work/use-morph.ts:862` — a click re-enters a closed-but-on-screen shell
 
-## Work index — grid / list switch (2026-11-19)
+## Work index — hover thumbnail list (2026-11-22)
 
-The index header carries a two-segment, icon-only radiogroup (Grid · List). It is the theme toggle's own track: `SegmentTrack` and `Segment` are exported from `theme-toggle.tsx` and the switch passes its glyphs as children, so the capsule's stretch-and-snap glide, the tooltips, the roving focus and the 40px coarse-pointer hit area are the same code, not a copy. The choice is remembered in localStorage (`wd-work-layout`, every access guarded); the grid is the default.
-
-The switch cross-fades the two layouts and morphs the stack height to the incoming layout's: 200ms on `cubic-bezier(0.23, 1, 0.32, 1)`. A new switch finishes the previous one first, so it is interruptible. Reduced motion is instant. Each layout keeps its own last scroll position, so a round trip returns to where each one was (the shorter layout's clamp is applied only when the value is written, not remembered).
-
-No layout flash and no hydration mismatch: both layouts are in the document, and the stylesheet picks one from `data-work-layout` on `<html>`, which the root layout's head script sets before paint on a hard load. The control reads that attribute through `useSyncExternalStore` (server snapshot grid), so hydration starts from the markup and settles on the real value. A client navigation reads the store and applies the attribute in a layout effect before paint.
+The /work index is one list of case studies inside the drawer panel, under the nav. While a row is current — a pointer hover, or keyboard focus with no pointer — one 480x360 thumbnail follows or parks, the other rows drop to 40%, and the fresh divider next to the current row fades away. There is no grid, no layout switch and no per-row preview.
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
-| Switch | outgoing layout `opacity` | 180ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 1 → 0 over the incoming |
-| Switch | incoming layout `opacity` | 200ms | 0 | same | 0 → 1 |
-| Switch | stack `height` | 200ms | 0 | same | current height → the incoming layout's height |
-| Switch, reduced motion | — | 0 | — | — | instant swap |
-| Selection moves | capsule path | 180ms leading / 220ms trailing | 0 / 120ms | same as the theme toggle | current edge → target edge |
-| Index arrives with the panel | `.wd-index-scroll` `opacity` | 300ms (`--duration-medium-5`) | held at 0 until `data-reveal="on"` | `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) | 0 → 1, one pass, no cascade |
-| Index arrives, reduced motion | `.wd-index-scroll` `opacity` | 120ms (`--wd-fade-reduced`) | same | `ease-out` | 0 → 1 |
+| Thumbnail enters | inner layer `opacity` | 200ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 0.6 → 1 |
+| Thumbnail enters | inner layer `transform` | 200ms | 0 | same | `scale(0.96)` → `scale(1)` |
+| Thumbnail leaves the list | inner layer `opacity` | 150ms | 0 | `--ease-decelerate` | 1 → 0 |
+| Image crossfade between rows | back image `opacity` | 200ms | 0 | `--ease-emphasized-decelerate` | 0 → 1 (the old front → 0) |
+| Image crossfade during a fling | back image `opacity` | 120ms | 0 | same | same |
+| Non-current rows dim | `.wd-work-row` `opacity` | 200ms | 80ms grace after leaving a row | `--ease-emphasized-decelerate` | 1 → 0.4 |
+| Dividers next to the current row | item `::before` `opacity` | 200ms | 0 | same | 1 → 0 |
+| Visible rows enter with the drawer | `opacity` / `transform` / `filter` | 700ms | `40ms × slot` (max 12 rows) | `--ease-calm` | 0 / `7px` down / `8px` blur → 1 / 0 / none |
+| Index arrives with the panel | `.wd-index-scroll` `opacity` | 300ms (`--duration-medium-5`) | held at 0 until `data-reveal="on"` | `--ease-emphasized-decelerate` | 0 → 1, one pass |
 
-- `src/components/work/layout-toggle.tsx:51` — `LayoutToggle`
-- `src/components/theme/theme-toggle.tsx:612` — `SegmentTrack`, shared with the theme toggle
-- `src/components/theme/theme-toggle.tsx:739` — `Segment` (glyph or children)
-- `src/components/theme/theme-toggle.tsx:299` — the capsule's 120ms lag / 180ms leading / 220ms trailing
-- `src/components/work/work-index.tsx:29` — `LAYOUT_SWITCH_MS = 200`
-- `src/components/work/work-index.tsx:30` — the switch's ease-out curve
-- `src/components/work/work-index.tsx:213` — the stack height morph
-- `src/components/work/work-index.tsx:217` — the outgoing layout's fade
-- `src/components/work/work-index.tsx:222` — the incoming layout's fade
-- `src/components/work/work-index.tsx:177` — the scroll restore
-- `src/components/work/work-index.tsx:74` — each layout's own remembered scroll
-- `src/components/work/layout-preference.ts:14` — `wd-work-layout`
-- `src/components/work/layout-preference.ts:51` — the snapshot the control reads
-- `src/components/work/layout-preference.ts:73` — apply, store, announce
-- `src/lib/layout-script.ts:10` — the pre-paint bootstrap
-- `src/app/layout.tsx:59` — the bootstrap in the root head
-- `src/components/work/work-index.css:42-58` — the index's arrival fade
-- `src/components/work/work-index.css:112` — the attribute picks the visible layout
+- **1:1 tracking, no smoothing.** Each pointer move schedules one `requestAnimationFrame` write of `translate3d(cursor − layer origin − half the box, 0)` from the latest `clientX`/`clientY`. There is no lerp, spring or `dt`. The outer box only ever transforms; the inner layer owns opacity and scale, so the entrance cannot fight the tracking.
+- **Cursor none.** The OS cursor paints above the DOM, so the list sets `cursor: none` on the rows while a pointer owns the thumbnail. It is keyed to the pointer (not to keyboard focus) and is removed on leaving the rows or the list, and over the nav or the dev-only surfaces; keyboard focus parks the thumbnail with the normal cursor, and touch never hides it.
+- **The 0.6 start.** The thumbnail's first painted frame is already 60% opaque, so the frame that hides the cursor always has an image under it. The scale still starts at 0.96 and both run on the same 200ms curve. The exit keeps its 150ms fade.
+- **Dim and dividers.** The 40% dim sits on the row child, not the list item, so the item's `--outline-variant` hairline stays at full opacity. A list-level dim state with an 80ms grace keeps it from flashing between rows, including while a stationary pointer is tracked through a scroll. The current row and the row after it drop their lines so the rounded hover fill never sits on one.
+- **Entrance.** Only the rows visible at open stagger, capped at 12; rows below the fold are already visible and never animate on scroll. The animation uses `fill-mode: backwards`: the from-state holds through the stagger delay and the final state returns to the cascade, so the 40% dim still applies after the animation. (`both` held `opacity: 1` over the dim rule — the dim bug this replaced.)
+- **Reduced motion.** The thumbnail is opacity-only over 120ms (no scale), the row dim and divider fades are 120ms, and the entrance does not run. The 1:1 cursor tracking stays: it is direct manipulation, not an animation.
+- **Touch.** No thumbnail at all; the list is the plain links, with the normal cursor.
+
+- `src/components/work/work-list.tsx` — placement and the 1:1 rAF write; focus parking; the 80ms dim grace; the 12-row entrance cap; the portal layer
+- `src/components/work/work-list.css` — the 0.6 entry, 150ms exit, crossfade, dim, divider fade, reduced motion
+- `src/components/work/work-index.css` — the column and the arrival fade
+
