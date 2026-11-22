@@ -26,6 +26,28 @@ const THUMB_HEIGHT = 360;
 const ENTRANCE_MAX = 12;
 const FAST_SCROLL_PX_PER_MS = 1.5;
 
+/**
+ * Prototype switch: `?thumb=left` docks the thumbnail in a sticky left column,
+ * anything else (including no param) keeps the shipped cursor-follow thumb.
+ */
+type ThumbVariant = "cursor" | "left";
+
+function readThumbVariant(): ThumbVariant {
+  if (typeof window === "undefined") return "cursor";
+
+  return new URLSearchParams(window.location.search).get("thumb") === "left"
+    ? "left"
+    : "cursor";
+}
+
+/**
+ * The dock only exists where its fixed 480 box still leaves the rows a readable
+ * column and the pointer can hover: from 1200 on a fine pointer. Below that, and
+ * on touch, the variant falls back to the shipped behaviour (cursor thumb on a
+ * pointer, plain list on touch).
+ */
+const DOCK_QUERY = "(min-width: 1200px) and (hover: hover) and (pointer: fine)";
+
 /** The list keeps its place while a study takes the panel. */
 let listScroll = 0;
 
@@ -91,6 +113,9 @@ export function WorkList({
   const [hovered, setHovered] = useState<number | null>(null);
   const [focused, setFocused] = useState<number | null>(null);
   const [dimActive, setDimActive] = useState(false);
+  const [variant, setVariant] = useState<ThumbVariant>("cursor");
+  const [dockFits, setDockFits] = useState(false);
+  const docked = variant === "left" && dockFits;
   const portalReady = useSyncExternalStore(
     subscribeClient,
     getClientSnapshot,
@@ -107,6 +132,7 @@ export function WorkList({
   const listColumnRef = useRef<HTMLDivElement | null>(null);
   const thumbRef = useRef<HTMLDivElement | null>(null);
   const clipRef = useRef<HTMLDivElement | null>(null);
+  const dockRef = useRef<HTMLDivElement | null>(null);
   const rowRefs = useRef<(HTMLLIElement | null)[]>([]);
   const hoveredRef = useRef<number | null>(null);
   const focusedRef = useRef<number | null>(null);
@@ -118,6 +144,51 @@ export function WorkList({
   const lastScrollRef = useRef({ top: 0, time: 0 });
   const velocityRef = useRef(0);
   const frameRef = useRef(0);
+
+  // Read the prototype param and the dock's fit before paint, so neither layout
+  // flashes the other, and re-read them whenever the environment changes.
+  //
+  // The router caches this segment with React Activity, which tears the effects
+  // down while the view is away and runs them again on every reveal. So this is
+  // also the reveal: the variant follows the URL the view came back on (the
+  // shipped cursor is the no-param default), and the hover left over from before
+  // the view went away is dropped, because a revealed view is not a hovered one
+  // (the pointer may be somewhere else entirely, with no event to say so). The
+  // same reset covers a resize across the dock's breakpoint, which moves the
+  // list out from under the pointer.
+  useLayoutEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+
+    const query = window.matchMedia(DOCK_QUERY);
+    const sync = () => {
+      const next = readThumbVariant();
+
+      setDockFits(query.matches);
+      setVariant((current) => (next === current ? current : next));
+      hoveredRef.current = null;
+      focusedRef.current = null;
+      pointerRef.current = null;
+      setHovered(null);
+      setFocused(null);
+      setDimActive(false);
+    };
+
+    sync();
+    query.addEventListener("change", sync);
+
+    return () => query.removeEventListener("change", sync);
+  }, []);
+
+  // Keep the document marker the docked CSS keys on in step with the measured
+  // state. It is deliberately not removed on hide: a view swap fades a DOM copy
+  // of the index after the real one is hidden, and the copy needs the docked
+  // layout for that fade. A re-show with the cursor variant removes it.
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+
+    if (docked) root.setAttribute("data-work-thumb", "left");
+    else root.removeAttribute("data-work-thumb");
+  }, [docked]);
 
   // The list keeps its place while a study takes the panel.
   useLayoutEffect(() => {
@@ -210,6 +281,15 @@ export function WorkList({
       }
     }, 80);
   }, [clearDimTimer]);
+
+  /** A fling cuts the crossfade on whichever layer is showing. */
+  const markFast = useCallback((on: boolean) => {
+    for (const node of [thumbRef.current, dockRef.current]) {
+      if (!node) continue;
+      if (on) node.setAttribute("data-work-fast", "");
+      else node.removeAttribute("data-work-fast");
+    }
+  }, []);
 
   const setSlotsFor = useCallback((index: number) => {
     setSlots((previous) => {
@@ -324,7 +404,6 @@ export function WorkList({
   useEffect(() => {
     const scroll = scrollRef.current;
     const list = listColumnRef.current;
-    const thumb = thumbRef.current;
 
     if (!scroll || !list) return;
 
@@ -388,7 +467,7 @@ export function WorkList({
 
       if (velocityRef.current > FAST_SCROLL_PX_PER_MS) {
         fastRef.current = true;
-        thumb?.setAttribute("data-work-fast", "");
+        markFast(true);
       }
 
       if (fastRef.current) {
@@ -396,7 +475,7 @@ export function WorkList({
         fastTimerRef.current = window.setTimeout(() => {
           fastRef.current = false;
           velocityRef.current = 0;
-          thumb?.removeAttribute("data-work-fast");
+          markFast(false);
           updateFromPoint();
         }, 140);
       }
@@ -415,9 +494,9 @@ export function WorkList({
       scroll.removeEventListener("scroll", onScroll);
       if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
       if (fastTimerRef.current) window.clearTimeout(fastTimerRef.current);
-      thumb?.removeAttribute("data-work-fast");
+      markFast(false);
     };
-  }, [hide, leaveList, scheduleThumb, show]);
+  }, [hide, leaveList, markFast, scheduleThumb, show]);
 
   // A pointer already over the list (switching into this view) gets placed on
   // the next frame once the portal exists.
@@ -523,33 +602,52 @@ export function WorkList({
     leaveList();
   };
 
+  // The dev-only switch writes the param and flips the layout in place; a
+  // pointer cannot be on a row in the other layout, so any hover is dropped.
+  const switchVariant = (next: ThumbVariant) => {
+    const url = new URL(window.location.href);
+
+    if (next === "left") url.searchParams.set("thumb", "left");
+    else url.searchParams.delete("thumb");
+
+    window.history.replaceState(window.history.state, "", url);
+    setVariant(next);
+    clearDimTimer();
+    hoveredRef.current = null;
+    pointerRef.current = null;
+    setHovered(null);
+    setDimActive(false);
+  };
+
   const currentRow = hovered ?? focused;
   const thumbActive = hovered !== null || focused !== null;
 
+  // Two stacked images; the front one is the current row's cover. Both the
+  // cursor thumb and the docked panel crossfade through the same slots.
+  const mediaSlots = ([0, 1] as const).map((slot) => {
+    const index = slots.items[slot];
+    const work = index === null ? null : works[index];
+
+    return (
+      <div
+        key={slot}
+        className="wd-work-thumb-img"
+        data-front={slots.front === slot ? "" : undefined}
+      >
+        {work ? (
+          <Cover
+            scene={work.cover ?? "tiles"}
+            coverImage={work.coverImage}
+            fit="cover"
+          />
+        ) : null}
+      </div>
+    );
+  });
+
   const thumbNode = (
     <div className="wd-work-thumb" ref={thumbRef} aria-hidden="true">
-      <div className="wd-work-thumb-in">
-        {([0, 1] as const).map((slot) => {
-          const index = slots.items[slot];
-          const work = index === null ? null : works[index];
-
-          return (
-            <div
-              key={slot}
-              className="wd-work-thumb-img"
-              data-front={slots.front === slot ? "" : undefined}
-            >
-              {work ? (
-                <Cover
-                  scene={work.cover ?? "tiles"}
-                  coverImage={work.coverImage}
-                  fit="cover"
-                />
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
+      <div className="wd-work-thumb-in">{mediaSlots}</div>
     </div>
   );
 
@@ -558,20 +656,55 @@ export function WorkList({
       <BlurStack height="calc(var(--wd-nav-inset) + var(--wd-nav-height))" />
 
       <div id={INDEX_SCROLL_ID} className="wd-index-scroll" ref={scrollRef}>
-        <div className="wd-index-column wd-work-column" ref={rootRef}>
+        <div
+          className="wd-index-column wd-work-column"
+          ref={rootRef}
+          data-thumb={docked ? "left" : "cursor"}
+        >
           <h1 id={INDEX_TITLE_ID} tabIndex={-1} className="wd-work-sr-only">
             Work
           </h1>
 
           {topControl}
 
+          {process.env.NODE_ENV === "development" ? (
+            <div
+              className="wd-work-dev"
+              role="group"
+              aria-label="Thumbnail prototype"
+            >
+              {(["cursor", "left"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className="wd-work-dev-option"
+                  aria-pressed={variant === option}
+                  onClick={() => switchVariant(option)}
+                >
+                  {option === "cursor" ? "Cursor" : "Left dock"}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <div
             className="wd-work-group"
             data-work-dim={dimActive ? "" : undefined}
             ref={groupRef}
             data-work-active={thumbActive ? "" : undefined}
-            data-work-pointer={hovered !== null ? "" : undefined}
+            data-work-pointer={!docked && hovered !== null ? "" : undefined}
           >
+            {docked ? (
+              <div
+                className="wd-work-dock"
+                ref={dockRef}
+                aria-hidden="true"
+                data-work-active={thumbActive ? "" : undefined}
+              >
+                <div className="wd-work-dock-in">{mediaSlots}</div>
+              </div>
+            ) : null}
+
             <div
               className="wd-work-list-column"
               ref={listColumnRef}
@@ -611,7 +744,7 @@ export function WorkList({
         </div>
       </div>
 
-      {portalReady
+      {portalReady && !docked
         ? createPortal(
             <div
               className="wd-work-thumb-clip"
