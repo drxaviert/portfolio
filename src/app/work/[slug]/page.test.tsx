@@ -27,6 +27,14 @@ vi.mock("../../../../content/work/systems-in-motion.mdx", () => ({
   default: () => <p>Case-study body</p>,
 }));
 
+// The live canvas branch is mocked here: the reader's WebGL lifecycle is
+// exercised in the browser, while this test only checks the layout switch.
+vi.mock("@/components/work/canvas-reader", () => ({
+  CanvasReader: ({ meta }: { meta: { title: string } }) => (
+    <div data-canvas-reader>{meta.title}</div>
+  ),
+}));
+
 async function renderStudy(slug = "systems-in-motion") {
   render(
     <ThemeProvider>
@@ -93,5 +101,19 @@ describe("work page", () => {
     ).rejects.toThrow("NEXT_NOT_FOUND");
 
     expect(notFound).toHaveBeenCalled();
+  });
+
+  it("renders the canvas layout through CanvasReader", async () => {
+    render(
+      <ThemeProvider>
+        {await WorkPage({
+          params: Promise.resolve({ slug: "motion-and-stills" }),
+        })}
+      </ThemeProvider>,
+    );
+
+    expect(document.querySelector("[data-canvas-reader]")).toHaveTextContent(
+      "Motion & Stills",
+    );
   });
 });

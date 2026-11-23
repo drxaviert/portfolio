@@ -63,6 +63,7 @@ import { hoverValue, retargetHover } from "./hover";
 import type { HoverSettings, HoverTween } from "./hover";
 import { usePan } from "./use-pan";
 import { planePosition } from "./wrap";
+import "./infinite-canvas.css";
 
 export type CanvasItem = {
   /** Unique per copy in the cycled list, not the media id. */
@@ -105,6 +106,33 @@ const RT_MSAA_MAX_PIXELS = 10_000_000;
 const TEXTURE_TARGET_WIDTH = 640;
 const TEXTURE_ZOOM = 1.06;
 const PARALLAX_LIMIT = 0.025;
+
+/**
+ * One capability probe for the process, and the probe's context is released:
+ * a discarded canvas that keeps a live WebGL context is a real leak on every
+ * mount (and Strict Mode mounts twice).
+ */
+let webglSupported: boolean | null = null;
+
+function hasWebgl(): boolean {
+  if (webglSupported !== null) return webglSupported;
+
+  let supported = false;
+
+  try {
+    const probe = document.createElement("canvas");
+    const gl = probe.getContext("webgl2") ?? probe.getContext("webgl");
+
+    supported = Boolean(gl);
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+  } catch {
+    supported = false;
+  }
+
+  webglSupported = supported;
+
+  return supported;
+}
 
 /**
  * Canvas video budget. Videos already playing stay playing until their plane
@@ -531,18 +559,7 @@ export const InfiniteCanvas = forwardRef<
     // Probe before constructing three's renderer: its constructor logs a
     // console error when the context is unavailable, and a missing context is
     // a supported path here, not an error.
-    let supported = false;
-
-    try {
-      const probe = document.createElement("canvas");
-      supported = Boolean(
-        probe.getContext("webgl2") || probe.getContext("webgl"),
-      );
-    } catch {
-      supported = false;
-    }
-
-    if (!supported) {
+    if (!hasWebgl()) {
       queueMicrotask(() => setWebglFailed(true));
       return;
     }

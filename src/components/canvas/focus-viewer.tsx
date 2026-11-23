@@ -14,6 +14,7 @@ import { MediaVideo } from "@/components/media/media-video";
 import type { CanvasItem } from "./infinite-canvas";
 import { TRANSITION, fitBox } from "./transition";
 import { ownViewerVideo } from "./viewer-playback";
+import "./focus-viewer.css";
 
 const FADE_S = 0.12;
 
