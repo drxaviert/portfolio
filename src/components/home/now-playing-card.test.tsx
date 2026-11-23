@@ -60,9 +60,9 @@ describe("NowPlayingCard", () => {
       screen.getByRole("group", { name: "Now playing" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Play Get Lucky" }),
+      screen.getByRole("button", { name: "Play Door to the Cosmos" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Daft Punk")).toBeInTheDocument();
+    expect(screen.getByText("Chihei Hatakeyama")).toBeInTheDocument();
   });
 
   it("exposes a seek slider with aria values and keyboard steps", () => {
@@ -71,42 +71,42 @@ describe("NowPlayingCard", () => {
     const slider = screen.getByRole("slider", { name: "Seek" });
 
     expect(slider).toHaveAttribute("aria-valuemin", "0");
-    expect(slider).toHaveAttribute("aria-valuemax", "249");
+    expect(slider).toHaveAttribute("aria-valuemax", "375");
     expect(slider).toHaveAttribute("aria-valuenow", "0");
-    expect(slider).toHaveAttribute("aria-valuetext", "0:00 of 4:09");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:00 of 6:15");
 
     fireEvent.keyDown(slider, { key: "ArrowRight" });
     expect(slider).toHaveAttribute("aria-valuenow", "5");
-    expect(slider).toHaveAttribute("aria-valuetext", "0:05 of 4:09");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:05 of 6:15");
     expect(screen.getByText("0:05")).toBeInTheDocument();
 
     fireEvent.keyDown(slider, { key: "ArrowUp" });
     expect(slider).toHaveAttribute("aria-valuenow", "10");
-    expect(slider).toHaveAttribute("aria-valuetext", "0:10 of 4:09");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:10 of 6:15");
 
     fireEvent.keyDown(slider, { key: "ArrowDown" });
     expect(slider).toHaveAttribute("aria-valuenow", "5");
-    expect(slider).toHaveAttribute("aria-valuetext", "0:05 of 4:09");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:05 of 6:15");
 
     fireEvent.keyDown(slider, { key: "PageUp" });
-    expect(slider).toHaveAttribute("aria-valuenow", "29");
-    expect(slider).toHaveAttribute("aria-valuetext", "0:29 of 4:09");
+    expect(slider).toHaveAttribute("aria-valuenow", "42");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:42 of 6:15");
 
     fireEvent.keyDown(slider, { key: "Home" });
     expect(slider).toHaveAttribute("aria-valuenow", "0");
-    expect(slider).toHaveAttribute("aria-valuetext", "0:00 of 4:09");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:00 of 6:15");
 
     fireEvent.keyDown(slider, { key: "End" });
-    expect(slider).toHaveAttribute("aria-valuenow", "249");
-    expect(slider).toHaveAttribute("aria-valuetext", "4:09 of 4:09");
+    expect(slider).toHaveAttribute("aria-valuenow", "375");
+    expect(slider).toHaveAttribute("aria-valuetext", "6:15 of 6:15");
 
     fireEvent.keyDown(slider, { key: "ArrowLeft" });
-    expect(slider).toHaveAttribute("aria-valuenow", "244");
-    expect(slider).toHaveAttribute("aria-valuetext", "4:04 of 4:09");
+    expect(slider).toHaveAttribute("aria-valuenow", "370");
+    expect(slider).toHaveAttribute("aria-valuetext", "6:10 of 6:15");
 
     fireEvent.keyDown(slider, { key: "PageDown" });
-    expect(slider).toHaveAttribute("aria-valuenow", "219");
-    expect(slider).toHaveAttribute("aria-valuetext", "3:39 of 4:09");
+    expect(slider).toHaveAttribute("aria-valuenow", "332");
+    expect(slider).toHaveAttribute("aria-valuetext", "5:32 of 6:15");
   });
 
   it("commits a pointer preview on pointer up", () => {
@@ -121,12 +121,12 @@ describe("NowPlayingCard", () => {
       button: 0,
       clientX: 100,
     });
-    expect(slider).toHaveAttribute("aria-valuenow", "124");
+    expect(slider).toHaveAttribute("aria-valuenow", "187");
 
     fireEvent.pointerUp(slider, { pointerId: 1 });
 
-    expect(slider).toHaveAttribute("aria-valuenow", "124");
-    expect(store.getSnapshot().currentTime).toBeCloseTo(124.5);
+    expect(slider).toHaveAttribute("aria-valuenow", "187");
+    expect(store.getSnapshot().currentTime).toBeCloseTo(187.5);
   });
 
   it("discards a pointer preview on pointer cancel", () => {
@@ -141,8 +141,8 @@ describe("NowPlayingCard", () => {
       button: 0,
       clientX: 100,
     });
-    expect(slider).toHaveAttribute("aria-valuenow", "124");
-    expect(screen.getByText("2:04")).toBeInTheDocument();
+    expect(slider).toHaveAttribute("aria-valuenow", "187");
+    expect(screen.getByText("3:07")).toBeInTheDocument();
 
     fireEvent.pointerCancel(slider, { pointerId: 1 });
 
@@ -155,7 +155,7 @@ describe("NowPlayingCard", () => {
     const { container } = render(<NowPlayingCard store={store} />);
 
     expect(screen.getByText("0:00")).toBeInTheDocument();
-    expect(screen.getByText("4:09")).toBeInTheDocument();
+    expect(screen.getByText("6:15")).toBeInTheDocument();
     expect(container.querySelector(".now-playing-elapsed")).toHaveAttribute(
       "aria-hidden",
       "true",
@@ -180,7 +180,7 @@ describe("NowPlayingCard", () => {
     const slider = screen.getByRole("slider", { name: "Seek" });
 
     expect(slider).toHaveAttribute("aria-valuenow", "42");
-    expect(slider).toHaveAttribute("aria-valuetext", "0:42 of 4:09");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:42 of 6:15");
     expect(screen.getByText("0:42")).toBeInTheDocument();
   });
 
@@ -205,7 +205,7 @@ describe("NowPlayingCard", () => {
     render(<NowPlayingCard store={store} />);
 
     expect(
-      screen.getByRole("button", { name: "Retry playing Get Lucky" }),
+      screen.getByRole("button", { name: "Retry playing Door to the Cosmos" }),
     ).toBeInTheDocument();
   });
 });

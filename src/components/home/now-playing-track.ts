@@ -1,26 +1,14 @@
 /**
- * The one track the static player card plays. The title, artist and drawn
- * duration come from the Paper file "portfolio" (Static player) and stay as
- * the design placeholder.
- *
- * TODO_VIDEO_ID is deliberately a technical placeholder, not the design's
- * track: Daft Punk's official "Get Lucky" audio (5NV6Rdv1a3I) returns YouTube
- * error 150 on the LAN origin (http://192.168.2.33:4310) in every tested
- * configuration — youtube-nocookie.com or youtube.com, with or without the
- * origin param, with a valid referer — while it plays on localhost. The same
- * player and origin play this YouTube IFrame API demo on both origins. Swap it
- * for the real track when the client supplies one; the player reports the
- * video's own duration on ready.
+ * The one track the static player card plays. Title and artist come from the
+ * video's YouTube oEmbed record (the " - Topic" suffix is not part of the
+ * artist); the player reports the 6:15 duration on ready.
  */
-export const TODO_VIDEO_ID = "M7lc1UVf-VE";
-
 export const NOW_PLAYING_TRACK = {
-  videoId: TODO_VIDEO_ID,
-  title: "Get Lucky",
-  artist: "Daft Punk",
-  /** Paper draws 4:09; the placeholder video reports its own length on ready. */
-  durationSeconds: 249,
-  durationLabel: "4:09",
+  videoId: "ZgCjWE9IqWU",
+  title: "Door to the Cosmos",
+  artist: "Chihei Hatakeyama",
+  durationSeconds: 375,
+  durationLabel: "6:15",
 } as const;
 
 export function watchUrl(videoId: string) {
@@ -51,8 +39,8 @@ export function formatTime(seconds: number) {
 }
 
 /**
- * Total length rounds to the nearest second. Players usually report 248.9 for
- * a 4:09 video; the design's total stays 4:09 instead of flooring to 4:08.
+ * Total length rounds to the nearest second. Players usually report 374.9 for
+ * a 6:15 video; the total stays 6:15 instead of flooring to 6:14.
  */
 export function formatDuration(seconds: number) {
   const safe =

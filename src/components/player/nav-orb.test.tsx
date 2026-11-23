@@ -29,7 +29,7 @@ function makeHarness() {
     pause: vi.fn(),
     seek: vi.fn(),
     currentTime: vi.fn(() => 0),
-    duration: vi.fn(() => 249),
+    duration: vi.fn(() => 375),
     state: vi.fn(() => -1),
     destroy: vi.fn(),
   };
@@ -56,7 +56,7 @@ function makeHarness() {
   async function playThrough() {
     store.play();
     await vi.waitFor(() => expect(createPlayer).toHaveBeenCalled());
-    callbacks?.onReady(handle, 249);
+    callbacks?.onReady(handle, 375);
     await vi.waitFor(() => expect(handle.play).toHaveBeenCalled());
     callbacks?.onStateChange(1, handle);
   }
@@ -102,7 +102,7 @@ describe("orb satellite control", () => {
 
     const { container } = renderOrb(harness.store);
     const satellite = container.querySelector(".orb-satellite");
-    const button = screen.getByRole("button", { name: "Pause Get Lucky" });
+    const button = screen.getByRole("button", { name: "Pause Door to the Cosmos" });
 
     expect(satellite).toHaveAttribute("data-visible", "true");
     expect(satellite).toHaveAttribute("data-paused", "false");
@@ -116,7 +116,7 @@ describe("orb satellite control", () => {
     expect(harness.store.getSnapshot().status).toBe("paused");
     expect(satellite).toHaveAttribute("data-paused", "true");
     expect(
-      screen.getByRole("button", { name: "Play Get Lucky" }),
+      screen.getByRole("button", { name: "Play Door to the Cosmos" }),
     ).toBeInTheDocument();
   });
 
@@ -127,7 +127,7 @@ describe("orb satellite control", () => {
     await harness.playThrough();
 
     const { container } = renderOrb(harness.store);
-    const button = screen.getByRole("button", { name: "Pause Get Lucky" });
+    const button = screen.getByRole("button", { name: "Pause Door to the Cosmos" });
 
     fireEvent.click(button, { detail: 1 });
     expect(button).toHaveAttribute("data-paused", "true");

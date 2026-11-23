@@ -20,7 +20,7 @@ function makeHarness() {
     pause: vi.fn(),
     seek: vi.fn(),
     currentTime: vi.fn(() => 0),
-    duration: vi.fn(() => 249),
+    duration: vi.fn(() => 375),
     state: vi.fn(() => -1),
     destroy: vi.fn(),
   };
@@ -48,7 +48,7 @@ function makeHarness() {
     handle,
     createPlayer,
     loadApi,
-    ready(duration = 249) {
+    ready(duration = 375) {
       callbacks?.onReady(handle, duration);
     },
     playerState(next: number) {
@@ -79,9 +79,9 @@ describe("player store", () => {
 
     expect(snapshot.status).toBe("idle");
     expect(snapshot.currentTime).toBe(0);
-    expect(snapshot.duration).toBe(249);
-    expect(snapshot.track.title).toBe("Get Lucky");
-    expect(snapshot.track.artist).toBe("Daft Punk");
+    expect(snapshot.duration).toBe(375);
+    expect(snapshot.track.title).toBe("Door to the Cosmos");
+    expect(snapshot.track.artist).toBe("Chihei Hatakeyama");
   });
 
   it("does not touch YouTube until a player control asks for it", async () => {
