@@ -184,7 +184,7 @@ Sources: Day `:403-415`, Dawn `:491-503`, Dusk `:570-582`, Night `:650-662`. Con
 | Night | `linear-gradient(45deg, rgb(214 180 157 / .55) 0%, rgb(253 104 80 / .55) 45%, rgb(253 104 80 / .55) 100%)` | `:680-685` |
 
 Consumers: horizon background `src/components/horizon/horizon-background.tsx:254`, ring glow
-`src/components/home/ring-hover.css:36`, nav orb `src/components/home/home-nav.tsx:33`, play card
+`src/components/home/ring-hover.css:36`, nav orb `src/components/home/gaze-orb.tsx:258-267`, play card
 `src/components/play/play-card.tsx:36-39`.
 
 ### Registered `@property` initial values

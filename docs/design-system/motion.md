@@ -228,6 +228,30 @@ A frame writes one property: the capsule keeps the run's width and carries the p
 - `src/components/home/nav-items.css:165` — reduced-motion capsule hide
 - `src/components/home/nav-items.css:170-178` — reduced-motion hover fill crossfade
 
+## Nav orb gaze
+
+The orb's two matte eyes look toward a fine pointer. The pair moves as one so the face keeps its spacing; each bar is still the 3.4 × 8 the Figma head ships. The eye container's `transform` is the home's own closed-form `glide-spring` oscillator, not Motion: the nav lives in the root layout, and PR #41 keeps Motion out of every route's first-load JS. The approved Motion tuning (k=340, c=26, m=0.6) converts to the unit-mass spring `ω² = 340/0.6`, `ζ = 26/(2√(340·0.6)) ≈ 0.91`, slightly underdamped, so a retarget keeps its velocity and the face never snaps. Travel is capped at 4.5 × 2.8px at the 36px size and scales with the head; the offset is the pointer direction times `min(distance / 60px, 1)`, so the eyes rest when the pointer is on the head and reach a full look at the tuned 60px reach. The dev harness at `/dev/proto/orb-eyes` exposes strength and reach; its 4× head uses the same component.
+
+| Trigger | Property | Timing | Easing | From → to |
+| --- | --- | --- | --- | --- |
+| Fine pointer moves | eye-pair `transform` | closed-form spring `ω²=566.7`, `ζ=0.91` | spring | current offset → direction × `min(distance / 60, 1)` × 4.5 / 2.8px |
+| Pointer on the head | same | same spring | spring | current → 0, 0 |
+| Real pointer leave or window blur | same | same spring | spring | current → 0, 0 |
+| Theme crossfade's synthetic leave | — | held | — | aim stays |
+| Reduced motion or coarse pointer | — | no listener | — | held at 0, 0 |
+
+The eyes are decorative (`aria-hidden`); the Home link keeps its name and 44px target. The effect is gated to `(hover: hover) and (pointer: fine)` and `prefers-reduced-motion: no-preference`, and both queries are watched live. A theme crossfade disables hit tests for its length and reports a `pointerleave`; `isPhaseSwitching()` distinguishes it from a real leave, the same guard `NavItems` uses for its hover state. Scroll and resize re-aim at the last pointer so the gaze stays attached when the head moves.
+
+- `src/components/home/gaze-orb.tsx:32-46` — travel, 60px reach, converted spring
+- `src/components/home/gaze-orb.tsx:88-150` — closed-form eye-pair spring and aim
+- `src/components/home/gaze-orb.tsx:168-177` — theme-crossfade leave guard
+- `src/components/home/gaze-orb.tsx:207-228` — fine-pointer / reduced-motion gates
+- `src/components/home/gaze-orb.tsx:258-280` — the head and the moving eye pair
+- `src/components/home/glide-spring.ts:82-140` — the shared closed-form spring step
+- `src/components/home/home-nav.tsx:54` — the shipped nav mounts the gaze orb
+- `src/components/home/gaze-orb.test.tsx` — aim, crossfade guard, reduced motion, coarse pointer, no Motion import
+- `src/components/home/home-nav.test.tsx` — the fine-pointer integration test
+
 ## Home card hover ring
 
 Every ring host (the home cards, the tracker widget, the carousel columns, the nav bar) is one surface: a frame, the glow inside it, and the fill. Growth animates the layers' layout `inset`, not a `clip-path` or a `transform`. At rest the fill is the Figma card box and the frame is one pixel larger and transparent. On hover or focus the fill grows to (grow − 1px) and the frame to grow, so the 1px edge keeps its width while the fill grows 2.5px x / 5px y into the gutters (`--ring-grow-x` 3.5px, `--ring-grow-y` 6px for the frame edge).

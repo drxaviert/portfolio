@@ -19,7 +19,7 @@ Radius literals that are not the tokens:
 | `2px` | footnote focus radius | `src/components/work/reader.css:741` |
 | `1px` | ruler tick and indicator | `src/components/work/scroll-ruler.css:68`, `:132` |
 | `999px` | thumb targets, faux-UI pills | `src/components/work/reader.css:235`; `src/components/faux-ui/faux-ui.css:101` |
-| `50%` | nav orb, faux-UI circles | `src/components/home/home-nav.tsx:32`; `src/components/faux-ui/faux-ui.css:154` |
+| `50%` | nav orb, faux-UI circles | `src/components/home/gaze-orb.tsx:258`; `src/components/faux-ui/faux-ui.css:154` |
 | `--radius-md` (`8px`) | card-fade inner box (`rounded-md`), faux-UI card/dialog (literal `8px`) | `src/components/home/home-cards.tsx:90`; `src/components/home/carousel/home-carousel.tsx:299`, `:333`; `src/components/faux-ui/faux-ui.css:62` |
 | `12px` | reader panel (written as a literal, not `--radius-lg`) | `src/components/work/reader.css:25` |
 | `10px` / `7px` / `5px` / `14px` | faux-UI pieces | `src/components/faux-ui/faux-ui.css:128`, `:192`, `:386`, `:547` |
@@ -80,7 +80,7 @@ All focus rings are `2px solid var(--primary)`; the offset is the only value tha
 | Element | Offset | Radius before the ring | Source |
 | --- | --- | --- | --- |
 | Ring hosts (cards, nav bar) | `2px` | host's own | `src/components/home/ring-hover.css:213-216` |
-| Nav labels and glyph | `0` | `--radius-md` | `src/components/home/nav-items.tsx:27-28`, `:39-40`; `home-nav.tsx:41-42` |
+| Nav labels and glyph | `0` | `--radius-md` | `src/components/home/nav-items.tsx:27-28`, `:39-40`; `home-nav.tsx:33-34`, `:52` |
 | Reader rail links | `2px` | `4px` | `src/components/work/reader.css:164-169` |
 | Reader thumb buttons | `2px` | `999px` (unchanged) | `reader.css:176-179` |
 | Margin notes / footnote refs | `2px` | `4px` / `2px` | `reader.css:678-683`, `:739-744` |
