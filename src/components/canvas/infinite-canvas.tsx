@@ -53,23 +53,15 @@ const TEXTURE_ZOOM = 1.06;
 const PARALLAX_LIMIT = 0.025;
 
 /**
- * Canvas video budget. The nearest video media play; four more are kept paused
- * for a quick restart, and anything outside the viewport + margin is disposed.
+ * Canvas video budget. Videos already playing stay playing until their plane
+ * leaves the viewport plus margin; new starts are rate-limited so a fast drag
+ * never opens a dozen decoders in one frame.
  */
 const VIDEO_TUNING = {
   desktopPlaying: 12,
-  desktopEntries: 16,
-  /** A drag or fast glide plays six from the warm set; settling restores 12. */
-  dragPlaying: 6,
-  /** Freeze selection above this glide speed (px per 60fps frame). */
-  freezeEnterSpeed: 3,
-  /** Stay frozen until speed is below this for settleMs. */
-  freezeExitSpeed: 0.4,
-  settleMs: 220,
   mobilePlaying: 6,
-  mobileEntries: 8,
-  /** The playing set is recomputed this often; 0 means every frame. */
-  checkMs: 120,
+  /** The visible set is recomputed this often, starting at most one video. */
+  checkMs: 80,
   /** Extra screen px around the viewport that counts as visible. */
   margin: 160,
 } as const;
@@ -397,13 +389,9 @@ export const InfiniteCanvas = forwardRef<
     let last = 0;
     let lastScroll = { x: 0, y: 0 };
     let videoCheckAt = 0;
-    let videoFrozen = false;
-    let settledAt = 0;
     let videoUploads = 0;
     const videoOff =
       new URLSearchParams(window.location.search).get("video") === "0";
-    const freezeOff =
-      new URLSearchParams(window.location.search).get("freeze") === "0";
     let resizeFrame = 0;
     let reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -557,10 +545,19 @@ export const InfiniteCanvas = forwardRef<
 
     function hasPlayingVideos(): boolean {
       for (const entry of videoEntries.values()) {
-        if (entry.playing) return true;
+        if (entry.playing || !entry.element.paused) return true;
       }
 
       return false;
+    }
+
+    function startVideo(entry: VideoEntry): void {
+      if (!entry.element.paused) return;
+
+      void entry.element.play().catch(() => {
+        entry.failed = true;
+        entry.playing = false;
+      });
     }
 
     /** Browsers without requestVideoFrameCallback upload on a 33ms cadence. */
@@ -689,13 +686,6 @@ export const InfiniteCanvas = forwardRef<
         entry.playing = false;
       });
 
-      // The canvas uses the small rendition when the pipeline made one; it is
-      // still a progressive MP4 with the same aspect as the manifest.
-      void element.play().catch(() => {
-        entry.failed = true;
-        entry.playing = false;
-      });
-
       return entry;
     }
 
@@ -703,35 +693,6 @@ export const InfiniteCanvas = forwardRef<
       if (videoOff || document.hidden || pausedRef.current) {
         pauseAllVideos();
         return false;
-      }
-
-      const speed = panSpeed();
-      const fast = freezeOff
-        ? panIsDragging()
-        : panIsDragging() || speed > VIDEO_TUNING.freezeEnterSpeed;
-
-      // Freeze through the whole fast burst, including the glide between
-      // flicks. The set only changes once the speed has stayed low long
-      // enough, which stops decoder start-up on every flick.
-      if (fast) {
-        settledAt = 0;
-        if (!videoFrozen) {
-          videoFrozen = true;
-          videoCheckAt = 0;
-        }
-      } else if (videoFrozen) {
-        if (speed > VIDEO_TUNING.freezeExitSpeed) {
-          settledAt = 0;
-        } else if (settledAt === 0) {
-          settledAt = now;
-        } else if (now - settledAt >= VIDEO_TUNING.settleMs) {
-          videoFrozen = false;
-          videoCheckAt = 0;
-        }
-      }
-
-      if (videoFrozen && videoCheckAt !== 0) {
-        return hasPlayingVideos();
       }
 
       if (now - videoCheckAt < VIDEO_TUNING.checkMs) {
@@ -773,38 +734,38 @@ export const InfiniteCanvas = forwardRef<
 
       const sorted = [...candidates.entries()].sort((a, b) => a[1] - b[1]);
       const mobile = width < 768;
-      const maxEntries = mobile
-        ? VIDEO_TUNING.mobileEntries
-        : VIDEO_TUNING.desktopEntries;
       const maxPlaying = mobile
         ? VIDEO_TUNING.mobilePlaying
-        : videoFrozen
-          ? VIDEO_TUNING.dragPlaying
-          : VIDEO_TUNING.desktopPlaying;
-      const kept = new Set(
-        sorted.slice(0, maxEntries).map(([itemIndex]) => itemIndex),
-      );
-      const playing = new Set(
-        sorted.slice(0, maxPlaying).map(([itemIndex]) => itemIndex),
-      );
+        : VIDEO_TUNING.desktopPlaying;
+
+      // Leaving the viewport plus margin is the only reason a playing video
+      // stops. Everything still visible stays in the set, even when a drag
+      // brings new planes in.
+      const kept = new Set(candidates.keys());
 
       for (const itemIndex of [...videoEntries.keys()]) {
         if (!kept.has(itemIndex)) disposeVideoEntry(itemIndex);
       }
 
-      for (const [itemIndex] of sorted.slice(0, maxEntries)) {
-        const entry = ensureVideoEntry(itemIndex);
-        if (!entry || entry.failed) continue;
+      for (const [itemIndex] of sorted) {
+        ensureVideoEntry(itemIndex);
+      }
 
-        if (playing.has(itemIndex)) {
-          if (entry.element.paused) {
-            void entry.element.play().catch(() => {
-              entry.failed = true;
-              entry.playing = false;
-            });
-          }
-        } else if (!entry.element.paused) {
-          entry.element.pause();
+      let active = 0;
+      for (const entry of videoEntries.values()) {
+        if (entry.playing || !entry.element.paused) active += 1;
+      }
+
+      // At most one new decoder per check, nearest the centre first. If the
+      // cap is full the entry waits for a plane to leave rather than pausing
+      // one that is already playing.
+      if (active < maxPlaying) {
+        for (const [itemIndex] of sorted) {
+          const entry = videoEntries.get(itemIndex);
+          if (!entry || entry.failed || !entry.element.paused) continue;
+
+          startVideo(entry);
+          break;
         }
       }
 
