@@ -12,6 +12,9 @@
  * at z-index 70, above the nav, clipped only by the viewport. The inner layer
  * owns the radius, shadow, fade and scale; the crossfade between rows is two
  * stacked images. Touch has no thumbnail.
+ *
+ * When the empty left margin can hold it, the same media is a 4:3 panel beside
+ * the list instead (see "Margin panel" below); the list never moves either way.
  */
 
 .wd-work-sr-only {
@@ -163,6 +166,55 @@
 .wd-work-group[data-work-pointer] .wd-work-list-column,
 .wd-work-group[data-work-pointer] .wd-work-row {
   cursor: none;
+}
+
+/* ---------- Margin panel ---------- */
+
+/*
+ * The panel lives in the empty left margin of the centred list, beside it. The
+ * list's own layout is untouched: the panel is a fixed box in the thumb's
+ * viewport clip, and `placePanel` measures the margin (surface edge + 16px to
+ * list edge - 32px, capped at 600px and right-aligned when capped) and its
+ * sticky Y. Height is the thumb's 4:3, and it takes the thumb's radius and
+ * shadow.
+ */
+.wd-work-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container);
+  box-shadow: var(--shadow-card);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-short-3) var(--ease-decelerate);
+}
+
+.wd-work-panel[data-work-active] {
+  opacity: 1;
+  transition: opacity 200ms var(--ease-emphasized-decelerate);
+}
+
+/* The panel's swap: 1s on an expo-out fade, both layers together, so the two
+   images are always blended rather than stepping. Opacity retargets, so a fast
+   sweep across rows interrupts the fade in place. */
+.wd-work-panel .wd-work-thumb-img {
+  transition-duration: 1000ms;
+  transition-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+/* Reduced motion: instant swap. The panel's own enter/exit keeps the shipped
+   thumb's reduced 120ms opacity. */
+@media (prefers-reduced-motion: reduce) {
+  .wd-work-panel,
+  .wd-work-panel[data-work-active] {
+    transition-duration: var(--duration-short-2);
+  }
+
+  .wd-work-panel .wd-work-thumb-img {
+    transition: none;
+  }
 }
 
 /* ---------- Narrow ---------- */

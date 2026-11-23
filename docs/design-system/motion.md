@@ -744,7 +744,7 @@ The content swap snapshots the outgoing view before React mutates the DOM, so th
 
 ## Work index — hover thumbnail list (2026-11-22)
 
-The /work index is one list of case studies inside the drawer panel, under the nav. While a row is current — a pointer hover, or keyboard focus with no pointer — one 480x360 thumbnail follows or parks, the other rows drop to 40%, and the fresh divider next to the current row fades away. There is no grid, no layout switch and no per-row preview.
+The /work index is one list of case studies inside the drawer panel, under the nav. While a row is current — a pointer hover, or keyboard focus with no pointer — one 480x360 thumbnail follows or parks, the other rows drop to 40%, and the fresh divider next to the current row fades away. There is no grid, no layout switch and no per-row preview. When the left margin can hold the margin panel (next section), the same media is shown there instead.
 
 | Trigger | Property | Duration | Delay | Easing | From → to |
 | --- | --- | --- | --- | --- | --- |
@@ -773,4 +773,29 @@ The /work index is one list of case studies inside the drawer panel, under the n
 - `src/components/work/work-index.css` — the column and the arrival fade
 - `src/components/work/breadcrumb.tsx` / `breadcrumb.css` — the shared way back, its nav-item hover/press/focus and the Glide capsule reuse
 - `src/components/work/reader.css` — the reader's back row and the reach-to-top rail
+
+## Work index — margin thumbnail (2026-11-22)
+
+When the centred list leaves an empty left margin wide enough for it — a fine
+pointer and at least 320px between the reading surface's gutter and the list —
+the hover media is a 4:3 panel in that margin instead of the cursor-follow
+thumbnail. The list itself never moves: same 1120px column, same typography. The
+panel is sticky, shows nothing until a row is current, and the cursor stays
+visible. Below the gate the shipped cursor thumbnail is used unchanged.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| A row becomes current | panel `opacity` | 200ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 0 → 1 |
+| Pointer leaves the list | panel `opacity` | 150ms | 0 | `--ease-decelerate` | 1 → 0 |
+| Media swaps between rows | stacked layer `opacity` | 1000ms | 0 | `cubic-bezier(0.19, 1, 0.22, 1)` | 0 → 1 (the old front → 0) |
+| Reduced motion, media swap | — | 0 | 0 | — | instant |
+| Reduced motion, panel enter/exit | `opacity` | 120ms (`--duration-short-2`) | 0 | `ease-out` | 0 → 1 / 1 → 0 |
+
+- **Geometry.** The reading surface's left edge plus 16px starts the box; the list's left edge minus 32px ends it. Width is whatever is left, capped at 600px; when capped it right-aligns to the list so it keeps hugging it. Height is the cursor thumbnail's 4:3, the radius is `--radius-lg`, the shadow `--shadow-card`, the fill `--surface-container`, and there is no border. `placePanel` writes the box to the fixed clip layer; the list is not involved.
+- **Sticky.** The top is the first row's top; on scroll it pins at the nav's visible top (`nav bottom + 12px`) until the pointer leaves the list. Idle is empty: the panel is `opacity: 0` with no placeholder.
+- **Gate.** Measured, not a breakpoint: with the shipped 1120px column the margin first reaches 320px at 1839px (1838px → 319.5px, cursor fallback; 1839px → 320px, panel). The pointer must also be fine; on touch no thumbnail is shown.
+- **Interruption.** The crossfade is an opacity transition on two stacked images, so a row change mid-fade retargets from the current blend instead of restarting.
+
+- `src/components/work/work-list.tsx` — `PANEL_*`, `measurePanel`, `placePanel`, the fixed clip layer's panel
+- `src/components/work/work-list.css` — the panel box, enter/exit, 1s crossfade and reduced-motion branch
 
