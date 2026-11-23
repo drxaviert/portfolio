@@ -154,26 +154,6 @@
   color: #fff;
 }
 
-.hc-credit {
-  position: absolute;
-  bottom: clamp(10px, 1.6vh, 18px);
-  left: 50%;
-  max-width: min(80vw, 900px);
-  margin: 0;
-  transform: translateX(-50%);
-  font-family: var(--font-work-sans), "Segoe UI", sans-serif;
-  font-size: 10.5px;
-  font-weight: 400;
-  letter-spacing: 0.045em;
-  line-height: 1.55;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.42);
-}
-
-.hc-credit-hover {
-  color: rgba(255, 255, 255, 0.28);
-}
-
 .hc-back {
   position: absolute;
   top: calc(clamp(22px, 4.2vh, 48px) + 24px);
@@ -266,16 +246,6 @@
   letter-spacing: 0.3em;
 }
 
-.hc-embed-box .hc-credit {
-  bottom: 3.4cqw;
-  max-width: 88%;
-  font-size: clamp(6.5px, 1.05cqw, 10px);
-}
-
-.hc-embed-box .hc-credit-hover {
-  display: none;
-}
-
 @container (max-width: 620px) {
   .hc-embed-box .hc-nav {
     display: none;
@@ -334,15 +304,6 @@
     top: 20px;
     gap: 10px;
     font-size: 11px;
-  }
-
-  .hc-credit {
-    right: 16px;
-    bottom: 62px;
-    left: 16px;
-    max-width: none;
-    transform: none;
-    text-align: left;
   }
 
   .hc-back {

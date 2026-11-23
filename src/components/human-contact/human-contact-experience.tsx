@@ -79,13 +79,6 @@ export function HumanContactExperience({
           </p>
         )}
 
-        <p className="hc-credit">
-          Original design: HUMANCONTACT INC. (humancontact.com).{" "}
-          <span className="hc-credit-hover">
-            Hover interaction: Dat&apos;s addition.
-          </span>
-        </p>
-
         {mode === "full" ? (
           <Link className="hc-back" href="/work/human-contact">
             <span aria-hidden="true">←</span> Case study

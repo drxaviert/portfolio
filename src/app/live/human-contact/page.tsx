@@ -3,7 +3,7 @@ import { HumanContactFull } from "@/components/human-contact/human-contact-full"
 import { SITE_NAME } from "@/lib/site";
 
 const DESCRIPTION =
-  "A live, full-screen recreation of HUMANCONTACT's floating-object homepage, with a hover interaction added by Dat.";
+  "A live, full-screen recreation of HUMANCONTACT's floating-object homepage. Original design: HUMANCONTACT INC. (humancontact.com); hover interaction added by Dat.";
 
 export const metadata: Metadata = {
   title: "Human Contact — live",
