@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   YouTubeCallbacks,
   YouTubeHandle,
-  YouTubeState,
 } from "@/components/home/now-playing-youtube";
 import { createPlayerStore } from "./player-store";
 import type { PlayerStore } from "./player-store";
@@ -14,15 +13,6 @@ const mocks = vi.hoisted(() => ({ pathname: "/work" }));
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
 }));
-
-const YT_STATE: YouTubeState = {
-  unstarted: -1,
-  ended: 0,
-  playing: 1,
-  paused: 2,
-  buffering: 3,
-  cued: 5,
-};
 
 const cleanups: (() => void)[] = [];
 
@@ -66,7 +56,7 @@ function makeHarness() {
   async function playThrough() {
     store.play();
     await vi.waitFor(() => expect(createPlayer).toHaveBeenCalled());
-    callbacks?.onReady(handle, YT_STATE, 249);
+    callbacks?.onReady(handle, 249);
     await vi.waitFor(() => expect(handle.play).toHaveBeenCalled());
     callbacks?.onStateChange(1, handle);
   }
@@ -88,13 +78,20 @@ describe("orb satellite control", () => {
       "href",
       "/",
     );
-    expect(container.querySelector(".orb-satellite")).toHaveAttribute(
-      "data-visible",
-      "false",
-    );
-    expect(
-      screen.queryByRole("button", { name: "Pause Get Lucky" }),
-    ).not.toBeInTheDocument();
+    const satellite = container.querySelector(".orb-satellite");
+
+    expect(satellite).toHaveAttribute("data-visible", "false");
+    expect(satellite).toHaveAttribute("inert");
+  });
+
+  it("keeps the Home link before the satellite in DOM order", () => {
+    mocks.pathname = "/work";
+    const harness = makeHarness();
+    const { container } = renderOrb(harness.store);
+    const shell = container.querySelector(".orb-shell");
+
+    expect(shell?.firstElementChild?.tagName).toBe("A");
+    expect(shell?.lastElementChild).toHaveClass("orb-satellite");
   });
 
   it("shows the satellite off-home, toggles, and parks as play when paused", async () => {
@@ -131,13 +128,11 @@ describe("orb satellite control", () => {
 
     const { container } = renderOrb(harness.store);
 
-    expect(container.querySelector(".orb-satellite")).toHaveAttribute(
-      "data-visible",
-      "false",
-    );
-    expect(
-      screen.queryByRole("button", { name: "Pause Get Lucky" }),
-    ).not.toBeInTheDocument();
+    const satellite = container.querySelector(".orb-satellite");
+
+    expect(satellite).toHaveAttribute("data-visible", "false");
+    expect(satellite).toHaveAttribute("inert");
+    expect(satellite).not.toHaveAttribute("aria-hidden");
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
       "href",
       "/",

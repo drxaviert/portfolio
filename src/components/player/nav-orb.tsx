@@ -9,6 +9,8 @@ import { OrbHead } from "./orb-head";
 import { OrbSatelliteControl } from "./orb-satellite-control";
 import "./orb-player.css";
 
+const DEV_ROUTE_PREFIX = "/dev";
+
 /**
  * The nav's orb slot. The orb stays the plain Home link; off-home, while a
  * track is playing or paused, a satellite dot at its 4 o'clock edge is the
@@ -19,18 +21,12 @@ export function NavOrb({ store = playerStore }: { store?: PlayerStore }) {
   const pathname = usePathname();
   const { status, track } = usePlayerStatus(store);
   const started = status === "playing" || status === "paused";
-  const active = started && pathname !== "/" && !pathname.startsWith("/dev");
+  const active =
+    started && pathname !== "/" && !pathname.startsWith(DEV_ROUTE_PREFIX);
   const playing = status === "playing";
 
   return (
     <div className="orb-shell relative size-9 shrink-0">
-      <OrbSatelliteControl
-        active={active}
-        playing={playing}
-        track={track}
-        store={store}
-      />
-
       <Link
         href="/"
         aria-label="Home"
@@ -44,6 +40,13 @@ export function NavOrb({ store = playerStore }: { store?: PlayerStore }) {
           Home
         </span>
       </Link>
+
+      <OrbSatelliteControl
+        active={active}
+        playing={playing}
+        track={track}
+        store={store}
+      />
     </div>
   );
 }

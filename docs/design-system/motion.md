@@ -799,3 +799,32 @@ visible. Below the gate the shipped cursor thumbnail is used unchanged.
 - `src/components/work/work-list.tsx` — `PANEL_*`, `measurePanel`, `placePanel`, the fixed clip layer's panel
 - `src/components/work/work-list.css` — the panel box, enter/exit, 1s crossfade and reduced-motion branch
 
+## Now-playing card & satellite
+
+The persistent player has two surfaces: the top-left card on `/`, and the satellite dot on the nav orb off-home. Both read the same store. The card shell (art, title, button) subscribes with `usePlayerStatus`; only `NowPlayingTimebar` uses `usePlayer`, so the 4 Hz playhead and pointer preview re-render the timebar alone.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Card play/pause pressed | `transform` | 100ms (`--duration-short-1`) | 0 | — | `scale(1)` → `scale(0.95)` |
+| Card icon swap | `opacity`, `transform` | 150ms (`--duration-short-3`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) | `scale(0.9)` → `scale(1)` |
+| Slider track hover/focus/drag | `transform` (`scaleY`) | 150ms (`--duration-short-3`) | 0 | `ease-out` (`--ease-decelerate`) | 1 → 2 (2px → 4px at the 275px card) |
+| Slider fill follows the playhead | `clip-path` | 250ms (`--duration-medium-2`) | 0 | `linear` | current progress → next progress |
+| Slider thumb appears | `opacity`, `transform` | 150ms (`--duration-short-3`) | 0 | `ease-out` | `scale(0.8)` → `scale(1)`; position follows the value, no layout transition |
+| Satellite enter | `opacity` | 200ms | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` | 0 → 1 |
+| Satellite exit | `opacity` | 150ms (`--duration-short-3`) | 0 | `ease-in` (`--ease-accelerate`) | 1 → 0 |
+| Satellite dot → button (hover/focus/paused) | `opacity`, `transform` | 200ms enter / 150ms exit | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` / `ease-in` | 13px dot → 24px button (`scale(0.542)` → 1) |
+| Satellite playing | dot ring `scale`, `opacity` | 1600ms loop | 0 | `ease-out` (`--ease-decelerate`) | `scale(1)`/0.35 → `scale(1.6)`/0, only while visible and playing |
+| Satellite pressed | `transform` | 100ms (`--duration-short-1`) | 0 | — | `scale(1)` → `scale(0.96)` |
+| Reduced motion, card | icon `opacity` | 150ms (`--duration-short-3`) | 0 | `linear` | opacity only, no transform; spinner slows to 2.4s |
+| Reduced motion, satellite | `opacity` | 150ms (`--duration-short-3`) | 0 | `linear` | opacity only, no grow, press scale or pulse |
+
+- **Hit areas.** The slider's visual bar stays 1.5–2px tall, but its `::before` target is 41px tall at the largest card. The satellite's `::before` target is 40px and grows only right and bottom, so it never adds target area over the Home orb. The card button already carries a 40px target.
+- **Pointers.** The satellite grow is gated to `(hover: hover) and (pointer: fine)`; `:focus-within` stays active for keyboard. The Home link comes before the satellite in DOM order, so Tab reaches the orb first and the satellite second.
+- **Reduced motion.** The card keeps the state change as an opacity fade, drops icon and press transforms, and slows the spinner. The satellite keeps its fade, but the grow, press scale and pulse are removed. The slider fill still tracks the playhead because it communicates progress; the track and thumb stop resizing and fading.
+- **Phases.** The satellite dot and the card button both paint `--orb-gradient`, so the four phase gradients (Day, Dawn, Dusk, Night) come from the same token as the nav orb.
+
+- `src/components/home/now-playing-card.tsx` — `NowPlayingCard` (status) and `NowPlayingTimebar` (playhead)
+- `src/components/home/now-playing-card.css` — card press, icon fade, slider track, fill and thumb, hit targets, reduced motion
+- `src/components/player/player.css` — shared orb-gradient button press 0.95
+- `src/components/player/orb-player.css` — satellite dot/grow, pulse, 40px target, fine-pointer gate, reduced motion
+

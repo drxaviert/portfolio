@@ -147,13 +147,9 @@ export function createPlayerStore(
   function syncTime(player: YouTubeHandle | null) {
     if (!player) return;
 
-    try {
-      const current = player.currentTime();
+    const current = player.currentTime();
 
-      if (Number.isFinite(current)) setTime(current);
-    } catch {
-      // The iframe can be between two players.
-    }
+    if (Number.isFinite(current)) setTime(current);
   }
 
   function stopPolling() {
@@ -194,13 +190,7 @@ export function createPlayerStore(
 
       if (snapshot.status !== "loading") return;
 
-      let state = -1;
-
-      try {
-        state = handle?.state() ?? -1;
-      } catch {
-        // No player handle yet.
-      }
+      const state = handle?.state() ?? -1;
 
       if (state === 1 || state === 3) return;
 
@@ -220,14 +210,9 @@ export function createPlayerStore(
 
     const failed = handle;
 
+    failed?.destroy();
     handle = null;
     playerPromise = null;
-
-    try {
-      failed?.pause();
-    } catch {
-      // The player is already torn down.
-    }
 
     if (snapshot.status === "idle" || snapshot.status === "error") return;
 
@@ -262,16 +247,12 @@ export function createPlayerStore(
       Math.max(0, snapshot.duration - END_GUARD_S),
     );
 
-    try {
-      next.seek(resumeAt);
+    next.seek(resumeAt);
 
-      if (snapshot.status === "playing" || snapshot.status === "loading") {
-        next.play();
-      } else if (snapshot.status === "paused") {
-        next.pause();
-      }
-    } catch {
-      // A re-ready can race the iframe swap; the next event wins.
+    if (snapshot.status === "playing" || snapshot.status === "loading") {
+      next.play();
+    } else if (snapshot.status === "paused") {
+      next.pause();
     }
   }
 
@@ -281,11 +262,7 @@ export function createPlayerStore(
 
       if (live !== "loading" && live !== "playing") {
         // A stale play request must never win over a pause or a rest.
-        try {
-          player.pause();
-        } catch {
-          // Already torn down.
-        }
+        player.pause();
         return;
       }
 
@@ -342,7 +319,7 @@ export function createPlayerStore(
 
         try {
           createPlayer(target, TRACK.videoId, {
-            onReady: (next, _state, duration) => {
+            onReady: (next, duration) => {
               const firstReady = handle === null;
 
               handle = next;
@@ -382,13 +359,7 @@ export function createPlayerStore(
     if (live === "paused" && handle) {
       update({ status: "playing" });
       startPolling();
-
-      try {
-        handle.play();
-      } catch {
-        fail();
-      }
-
+      handle.play();
       return;
     }
 
@@ -406,14 +377,10 @@ export function createPlayerStore(
       }
       if (snapshot.status !== "loading") return;
 
-      try {
-        player.seek(
-          Math.min(startAt, Math.max(0, snapshot.duration - END_GUARD_S)),
-        );
-        player.play();
-      } catch {
-        fail();
-      }
+      player.seek(
+        Math.min(startAt, Math.max(0, snapshot.duration - END_GUARD_S)),
+      );
+      player.play();
     });
   }
 
@@ -421,14 +388,8 @@ export function createPlayerStore(
     requestToken += 1;
     clearLoadTimeout();
     stopPolling();
-
-    try {
-      handle?.pause();
-      handle?.seek(0);
-    } catch {
-      // The player never became ready.
-    }
-
+    handle?.pause();
+    handle?.seek(0);
     update({ status: "idle", currentTime: 0 });
   }
 
@@ -445,13 +406,7 @@ export function createPlayerStore(
     clearLoadTimeout();
     syncTime(handle);
     stopPolling();
-
-    try {
-      handle?.pause();
-    } catch {
-      // Already torn down.
-    }
-
+    handle?.pause();
     update({ status: "paused" });
   }
 
@@ -486,37 +441,20 @@ export function createPlayerStore(
     const player = handle;
 
     if (player) {
-      try {
-        player.seek(target);
-      } catch {
-        // The player is already torn down.
-      }
-
+      player.seek(target);
       return;
     }
 
     // Scrubbing is a press: it is allowed to create the lazy player.
     void ensurePlayer().then((created) => {
-      if (!created) return;
-
-      try {
-        created.seek(target);
-      } catch {
-        // The lazy player failed to initialize.
-      }
+      created?.seek(target);
     });
   }
 
   function destroy() {
     clearLoadTimeout();
     stopPolling();
-
-    try {
-      handle?.destroy();
-    } catch {
-      // The iframe may already be gone.
-    }
-
+    handle?.destroy();
     handle = null;
     playerPromise = null;
     host = null;

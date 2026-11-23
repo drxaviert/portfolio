@@ -28,7 +28,6 @@ export function OrbSatelliteControl({
       className="orb-satellite orb-focus-ring"
       data-visible={active ? "true" : "false"}
       data-paused={playing ? "false" : "true"}
-      aria-hidden={!active}
       aria-label={label}
       inert={!active}
       onClick={store.toggle}

@@ -2,18 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   YouTubeCallbacks,
   YouTubeHandle,
-  YouTubeState,
 } from "@/components/home/now-playing-youtube";
 import { createPlayerStore } from "./player-store";
-
-const YT_STATE: YouTubeState = {
-  unstarted: -1,
-  ended: 0,
-  playing: 1,
-  paused: 2,
-  buffering: 3,
-  cued: 5,
-};
 
 const cleanups: (() => void)[] = [];
 
@@ -59,7 +49,7 @@ function makeHarness() {
     createPlayer,
     loadApi,
     ready(duration = 249) {
-      callbacks?.onReady(handle, YT_STATE, duration);
+      callbacks?.onReady(handle, duration);
     },
     playerState(next: number) {
       callbacks?.onStateChange(next, handle);
@@ -191,7 +181,18 @@ describe("player store", () => {
 
     expect(harness.store.getSnapshot().status).toBe("error");
     expect(harness.store.getSnapshot().currentTime).toBe(0);
-    expect(harness.handle.pause).toHaveBeenCalled();
+    expect(harness.handle.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates a fresh player after a failure tears the old one down", async () => {
+    const harness = await playingHarness();
+
+    harness.error();
+    harness.store.play();
+
+    await vi.waitFor(() =>
+      expect(harness.createPlayer).toHaveBeenCalledTimes(2),
+    );
   });
 
   it("notifies time listeners without waking status-only listeners", async () => {

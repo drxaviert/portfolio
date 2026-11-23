@@ -38,7 +38,7 @@
   width: 3.4px;
   height: 8px;
   border-radius: 999px;
-  background-color: #fff;
+  background-color: var(--palette-neutral-50);
 }
 
 .orb-eyes span:first-child {
@@ -64,13 +64,30 @@
   opacity: 0;
   pointer-events: none;
   -webkit-tap-highlight-color: transparent;
-  transition: opacity 150ms var(--ease-accelerate);
+  transition:
+    opacity var(--duration-short-3) var(--ease-accelerate),
+    transform var(--duration-short-4) var(--ease-emphasized-decelerate);
+}
+
+/* 40px target that only grows right and bottom, away from the Home orb. */
+.orb-satellite::before {
+  position: absolute;
+  inset: 0 -16px -16px 0;
+  border-radius: 50%;
+  content: "";
 }
 
 .orb-satellite[data-visible="true"] {
   opacity: 1;
   pointer-events: auto;
-  transition: opacity 200ms var(--ease-emphasized-decelerate);
+  transition:
+    opacity 200ms var(--ease-emphasized-decelerate),
+    transform var(--duration-short-4) var(--ease-emphasized-decelerate);
+}
+
+.orb-satellite:active {
+  transform: scale(0.96);
+  transition-duration: var(--duration-short-1);
 }
 
 .orb-sat-dot {
@@ -81,11 +98,11 @@
   height: 13px;
   border-radius: 50%;
   background-image: var(--orb-gradient);
-  box-shadow: 0 0 0 2px #fff;
+  box-shadow: 0 0 0 2px var(--palette-neutral-50);
   transform: translate(-50%, -50%);
   transition:
-    opacity 150ms var(--ease-accelerate),
-    transform 150ms var(--ease-accelerate);
+    opacity var(--duration-short-3) var(--ease-accelerate),
+    transform var(--duration-short-3) var(--ease-accelerate);
 }
 
 .orb-sat-dot::after {
@@ -97,7 +114,8 @@
   opacity: 0;
 }
 
-.orb-sat-dot[data-playing="true"]::after {
+.orb-satellite[data-visible="true"]
+  .orb-sat-dot[data-playing="true"]::after {
   animation: orb-satellite-pulse 1600ms var(--ease-decelerate) infinite;
 }
 
@@ -122,16 +140,15 @@
   justify-content: center;
   border-radius: 50%;
   background-image: var(--orb-gradient);
-  box-shadow: 0 0 0 2px #fff;
-  color: #fff;
+  box-shadow: 0 0 0 2px var(--palette-neutral-50);
+  color: var(--palette-neutral-50);
   opacity: 0;
   transform: scale(0.542);
   transition:
-    opacity 150ms var(--ease-accelerate),
-    transform 150ms var(--ease-accelerate);
+    opacity var(--duration-short-3) var(--ease-accelerate),
+    transform var(--duration-short-3) var(--ease-accelerate);
 }
 
-.orb-shell:hover .orb-sat-grown,
 .orb-shell:focus-within .orb-sat-grown,
 .orb-satellite[data-paused="true"] .orb-sat-grown {
   opacity: 1;
@@ -141,37 +158,68 @@
     transform 200ms var(--ease-emphasized-decelerate);
 }
 
-.orb-shell:hover .orb-sat-dot,
 .orb-shell:focus-within .orb-sat-dot,
 .orb-satellite[data-paused="true"] .orb-sat-dot {
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.542);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .orb-shell:hover .orb-sat-grown {
+    opacity: 1;
+    transform: scale(1);
+    transition:
+      opacity 200ms var(--ease-emphasized-decelerate),
+      transform 200ms var(--ease-emphasized-decelerate);
+  }
+
+  .orb-shell:hover .orb-sat-dot {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.542);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .orb-satellite,
   .orb-satellite[data-visible="true"],
   .orb-sat-dot,
-  .orb-sat-grown {
-    transition: opacity 150ms var(--ease-linear);
+  .orb-sat-grown,
+  .orb-shell:focus-within .orb-sat-grown,
+  .orb-satellite[data-paused="true"] .orb-sat-grown,
+  .orb-shell:hover .orb-sat-grown,
+  .orb-shell:focus-within .orb-sat-dot,
+  .orb-satellite[data-paused="true"] .orb-sat-dot,
+  .orb-shell:hover .orb-sat-dot {
+    transition: opacity var(--duration-short-3) var(--ease-linear);
   }
 
+  .orb-satellite,
+  .orb-satellite:active,
   .orb-sat-grown,
-  .orb-shell:hover .orb-sat-grown,
   .orb-shell:focus-within .orb-sat-grown,
   .orb-satellite[data-paused="true"] .orb-sat-grown {
     transform: none;
   }
 
   .orb-sat-dot,
-  .orb-shell:hover .orb-sat-dot,
   .orb-shell:focus-within .orb-sat-dot,
   .orb-satellite[data-paused="true"] .orb-sat-dot {
     transform: translate(-50%, -50%);
   }
 
+  @media (hover: hover) and (pointer: fine) {
+    .orb-shell:hover .orb-sat-grown {
+      transform: none;
+    }
+
+    .orb-shell:hover .orb-sat-dot {
+      transform: translate(-50%, -50%);
+    }
+  }
+
   .orb-sat-dot::after,
-  .orb-sat-dot[data-playing="true"]::after {
+  .orb-satellite[data-visible="true"]
+    .orb-sat-dot[data-playing="true"]::after {
     animation: none;
     opacity: 0;
   }

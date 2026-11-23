@@ -1,11 +1,11 @@
 /**
- * Lazy YouTube IFrame Player loader for the now-playing card.
+ * Lazy YouTube IFrame Player loader for the persistent player.
  *
- * The API script is only fetched when the card is first hovered, focused or
- * tapped (see now-playing-card.tsx), never on page load, so it stays out of LCP. The
- * embed itself is created against youtube-nocookie.com and lives off-screen:
- * the card is an audio player, and nothing in the iframe is meant to be seen or
- * reached by keyboard or screen readers.
+ * The API script is only fetched when a player control warms the store, never
+ * on page load, so it stays out of LCP. The embed is created against
+ * youtube-nocookie.com and lives off-screen: this is an audio player, and
+ * nothing in the iframe is meant to be seen or reached by keyboard or screen
+ * readers.
  */
 
 type YTPlayerLike = {
@@ -31,14 +31,6 @@ type YTPlayerOptions = {
 
 type YTNamespace = {
   Player: new (element: HTMLElement, options: YTPlayerOptions) => YTPlayerLike;
-  PlayerState: {
-    UNSTARTED: number;
-    ENDED: number;
-    PLAYING: number;
-    PAUSED: number;
-    BUFFERING: number;
-    CUED: number;
-  };
 };
 
 declare global {
@@ -106,21 +98,8 @@ export type YouTubeHandle = {
   destroy: () => void;
 };
 
-export type YouTubeState = {
-  unstarted: number;
-  ended: number;
-  playing: number;
-  paused: number;
-  buffering: number;
-  cued: number;
-};
-
 export type YouTubeCallbacks = {
-  onReady: (
-    handle: YouTubeHandle,
-    state: YouTubeState,
-    duration: number,
-  ) => void;
+  onReady: (handle: YouTubeHandle, duration: number) => void;
   onStateChange: (state: number, handle: YouTubeHandle) => void;
   onError: (code: number, handle: YouTubeHandle) => void;
 };
@@ -145,31 +124,19 @@ export function createYouTubePlayer(
 
   const playerRef: { current: YTPlayerLike | null } = { current: null };
 
-  const requirePlayer = () => {
-    const player = playerRef.current;
-
-    if (!player) throw new Error("YouTube player is not ready");
-
-    return player;
-  };
-
   const handle: YouTubeHandle = {
-    play: () => requirePlayer().playVideo(),
-    pause: () => requirePlayer().pauseVideo(),
-    seek: (seconds) => requirePlayer().seekTo(seconds, true),
-    currentTime: () => requirePlayer().getCurrentTime() ?? 0,
-    duration: () => requirePlayer().getDuration() ?? 0,
-    state: () => requirePlayer().getPlayerState() ?? -1,
-    destroy: () => requirePlayer().destroy(),
-  };
+    play: () => playerRef.current?.playVideo(),
+    pause: () => playerRef.current?.pauseVideo(),
+    seek: (seconds) => playerRef.current?.seekTo(seconds, true),
+    currentTime: () => playerRef.current?.getCurrentTime() ?? 0,
+    duration: () => playerRef.current?.getDuration() ?? 0,
+    state: () => playerRef.current?.getPlayerState() ?? -1,
+    destroy: () => {
+      const player = playerRef.current;
 
-  const state: YouTubeState = {
-    unstarted: api.PlayerState.UNSTARTED,
-    ended: api.PlayerState.ENDED,
-    playing: api.PlayerState.PLAYING,
-    paused: api.PlayerState.PAUSED,
-    buffering: api.PlayerState.BUFFERING,
-    cued: api.PlayerState.CUED,
+      playerRef.current = null;
+      player?.destroy();
+    },
   };
 
   playerRef.current = new api.Player(mount, {
@@ -186,7 +153,7 @@ export function createYouTubePlayer(
     },
     events: {
       onReady: () => {
-        callbacks.onReady(handle, state, handle.duration());
+        callbacks.onReady(handle, handle.duration());
       },
       onStateChange: (event) => {
         callbacks.onStateChange(event.data, handle);
