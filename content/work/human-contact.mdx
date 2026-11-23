@@ -22,9 +22,9 @@ The archive is also a useful correction. The background is not a WebGL scene. It
 
 ## The rebuild
 
-Seven props, built from boxes, cylinders, spheres and a few tori. No downloaded models. Each prototype is recentred on its bounding box and cloned across the grid, so forty-odd instances share the same geometry and material buffers. The camera is the one the original's Work screen used — 28° at (0, 5, 210), fog 20 to 500, background #111 — and the lighting comes from the upper left so the shadows fall lower right.
+Seven props, built from boxes, cylinders, spheres and a few tori. No downloaded models. Each prototype is recentred on its bounding box and cloned across the grid, so forty-odd instances share the same geometry and material buffers. The camera is the one the original's Work screen used — 28° at (0, 5, 210), fog 20 to 500, background #111. A neutral key from the upper left and a barely cool rim carry the edges, so the shadows fall lower right.
 
-The shadows are blurred planes, not shadow maps. The reference's shadows are wide and soft, and a map that soft would cost more than the objects it describes. The field is fixed. Each prop bobs toward and away from the camera on a staggered sine wave, with its own phase and a slightly different period so the grid never pulses in unison, and turns a few degrees as it rises and falls. Its shadow widens, fades and slips lower-right with the lift, so the object reads as floating above the background.
+The shadows are blurred planes, not shadow maps. The reference's shadows are wide and soft, and a map that soft would cost more than the objects it describes. The field is fixed. Each prop bobs toward and away from the camera on a staggered sine wave, with its own phase and a slightly different period so the grid never pulses in unison, and turns a few degrees as it rises and falls. Its shadow widens, fades and slips lower-right with the lift, so the object reads as floating above the background. A film pass — a vignette, static grain and a small contrast lift — sits over the canvas without shifting the palette.
 
 ## The addition
 
@@ -34,7 +34,7 @@ The hover is my addition, not a recovered part of the site.
 
 ## The details
 
-The scene stops when the region is off-screen or the tab is hidden. Device pixel ratio is capped at two. `prefers-reduced-motion` removes the bob and the turn, leaves every prop at its rest height, and makes the hover scale instant. On touch, a tap pops the prop and lets it settle back. Safari, a browser without WebGL, and a lost context all fall back to a still rendered from the same scene, so the page never asks a visitor to look at a blank rectangle.
+The scene stops when the region is off-screen or the tab is hidden. Device pixel ratio is capped at two. `prefers-reduced-motion` removes the bob and the turn, leaves every prop at its rest height, and makes the hover scale instant; the film grain is static in every mode. On touch, a tap pops the prop and lets it settle back. Safari, a browser without WebGL, and a lost context all fall back to a still rendered from the same scene, so the page never asks a visitor to look at a blank rectangle.
 
 The full-screen version is at [/live/human-contact](/live/human-contact). The grid above is the same scene in a contained frame.
 

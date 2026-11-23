@@ -3,11 +3,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
-import {
-  LIGHTING_PRESETS,
-  type LightSpec,
-  type LightingPreset,
-} from "./lighting";
+import { FILM_LIGHTING, type LightSpec } from "./lighting";
 import {
   createWaveConfig,
   sampleWave,
@@ -18,8 +14,6 @@ import { createPropSet } from "./props";
 import { Spring } from "./springs";
 
 type HumanContactSceneProps = {
-  /** The lab preset; the public routes leave this at the shipped current rig. */
-  lighting?: LightingPreset;
   /** The browser could not keep a live context; the still behind it takes over. */
   onFallback?: () => void;
 };
@@ -74,7 +68,6 @@ type DebugObject = {
 type DebugWindow = Window & {
   __humanContactDebug?: {
     fieldRotation: () => { x: number; y: number; z: number };
-    lighting: () => LightingPreset | null;
     objects: () => DebugObject[];
   };
 };
@@ -86,18 +79,13 @@ function hash(index: number, salt: number): number {
   return value - Math.floor(value);
 }
 
-export function HumanContactScene({
-  lighting = "current",
-  onFallback,
-}: HumanContactSceneProps) {
+export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<{
     setReduced: (next: boolean) => void;
-    setLighting: (next: LightingPreset) => void;
   } | null>(null);
   const reduced = useReducedMotion();
   const reducedRef = useRef(reduced);
-  const lightingRef = useRef(lighting);
   const fallbackRef = useRef(onFallback);
 
   useEffect(() => {
@@ -108,11 +96,6 @@ export function HumanContactScene({
     reducedRef.current = reduced;
     controlsRef.current?.setReduced(reduced);
   }, [reduced]);
-
-  useEffect(() => {
-    lightingRef.current = lighting;
-    controlsRef.current?.setLighting(lighting);
-  }, [lighting]);
 
   useEffect(() => {
     const hostElement = containerRef.current;
@@ -164,33 +147,16 @@ export function HumanContactScene({
     const lightRig = new THREE.Group();
 
     scene.add(lightRig);
+    renderer.toneMappingExposure = FILM_LIGHTING.exposure;
 
-    let activeLighting: LightingPreset | null = null;
-    let shadowBaseOpacity = LIGHTING_PRESETS.current.shadowOpacity;
-    let shadowScale = LIGHTING_PRESETS.current.shadowScale;
+    const shadowBaseOpacity = FILM_LIGHTING.shadowOpacity;
+    const shadowScale = FILM_LIGHTING.shadowScale;
 
     function createLight(spec: LightSpec): THREE.Light {
       if (spec.type === "directional") {
         const light = new THREE.DirectionalLight(spec.color, spec.intensity);
 
         light.position.set(...spec.position);
-
-        return light;
-      }
-
-      if (spec.type === "spot") {
-        const light = new THREE.SpotLight(
-          spec.color,
-          spec.intensity,
-          spec.distance,
-          spec.angle,
-          spec.penumbra,
-          spec.decay,
-        );
-
-        light.position.set(...spec.position);
-        light.target.position.set(...spec.target);
-        lightRig.add(light.target);
 
         return light;
       }
@@ -202,25 +168,9 @@ export function HumanContactScene({
       );
     }
 
-    function applyLighting(preset: LightingPreset): void {
-      if (preset === activeLighting) {
-        return;
-      }
-
-      const config = LIGHTING_PRESETS[preset];
-
-      activeLighting = preset;
-      renderer.toneMappingExposure = config.exposure;
-      shadowBaseOpacity = config.shadowOpacity;
-      shadowScale = config.shadowScale;
-      lightRig.clear();
-
-      for (const spec of config.lights) {
-        lightRig.add(createLight(spec));
-      }
+    for (const spec of FILM_LIGHTING.lights) {
+      lightRig.add(createLight(spec));
     }
-
-    applyLighting(lightingRef.current);
 
     // The field is fixed. Only the props move inside it; the camera never
     // moves and the grid group is never rotated.
@@ -643,7 +593,6 @@ export function HumanContactScene({
           y: grid.rotation.y,
           z: grid.rotation.z,
         }),
-        lighting: () => activeLighting,
         objects: () =>
           props.map((prop) => ({
             z: prop.bob.position.z,
@@ -674,14 +623,6 @@ export function HumanContactScene({
           syncTargets();
         } else {
           updatePlayback();
-        }
-      },
-      setLighting: (next: LightingPreset) => {
-        applyLighting(next);
-
-        if (reducedNow) {
-          applyProps(elapsed);
-          renderFrame();
         }
       },
     };

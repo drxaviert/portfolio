@@ -1,14 +1,13 @@
 import { notFound } from "next/navigation";
-import { HumanContactLightingDev } from "./lighting-dev";
-import "./lighting.css";
+import { HumanContactFull } from "@/components/human-contact/human-contact-full";
 
 /**
- * Dev-only lighting lab. The shipped study is `/work/human-contact`; this route
- * keeps a production-gated full-screen entry with the three lighting presets
- * selectable from the corner or `?light=1|2|3`.
+ * Dev-only route for the live scene. The shipped study is
+ * `/work/human-contact`; this page keeps a production-gated full-screen entry
+ * for checking the same neutral Film look.
  */
 export const metadata = {
-  title: "Human Contact clone · lighting lab",
+  title: "Human Contact clone · dev",
   robots: { index: false, follow: false },
 };
 
@@ -17,5 +16,5 @@ export default function HumanContactPage() {
     notFound();
   }
 
-  return <HumanContactLightingDev />;
+  return <HumanContactFull />;
 }

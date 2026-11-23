@@ -60,10 +60,10 @@
 }
 
 /*
- * Film preset only. The vignette sits above the cover, below the text; the
- * canvas gets a small contrast/brightness curve. The grain is a static SVG
- * tile, so there is nothing to pause under reduced motion and nothing to pay
- * for per frame.
+ * The film pass, now the only look. The vignette sits above the cover, below
+ * the text; the canvas and the still get the same small contrast/brightness
+ * curve. The grain is a static SVG tile, so there is nothing to pause under
+ * reduced motion and nothing to pay for per frame.
  */
 .hc-film {
   position: absolute;
@@ -82,13 +82,14 @@
   content: "";
   position: absolute;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
   background-size: 160px 160px;
   mix-blend-mode: soft-light;
   opacity: 0.06;
 }
 
-.hc-experience[data-light="film"] .hc-canvas canvas {
+.hc-canvas canvas,
+.hc-still {
   filter: contrast(1.06) brightness(0.98);
 }
 
