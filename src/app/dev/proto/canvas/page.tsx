@@ -15,8 +15,9 @@ import { CANVAS_MEDIA_IDS } from "./items";
  * three placeholder manifests used by the first prototype stay on disk for
  * other pages but are not in this list. Dev-only, so a production build 404s.
  *
- * `?lens=globe` opens the orb variant; the strength, drag-boost and vignette
- * values are read here too, so a tuned look survives a reload or a share.
+ * `?lens=flat` compares the flat view; the orb is the default. The strength,
+ * drag-boost and vignette values are read here too, so a tuned look survives a
+ * reload or a share.
  */
 export const metadata = {
   title: "Prototype · drag canvas",
@@ -49,7 +50,7 @@ export default async function CanvasPage({
 
   const query = await searchParams;
   const lens: LensSettings = {
-    mode: query.lens === "globe" ? "globe" : "flat",
+    mode: query.lens === "flat" ? "flat" : "globe",
     strength: amount(query.strength, LENS.defaultStrength, LENS.maxStrength),
     boost: amount(query.boost, LENS.defaultBoost, LENS.maxBoost),
     vignette: amount(query.vignette, LENS.defaultVignette, LENS.maxVignette),

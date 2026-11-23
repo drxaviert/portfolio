@@ -20,11 +20,12 @@ export const LENS = {
   margin: 0.3,
   /** The viewport occupies this share of the target's NDC. */
   sourceScale: 1 / 1.6,
-  defaultMode: "flat" as LensMode,
-  defaultStrength: 0.2,
-  /** +60% at a fast drag by default. */
-  defaultBoost: 0.12,
-  defaultVignette: 0.06,
+  defaultMode: "globe" as LensMode,
+  /** The owner's tuned globe. */
+  defaultStrength: 0.23,
+  /** Added on top of the base at a fast drag; the owner's full lift. */
+  defaultBoost: 0.3,
+  defaultVignette: 0.25,
   maxStrength: 0.5,
   maxBoost: 0.3,
   maxVignette: 0.25,

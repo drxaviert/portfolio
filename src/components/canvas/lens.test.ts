@@ -12,13 +12,26 @@ const ASPECT = 1440 / 900;
 const WIDE_ASPECT = 2560 / 1440;
 
 describe("lens map", () => {
+  it("locks the owner's tuned globe defaults", () => {
+    expect(LENS.defaultMode).toBe("globe");
+    expect(LENS.defaultStrength).toBe(0.23);
+    expect(LENS.defaultBoost).toBe(0.3);
+    expect(LENS.defaultVignette).toBe(0.25);
+  });
+
   it("keeps the source margin and source scale in sync", () => {
     expect(LENS.sourceScale).toBeCloseTo(1 / (1 + 2 * LENS.margin), 12);
   });
 
   it("keeps the centre identical", () => {
-    expect(lensProject(0, 0, 0.2, ASPECT)).toEqual({ x: 0, y: 0 });
-    expect(lensUnproject(0, 0, 0.2, ASPECT)).toEqual({ x: 0, y: 0 });
+    expect(lensProject(0, 0, LENS.defaultStrength, ASPECT)).toEqual({
+      x: 0,
+      y: 0,
+    });
+    expect(lensUnproject(0, 0, LENS.defaultStrength, ASPECT)).toEqual({
+      x: 0,
+      y: 0,
+    });
     expect(lensRadius(0, 0, ASPECT)).toBe(0);
   });
 
@@ -91,7 +104,7 @@ describe("lens strength", () => {
     ).toBe(0);
   });
 
-  it("adds 60% boost at a fast drag and clamps the total", () => {
+  it("adds the boost at a fast drag and clamps the total", () => {
     expect(
       lensTargetStrength({
         mode: "globe",
@@ -110,6 +123,15 @@ describe("lens strength", () => {
         reduced: false,
       }),
     ).toBeCloseTo(0.32, 6);
+    expect(
+      lensTargetStrength({
+        mode: "globe",
+        base: LENS.defaultStrength,
+        boost: LENS.defaultBoost,
+        speed: LENS.boostSpeed,
+        reduced: false,
+      }),
+    ).toBe(LENS.maxStrength);
     expect(
       lensTargetStrength({
         mode: "globe",
