@@ -1,10 +1,4 @@
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPlayerStore } from "@/components/player/player-store";
 import type { PlayerStore } from "@/components/player/player-store";
@@ -24,8 +18,6 @@ let store: PlayerStore;
 beforeEach(() => {
   imageMock.renders = 0;
   store = createPlayerStore();
-  window.history.replaceState({}, "", "/");
-  window.sessionStorage.clear();
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -61,32 +53,17 @@ function stubScrubRect(slider: HTMLElement) {
 }
 
 describe("NowPlayingCard", () => {
-  it("names the card and the play control for the track", async () => {
+  it("names the card and the play control for the track", () => {
     render(<NowPlayingCard store={store} />);
 
-    const card = screen.getByRole("group", { name: "Now playing" });
-
-    await waitFor(() => expect(card).toHaveAttribute("data-card", "current"));
+    expect(
+      screen.getByRole("group", { name: "Now playing" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Play Get Lucky" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Daft Punk")).toBeInTheDocument();
   });
-
-  it.each(["a", "b", "c", "ab"])(
-    "applies the %s card variant from ?card=",
-    async (variant) => {
-      window.history.replaceState({}, "", `/?card=${variant}`);
-      render(<NowPlayingCard store={store} />);
-
-      await waitFor(() =>
-        expect(screen.getByRole("group", { name: "Now playing" })).toHaveAttribute(
-          "data-card",
-          variant,
-        ),
-      );
-    },
-  );
 
   it("exposes a seek slider with aria values and keyboard steps", () => {
     render(<NowPlayingCard store={store} />);

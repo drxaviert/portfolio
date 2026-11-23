@@ -36,44 +36,10 @@ import "./now-playing-card.css";
  */
 
 type ArtVariant = "maxresdefault" | "hqdefault";
-type CardVariant = "current" | "a" | "b" | "c" | "ab";
 
 const MAXRES: ArtVariant = "maxresdefault";
 const HQ: ArtVariant = "hqdefault";
 const SPINNER_DELAY_MS = 1500;
-const CARD_VARIANTS: CardVariant[] = ["current", "a", "b", "c", "ab"];
-const CARD_VARIANT_STORAGE_KEY = "card:v1";
-
-function isCardVariant(value: string | null): value is CardVariant {
-  return CARD_VARIANTS.includes(value as CardVariant);
-}
-
-/** Dev-only A/B switch; production always keeps the current card. */
-function readCardVariant(search: string): CardVariant {
-  if (process.env.NODE_ENV === "production") return "current";
-
-  const param = new URLSearchParams(search).get("card");
-
-  if (isCardVariant(param)) {
-    try {
-      window.sessionStorage.setItem(CARD_VARIANT_STORAGE_KEY, param);
-    } catch {
-      // Storage can be denied; the URL still decides this visit.
-    }
-
-    return param;
-  }
-
-  try {
-    const stored = window.sessionStorage.getItem(CARD_VARIANT_STORAGE_KEY);
-
-    if (isCardVariant(stored)) return stored;
-  } catch {
-    // Same as above; fall through to the current card.
-  }
-
-  return "current";
-}
 
 export function NowPlayingCard({
   store = playerStore,
@@ -84,17 +50,9 @@ export function NowPlayingCard({
   const [showSpinner, setShowSpinner] = useState(false);
   const [artVariant, setArtVariant] = useState<ArtVariant>(MAXRES);
   const [artFailed, setArtFailed] = useState(false);
-  const cardRef = useRef<HTMLDivElement | null>(null);
 
   const playing = status === "playing" || status === "loading";
   const spinnerVisible = showSpinner && status === "loading";
-
-  useEffect(() => {
-    cardRef.current?.setAttribute(
-      "data-card",
-      readCardVariant(window.location.search),
-    );
-  }, []);
 
   // Slow starts show a spinner after 1.5s. Fast starts never flash it.
   useEffect(() => {
@@ -128,7 +86,6 @@ export function NowPlayingCard({
 
   return (
     <div
-      ref={cardRef}
       role="group"
       aria-label="Now playing"
       data-phase={status}
