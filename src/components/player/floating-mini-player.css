@@ -1,0 +1,166 @@
+/*
+ * The off-home pill. Surface, shadow, radius and text all come from the card
+ * tokens; the only fixed geometry is the 48px height (8 + 32 + 8) and the
+ * 32px cover/transport.
+ *
+ * z-index 55: above the reader/drawer panel (50) so the pill stays visible
+ * off-home, under the nav (60) and the mobile gate (70).
+ */
+.mini-player {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 55;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: min(280px, calc(100vw - 32px));
+  height: 48px;
+  padding: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background-color: var(--surface-container-low);
+  box-shadow: var(--shadow-card);
+  color: var(--on-surface);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  visibility: hidden;
+  transition:
+    opacity 150ms var(--ease-accelerate),
+    transform 150ms var(--ease-accelerate),
+    visibility 0s linear 150ms;
+}
+
+.mini-player[data-visible="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  visibility: visible;
+  transition:
+    opacity 200ms var(--ease-emphasized-decelerate),
+    transform 200ms var(--ease-emphasized-decelerate),
+    visibility 0s linear 0s;
+}
+
+/*
+ * Below 1024 the reader keeps its reach-top button in the bottom-right corner
+ * (44px at 16px). Dock the pill bottom-left there so it never covers it; above
+ * 1024 that button is gone and the bottom-right dock is free.
+ */
+@media (max-width: 1023px) {
+  .mini-player {
+    right: auto;
+    left: max(16px, env(safe-area-inset-left));
+  }
+}
+
+.mini-player-link {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+}
+
+.mini-player-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.mini-player-cover {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.mini-player-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.mini-player-title,
+.mini-player-artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-player-title {
+  color: var(--on-surface);
+}
+
+.mini-player-artist {
+  color: var(--on-surface-variant);
+}
+
+.mini-player-transport {
+  flex: none;
+  width: 32px;
+  height: 32px;
+}
+
+.mini-player-close {
+  display: grid;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  place-items: center;
+  transition:
+    background-color var(--duration-short-3) var(--ease-decelerate),
+    color var(--duration-short-3) var(--ease-decelerate);
+}
+
+.mini-player-close:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mini-player-close:hover {
+    background-color: color-mix(in oklab, var(--on-surface) 8%, transparent);
+    color: var(--on-surface);
+  }
+}
+
+/* The read-only 2px playhead along the bottom edge. */
+.mini-player-progress {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: color-mix(in oklab, var(--on-surface) 10%, transparent);
+}
+
+.mini-player-progress-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-image: var(--orb-gradient);
+  clip-path: inset(0 calc((1 - var(--mini-progress)) * 100%) 0 0);
+  transition: clip-path 250ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mini-player,
+  .mini-player[data-visible="true"] {
+    transform: none;
+    transition:
+      opacity 150ms var(--ease-linear),
+      visibility 0s linear 0s;
+  }
+}

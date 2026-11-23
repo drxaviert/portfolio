@@ -14,7 +14,9 @@
  * The play button, progress fill and scrubber thumb use the nav orb gradient
  * (globals.css --orb-gradient, painted by home-nav.tsx OrbHead). The fill is a
  * full-width gradient revealed by clip-path so the colours never stretch as
- * the playhead moves.
+ * the playhead moves. The white glyph is Dat's choice; the button itself has no
+ * shadow or halo (the shared .player-orb-button carries the gradient, glyph,
+ * press and focus states).
  *
  * The Paper card is 275×276 with 12px padding. The body is the 251px content
  * column, so the inner geometry scales with cqw: 196px art = 78.0876cqw, 48px
@@ -329,22 +331,10 @@
 
 .now-playing-button {
   position: relative;
-  display: grid;
   flex: none;
   width: auto;
   height: 100%;
   aspect-ratio: 1;
-  border: 0;
-  border-radius: 50%;
-  background-image: var(--orb-gradient);
-  /* Dat's call: white glyph in every phase. The button carries no shadow,
-     drop-shadow or halo — only the orb gradient, the press scale and the
-     focus outline. */
-  color: var(--palette-neutral-50);
-  cursor: pointer;
-  place-items: center;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 160ms var(--ease-emphasized-decelerate);
 }
 
 /* The visible circle is 28–48px; keep the target at 40px or more. */
@@ -353,16 +343,6 @@
   inset: -7px;
   border-radius: 50%;
   content: "";
-}
-
-.now-playing-button:active {
-  transform: scale(0.95);
-  transition-duration: 100ms;
-}
-
-.now-playing-button:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
 }
 
 .now-playing-icon {
@@ -391,16 +371,6 @@
 .now-playing-spinner svg {
   animation: now-playing-spinner-rotate 900ms linear infinite;
   transform-origin: 50% 50%;
-}
-
-.now-playing-player-host {
-  position: absolute;
-  top: 0;
-  left: -9999px;
-  width: 200px;
-  height: 200px;
-  overflow: hidden;
-  pointer-events: none;
 }
 
 /* At 160 the error link (12px) cannot share the row with the retry button. */
@@ -436,11 +406,5 @@
 
   .now-playing-spinner svg {
     animation-duration: 2.4s;
-  }
-}
-
-@media (forced-colors: active) {
-  .now-playing-button {
-    border: 1px solid ButtonText;
   }
 }

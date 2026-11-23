@@ -1,8 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createPlayerStore } from "@/components/player/player-store";
+import type { PlayerStore } from "@/components/player/player-store";
 import { NowPlayingCard } from "./now-playing-card";
 
+let store: PlayerStore;
+
 beforeEach(() => {
+  store = createPlayerStore();
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -19,13 +24,14 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  store.destroy();
   vi.unstubAllGlobals();
   window.history.replaceState({}, "", "/");
 });
 
 describe("NowPlayingCard", () => {
   it("names the card and the play control for the track", () => {
-    render(<NowPlayingCard />);
+    render(<NowPlayingCard store={store} />);
 
     expect(
       screen.getByRole("group", { name: "Get Lucky" }),
@@ -37,7 +43,7 @@ describe("NowPlayingCard", () => {
   });
 
   it("defaults to the flat row-1 surface", () => {
-    const { container } = render(<NowPlayingCard />);
+    const { container } = render(<NowPlayingCard store={store} />);
 
     expect(container.querySelector(".now-playing-card")).toHaveAttribute(
       "data-surface",
@@ -48,7 +54,7 @@ describe("NowPlayingCard", () => {
   it("switches to the pulled-in surface with ?surface=pulled", () => {
     window.history.replaceState({}, "", "/?surface=pulled");
 
-    const { container } = render(<NowPlayingCard />);
+    const { container } = render(<NowPlayingCard store={store} />);
 
     expect(container.querySelector(".now-playing-card")).toHaveAttribute(
       "data-surface",
@@ -57,7 +63,7 @@ describe("NowPlayingCard", () => {
   });
 
   it("exposes a seek slider with aria values and keyboard steps", () => {
-    render(<NowPlayingCard />);
+    render(<NowPlayingCard store={store} />);
 
     const slider = screen.getByRole("slider", { name: "Seek" });
 
@@ -93,7 +99,7 @@ describe("NowPlayingCard", () => {
   });
 
   it("keeps the times decorative and leaves a polite status", () => {
-    const { container } = render(<NowPlayingCard />);
+    const { container } = render(<NowPlayingCard store={store} />);
 
     expect(screen.getByText("0:00")).toBeInTheDocument();
     expect(screen.getByText("4:09")).toBeInTheDocument();
@@ -107,5 +113,17 @@ describe("NowPlayingCard", () => {
 
     expect(status).toHaveAttribute("aria-live", "polite");
     expect(status).toHaveTextContent("");
+  });
+
+  it("renders the shared playhead from the store", () => {
+    store.seek(42);
+
+    render(<NowPlayingCard store={store} />);
+
+    const slider = screen.getByRole("slider", { name: "Seek" });
+
+    expect(slider).toHaveAttribute("aria-valuenow", "42");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:42 of 4:09");
+    expect(screen.getByText("0:42")).toBeInTheDocument();
   });
 });

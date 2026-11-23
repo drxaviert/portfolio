@@ -1,0 +1,52 @@
+/*
+ * One orb-gradient transport control for every player surface. The gradient is
+ * the nav orb (--orb-gradient); the glyph is white in all four phases (Dat's
+ * choice), and the button carries no shadow, drop-shadow or halo. Only the
+ * press scale and the focus ring are state chrome.
+ */
+.player-orb-button {
+  display: grid;
+  border: 0;
+  border-radius: 50%;
+  background-image: var(--orb-gradient);
+  color: var(--palette-neutral-50);
+  cursor: pointer;
+  place-items: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 160ms var(--ease-emphasized-decelerate);
+}
+
+.player-orb-button:active {
+  transform: scale(0.95);
+  transition-duration: 100ms;
+}
+
+.player-orb-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* The one iframe lives off-screen but stays a real 200x200 player. */
+.player-host {
+  position: fixed;
+  top: 0;
+  left: -9999px;
+  width: 200px;
+  height: 200px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-orb-button,
+  .player-orb-button:active {
+    transform: none;
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .player-orb-button {
+    border: 1px solid ButtonText;
+  }
+}
