@@ -225,9 +225,70 @@ export function validateManifest(id: string, raw: unknown): MediaManifest {
   };
 }
 
+/**
+ * `MEDIA_ORIGIN=local` rewrites every manifest URL to the dev route
+ * `/media/local/<key>`. The route serves `media/local/`, populated by
+ * `pnpm post --local` or the migration's `--local` flag. This is dev/test only:
+ * production builds leave the env unset and keep the R2 URLs in the manifest.
+ */
+export function localMediaEnabled(): boolean {
+  return process.env.MEDIA_ORIGIN === "local";
+}
+
+/** `https://host[/prefix]/media/<id>/file` → `/media/local/media/<id>/file`. */
+function localMediaUrl(url: string): string {
+  const { pathname } = new URL(url);
+  const keyAt = pathname.indexOf("/media/");
+  const key = keyAt >= 0 ? pathname.slice(keyAt) : pathname;
+  return `/media/local${key.startsWith("/") ? key : `/${key}`}`;
+}
+
+/**
+ * A copy of `manifest` with every public URL pointed at the local route. The
+ * input is the validated production manifest, so `new URL` cannot fail here.
+ */
+export function rewriteMediaUrls(manifest: MediaManifest): MediaManifest {
+  if (manifest.kind === "image") {
+    return {
+      ...manifest,
+      sources: manifest.sources.map((source) => ({
+        ...source,
+        url: localMediaUrl(source.url),
+      })),
+    };
+  }
+
+  return {
+    ...manifest,
+    mp4: { ...manifest.mp4, url: localMediaUrl(manifest.mp4.url) },
+    ...(manifest.webm
+      ? { webm: { ...manifest.webm, url: localMediaUrl(manifest.webm.url) } }
+      : {}),
+    ...(manifest.canvas
+      ? {
+          canvas: {
+            ...manifest.canvas,
+            url: localMediaUrl(manifest.canvas.url),
+          },
+        }
+      : {}),
+    ...(manifest.hls
+      ? { hls: { ...manifest.hls, url: localMediaUrl(manifest.hls.url) } }
+      : {}),
+    poster: {
+      avif: localMediaUrl(manifest.poster.avif),
+      jpg: localMediaUrl(manifest.poster.jpg),
+    },
+  };
+}
+
+function withMediaOrigin(manifest: MediaManifest): MediaManifest {
+  return localMediaEnabled() ? rewriteMediaUrls(manifest) : manifest;
+}
+
 export function getMedia(id: string): MediaManifest {
   const cached = cache.get(id);
-  if (cached) return cached;
+  if (cached) return withMediaOrigin(cached);
 
   if (!MEDIA_ID.test(id)) {
     throw new Error(
@@ -254,7 +315,7 @@ export function getMedia(id: string): MediaManifest {
 
   const manifest = validateManifest(id, parsed);
   cache.set(id, manifest);
-  return manifest;
+  return withMediaOrigin(manifest);
 }
 
 /**

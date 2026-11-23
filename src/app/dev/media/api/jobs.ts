@@ -136,7 +136,7 @@ function argsFor(name: string, options: UploadOptions): string[] {
 }
 
 /**
- * post.ts prints `upload` just before every Blob request, so the first one
+ * post.ts prints `upload` just before every R2 request, so the first one
  * marks the move from local encoding to uploading. Everything before it is
  * encoding, which is the long part.
  */
@@ -154,11 +154,11 @@ function plainFailure(stderr: string, exitCode: number | null): string {
   const tail = lines.slice(-ERROR_TAIL_LINES).join("\n");
 
   if (
-    /no Blob credentials|blob upload was rejected|token.*expired|401|403/i.test(
+    /Missing R2 configuration|AccessDenied|blob upload was rejected|token.*expired|401|403/i.test(
       tail,
     )
   ) {
-    return `Blob rejected the upload. Run pnpm blob:env, then drop the file again.\n${tail}`;
+    return `R2 rejected the upload. Check the keys in .env.r2, then drop the file again.\n${tail}`;
   }
   if (/ffmpeg|ffprobe|spawn .*ENOENT|not recognized/i.test(tail)) {
     return `ffmpeg or ffprobe is not on PATH, so nothing could be encoded.\n${tail}`;

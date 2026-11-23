@@ -108,7 +108,7 @@ on a longer one; 20 s exactly still counts as short.
 | Keyframes | `-force_key_frames "expr:gte(t,n_forced*2)" -sc_threshold 0`, so every segment starts on one |
 | Segments | `-hls_time 4`, `fmp4`, `independent_segments`, `-hls_playlist_type vod` |
 | Output | `master.m3u8`, then `v<rung>/index.m3u8`, `v<rung>/init_<rung>.mp4`, `v<rung>/segment_<n>.m4s` |
-| Upload | `media/<id>/hls/<relative path>`, six at a time; `.m3u8` is `application/vnd.apple.mpegurl`, `.mp4`/`.m4s` are `video/mp4`; public, no random suffix, one-year cache |
+| Upload | `media/<id>/hls/<relative path>`, six at a time; `.m3u8` is `application/vnd.apple.mpegurl`, `.ts` is `video/mp2t`, `.m4s` is `video/iso.segment`, `.mp4` is `video/mp4`; R2, one-year immutable cache |
 | Budget | warn over 60 MB, hard-fail over 150 MB, both before any upload |
 | Manifest | `hls: { url, bytes, levels: [{ height, bandwidth }] }`; `levels` is read back from the master's `EXT-X-STREAM-INF` |
 
@@ -145,11 +145,44 @@ as `media/<id>/canvas.mp4` and recorded as `canvas: { url, bytes }` next to `mp4
 - The 16 existing clips over 480p were backfilled from `media/archive/<id>.webm`; only the new
   `canvas.mp4` files were uploaded. The archives themselves were not modified.
 
-Cache check on the existing Blob store (`media/pipeline-test-loop-c0fe9c23ef/`): both `poster.jpg`
-and `video.mp4` return `x-vercel-cache: HIT`, `cache-control: public, max-age=31536000`,
-`accept-ranges: bytes`, and a `206` for a `Range` request; the second request only advanced `age`.
-Uploaded `.m3u8` and `.m4s` answer with the same cache headers and the content types above, so a
-ladder is served straight from Blob without a rewrite.
+## Storage: R2 and local dev
+
+`pnpm post` uploads to Cloudflare R2 over the S3 API (`@aws-sdk/client-s3`,
+region `auto`, endpoint `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`). The
+object key layout is unchanged: `media/<id>/...`. `R2_PUBLIC_BASE_URL` turns a
+key into the public URL. Every upload sets the mapped content type and
+`Cache-Control: public, max-age=31536000, immutable`.
+
+The `<id>` prefix is content-addressed (`<slug>-sha256(original)[:10]`); the
+individual file names are not hashes. Re-running the pipeline for the same
+original writes the same keys, which is why the immutable cache is safe.
+
+Credentials live in `.env.r2` (gitignored): `R2_ACCOUNT_ID`,
+`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL`.
+A missing key is named in the error; values are never printed. See
+`.env.r2.example`. `next.config.ts` reads only the public base URL and adds its
+host to `images.remotePatterns`; the Blob host stays until the migration is
+finished. Set `R2_PUBLIC_BASE_URL` in Vercel too (the file itself is
+gitignored), otherwise the deployed config only allow-lists the Blob host.
+
+### Migration
+
+`pnpm media:migrate-r2 --dry-run --archive media/archive --archive ...` prints
+the per-manifest plan without a network call. Drop `--dry-run` to re-encode the
+local originals, upload, HEAD-skip objects already in R2 and rewrite the
+manifests. `pipeline-test-loop-c0fe9c23ef` and
+`pipeline-test-still-4a9b86e544` have no local original; they are listed and
+skipped, never deleted. Blob is never read.
+
+### Local media
+
+Browser, playback and performance tests must not pull production storage. Set
+`MEDIA_ORIGIN=local`, populate `media/local/` with `pnpm post --local` (or the
+migration's `--local` flag, which mirrors the R2 uploads), and start the dev
+server. `src/lib/media.ts` rewrites every manifest URL to
+`/media/local/<key>`; the dev-only `src/app/media/local/[...key]/route.ts`
+serves the file with the same content type and byte ranges. The manifest still
+records the production R2 URL.
 
 ## Alt text
 

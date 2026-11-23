@@ -14,3 +14,12 @@ Next.js portfolio; design work runs in Orca worktrees.
 
 - Keep the orchestrator chat separate from implementation chats.
 - Check for `package.json` before running `pnpm`; a design branch may not include one.
+
+## Media and browser tests
+
+- Never run browser, playback or performance sessions against production media. Set
+  `MEDIA_ORIGIN=local`, populate `media/local/` with `pnpm post --local`, and load the app from the
+  dev server. Blob is paused and R2 transfer costs money; tests must not touch either.
+- R2 credentials live in `.env.r2` (gitignored). Never print or commit a value; the loader names a
+  missing key without echoing it.
+- See `docs/design-system/media.md` for the R2 migration and local-media route.
