@@ -23,6 +23,17 @@ const WORK_ORDER = [
 
 export type WorkSlug = (typeof WORK_ORDER)[number];
 
+/**
+ * Hidden from every public surface while the Vercel Blob store is paused after
+ * exhausting its free-tier transfer. The study's code, content and manifests
+ * stay in the repo: remove the slug from this set to re-enable it, with no
+ * other change.
+ */
+const HIDDEN_WORK: ReadonlySet<WorkSlug> = new Set(["motion-and-stills"]);
+const VISIBLE_WORK: readonly WorkSlug[] = WORK_ORDER.filter(
+  (slug) => !HIDDEN_WORK.has(slug),
+);
+
 export type WorkMeta = {
   slug: WorkSlug;
   title: string;
@@ -37,14 +48,13 @@ export type WorkMeta = {
   coverImage?: CoverImage;
 };
 
-const WORK_SLUGS: readonly string[] = WORK_ORDER;
 const COVERS: readonly string[] = ["tiles", "window", "phone"];
 const MEDIA_COVER = /^media:([a-z0-9][a-z0-9-]*)$/;
 
 const CONTENT_DIR = path.join(process.cwd(), "content", "work");
 
 function isWorkSlug(value: string): value is WorkSlug {
-  return WORK_SLUGS.includes(value);
+  return VISIBLE_WORK.includes(value as WorkSlug);
 }
 
 function isCover(value: string | undefined): value is Cover {
@@ -127,7 +137,7 @@ function readWork(slug: WorkSlug): WorkMeta {
 }
 
 export function listWork(): WorkMeta[] {
-  return WORK_ORDER.map(readWork);
+  return VISIBLE_WORK.map(readWork);
 }
 
 export function getWork(slug: string): WorkMeta | null {
@@ -136,6 +146,6 @@ export function getWork(slug: string): WorkMeta | null {
 
 /** The study after `slug` in reading order; the last one wraps to the first. */
 export function nextWork(slug: string): WorkMeta {
-  const index = isWorkSlug(slug) ? WORK_ORDER.indexOf(slug) : -1;
-  return readWork(WORK_ORDER[(index + 1) % WORK_ORDER.length]);
+  const index = isWorkSlug(slug) ? VISIBLE_WORK.indexOf(slug) : -1;
+  return readWork(VISIBLE_WORK[(index + 1) % VISIBLE_WORK.length]);
 }
