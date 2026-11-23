@@ -38,6 +38,7 @@ const VARIANTS = [
   { value: "left-follow", label: "Left follow" },
   { value: "left-snap", label: "Left snap" },
   { value: "left-fixed", label: "Left fixed" },
+  { value: "panel", label: "Panel" },
 ] as const;
 
 type ThumbVariant = (typeof VARIANTS)[number]["value"];
@@ -51,12 +52,12 @@ function readThumbVariant(): ThumbVariant {
 }
 
 /**
- * The left modes keep the list exactly as it ships, so they need no room of
- * their own; the gate is only the width at which the 480px thumb can sit over
- * the list with the list's left edge in view, and a fine pointer to hover with.
+ * The prototype modes only exist where they fit and the pointer can hover: a
+ * fine pointer and 1200px and up, which leaves the 480px left thumb a readable
+ * list and gives the panel's 30vw plus gutter enough room at the narrow end.
  * Below that (and on touch) the list keeps the shipped cursor thumb.
  */
-const LEFT_QUERY = "(min-width: 1200px) and (hover: hover) and (pointer: fine)";
+const WIDE_QUERY = "(min-width: 1200px) and (hover: hover) and (pointer: fine)";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -120,8 +121,11 @@ const getServerSnapshot = () => false;
  * that leave the list's size and position untouched: the thumb's left edge sits
  * on the list's left edge (X locked), the cursor stays visible, and Y is either
  * the cursor (`left-follow`), the hovered row with a short glide between rows
- * (`left-snap`), or one Y for the whole list (`left-fixed`). They are gated to
- * 1200px and up on a fine pointer; below that the shipped thumb is used.
+ * (`left-snap`), or one Y for the whole list (`left-fixed`). A fourth mode,
+ * `panel`, is the reference's layout instead: a sticky 30vw media panel at the
+ * reading surface's left edge, with the list shifted right past a gutter and the
+ * media contained in a 16:10 frame. All four are gated to 1200px and up on a
+ * fine pointer; below that the shipped thumb is used.
  */
 export function WorkList({
   works,
@@ -135,9 +139,9 @@ export function WorkList({
   const [focused, setFocused] = useState<number | null>(null);
   const [dimActive, setDimActive] = useState(false);
   const [variant, setVariant] = useState<ThumbVariant>("cursor");
-  const [leftFits, setLeftFits] = useState(false);
+  const [wideFits, setWideFits] = useState(false);
   const activeVariant: ThumbVariant =
-    variant !== "cursor" && leftFits ? variant : "cursor";
+    variant !== "cursor" && wideFits ? variant : "cursor";
   const portalReady = useSyncExternalStore(
     subscribeClient,
     getClientSnapshot,
@@ -198,7 +202,7 @@ export function WorkList({
   useLayoutEffect(() => {
     if (typeof window.matchMedia !== "function") return;
 
-    const query = window.matchMedia(LEFT_QUERY);
+    const query = window.matchMedia(WIDE_QUERY);
     const sync = () => {
       const next = readThumbVariant();
       const snap = snapRef.current;
@@ -207,7 +211,7 @@ export function WorkList({
 
       snap.frame = 0;
       snap.row = null;
-      setLeftFits(query.matches);
+      setWideFits(query.matches);
       setVariant((current) => (next === current ? current : next));
       hoveredRef.current = null;
       focusedRef.current = null;
@@ -227,6 +231,22 @@ export function WorkList({
   // reads the active mode through a ref rather than closing over the state.
   useLayoutEffect(() => {
     activeVariantRef.current = activeVariant;
+  }, [activeVariant]);
+
+  // The panel is the one mode that moves the list, so its layout keys on a
+  // document marker rather than on this component's state: the /work layout
+  // sets it from the query before the list is parsed, and a hard load paints
+  // the shifted layout once instead of jumping after hydration. Keep it in step
+  // after that; it is not removed on hide, because a swap fades a DOM copy of
+  // the index after the real one is hidden and the copy needs its layout.
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+
+    if (activeVariant === "panel") {
+      root.setAttribute("data-work-thumb", "panel");
+    } else {
+      root.removeAttribute("data-work-thumb");
+    }
   }, [activeVariant]);
 
   // The list keeps its place while a study takes the panel.
@@ -793,31 +813,33 @@ export function WorkList({
   const thumbActive = hovered !== null || focused !== null;
 
   // Two stacked images; the front one is the current row's cover, swapped by
-  // the same crossfade in every variant.
-  const mediaSlots = ([0, 1] as const).map((slot) => {
-    const index = slots.items[slot];
-    const work = index === null ? null : works[index];
+  // the same crossfade in every variant. The thumb crops to its box; the panel
+  // contains the media inside its frame, the reference's fit.
+  const mediaSlots = (fit: "cover" | "contain") =>
+    ([0, 1] as const).map((slot) => {
+      const index = slots.items[slot];
+      const work = index === null ? null : works[index];
 
-    return (
-      <div
-        key={slot}
-        className="wd-work-thumb-img"
-        data-front={slots.front === slot ? "" : undefined}
-      >
-        {work ? (
-          <Cover
-            scene={work.cover ?? "tiles"}
-            coverImage={work.coverImage}
-            fit="cover"
-          />
-        ) : null}
-      </div>
-    );
-  });
+      return (
+        <div
+          key={slot}
+          className="wd-work-thumb-img"
+          data-front={slots.front === slot ? "" : undefined}
+        >
+          {work ? (
+            <Cover
+              scene={work.cover ?? "tiles"}
+              coverImage={work.coverImage}
+              fit={fit}
+            />
+          ) : null}
+        </div>
+      );
+    });
 
   const thumbNode = (
     <div className="wd-work-thumb" ref={thumbRef} aria-hidden="true">
-      <div className="wd-work-thumb-in">{mediaSlots}</div>
+      <div className="wd-work-thumb-in">{mediaSlots("cover")}</div>
     </div>
   );
 
@@ -866,6 +888,16 @@ export function WorkList({
               activeVariant === "cursor" && hovered !== null ? "" : undefined
             }
           >
+            {activeVariant === "panel" ? (
+              <div
+                className="wd-work-panel"
+                aria-hidden="true"
+                data-work-active={thumbActive ? "" : undefined}
+              >
+                {mediaSlots("contain")}
+              </div>
+            ) : null}
+
             <div
               className="wd-work-list-column"
               ref={listColumnRef}
@@ -905,7 +937,7 @@ export function WorkList({
         </div>
       </div>
 
-      {portalReady
+      {portalReady && activeVariant !== "panel"
         ? createPortal(
             <div
               className="wd-work-thumb-clip"

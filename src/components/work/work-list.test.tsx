@@ -1,4 +1,6 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { Activity } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { listWork } from "@/lib/work";
@@ -7,7 +9,7 @@ import { WorkList } from "./work-list";
 import { INDEX_SCROLL_ID, INDEX_TITLE_ID } from "./work-index-ids";
 
 const works = listWork();
-const LEFT_QUERY = "(min-width: 1200px) and (hover: hover) and (pointer: fine)";
+const WIDE_QUERY = "(min-width: 1200px) and (hover: hover) and (pointer: fine)";
 
 /** Whether the viewport is wide enough for the left modes in this test. */
 let leftFits = true;
@@ -110,7 +112,7 @@ beforeEach(() => {
     vi.fn((query: string) => ({
       matches:
         query === "(hover: hover) and (pointer: fine)" ||
-        (leftFits && query === LEFT_QUERY) ||
+        (leftFits && query === WIDE_QUERY) ||
         (reduceMotion && query === "(prefers-reduced-motion: reduce)"),
       media: query,
       onchange: null,
@@ -279,6 +281,65 @@ describe("work list", () => {
     await waitFor(() => expect(thumbXY()).toEqual({ x: 132, y: 180 }));
   });
 
+  it("adds the panel mode: shifted list, idle-hidden 16:10 frame", () => {
+    window.history.replaceState({}, "", "/work?thumb=panel");
+
+    const { container } = renderList();
+    const group = container.querySelector<HTMLElement>(".wd-work-group")!;
+    const panel = container.querySelector<HTMLElement>(".wd-work-panel")!;
+    const front = () =>
+      panel.querySelector<HTMLElement>(".wd-work-thumb-img[data-front]");
+
+    // The document marker is what the panel layout CSS keys on (set before
+    // paint by the /work layout script on a hard load).
+    expect(document.documentElement).toHaveAttribute(
+      "data-work-thumb",
+      "panel",
+    );
+    expect(container.querySelector(".wd-work-column")).toHaveAttribute(
+      "data-thumb",
+      "panel",
+    );
+    expect(group.children).toHaveLength(2);
+    expect(panel).not.toHaveAttribute("data-work-active");
+    // The panel replaces the cursor-follow layer.
+    expect(document.body.querySelector(".wd-work-thumb-clip")).toBeNull();
+
+    hoverRow(container, 1);
+
+    expect(panel).toHaveAttribute("data-work-active");
+    expect(group).toHaveAttribute("data-work-dim");
+    expect(group).not.toHaveAttribute("data-work-pointer");
+    expect(front()?.firstElementChild).not.toBeNull();
+
+    const firstFront = front();
+
+    hoverRow(container, 2);
+
+    // Same two-layer crossfade; the front slot moved to the other layer.
+    expect(front()).not.toBe(firstFront);
+    expect(container.querySelectorAll(".wd-work-row-item")[2]).toHaveAttribute(
+      "data-work-current",
+    );
+  });
+
+  it("swaps the panel media on the reference's 1s expo-out fade", () => {
+    renderList();
+
+    const css = readFileSync(
+      join(process.cwd(), "src", "components", "work", "work-list.css"),
+      "utf8",
+    );
+
+    expect(css).toMatch(
+      /\.wd-work-panel \.wd-work-thumb-img \{[^}]*transition-duration: 1000ms;[^}]*transition-timing-function: cubic-bezier\(0\.19, 1, 0\.22, 1\);/,
+    );
+    // Reduced motion swaps on the same frame.
+    expect(css).toMatch(
+      /prefers-reduced-motion: reduce[\s\S]*?\.wd-work-panel \.wd-work-thumb-img \{\s*transition: none;/,
+    );
+  });
+
   it("left-snap jumps with no glide under reduced motion", async () => {
     reduceMotion = true;
     window.history.replaceState({}, "", "/work?thumb=left-snap");
@@ -327,30 +388,37 @@ describe("work list", () => {
     expect(first).not.toHaveAttribute("data-work-current");
   });
 
-  it("falls back to the shipped cursor thumb where the left modes do not fit", () => {
+  it("falls back to the shipped cursor thumb where the modes do not fit", () => {
     leftFits = false;
-    window.history.replaceState({}, "", "/work?thumb=left-snap");
 
-    const { container } = renderList();
-    const clip = document.body.querySelector<HTMLElement>(
-      ".wd-work-thumb-clip",
-    )!;
+    for (const mode of ["left-snap", "panel"] as const) {
+      window.history.replaceState({}, "", `/work?thumb=${mode}`);
 
-    expect(container.querySelector(".wd-work-column")).toHaveAttribute(
-      "data-thumb",
-      "cursor",
-    );
-    expect(clip).toHaveAttribute("data-work-variant", "cursor");
+      const { container, unmount } = renderList();
+      const clip = document.body.querySelector<HTMLElement>(
+        ".wd-work-thumb-clip",
+      )!;
 
-    fireEvent.pointerMove(
-      container.querySelector<HTMLElement>(".wd-work-row")!,
-      { clientX: 100, clientY: 100 },
-    );
+      expect(container.querySelector(".wd-work-column")).toHaveAttribute(
+        "data-thumb",
+        "cursor",
+      );
+      expect(clip).toHaveAttribute("data-work-variant", "cursor");
+      expect(container.querySelector(".wd-work-panel")).toBeNull();
+      expect(document.documentElement).not.toHaveAttribute("data-work-thumb");
 
-    // The shipped variant still hides the cursor and follows the pointer.
-    expect(container.querySelector(".wd-work-group")).toHaveAttribute(
-      "data-work-pointer",
-    );
+      fireEvent.pointerMove(
+        container.querySelector<HTMLElement>(".wd-work-row")!,
+        { clientX: 100, clientY: 100 },
+      );
+
+      // The shipped variant still hides the cursor and follows the pointer.
+      expect(container.querySelector(".wd-work-group")).toHaveAttribute(
+        "data-work-pointer",
+      );
+
+      unmount();
+    }
   });
 
   it("hides the cursor and dims the other rows only while a row is hovered", () => {
