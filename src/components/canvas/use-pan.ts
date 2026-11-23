@@ -88,10 +88,16 @@ export const PAN_TUNING = {
     multiplier: 0.05,
   },
   keys: {
-    /** Held-key acceleration in px/frame per 60fps frame. */
-    acceleration: 1.1,
-    /** Terminal held-key speed; its release glide is roughly 280px. */
-    maxVelocity: 14,
+    /**
+     * Held-key acceleration in px/frame per 60fps frame. 3.4 reaches the
+     * 25px/frame cruise in roughly 160ms, so a tap stays a small nudge.
+     */
+    acceleration: 3.4,
+    /**
+     * Held-key cruise: 25px/frame is 1.5px/ms (≈1,400px in the first second),
+     * between a normal mouse drag and the 2.4px/ms hard-flick reference.
+     */
+    maxVelocity: 25,
     /** Reduced motion: one direct step per key press, no glide. */
     reducedStep: 120,
   },
