@@ -23,8 +23,7 @@ import { MediaImage } from "@/components/media/media-image";
 import type { MediaManifest } from "@/lib/media-types";
 import type { Box } from "@/components/work/morph";
 import { usePan } from "./use-pan";
-import type { ArrowDirection } from "./use-pan";
-import { mod, nearestPeriodic, planePosition } from "./wrap";
+import { planePosition } from "./wrap";
 
 export type CanvasItem = {
   /** Unique per copy in the cycled list, not the media id. */
@@ -111,13 +110,9 @@ type Plane = {
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   material: THREE.ShaderMaterial;
   itemIndex: number;
-  col: number;
-  row: number;
   /** Cell centre in screen px relative to the viewport centre, before scroll. */
   baseX: number;
   baseY: number;
-  width: number;
-  height: number;
   textureUrl: string;
   loaded: boolean;
   opacity: number;
@@ -220,7 +215,6 @@ export const InfiniteCanvas = forwardRef<
   const wakeRef = useRef<() => void>(() => {});
   const pickRef = useRef<(x: number, y: number) => void>(() => {});
   const centerRef = useRef<() => void>(() => {});
-  const arrowRef = useRef<(direction: ArrowDirection) => void>(() => {});
   const restoreRef = useRef<() => void>(() => {});
   const pausedRef = useRef(paused);
   const onOpenRef = useRef(onOpen);
@@ -249,9 +243,6 @@ export const InfiniteCanvas = forwardRef<
     onActivate: () => {
       if (!pausedRef.current) centerRef.current();
     },
-    onArrow: (direction) => {
-      if (!pausedRef.current) arrowRef.current(direction);
-    },
     onWake: () => wakeRef.current(),
   });
 
@@ -261,7 +252,6 @@ export const InfiniteCanvas = forwardRef<
     handlers,
     tick: panTick,
     isDragging: panIsDragging,
-    tweenTo,
   } = pan;
 
   useEffect(() => {
@@ -487,12 +477,8 @@ export const InfiniteCanvas = forwardRef<
             mesh,
             material,
             itemIndex,
-            col,
-            row,
             baseX: (col - (cols - 1) / 2) * pitchX,
             baseY: (row - (rows - 1) / 2) * pitchY,
-            width: planeWidth,
-            height: planeHeight,
             textureUrl: url,
             loaded: entry.loaded,
             opacity,
@@ -662,24 +648,6 @@ export const InfiniteCanvas = forwardRef<
       if (plane) openPlane(plane);
     }
 
-    function moveToNeighbour(direction: ArrowDirection): void {
-      const centre = centrePlane();
-      if (!centre) return;
-
-      const col = mod(centre.col + direction.x, cols);
-      const row = mod(centre.row + direction.y, rows);
-      const target = planes.find(
-        (plane) => plane.col === col && plane.row === row,
-      );
-      if (!target) return;
-
-      const scroll = scrollRef.current;
-      const targetX = nearestPeriodic(-target.baseX, scroll.x, cols * pitchX);
-      const targetY = nearestPeriodic(-target.baseY, scroll.y, rows * pitchY);
-
-      tweenTo(targetX, targetY);
-    }
-
     function updateCamera(dt: number): boolean {
       const targetZ = panIsDragging() && !reduced ? CAMERA_DRAG_Z : CAMERA_Z;
       const ease = 1 - Math.pow(0.975, dt);
@@ -825,7 +793,6 @@ export const InfiniteCanvas = forwardRef<
     wakeRef.current = wake;
     pickRef.current = pick;
     centerRef.current = openCentred;
-    arrowRef.current = moveToNeighbour;
     restoreRef.current = revealPlane;
     api.rectForIndex = rectForIndex;
     api.reveal = revealPlane;
@@ -845,7 +812,6 @@ export const InfiniteCanvas = forwardRef<
       wakeRef.current = () => {};
       pickRef.current = () => {};
       centerRef.current = () => {};
-      arrowRef.current = () => {};
       restoreRef.current = () => {};
       api.rectForIndex = () => null;
       api.reveal = () => {};
@@ -861,7 +827,7 @@ export const InfiniteCanvas = forwardRef<
       renderer.forceContextLoss();
       renderer.domElement.remove();
     };
-  }, [items, panIsDragging, panTick, scrollRef, tweenTo]);
+  }, [items, panIsDragging, panTick, scrollRef]);
 
   return (
     <div
@@ -870,7 +836,7 @@ export const InfiniteCanvas = forwardRef<
       data-canvas-surface
       tabIndex={0}
       role="region"
-      aria-label="WebGL media canvas. Drag or scroll to move, use the arrow keys to move between media, and press Enter to open the centred media."
+      aria-label="WebGL media canvas. Drag or scroll to move, hold the arrow keys to pan, and press Enter to open the centred media."
       inert={paused}
       {...handlers}
       onDragStart={(event) => event.preventDefault()}

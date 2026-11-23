@@ -6,13 +6,14 @@ import type {
   PointerEvent as ReactPointerEvent,
   RefObject,
 } from "react";
+import {
+  arrowDirection,
+  estimateReleaseVelocity,
+  releaseGain,
+} from "./pan-physics";
+import type { PointerSample, Velocity } from "./pan-physics";
 
 export type ScrollPoint = {
-  x: number;
-  y: number;
-};
-
-export type ArrowDirection = {
   x: number;
   y: number;
 };
@@ -24,57 +25,84 @@ export type PanHandlers = {
   onPointerCancel: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onLostPointerCapture: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
+  onKeyUp: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
+  onBlur: () => void;
 };
 
 export type UsePanResult = {
   containerRef: RefObject<HTMLDivElement | null>;
   scrollRef: RefObject<ScrollPoint>;
   handlers: PanHandlers;
-  /** Advance momentum or the arrow tween. Returns whether motion is active. */
+  /** Advance momentum or held-key acceleration. Returns whether motion is active. */
   tick: (now: number) => boolean;
   isActive: () => boolean;
   isDragging: () => boolean;
-  /** Stop drag/momentum but leave the scroll where it is. */
+  /** Stop drag/momentum/keys but leave the scroll where it is. */
   halt: () => void;
-  setScroll: (x: number, y: number) => void;
-  tweenTo: (x: number, y: number, duration?: number) => void;
 };
 
 /**
- * The reference's physics, with the hand driving the offset directly:
- * dragMultiplier shapes the release fling, touchMultiplier makes a touch fling
- * stronger, wheel speedMultiplier becomes momentum, and decay is applied per
- * 60fps frame. Reduced motion applies wheel deltas directly, drops the fling
- * and sets decay to zero.
+ * Every pan tunable, in scroll units of CSS px per 60fps frame.
+ *
+ * Total glide after a release is approximately `velocity / (1 - decay)`, so
+ * with the .95 decay a 55px/frame release coasts about 1,100px. The release
+ * gain ramps with pointer speed: a gentle release keeps the reference's
+ * restrained drift, while a hard flick reaches the full gain and coasts.
  */
-const DRAG_MULTIPLIER = 0.1;
-const TOUCH_MULTIPLIER = 0.3;
-const WHEEL_MULTIPLIER = 0.05;
-const DECAY = 0.95;
-const FRAME_MS = 1000 / 60;
-const MIN_VELOCITY = 0.01;
-const MAX_VELOCITY = 32;
-const TAP_DISTANCE = 5;
-const TAP_MS = 300;
-const CLICK_BLOCK_MS = 100;
-const SAMPLE_WINDOW_MS = 80;
-/** A release more than one sample window after the last move has no fling. */
-const STALE_SAMPLE_MS = 80;
-const ARROW_TWEEN_MS = 320;
+export const PAN_TUNING = {
+  frameMs: 1000 / 60,
+  /** Momentum decay per 60fps frame. */
+  decay: 0.95,
+  /** A glide is over below this speed (px/frame). */
+  minVelocity: 0.01,
+  /** Hard cap so a violent flick cannot teleport the canvas. */
+  maxVelocity: 55,
+  click: {
+    maxDistancePx: 5,
+    maxDurationMs: 300,
+    /** Clicks in this window after a drag are ignored. */
+    blockAfterDragMs: 100,
+  },
+  samples: {
+    /** The trailing window used for the release estimate. */
+    windowMs: 90,
+    /** A release after this quiet time gets no fling. */
+    staleMs: 80,
+    /** Two positions closer than this cannot make a stable velocity. */
+    minGapMs: 8,
+  },
+  drag: {
+    /** Pointer speed (px/ms) where the release gain starts/stops ramping. */
+    slowPxPerMs: 0.35,
+    fastPxPerMs: 2.2,
+    /** Gain at a gentle release and at a hard flick. */
+    minGain: 0.2,
+    maxGain: 1.6,
+  },
+  touch: {
+    /** A touch flick is slightly stronger than a mouse flick. */
+    gainScale: 1.25,
+  },
+  wheel: {
+    /** Wheel delta (px) to velocity (px/frame). */
+    multiplier: 0.05,
+  },
+  keys: {
+    /** Held-key acceleration in px/frame per 60fps frame. */
+    acceleration: 1.1,
+    /** Terminal held-key speed; its release glide is roughly 280px. */
+    maxVelocity: 14,
+    /** Reduced motion: one direct step per key press, no glide. */
+    reducedStep: 120,
+  },
+} as const;
 
-type Sample = {
-  t: number;
-  x: number;
-  y: number;
-};
-
-type Tween = {
-  fromX: number;
-  fromY: number;
-  toX: number;
-  toY: number;
-  start: number;
-  duration: number;
+const GAIN_OPTIONS = {
+  minGain: PAN_TUNING.drag.minGain,
+  maxGain: PAN_TUNING.drag.maxGain,
+  slowPxPerMs: PAN_TUNING.drag.slowPxPerMs,
+  fastPxPerMs: PAN_TUNING.drag.fastPxPerMs,
+  touchScale: PAN_TUNING.touch.gainScale,
 };
 
 type DragState = {
@@ -85,105 +113,58 @@ type DragState = {
   lastX: number;
   lastY: number;
   downTime: number;
-  samples: Sample[];
-  velocity: ScrollPoint;
-  tween: Tween | null;
+  samples: PointerSample[];
+  velocity: Velocity;
   lastTick: number;
   blockClickUntil: number;
 };
 
-function cubicBezier(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-): (progress: number) => number {
-  const cx = 3 * x1;
-  const bx = 3 * (x2 - x1) - cx;
-  const ax = 1 - cx - bx;
-  const cy = 3 * y1;
-  const by = 3 * (y2 - y1) - cy;
-  const ay = 1 - cy - by;
-
-  const sampleX = (t: number) => ((ax * t + bx) * t + cx) * t;
-  const sampleY = (t: number) => ((ay * t + by) * t + cy) * t;
-  const derivativeX = (t: number) => (3 * ax * t + 2 * bx) * t + cx;
-
-  const solveX = (x: number): number => {
-    let t = x;
-
-    for (let iteration = 0; iteration < 8; iteration += 1) {
-      const difference = sampleX(t) - x;
-      if (Math.abs(difference) < 1e-6) return t;
-
-      const slope = derivativeX(t);
-      if (Math.abs(slope) < 1e-6) break;
-      t -= difference / slope;
-    }
-
-    let low = 0;
-    let high = 1;
-    t = x;
-
-    for (let iteration = 0; iteration < 20; iteration += 1) {
-      const value = sampleX(t);
-      if (Math.abs(value - x) < 1e-6) return t;
-      if (value < x) low = t;
-      else high = t;
-      t = (low + high) / 2;
-    }
-
-    return t;
-  };
-
-  return (progress: number) => {
-    if (progress <= 0) return 0;
-    if (progress >= 1) return 1;
-    return sampleY(solveX(progress));
-  };
-}
-
-const ARROW_EASE = cubicBezier(0.32, 0.72, 0, 1);
-
-function clampVelocity(velocity: ScrollPoint): void {
+function clampSpeed(velocity: Velocity, max: number): void {
   const speed = Math.hypot(velocity.x, velocity.y);
-  if (speed <= MAX_VELOCITY) return;
+  if (speed <= max) return;
 
-  const scale = MAX_VELOCITY / speed;
+  const scale = max / speed;
   velocity.x *= scale;
   velocity.y *= scale;
 }
 
+function isArrowKey(key: string): boolean {
+  return (
+    key === "ArrowLeft" ||
+    key === "ArrowRight" ||
+    key === "ArrowUp" ||
+    key === "ArrowDown"
+  );
+}
+
 /**
- * Pointer, wheel and arrow-key panning for the WebGL plane grid.
+ * Pointer, wheel and held-arrow panning for the WebGL plane grid.
  *
- * Scroll is a screen-space offset in CSS pixels: x right, y down. Dragging
- * moves it one-to-one; a release turns the last 80ms of hand velocity into the
- * fling; a wheel notch becomes momentum; an arrow key eases the nearest
- * neighbour to the viewport centre.
+ * Dragging moves the offset one-to-one. On release the last ~90ms of hand
+ * movement becomes a speed-sensitive glide. Arrow keys add acceleration in a
+ * normalized direction while held, so two keys make a diagonal at the same
+ * speed as one; releasing them lets the same decay carry the motion out.
  */
 export function usePan({
   reduceMotion = false,
   disabled = false,
   onTap,
   onActivate,
-  onArrow,
   onWake,
 }: {
   reduceMotion?: boolean;
   disabled?: boolean;
   onTap?: (x: number, y: number) => void;
   onActivate?: () => void;
-  onArrow?: (direction: ArrowDirection) => void;
   onWake?: () => void;
 }): UsePanResult {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<ScrollPoint>({ x: 0, y: 0 });
+  const arrowKeysRef = useRef<Set<string>>(new Set());
   const reduceRef = useRef(reduceMotion);
   const disabledRef = useRef(disabled);
   const onTapRef = useRef(onTap);
   const onActivateRef = useRef(onActivate);
-  const onArrowRef = useRef(onArrow);
   const onWakeRef = useRef(onWake);
 
   useEffect(() => {
@@ -191,7 +172,6 @@ export function usePan({
     disabledRef.current = disabled;
     onTapRef.current = onTap;
     onActivateRef.current = onActivate;
-    onArrowRef.current = onArrow;
     onWakeRef.current = onWake;
   });
 
@@ -205,7 +185,6 @@ export function usePan({
     downTime: 0,
     samples: [],
     velocity: { x: 0, y: 0 },
-    tween: null,
     lastTick: 0,
     blockClickUntil: 0,
   });
@@ -236,8 +215,8 @@ export function usePan({
 
     state.dragging = false;
     state.velocity = { x: 0, y: 0 };
-    state.tween = null;
     state.samples = [];
+    arrowKeysRef.current.clear();
 
     if (state.pointerId !== null) {
       releaseCapture(state.pointerId);
@@ -247,80 +226,43 @@ export function usePan({
     setDraggingAttribute(false);
   }, [releaseCapture, setDraggingAttribute]);
 
-  const setScroll = useCallback((x: number, y: number) => {
-    scrollRef.current.x = x;
-    scrollRef.current.y = y;
-
-    const state = stateRef.current;
-    state.velocity = { x: 0, y: 0 };
-    state.tween = null;
-
-    onWakeRef.current?.();
-  }, []);
-
-  const tweenTo = useCallback(
-    (x: number, y: number, duration = ARROW_TWEEN_MS) => {
-      if (reduceRef.current || duration <= 0) {
-        setScroll(x, y);
-        return;
-      }
-
-      const state = stateRef.current;
-      const scroll = scrollRef.current;
-
-      state.velocity = { x: 0, y: 0 };
-      state.tween = {
-        fromX: scroll.x,
-        fromY: scroll.y,
-        toX: x,
-        toY: y,
-        start: performance.now(),
-        duration,
-      };
-      state.lastTick = 0;
-
-      onWakeRef.current?.();
-    },
-    [setScroll],
-  );
-
   const tick = useCallback((now: number) => {
     const state = stateRef.current;
     const scroll = scrollRef.current;
     const deltaMs = state.lastTick
       ? Math.min(48, Math.max(0, now - state.lastTick))
-      : FRAME_MS;
-    const dt = deltaMs / FRAME_MS;
+      : PAN_TUNING.frameMs;
+    const dt = deltaMs / PAN_TUNING.frameMs;
+    const direction = arrowDirection(arrowKeysRef.current);
+    const keysActive = direction.x !== 0 || direction.y !== 0;
 
-    if (state.tween) {
-      const progress = Math.min(
-        1,
-        Math.max(0, (now - state.tween.start) / state.tween.duration),
-      );
-      const eased = ARROW_EASE(progress);
-
-      scroll.x =
-        state.tween.fromX + (state.tween.toX - state.tween.fromX) * eased;
-      scroll.y =
-        state.tween.fromY + (state.tween.toY - state.tween.fromY) * eased;
-
-      if (progress >= 1) state.tween = null;
-    } else if (!state.dragging) {
+    if (!state.dragging) {
       if (reduceRef.current) {
         state.velocity = { x: 0, y: 0 };
-      } else if (
-        Math.abs(state.velocity.x) > 0.0001 ||
-        Math.abs(state.velocity.y) > 0.0001
-      ) {
-        scroll.x += state.velocity.x * dt;
-        scroll.y += state.velocity.y * dt;
+      } else {
+        if (keysActive) {
+          state.velocity.x += direction.x * PAN_TUNING.keys.acceleration * dt;
+          state.velocity.y += direction.y * PAN_TUNING.keys.acceleration * dt;
+          clampSpeed(state.velocity, PAN_TUNING.keys.maxVelocity);
+        }
 
-        const decay = Math.pow(DECAY, dt);
-        state.velocity.x *= decay;
-        state.velocity.y *= decay;
+        if (
+          Math.abs(state.velocity.x) > 0.0001 ||
+          Math.abs(state.velocity.y) > 0.0001
+        ) {
+          scroll.x += state.velocity.x * dt;
+          scroll.y += state.velocity.y * dt;
 
-        if (Math.hypot(state.velocity.x, state.velocity.y) < MIN_VELOCITY) {
-          state.velocity = { x: 0, y: 0 };
+          const decay = Math.pow(PAN_TUNING.decay, dt);
+          state.velocity.x *= decay;
+          state.velocity.y *= decay;
+
+          if (
+            Math.hypot(state.velocity.x, state.velocity.y) <
+            PAN_TUNING.minVelocity
+          ) {
+            state.velocity = { x: 0, y: 0 };
+          }
         }
       }
     }
@@ -329,7 +271,7 @@ export function usePan({
 
     return (
       state.dragging ||
-      state.tween !== null ||
+      (keysActive && !reduceRef.current) ||
       state.velocity.x !== 0 ||
       state.velocity.y !== 0
     );
@@ -337,9 +279,12 @@ export function usePan({
 
   const isActive = useCallback(() => {
     const state = stateRef.current;
+    const direction = arrowDirection(arrowKeysRef.current);
+    const keysActive = direction.x !== 0 || direction.y !== 0;
+
     return (
       state.dragging ||
-      state.tween !== null ||
+      (keysActive && !reduceRef.current) ||
       Math.abs(state.velocity.x) > 0.0001 ||
       Math.abs(state.velocity.y) > 0.0001
     );
@@ -367,7 +312,6 @@ export function usePan({
       state.downTime = now;
       state.samples = [{ t: now, x: event.clientX, y: event.clientY }];
       state.velocity = { x: 0, y: 0 };
-      state.tween = null;
       state.lastTick = now;
 
       try {
@@ -404,7 +348,7 @@ export function usePan({
 
       while (
         state.samples.length > 2 &&
-        now - state.samples[0].t > SAMPLE_WINDOW_MS
+        now - state.samples[0].t > PAN_TUNING.samples.windowMs
       ) {
         state.samples.shift();
       }
@@ -421,7 +365,7 @@ export function usePan({
 
       const now = performance.now();
       const duration = now - state.downTime;
-      const wasDrag = state.moved > TAP_DISTANCE;
+      const wasDrag = state.moved > PAN_TUNING.click.maxDistancePx;
 
       state.pointerId = null;
       state.dragging = false;
@@ -429,54 +373,38 @@ export function usePan({
       setDraggingAttribute(false);
 
       if (wasDrag) {
-        let velocityX = 0;
-        let velocityY = 0;
+        state.velocity = { x: 0, y: 0 };
 
         if (!reduceRef.current) {
-          // The samples array holds the two most recent moves. Use that pair
-          // rather than filtering to a rigid 80ms window: at low event rates
-          // (a synthetic drag, a slow machine) the window can collapse to one
-          // sample and lose a real fling. The last sample itself must be
-          // recent, so a hand that stopped before lifting still has no glide.
-          const samples = state.samples;
-          const lastSample = samples[samples.length - 1];
-          const previousSample = samples[samples.length - 2];
+          const pointerVelocity = estimateReleaseVelocity(
+            state.samples,
+            now,
+            PAN_TUNING.samples,
+          );
 
-          if (
-            lastSample &&
-            previousSample &&
-            now - lastSample.t <= STALE_SAMPLE_MS
-          ) {
-            const elapsed = lastSample.t - previousSample.t;
+          if (pointerVelocity) {
+            const pointerSpeed = Math.hypot(
+              pointerVelocity.x,
+              pointerVelocity.y,
+            );
+            const gain = releaseGain(
+              pointerSpeed,
+              state.pointerType === "touch",
+              GAIN_OPTIONS,
+            );
 
-            if (elapsed >= 8) {
-              const multiplier =
-                state.pointerType === "touch"
-                  ? TOUCH_MULTIPLIER
-                  : DRAG_MULTIPLIER;
-
-              // Pointer velocity is px/ms; the engine works in px per 60fps
-              // frame. The x2 is the reference's release impulse.
-              velocityX =
-                ((lastSample.x - previousSample.x) / elapsed) *
-                FRAME_MS *
-                multiplier *
-                2;
-              velocityY =
-                ((lastSample.y - previousSample.y) / elapsed) *
-                FRAME_MS *
-                multiplier *
-                2;
-            }
+            state.velocity = {
+              x: pointerVelocity.x * PAN_TUNING.frameMs * gain,
+              y: pointerVelocity.y * PAN_TUNING.frameMs * gain,
+            };
+            clampSpeed(state.velocity, PAN_TUNING.maxVelocity);
           }
         }
 
-        state.velocity = { x: velocityX, y: velocityY };
-        clampVelocity(state.velocity);
-        state.blockClickUntil = now + CLICK_BLOCK_MS;
+        state.blockClickUntil = now + PAN_TUNING.click.blockAfterDragMs;
       } else if (
-        duration < TAP_MS &&
-        state.moved <= TAP_DISTANCE &&
+        duration < PAN_TUNING.click.maxDurationMs &&
+        state.moved <= PAN_TUNING.click.maxDistancePx &&
         now >= state.blockClickUntil
       ) {
         state.velocity = { x: 0, y: 0 };
@@ -485,7 +413,6 @@ export function usePan({
         state.velocity = { x: 0, y: 0 };
       }
 
-      state.tween = null;
       state.samples = [];
       state.lastTick = now;
 
@@ -526,28 +453,37 @@ export function usePan({
       return;
     }
 
-    let x = 0;
-    let y = 0;
-
-    switch (event.key) {
-      case "ArrowLeft":
-        x = -1;
-        break;
-      case "ArrowRight":
-        x = 1;
-        break;
-      case "ArrowUp":
-        y = -1;
-        break;
-      case "ArrowDown":
-        y = 1;
-        break;
-      default:
-        return;
-    }
+    if (!isArrowKey(event.key)) return;
 
     event.preventDefault();
-    onArrowRef.current?.({ x, y });
+    arrowKeysRef.current.add(event.key);
+
+    if (reduceRef.current) {
+      // Reduced motion: one direct step per physical press, no glide.
+      if (!event.repeat) {
+        const direction = arrowDirection(arrowKeysRef.current);
+        scrollRef.current.x += direction.x * PAN_TUNING.keys.reducedStep;
+        scrollRef.current.y += direction.y * PAN_TUNING.keys.reducedStep;
+        onWakeRef.current?.();
+      }
+      return;
+    }
+
+    stateRef.current.lastTick = performance.now();
+    onWakeRef.current?.();
+  }, []);
+
+  const onKeyUp = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!isArrowKey(event.key)) return;
+
+    event.preventDefault();
+    arrowKeysRef.current.delete(event.key);
+
+    if (!disabledRef.current) onWakeRef.current?.();
+  }, []);
+
+  const onBlur = useCallback(() => {
+    arrowKeysRef.current.clear();
   }, []);
 
   // Wheel needs a non-passive native listener so a full-viewport canvas can
@@ -570,17 +506,18 @@ export function usePan({
             : 1;
       const deltaX = event.deltaX * scale;
       const deltaY = event.deltaY * scale;
+      const state = stateRef.current;
 
       if (reduceRef.current) {
         scrollRef.current.x -= deltaX;
         scrollRef.current.y -= deltaY;
       } else {
-        const state = stateRef.current;
-        // A notch becomes velocity; the 0.95 decay turns a 100px wheel delta
-        // into roughly 100px of travel instead of a 5px nudge.
-        state.velocity.x -= deltaX * WHEEL_MULTIPLIER;
-        state.velocity.y -= deltaY * WHEEL_MULTIPLIER;
-        clampVelocity(state.velocity);
+        // A notch becomes velocity; the decay turns a 100px wheel delta into
+        // roughly 100px of travel.
+        state.velocity.x -= deltaX * PAN_TUNING.wheel.multiplier;
+        state.velocity.y -= deltaY * PAN_TUNING.wheel.multiplier;
+        clampSpeed(state.velocity, PAN_TUNING.maxVelocity);
+        state.lastTick = performance.now();
       }
 
       onWakeRef.current?.();
@@ -601,7 +538,15 @@ export function usePan({
 
     const state = stateRef.current;
     state.velocity = { x: 0, y: 0 };
+    arrowKeysRef.current.clear();
   }, [reduceMotion]);
+
+  useEffect(() => {
+    const clearKeys = () => arrowKeysRef.current.clear();
+    window.addEventListener("blur", clearKeys);
+
+    return () => window.removeEventListener("blur", clearKeys);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -619,12 +564,12 @@ export function usePan({
       onPointerCancel,
       onLostPointerCapture,
       onKeyDown,
+      onKeyUp,
+      onBlur,
     },
     tick,
     isActive,
     isDragging,
     halt,
-    setScroll,
-    tweenTo,
   };
 }

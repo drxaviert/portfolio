@@ -67,7 +67,7 @@ export function CanvasProto({ items }: { items: CanvasItem[] }) {
 
       <div className="cv-chrome" inert={viewer !== null}>
         <p className="cv-hint">
-          Drag or scroll <span aria-hidden="true">·</span> Arrows move{" "}
+          Drag or scroll <span aria-hidden="true">·</span> Hold arrows to pan{" "}
           <span aria-hidden="true">·</span> Enter opens
         </p>
 
