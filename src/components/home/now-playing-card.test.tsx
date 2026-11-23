@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { VinylCard } from "./vinyl-card";
+import { NowPlayingCard } from "./now-playing-card";
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -22,25 +22,28 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("VinylCard", () => {
+describe("NowPlayingCard", () => {
   it("names the card and the play control for the track", () => {
-    render(<VinylCard />);
+    render(<NowPlayingCard />);
 
     expect(
-      screen.getByRole("group", { name: "「不停的」" }),
+      screen.getByRole("group", { name: "Get Lucky" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Play 「不停的」" }),
+      screen.getByRole("button", { name: "Play Get Lucky" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("Official Music Video · YouTube"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Daft Punk")).toBeInTheDocument();
   });
 
-  it("keeps the time out of the live region and leaves a polite status", () => {
-    render(<VinylCard />);
+  it("keeps the times decorative and leaves a polite status", () => {
+    const { container } = render(<NowPlayingCard />);
 
-    expect(screen.getByText("3:48")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("0:00")).toBeInTheDocument();
+    expect(screen.getByText("4:09")).toBeInTheDocument();
+    expect(container.querySelector(".now-playing-art")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
 
     const status = screen.getByRole("status");
 

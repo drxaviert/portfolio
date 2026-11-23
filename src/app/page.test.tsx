@@ -45,7 +45,7 @@ describe("home page", () => {
       screen.queryByRole("navigation", { name: "Primary" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Play 「不停的」" }),
+      screen.getByRole("button", { name: "Play Get Lucky" }),
     ).toBeInTheDocument();
   });
 

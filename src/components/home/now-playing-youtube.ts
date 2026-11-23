@@ -1,8 +1,8 @@
 /**
- * Lazy YouTube IFrame Player loader for the vinyl card.
+ * Lazy YouTube IFrame Player loader for the now-playing card.
  *
  * The API script is only fetched when the card is first hovered, focused or
- * tapped (see vinyl-card.tsx), never on page load, so it stays out of LCP. The
+ * tapped (see now-playing-card.tsx), never on page load, so it stays out of LCP. The
  * embed itself is created against youtube-nocookie.com and lives off-screen:
  * the card is an audio player, and nothing in the iframe is meant to be seen or
  * reached by keyboard or screen readers.

@@ -3,46 +3,42 @@
 import Image from "next/image";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { RingLayers } from "./ring-hover";
-import { useReducedMotion } from "./use-reduced-motion";
-import { VINYL_TRACK, formatTime, thumbnailUrl, watchUrl } from "./vinyl-track";
-import { createVinylSpin } from "./vinyl-spin";
-import type { VinylSpin } from "./vinyl-spin";
-import { createYouTubePlayer, loadYouTubeApi } from "./vinyl-youtube";
-import type { YouTubeHandle } from "./vinyl-youtube";
-import "./vinyl-card.css";
+import {
+  NOW_PLAYING_TRACK,
+  formatDuration,
+  formatTime,
+  thumbnailUrl,
+  watchUrl,
+} from "./now-playing-track";
+import { createYouTubePlayer, loadYouTubeApi } from "./now-playing-youtube";
+import type { YouTubeHandle } from "./now-playing-youtube";
+import "./now-playing-card.css";
 
 /**
- * The homepage's top-left card, playing 「不停的」 through a hidden, lazy
- * YouTube embed.
+ * The homepage's top-left card: Paper's "Static player · Pulled in" row 2,
+ * V1 Frosted, at 275×276 and scaled down with container units.
  *
- * The card is drawn at 275×276 in Paper and scaled with container units (see
- * vinyl-card.css), so the same geometry reads at 160, 220 and 275. The card
- * itself stays hover-only; the play button and the error link are the only
- * interactive things.
+ * The card is flush with the page — the surface is the page token, with the
+ * soft white inset rim carrying the edge. The album art fills the top, the
+ * times and progress sit over its bottom gradient, and the title/artist well
+ * and play button share the bottom row.
  *
- * Playback is optimistic: the disc slides out and spins up on click, before the
- * iframe has answered. YouTube events correct the state, a 1.5s timer reveals
- * the spinner if the start is slow, and a 10s watchdog falls back to the
- * YouTube link when the embed is blocked or offline.
- *
- * Activity keeps hidden copies of HomeScreen alive on / and /work. This
- * component pauses its player whenever its effects are cleaned up (Activity
- * hides a route) and also checks that the card still has a box while audio
- * could be running; a hidden copy can never stay audible. The spin is WAAPI,
- * so the once-a-second time update never touches it.
+ * Playback is the same lazy, hidden youtube-nocookie embed as before. Activity
+ * hides home copies on / and /work; this card pauses on effect cleanup and
+ * re-syncs when revealed, so two home copies can never be audible at once. The
+ * YouTube iframe also re-fires ready after a hidden route is restored, so the
+ * ready handler distinguishes the first cue from a re-init and restores the
+ * frozen playhead instead of treating it as a new track.
  */
 
-type Phase =
-  "idle" | "loading" | "playing" | "paused" | "ending" | "returning" | "error";
+type Phase = "idle" | "loading" | "playing" | "paused" | "error";
 
-/** 800ms spin decay + the storyboard's 300ms hold before the slide home. */
-const END_HOLD_MS = 1100;
-const HOME_SLIDE_MS = 400;
 const SPINNER_DELAY_MS = 1500;
 const LOAD_TIMEOUT_MS = 10000;
+const MAXRES = "maxresdefault" as const;
+const HQ = "hqdefault" as const;
 
-export function VinylCard() {
-  const reduced = useReducedMotion();
+export function NowPlayingCard() {
   const titleId = useId();
 
   const [phase, setPhaseState] = useState<Phase>("idle");
@@ -52,46 +48,36 @@ export function VinylCard() {
     setPhaseState(next);
   }, []);
 
-  const [timeLabel, setTimeLabel] = useState<string>(VINYL_TRACK.durationLabel);
-  const lastLabelRef = useRef<string>(VINYL_TRACK.durationLabel);
+  const [elapsedLabel, setElapsedLabel] = useState("0:00");
+  const lastElapsedRef = useRef("0:00");
+  const [totalLabel, setTotalLabel] = useState<string>(
+    NOW_PLAYING_TRACK.durationLabel,
+  );
   const [showSpinner, setShowSpinner] = useState(false);
-  const [homeSlide, setHomeSlide] = useState(false);
-  const [imgFailed, setImgFailed] = useState(false);
+  const [artVariant, setArtVariant] = useState<typeof MAXRES | typeof HQ>(
+    MAXRES,
+  );
+  const [artFailed, setArtFailed] = useState(false);
 
   const cardRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const discRef = useRef<HTMLDivElement | null>(null);
-  const progressRef = useRef<SVGCircleElement | null>(null);
-  const spinRef = useRef<VinylSpin | null>(null);
+  const progressRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<YouTubeHandle | null>(null);
   const playerPromiseRef = useRef<Promise<YouTubeHandle | null> | null>(null);
   const playTokenRef = useRef(0);
-  const durationRef = useRef<number>(VINYL_TRACK.durationSeconds);
+  const durationRef = useRef<number>(NOW_PLAYING_TRACK.durationSeconds);
   const lastTimeRef = useRef(0);
   const hasReadyRef = useRef(false);
   const warmAttemptedRef = useRef(false);
 
-  const endingTimerRef = useRef(0);
-  const homeTimerRef = useRef(0);
-  const errorTimerRef = useRef(0);
-
   const setProgress = useCallback((fraction: number) => {
-    const circle = progressRef.current;
+    const fill = progressRef.current;
 
-    if (!circle) return;
+    if (!fill) return;
 
     const clamped = Math.max(0, Math.min(1, fraction));
 
-    circle.style.strokeDashoffset = String(100 - clamped * 100);
-  }, []);
-
-  const clearReturnTimers = useCallback(() => {
-    window.clearTimeout(endingTimerRef.current);
-    window.clearTimeout(homeTimerRef.current);
-    window.clearTimeout(errorTimerRef.current);
-    endingTimerRef.current = 0;
-    homeTimerRef.current = 0;
-    errorTimerRef.current = 0;
+    fill.style.transform = `scaleX(${clamped})`;
   }, []);
 
   const syncTime = useCallback(() => {
@@ -106,15 +92,22 @@ export function VinylCard() {
 
       const label = formatTime(current);
 
-      if (label !== lastLabelRef.current) {
-        lastLabelRef.current = label;
-        setTimeLabel(label);
+      if (label !== lastElapsedRef.current) {
+        lastElapsedRef.current = label;
+        setElapsedLabel(label);
       }
 
       setProgress(current / Math.max(1, durationRef.current));
     } catch {
       // The player can stop answering between a tick and this read.
     }
+  }, [setProgress]);
+
+  const resetTime = useCallback(() => {
+    lastTimeRef.current = 0;
+    lastElapsedRef.current = "0:00";
+    setElapsedLabel("0:00");
+    setProgress(0);
   }, [setProgress]);
 
   const fail = useCallback(() => {
@@ -125,7 +118,6 @@ export function VinylCard() {
     if (current === "idle" || current === "error") return;
 
     playTokenRef.current += 1;
-    clearReturnTimers();
     setShowSpinner(false);
 
     try {
@@ -134,54 +126,19 @@ export function VinylCard() {
       // The player is already torn down.
     }
 
-    spinRef.current?.pause();
     setPhase("error");
-    lastTimeRef.current = 0;
-
-    const label = formatTime(durationRef.current);
-
-    lastLabelRef.current = label;
-    setTimeLabel(label);
-    setProgress(0);
-    setHomeSlide(true);
-    errorTimerRef.current = window.setTimeout(
-      () => setHomeSlide(false),
-      HOME_SLIDE_MS + 20,
-    );
-  }, [clearReturnTimers, setPhase, setProgress]);
+    resetTime();
+  }, [resetTime, setPhase]);
 
   const handleEnded = useCallback(() => {
     const current = phaseRef.current;
 
-    if (
-      current === "idle" ||
-      current === "error" ||
-      current === "ending" ||
-      current === "returning"
-    ) {
-      return;
-    }
+    if (current === "idle" || current === "error") return;
 
-    clearReturnTimers();
     setShowSpinner(false);
-    setPhase("ending");
-    lastTimeRef.current = durationRef.current;
-
-    const label = formatTime(durationRef.current);
-
-    lastLabelRef.current = label;
-    setTimeLabel(label);
-    setProgress(1);
-
-    endingTimerRef.current = window.setTimeout(() => {
-      setPhase("returning");
-      setHomeSlide(true);
-      homeTimerRef.current = window.setTimeout(() => {
-        setHomeSlide(false);
-        setPhase("idle");
-      }, HOME_SLIDE_MS);
-    }, END_HOLD_MS);
-  }, [clearReturnTimers, setPhase, setProgress]);
+    setPhase("idle");
+    resetTime();
+  }, [resetTime, setPhase]);
 
   const ensurePlayer = useCallback(async (): Promise<YouTubeHandle | null> => {
     if (playerRef.current) return playerRef.current;
@@ -210,14 +167,17 @@ export function VinylCard() {
         };
 
         try {
-          createYouTubePlayer(host, VINYL_TRACK.videoId, {
+          createYouTubePlayer(host, NOW_PLAYING_TRACK.videoId, {
             onReady: (handle, _state, duration) => {
               const firstReady = !hasReadyRef.current;
 
               hasReadyRef.current = true;
               playerRef.current = handle;
 
-              if (duration > 0) durationRef.current = duration;
+              if (duration > 0) {
+                durationRef.current = duration;
+                setTotalLabel(formatDuration(duration));
+              }
 
               // The embed is audio-only: keep it out of the tab order and the
               // accessibility tree even though it is also off-screen.
@@ -229,21 +189,6 @@ export function VinylCard() {
               }
 
               if (firstReady) {
-                if (duration > 0) {
-                  try {
-                    const current = phaseRef.current;
-
-                    if (current === "idle" || current === "error") {
-                      const label = formatTime(duration);
-
-                      lastLabelRef.current = label;
-                      setTimeLabel(label);
-                    }
-                  } catch {
-                    // Current time is unavailable until the player is ready.
-                  }
-                }
-
                 settle(handle);
                 return;
               }
@@ -252,7 +197,7 @@ export function VinylCard() {
                * The iframe re-initialises when its route has been hidden by
                * Activity (YouTube fires ready again with the playhead at 0).
                * That is not a fresh track: restore the frozen position instead
-               * of overwriting the paused elapsed time with the duration.
+               * of showing a paused card at 0:00.
                */
               const live = phaseRef.current;
               const resumeAt = lastTimeRef.current;
@@ -261,18 +206,9 @@ export function VinylCard() {
                 if (live === "playing" || live === "loading") {
                   handle.seek(resumeAt);
                   handle.play();
-                } else if (
-                  live === "paused" ||
-                  live === "ending" ||
-                  live === "returning"
-                ) {
+                } else if (live === "paused") {
                   handle.seek(resumeAt);
                   handle.pause();
-                } else if (duration > 0) {
-                  const label = formatTime(duration);
-
-                  lastLabelRef.current = label;
-                  setTimeLabel(label);
                 }
               } catch {
                 // A re-ready can race the iframe swap; the next event wins.
@@ -285,8 +221,8 @@ export function VinylCard() {
                 const live = phaseRef.current;
 
                 if (live !== "loading" && live !== "playing") {
-                  // A stale play request must never win over a pause, a cancel
-                  // mid-slide, or a return to rest.
+                  // A stale play request must never win over a pause or a
+                  // return to rest.
                   try {
                     handle.pause();
                   } catch {
@@ -302,7 +238,10 @@ export function VinylCard() {
 
                 const duration = handle.duration();
 
-                if (duration > 0) durationRef.current = duration;
+                if (duration > 0) {
+                  durationRef.current = duration;
+                  setTotalLabel(formatDuration(duration));
+                }
               } else if (state === 2) {
                 if (
                   phaseRef.current === "loading" ||
@@ -336,8 +275,6 @@ export function VinylCard() {
   }, [fail, handleEnded, setPhase]);
 
   const beginPlay = useCallback(() => {
-    clearReturnTimers();
-    setHomeSlide(false);
     setShowSpinner(false);
 
     const current = phaseRef.current;
@@ -356,10 +293,7 @@ export function VinylCard() {
     }
 
     setPhase("loading");
-    lastTimeRef.current = 0;
-    lastLabelRef.current = "0:00";
-    setTimeLabel("0:00");
-    setProgress(0);
+    resetTime();
 
     const token = ++playTokenRef.current;
 
@@ -382,7 +316,7 @@ export function VinylCard() {
       .catch(() => {
         if (token === playTokenRef.current) fail();
       });
-  }, [clearReturnTimers, ensurePlayer, fail, setPhase, setProgress]);
+  }, [ensurePlayer, fail, resetTime, setPhase]);
 
   const pause = useCallback(() => {
     syncTime();
@@ -399,7 +333,6 @@ export function VinylCard() {
 
   const cancelLoading = useCallback(() => {
     playTokenRef.current += 1;
-    clearReturnTimers();
 
     try {
       playerRef.current?.pause();
@@ -409,20 +342,9 @@ export function VinylCard() {
     }
 
     setShowSpinner(false);
-    lastTimeRef.current = 0;
-
-    const label = formatTime(durationRef.current);
-
-    lastLabelRef.current = label;
-    setTimeLabel(label);
-    setProgress(0);
-    setPhase("returning");
-    setHomeSlide(true);
-    homeTimerRef.current = window.setTimeout(() => {
-      setHomeSlide(false);
-      setPhase("idle");
-    }, HOME_SLIDE_MS);
-  }, [clearReturnTimers, setPhase, setProgress]);
+    resetTime();
+    setPhase("idle");
+  }, [resetTime, setPhase]);
 
   const toggle = useCallback(() => {
     const current = phaseRef.current;
@@ -452,17 +374,6 @@ export function VinylCard() {
     warmAttemptedRef.current = true;
     void ensurePlayer();
   }, [ensurePlayer]);
-
-  // One spin for the element's life. Activity cleans effects on hide, so
-  // returning a disposer here would recreate the animation and reset the angle
-  // every time the route is revealed.
-  useEffect(() => {
-    const disc = discRef.current;
-
-    if (!disc || spinRef.current) return;
-
-    spinRef.current = createVinylSpin(disc);
-  }, []);
 
   // Activity unmounts a hidden route's effects. Pausing here is what makes /
   // and /work mutually exclusive; on reveal the one-frame sync below catches a
@@ -514,8 +425,6 @@ export function VinylCard() {
         // Already torn down.
       }
 
-      spinRef.current?.stop();
-
       if (live === "playing" || live === "loading") {
         setShowSpinner(false);
         setPhase("paused");
@@ -550,8 +459,6 @@ export function VinylCard() {
           // Already torn down.
         }
 
-        spinRef.current?.stop();
-
         const current = phaseRef.current;
 
         if (current === "playing" || current === "loading") {
@@ -564,43 +471,8 @@ export function VinylCard() {
     return () => window.clearInterval(id);
   }, [phase, setPhase]);
 
-  const prevPhaseRef = useRef<Phase>("idle");
-  const wasReducedRef = useRef(reduced);
-
-  // Play ramps 600ms, resume 400ms from wherever the angle is, pause and track
-  // end coast to 0 over 800ms. Nothing here restarts the rotation.
-  useEffect(() => {
-    const spin = spinRef.current;
-
-    if (!spin) return;
-
-    const previous = prevPhaseRef.current;
-
-    if (reduced) {
-      spin.stop();
-    } else if (wasReducedRef.current && phase === "playing") {
-      spin.start(true);
-    } else if (phase === "loading") {
-      spin.start(false);
-    } else if (phase === "playing" && previous === "paused") {
-      spin.start(true);
-    } else if (
-      phase === "paused" ||
-      phase === "ending" ||
-      phase === "returning" ||
-      phase === "error"
-    ) {
-      spin.pause();
-    } else if (phase === "idle") {
-      spin.reset();
-    }
-
-    prevPhaseRef.current = phase;
-    wasReducedRef.current = reduced;
-  }, [phase, reduced]);
-
   // Elapsed time in tabular numbers, at most one text update per second. The
-  // spin is a WAAPI animation outside React, so these renders cannot hitch it.
+  // fill is scaleX, updated four times a second so it glides between seconds.
   useEffect(() => {
     if (phase !== "playing") return;
 
@@ -615,9 +487,9 @@ export function VinylCard() {
 
         lastTimeRef.current = current;
 
-        if (label !== lastLabelRef.current) {
-          lastLabelRef.current = label;
-          setTimeLabel(label);
+        if (label !== lastElapsedRef.current) {
+          lastElapsedRef.current = label;
+          setElapsedLabel(label);
         }
 
         setProgress(current / Math.max(1, durationRef.current));
@@ -672,162 +544,136 @@ export function VinylCard() {
     return () => window.clearTimeout(id);
   }, [fail, phase, setPhase]);
 
-  const isOut =
-    phase === "loading" ||
-    phase === "playing" ||
-    phase === "paused" ||
-    phase === "ending";
   const playing = phase === "playing" || phase === "loading";
   const spinnerVisible = showSpinner && phase === "loading";
 
   const status =
     phase === "loading"
-      ? `Loading ${VINYL_TRACK.title}`
+      ? `Loading ${NOW_PLAYING_TRACK.title}`
       : phase === "playing"
-        ? `Playing ${VINYL_TRACK.title}`
+        ? `Playing ${NOW_PLAYING_TRACK.title}`
         : phase === "paused"
-          ? `Paused ${VINYL_TRACK.title}`
-          : phase === "ending" || phase === "returning"
-            ? "Track ended"
-            : phase === "error"
-              ? "Playback unavailable"
-              : "";
+          ? `Paused ${NOW_PLAYING_TRACK.title}`
+          : phase === "error"
+            ? "Playback unavailable"
+            : "";
 
   return (
     <div
       ref={cardRef}
       role="group"
       aria-labelledby={titleId}
-      data-position={isOut ? "out" : "rest"}
-      data-return={homeSlide ? "true" : undefined}
       data-phase={phase}
       onPointerEnter={warmPlayer}
       onFocus={warmPlayer}
       onPointerDown={warmPlayer}
-      className="ring-host vinyl-card flex h-40 w-40 flex-col rounded-lg pt-[22px] pb-[22px] md:size-[220px] md:pt-[26px] xl:h-[276px] xl:w-[275px]"
+      className="ring-host now-playing-card flex h-40 w-40 flex-col rounded-lg md:size-[220px] xl:h-[276px] xl:w-[275px]"
     >
-      <RingLayers fill="bg-surface-container-low" />
+      <RingLayers fill="bg-surface" />
 
-      <div className="vinyl-body">
-        <div className="vinyl-art" aria-hidden="true">
-          <div className="vinyl-disc-shell">
-            <div ref={discRef} className="vinyl-disc">
-              <span className="vinyl-groove vinyl-groove-wide" />
-              <span className="vinyl-groove vinyl-groove-inner" />
-              <span className="vinyl-label">
-                <span className="vinyl-label-hole" />
-                <span className="vinyl-label-tick" />
-              </span>
+      <div className="now-playing-body">
+        <div className="now-playing-art" aria-hidden="true">
+          {artFailed ? null : (
+            <Image
+              key={artVariant}
+              src={thumbnailUrl(NOW_PLAYING_TRACK.videoId, artVariant)}
+              alt=""
+              fill
+              priority
+              sizes="(min-width: 1280px) 350px, (min-width: 768px) 278px, 202px"
+              className="now-playing-art-image"
+              onError={() => {
+                if (artVariant === MAXRES) {
+                  setArtVariant(HQ);
+                } else {
+                  setArtFailed(true);
+                }
+              }}
+            />
+          )}
+
+          <div className="now-playing-timebar">
+            <div className="now-playing-times">
+              <span className="now-playing-elapsed">{elapsedLabel}</span>
+              <span className="now-playing-total">{totalLabel}</span>
             </div>
-
-            <svg
-              className="vinyl-progress"
-              viewBox="0 0 124 124"
-              aria-hidden="true"
-            >
-              <g transform="rotate(-90 62 62)">
-                <circle
-                  ref={progressRef}
-                  className="vinyl-progress-circle"
-                  cx="62"
-                  cy="62"
-                  r="61"
-                  pathLength={100}
-                  fill="none"
-                  strokeWidth="2"
-                />
-              </g>
-            </svg>
+            <div className="now-playing-progress">
+              <div ref={progressRef} className="now-playing-progress-fill" />
+            </div>
           </div>
+        </div>
 
-          <div className="vinyl-sleeve">
-            <div className="vinyl-artwork" />
-            {imgFailed ? null : (
-              <Image
-                src={thumbnailUrl(VINYL_TRACK.videoId)}
-                alt=""
-                fill
-                priority
-                sizes="(min-width: 1280px) 118px, (min-width: 768px) 94px, 62px"
-                className="vinyl-sleeve-image"
-                onError={() => setImgFailed(true)}
-              />
+        <div className="now-playing-row">
+          <div className="now-playing-meta">
+            <p id={titleId} className="now-playing-title">
+              {NOW_PLAYING_TRACK.title}
+            </p>
+            {phase === "error" ? (
+              <a
+                className="now-playing-link"
+                href={watchUrl(NOW_PLAYING_TRACK.videoId)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open on YouTube <span aria-hidden="true">↗</span>
+              </a>
+            ) : (
+              <p className="now-playing-artist">{NOW_PLAYING_TRACK.artist}</p>
             )}
           </div>
-        </div>
-
-        <div className="vinyl-meta">
-          <p id={titleId} className="vinyl-title">
-            {VINYL_TRACK.title}
-          </p>
-          <p className="vinyl-subtitle">{VINYL_TRACK.subtitle}</p>
-        </div>
-
-        <div className="vinyl-footer">
-          {phase === "error" ? (
-            <a
-              className="vinyl-link"
-              href={watchUrl(VINYL_TRACK.videoId)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open on YouTube <span aria-hidden="true">↗</span>
-            </a>
-          ) : (
-            <span className="vinyl-time" aria-hidden="true">
-              {timeLabel}
-            </span>
-          )}
 
           <button
             type="button"
-            className="vinyl-button"
-            aria-label={playing ? "Pause" : `Play ${VINYL_TRACK.title}`}
+            className="now-playing-button"
+            aria-label={playing ? "Pause" : `Play ${NOW_PLAYING_TRACK.title}`}
             onClick={toggle}
           >
             <span
-              className="vinyl-icon"
+              className="now-playing-icon"
               data-visible={!playing && !spinnerVisible ? "true" : "false"}
             >
               <svg
-                width="11"
-                height="11"
-                viewBox="0 0 13 13"
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
                 aria-hidden="true"
               >
-                <path d="M3.8 2.2L11 6.5L3.8 10.8V2.2Z" fill="currentColor" />
+                <path d="M4 1.75 L10.5 6 L4 10.25 Z" fill="currentColor" />
               </svg>
             </span>
             <span
-              className="vinyl-icon"
+              className="now-playing-icon"
               data-visible={playing && !spinnerVisible ? "true" : "false"}
             >
               <svg
-                width="10"
-                height="11"
-                viewBox="0 0 12 13"
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
                 aria-hidden="true"
               >
                 <rect
-                  x="1"
-                  y="1"
-                  width="3"
-                  height="11"
-                  rx="1"
+                  x="3"
+                  y="1.75"
+                  width="2.5"
+                  height="8.5"
+                  rx="0.75"
                   fill="currentColor"
                 />
                 <rect
-                  x="8"
-                  y="1"
-                  width="3"
-                  height="11"
-                  rx="1"
+                  x="6.5"
+                  y="1.75"
+                  width="2.5"
+                  height="8.5"
+                  rx="0.75"
                   fill="currentColor"
                 />
               </svg>
             </span>
             {spinnerVisible ? (
-              <span className="vinyl-icon vinyl-spinner" data-visible="true">
+              <span
+                className="now-playing-icon now-playing-spinner"
+                data-visible="true"
+              >
                 <svg
                   width="12"
                   height="12"
@@ -861,7 +707,11 @@ export function VinylCard() {
         </span>
       </div>
 
-      <div ref={hostRef} className="vinyl-player-host" aria-hidden="true" />
+      <div
+        ref={hostRef}
+        className="now-playing-player-host"
+        aria-hidden="true"
+      />
     </div>
   );
 }

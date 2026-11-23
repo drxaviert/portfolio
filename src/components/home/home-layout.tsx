@@ -10,8 +10,8 @@ import type { CarouselItem } from "./carousel/home-carousel";
 import { EMPTY_WORK_LABEL } from "./empty-work";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
+import { NowPlayingCard } from "./now-playing-card";
 import { RingHoverPointer } from "./ring-pointer";
-import { VinylCard } from "./vinyl-card";
 import "./ring-hover.css";
 
 /*
@@ -157,7 +157,7 @@ export function HomeLayout({
               row={1}
               className="shrink-0"
             >
-              <VinylCard />
+              <NowPlayingCard />
             </EntranceCell>
             <EntranceCell
               variant={entrance}
