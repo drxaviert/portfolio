@@ -50,6 +50,8 @@ import {
   nextPhase,
 } from "./transition";
 import type { TransitionPhase } from "./transition";
+import { LENS, lensProject, lensTargetStrength } from "./lens";
+import type { LensMode } from "./lens";
 import { usePan } from "./use-pan";
 import { planePosition } from "./wrap";
 
@@ -70,15 +72,25 @@ export type InfiniteCanvasHandle = {
   closeTo: (index: number, time?: number) => Promise<void>;
 };
 
+export type LensSettings = {
+  mode: LensMode;
+  strength: number;
+  boost: number;
+  vignette: number;
+};
+
 export type InfiniteCanvasProps = {
   items: CanvasItem[];
   paused: boolean;
+  lens: LensSettings;
   onOpen: (index: number, startAt?: number) => void;
 };
 
 const CAMERA_Z = INTRO.cameraToZ;
 const CAMERA_DRAG_Z = 475;
 const FRAME_MS = 1000 / 60;
+/** Above this many target pixels, the 1.6x downsample replaces MSAA. */
+const RT_MSAA_MAX_PIXELS = 10_000_000;
 const TEXTURE_TARGET_WIDTH = 640;
 const TEXTURE_ZOOM = 1.06;
 const PARALLAX_LIMIT = 0.025;
@@ -156,12 +168,55 @@ const FRAGMENT_SHADER = /* glsl */ `
     float luma = dot(texel.rgb, vec3(0.2126, 0.7152, 0.0722));
     texel.rgb = mix(texel.rgb, vec3(luma), uGray);
 
-    gl_FragColor = vec4(texel.rgb, uOpacity);
+    // Linear premultiplied for the render target; the lens pass does the one
+    // sRGB encode when it draws to the canvas.
+    gl_FragColor = vec4(texel.rgb * uOpacity, uOpacity);
+  }
+`;
+
+const POST_VERTEX_SHADER = /* glsl */ `
+  varying vec2 vUv;
+
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+/**
+ * Full-screen globe lens. Reads the linear premultiplied scene target, samples
+ * it through the barrel map, then encodes once into the sRGB canvas. The
+ * vignette fades to the page background by lowering alpha.
+ */
+const POST_FRAGMENT_SHADER = /* glsl */ `
+  uniform sampler2D uScene;
+  uniform float uStrength;
+  uniform float uVignette;
+  uniform float uAspect;
+  uniform float uSourceScale;
+
+  varying vec2 vUv;
+
+  void main() {
+    vec2 q = vUv * 2.0 - 1.0;
+    float rMax = length(vec2(uAspect, 1.0));
+    float r = length(vec2(q.x * uAspect, q.y)) / rMax;
+    float f = 1.0 + uStrength * r * r;
+    vec2 t = q * uSourceScale * f;
+    vec2 uv = 0.5 + t * 0.5;
+
+    vec4 c = texture2D(uScene, uv);
+    vec3 linear = c.a > 0.0001 ? c.rgb / c.a : c.rgb;
+
+    gl_FragColor = vec4(linear, c.a);
 
     #include <colorspace_fragment>
 
-    // The renderer composites a premultiplied canvas.
+    // Premultiplied sRGB for the premultiplied canvas.
     gl_FragColor.rgb *= gl_FragColor.a;
+
+    float edge = smoothstep(0.72, 1.05, r);
+    gl_FragColor *= 1.0 - uVignette * edge;
   }
 `;
 
@@ -241,6 +296,20 @@ type CanvasDebug = {
   gap: number;
   gray: number;
   introZoom: number;
+  lens: "flat" | "globe";
+  lensApplied: number;
+  lensTarget: number;
+  rtWidth: number;
+  rtHeight: number;
+  rtSamples: number;
+  rects: {
+    index: number;
+    id: string;
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  }[];
   transition: TransitionPhase;
   transitionMs: number;
   waitingForViewer: boolean;
@@ -333,11 +402,12 @@ function StaticFallback({ items }: { items: CanvasItem[] }) {
 export const InfiniteCanvas = forwardRef<
   InfiniteCanvasHandle,
   InfiniteCanvasProps
->(function InfiniteCanvas({ items, paused, onOpen }, ref) {
+>(function InfiniteCanvas({ items, paused, lens, onOpen }, ref) {
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const [introReady, setIntroReady] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
+  const lensRef = useRef(lens);
   const reduceMotion = useReducedMotion();
 
   const apiRef = useRef<InfiniteCanvasHandle>({
@@ -359,6 +429,11 @@ export const InfiniteCanvas = forwardRef<
   useEffect(() => {
     onOpenRef.current = onOpen;
   }, [onOpen]);
+
+  useEffect(() => {
+    lensRef.current = lens;
+    wakeRef.current();
+  }, [lens]);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -447,6 +522,58 @@ export const InfiniteCanvas = forwardRef<
     camera.position.set(0, 0, CAMERA_Z);
     camera.lookAt(0, 0, 0);
 
+    // The lens render target is larger than the viewport by LENS.margin on
+    // every side, so warped edge samples never run out of content. The render
+    // camera is the same scene camera with a wider fov for that margin; the
+    // normal camera still drives projections and the flat focus rects.
+    const renderCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 2000);
+    renderCamera.position.set(0, 0, CAMERA_Z);
+    renderCamera.lookAt(0, 0, 0);
+
+    const renderTarget = new THREE.WebGLRenderTarget(1, 1, {
+      samples: 4,
+      depthBuffer: false,
+      stencilBuffer: false,
+    });
+
+    renderTarget.texture.colorSpace = THREE.NoColorSpace;
+    renderTarget.texture.minFilter = THREE.LinearFilter;
+    renderTarget.texture.magFilter = THREE.LinearFilter;
+    renderTarget.texture.generateMipmaps = false;
+
+    const postScene = new THREE.Scene();
+    const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const postGeometry = new THREE.PlaneGeometry(2, 2);
+    const postMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uScene: { value: renderTarget.texture },
+        uStrength: { value: 0 },
+        uVignette: { value: 0 },
+        uAspect: { value: 1 },
+        uSourceScale: { value: LENS.sourceScale },
+      },
+      vertexShader: POST_VERTEX_SHADER,
+      fragmentShader: POST_FRAGMENT_SHADER,
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+      premultipliedAlpha: true,
+      toneMapped: false,
+    });
+    const postQuad = new THREE.Mesh(postGeometry, postMaterial);
+    postScene.add(postQuad);
+
+    function renderScene(): void {
+      // The lens RT is a wider view of the same scene at the same position, so
+      // the viewport part of the target matches the flat view 1:1.
+      renderCamera.position.copy(camera.position);
+      renderCamera.updateMatrixWorld();
+      renderer.setRenderTarget(renderTarget);
+      renderer.render(scene, renderCamera);
+      renderer.setRenderTarget(null);
+      renderer.render(postScene, postCamera);
+    }
+
     const geometry = new THREE.PlaneGeometry(1, 1);
     const parallaxUniform = { value: new THREE.Vector2() };
     const introZoomUniform: { value: number } = { value: INTRO.zoomFrom };
@@ -505,6 +632,10 @@ export const InfiniteCanvas = forwardRef<
     let introZoomValue: number = INTRO.zoomFrom;
     let introVideos = false;
     let introAnnounced = false;
+    /** The barrel strength currently drawn; picking uses this same value. */
+    let lensBase = 0;
+    let lensApplied = 0;
+    let lensWanted = 0;
 
     const idleTransition = (): CanvasTransition => ({
       phase: "idle",
@@ -545,6 +676,13 @@ export const InfiniteCanvas = forwardRef<
             gap: INTRO_GAP,
             gray: 1,
             introZoom: INTRO.zoomFrom,
+            lens: "flat",
+            lensApplied: 0,
+            lensTarget: 0,
+            rtWidth: 0,
+            rtHeight: 0,
+            rtSamples: 0,
+            rects: [],
             transition: "idle",
             transitionMs: 0,
             waitingForViewer: false,
@@ -1087,6 +1225,26 @@ export const InfiniteCanvas = forwardRef<
       debug.gap = Number(pitchX ? (pitchX - baseWidth).toFixed(1) : INTRO_GAP);
       debug.gray = Number(introGrayValue.toFixed(3));
       debug.introZoom = Number(introZoomValue.toFixed(3));
+      debug.lens = lensRef.current.mode;
+      debug.lensApplied = Number(lensApplied.toFixed(3));
+      debug.lensTarget = Number(lensWanted.toFixed(3));
+      debug.rtWidth = renderTarget.width;
+      debug.rtHeight = renderTarget.height;
+      debug.rtSamples = renderTarget.samples;
+      debug.rects = planes
+        .filter((plane) => plane.mesh.visible && plane.opacity > 0.5)
+        .map((plane) => {
+          const rect = projectPlane(plane);
+
+          return {
+            index: plane.itemIndex,
+            id: items[plane.itemIndex]?.media.id ?? "",
+            left: Number(rect.left.toFixed(1)),
+            top: Number(rect.top.toFixed(1)),
+            width: Number(rect.width.toFixed(1)),
+            height: Number(rect.height.toFixed(1)),
+          };
+        });
       debug.transition = transition.phase;
       debug.transitionMs =
         transition.phase === "idle"
@@ -1201,7 +1359,7 @@ export const InfiniteCanvas = forwardRef<
       plane.mesh.visible = false;
       plane.opacity = 0;
       plane.material.uniforms.uOpacity.value = 0;
-      renderer.render(scene, camera);
+      renderScene();
       updateDebug();
     }
 
@@ -1213,7 +1371,7 @@ export const InfiniteCanvas = forwardRef<
       plane.mesh.visible = true;
       plane.opacity = 1;
       plane.material.uniforms.uOpacity.value = 1;
-      renderer.render(scene, camera);
+      renderScene();
       updateDebug();
       wake();
     }
@@ -1310,14 +1468,21 @@ export const InfiniteCanvas = forwardRef<
       const rect = hostElement.getBoundingClientRect();
       if (rect.width < 1 || rect.height < 1) return null;
 
-      ndc.set(
-        ((x - rect.left) / rect.width) * 2 - 1,
-        -(((y - rect.top) / rect.height) * 2 - 1),
+      const screenX = ((x - rect.left) / rect.width) * 2 - 1;
+      const screenY = -(((y - rect.top) / rect.height) * 2 - 1);
+      const source = lensProject(
+        screenX,
+        screenY,
+        lensApplied,
+        width / Math.max(1, height),
       );
 
+      ndc.set(source.x, source.y);
       camera.updateMatrixWorld();
+      renderCamera.position.copy(camera.position);
+      renderCamera.updateMatrixWorld();
       scene.updateMatrixWorld(true);
-      raycaster.setFromCamera(ndc, camera);
+      raycaster.setFromCamera(ndc, renderCamera);
 
       const meshes = planes
         .filter((plane) => plane.mesh.visible && plane.opacity > 0.5)
@@ -1412,6 +1577,66 @@ export const InfiniteCanvas = forwardRef<
       }
 
       return Math.abs(targetZ - camera.position.z) > 0.001;
+    }
+
+    function updateLens(dt: number, now: number): boolean {
+      const settings = lensRef.current;
+      const target = lensTargetStrength({
+        mode: settings.mode,
+        base: settings.strength,
+        boost: settings.boost,
+        speed: panSpeed(),
+        reduced,
+      });
+
+      // Hand the flat projection back for the whole glide + grow, and restore
+      // the warp with the other planes on close. The intro ramps it with the
+      // camera push-in so opening the page never pops. Reduced motion keeps a
+      // constant base strength instead: there is no glide or grow to match.
+      let factor = 1;
+
+      if (!reduced) {
+        if (transition.phase === "opening") {
+          factor = 1 - glideProgress(now - transition.startedAt);
+        } else if (transition.phase === "open") {
+          factor = 0;
+        } else if (transition.phase === "closing") {
+          factor = transition.prepared
+            ? closeFadeProgress(now - transition.startedAt)
+            : 0;
+        }
+
+        if (!introEndedFlag) {
+          factor *= clamp(
+            (INTRO.cameraFromZ - introCamera) /
+              (INTRO.cameraFromZ - INTRO.cameraToZ),
+            0,
+            1,
+          );
+        }
+      }
+
+      const want = target * factor;
+      const ease = 1 - Math.pow(1 - LENS.easePerFrame, dt);
+
+      // Ease the base strength (the drag response), then scale it by the
+      // transition factor. Scaling after the ease makes the flat handoff
+      // exact: factor 0 means strength 0, not an eased tail of it.
+      lensBase += (target - lensBase) * ease;
+
+      if (Math.abs(target - lensBase) < 0.0005) lensBase = target;
+
+      lensApplied = lensBase * factor;
+      lensWanted = want;
+
+      postMaterial.uniforms.uStrength.value = lensApplied;
+      postMaterial.uniforms.uVignette.value =
+        settings.mode === "globe" ? settings.vignette * factor : 0;
+
+      return (
+        Math.abs(target - lensBase) > 0.0005 ||
+        Math.abs(want - lensApplied) > 0.0005
+      );
     }
 
     function updatePlanes(dt: number, now: number): boolean {
@@ -1887,9 +2112,10 @@ export const InfiniteCanvas = forwardRef<
       const zooming = updateCamera(dt);
       const fading = updatePlanes(dt, now);
       const videosActive = syncVideos(now);
+      const lensActive = updateLens(dt, now);
 
       updateVideoFallback(now);
-      renderer.render(scene, camera);
+      renderScene();
       updateDebug();
 
       if (
@@ -1897,6 +2123,7 @@ export const InfiniteCanvas = forwardRef<
         zooming ||
         fading ||
         videosActive ||
+        lensActive ||
         introActive ||
         transitionRunning ||
         transitionActive
@@ -1944,6 +2171,38 @@ export const InfiniteCanvas = forwardRef<
         2 * Math.atan(height / 2 / CAMERA_Z),
       );
       camera.updateProjectionMatrix();
+
+      // The target holds LENS.margin extra on every side, so warped edge
+      // samples always land on rendered content. The render camera widens by
+      // the same factor, which keeps the target's viewport region identical to
+      // the flat view at any strength.
+      renderCamera.aspect = width / height;
+      renderCamera.fov = THREE.MathUtils.radToDeg(
+        2 *
+          Math.atan(
+            Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) /
+              LENS.sourceScale,
+          ),
+      );
+      renderCamera.updateProjectionMatrix();
+      const rtWidth = Math.max(1, Math.round((width * dpr) / LENS.sourceScale));
+      const rtHeight = Math.max(
+        1,
+        Math.round((height * dpr) / LENS.sourceScale),
+      );
+
+      // The 1.6x target already supersamples plane edges when the post pass
+      // samples it back down. MSAA is only kept while the buffer is small
+      // enough to be cheap; a 5K retina target would be hundreds of MB.
+      const samples = rtWidth * rtHeight <= RT_MSAA_MAX_PIXELS ? 4 : 0;
+
+      if (renderTarget.samples !== samples) {
+        renderTarget.samples = samples;
+        renderTarget.dispose();
+      }
+
+      renderTarget.setSize(rtWidth, rtHeight);
+      postMaterial.uniforms.uAspect.value = width / height;
 
       buildPlanes();
       wake();
@@ -2044,6 +2303,9 @@ export const InfiniteCanvas = forwardRef<
       videoHost.remove();
       disposePlanes();
       geometry.dispose();
+      renderTarget.dispose();
+      postGeometry.dispose();
+      postMaterial.dispose();
 
       for (const entry of textures.values()) {
         entry.texture.dispose();
