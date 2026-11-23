@@ -152,8 +152,9 @@
   height: var(--now-playing-thumb);
   border-radius: 50%;
   background-image: var(--orb-gradient);
+  /* The ring is the card surface showing through, not a white stroke. */
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--palette-neutral-50) 80%, transparent),
+    0 0 0 1px var(--surface-container-low),
     0 1px 2px color-mix(in oklab, var(--palette-neutral-800) 25%, transparent);
   opacity: 0;
   pointer-events: none;
