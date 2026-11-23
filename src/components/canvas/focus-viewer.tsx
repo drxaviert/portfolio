@@ -201,9 +201,33 @@ export function FocusViewer({
     const frame = frameRef.current;
     if (!frame || media?.kind !== "video") return;
 
-    frame.querySelectorAll("video").forEach((video) => {
+    const videos = [...frame.querySelectorAll("video")];
+    const cleanups: (() => void)[] = [];
+
+    for (const video of videos) {
       video.controls = true;
-    });
+      // Autoplay muted; the native controls are the way to unmute.
+      video.muted = true;
+      const start = () => {
+        video.muted = true;
+        void video.play().catch(() => {
+          // The controls and poster remain the manual path.
+        });
+      };
+
+      start();
+      video.addEventListener("loadeddata", start);
+      video.addEventListener("canplay", start);
+      cleanups.push(() => {
+        video.removeEventListener("loadeddata", start);
+        video.removeEventListener("canplay", start);
+        video.pause();
+      });
+    }
+
+    return () => {
+      for (const cleanup of cleanups) cleanup();
+    };
   }, [index, media]);
 
   const close = useCallback(() => {

@@ -52,6 +52,21 @@ const TEXTURE_TARGET_WIDTH = 640;
 const TEXTURE_ZOOM = 1.06;
 const PARALLAX_LIMIT = 0.025;
 
+/**
+ * Canvas video budget. The nearest video media play; four more are kept paused
+ * for a quick restart, and anything outside the viewport + margin is disposed.
+ */
+const VIDEO_TUNING = {
+  desktopPlaying: 12,
+  desktopEntries: 16,
+  mobilePlaying: 6,
+  mobileEntries: 8,
+  /** The playing set is recomputed this often; 0 means every frame. */
+  checkMs: 120,
+  /** Extra screen px around the viewport that counts as visible. */
+  margin: 160,
+} as const;
+
 const VERTEX_SHADER = /* glsl */ `
   varying vec2 vUv;
 
@@ -107,8 +122,17 @@ type Plane = {
   baseX: number;
   baseY: number;
   textureUrl: string;
+  isVideo: boolean;
   loaded: boolean;
   opacity: number;
+};
+
+type VideoEntry = {
+  element: HTMLVideoElement;
+  texture: THREE.VideoTexture | null;
+  ready: boolean;
+  playing: boolean;
+  failed: boolean;
 };
 
 type CanvasDebug = {
@@ -123,6 +147,10 @@ type CanvasDebug = {
   scroll: { x: number; y: number };
   dragging: boolean;
   hidden: boolean;
+  videosPlaying: number;
+  videoEntries: number;
+  videoTextures: number;
+  videoPlanesBound: number;
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -212,6 +240,7 @@ export const InfiniteCanvas = forwardRef<
   const pickRef = useRef<(x: number, y: number) => void>(() => {});
   const centerRef = useRef<() => void>(() => {});
   const restoreRef = useRef<() => void>(() => {});
+  const pauseVideosRef = useRef<() => void>(() => {});
   const pausedRef = useRef(paused);
   const onOpenRef = useRef(onOpen);
 
@@ -224,7 +253,9 @@ export const InfiniteCanvas = forwardRef<
   useEffect(() => {
     pausedRef.current = paused;
 
-    if (!paused) {
+    if (paused) {
+      pauseVideosRef.current();
+    } else {
       restoreRef.current();
       wakeRef.current();
     }
@@ -313,6 +344,12 @@ export const InfiniteCanvas = forwardRef<
     const projected = new THREE.Vector3();
     const textures = new Map<string, TextureEntry>();
     const planeByMesh = new Map<THREE.Object3D, Plane>();
+    const videoEntries = new Map<number, VideoEntry>();
+    const videoHost = document.createElement("div");
+    videoHost.style.cssText =
+      "position:absolute;left:0;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none";
+    videoHost.setAttribute("aria-hidden", "true");
+    hostElement.appendChild(videoHost);
     const textureStartedAt = performance.now();
     let textureLoadMs: number | null = null;
 
@@ -330,6 +367,7 @@ export const InfiniteCanvas = forwardRef<
     let raf = 0;
     let last = 0;
     let lastScroll = { x: 0, y: 0 };
+    let videoCheckAt = 0;
     let resizeFrame = 0;
     let reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -348,6 +386,10 @@ export const InfiniteCanvas = forwardRef<
             scroll: { x: 0, y: 0 },
             dragging: false,
             hidden: false,
+            videosPlaying: 0,
+            videoEntries: 0,
+            videoTextures: 0,
+            videoPlanesBound: 0,
           };
 
     if (debug) {
@@ -413,6 +455,216 @@ export const InfiniteCanvas = forwardRef<
       return entry;
     }
 
+    function applyPosterTexture(itemIndex: number): void {
+      const poster = textures.get(
+        items[itemIndex] ? textureUrl(items[itemIndex].media) : "",
+      );
+
+      for (const plane of planes) {
+        if (plane.itemIndex !== itemIndex || !plane.isVideo || !poster) {
+          continue;
+        }
+
+        plane.material.uniforms.uTexture.value = poster.texture;
+        plane.loaded = poster.loaded;
+      }
+    }
+
+    function applyVideoTexture(itemIndex: number, entry: VideoEntry): void {
+      if (!entry.texture) return;
+
+      for (const plane of planes) {
+        if (plane.itemIndex !== itemIndex || !plane.isVideo) continue;
+
+        plane.material.uniforms.uTexture.value = entry.texture;
+        plane.loaded = true;
+      }
+    }
+
+    function disposeVideoEntry(itemIndex: number): void {
+      const entry = videoEntries.get(itemIndex);
+      if (!entry) return;
+
+      entry.element.pause();
+      entry.element.removeAttribute("src");
+      entry.element.load();
+      entry.element.remove();
+      entry.texture?.dispose();
+      videoEntries.delete(itemIndex);
+      applyPosterTexture(itemIndex);
+    }
+
+    function pauseAllVideos(): void {
+      for (const entry of videoEntries.values()) {
+        if (!entry.element.paused) entry.element.pause();
+        entry.playing = false;
+      }
+
+      updateDebug();
+    }
+
+    function hasPlayingVideos(): boolean {
+      for (const entry of videoEntries.values()) {
+        if (entry.playing) return true;
+      }
+
+      return false;
+    }
+
+    function ensureVideoEntry(itemIndex: number): VideoEntry | null {
+      const existing = videoEntries.get(itemIndex);
+      if (existing) return existing;
+
+      const media = items[itemIndex]?.media;
+      if (!media || media.kind !== "video") return null;
+
+      const element = document.createElement("video");
+      element.muted = true;
+      element.loop = true;
+      element.playsInline = true;
+      element.crossOrigin = "anonymous";
+      element.preload = "auto";
+      element.src = media.mp4.url;
+      element.setAttribute("aria-hidden", "true");
+      element.setAttribute("playsinline", "");
+      videoHost.appendChild(element);
+
+      const entry: VideoEntry = {
+        element,
+        texture: null,
+        ready: false,
+        playing: false,
+        failed: false,
+      };
+      videoEntries.set(itemIndex, entry);
+
+      const markReady = () => {
+        if (
+          disposed ||
+          entry.failed ||
+          entry.texture ||
+          element.readyState < 2 ||
+          videoEntries.get(itemIndex) !== entry
+        ) {
+          return;
+        }
+
+        const texture = new THREE.VideoTexture(element);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = false;
+        entry.texture = texture;
+        entry.ready = true;
+        applyVideoTexture(itemIndex, entry);
+        wake();
+      };
+
+      element.addEventListener("loadeddata", markReady);
+      element.addEventListener("canplay", markReady);
+      element.addEventListener("playing", () => {
+        entry.playing = true;
+        wake();
+      });
+      element.addEventListener("pause", () => {
+        entry.playing = false;
+      });
+      element.addEventListener("error", () => {
+        entry.failed = true;
+        entry.playing = false;
+      });
+
+      // Every video manifest has an MP4; for an HLS clip it is the lowest-rung
+      // progressive fallback, which is the right canvas rendition.
+      void element.play().catch(() => {
+        entry.failed = true;
+        entry.playing = false;
+      });
+
+      return entry;
+    }
+
+    function syncVideos(now: number): boolean {
+      if (document.hidden || pausedRef.current) {
+        pauseAllVideos();
+        return false;
+      }
+
+      if (now - videoCheckAt < VIDEO_TUNING.checkMs) {
+        return hasPlayingVideos();
+      }
+
+      videoCheckAt = now;
+
+      const scale = CAMERA_Z / camera.position.z;
+      const margin = VIDEO_TUNING.margin;
+      const candidates = new Map<number, number>();
+
+      for (const plane of planes) {
+        if (!plane.isVideo || !plane.mesh.visible || plane.opacity < 0.05) {
+          continue;
+        }
+
+        const centreX = width / 2 + plane.mesh.position.x * scale;
+        const centreY = height / 2 - plane.mesh.position.y * scale;
+        const halfWidth = (plane.mesh.scale.x * scale) / 2;
+        const halfHeight = (plane.mesh.scale.y * scale) / 2;
+
+        if (
+          centreX + halfWidth < -margin ||
+          centreX - halfWidth > width + margin ||
+          centreY + halfHeight < -margin ||
+          centreY - halfHeight > height + margin
+        ) {
+          continue;
+        }
+
+        const distance = Math.hypot(centreX - width / 2, centreY - height / 2);
+        const previous = candidates.get(plane.itemIndex);
+
+        if (previous === undefined || distance < previous) {
+          candidates.set(plane.itemIndex, distance);
+        }
+      }
+
+      const sorted = [...candidates.entries()].sort((a, b) => a[1] - b[1]);
+      const mobile = width < 768;
+      const maxEntries = mobile
+        ? VIDEO_TUNING.mobileEntries
+        : VIDEO_TUNING.desktopEntries;
+      const maxPlaying = mobile
+        ? VIDEO_TUNING.mobilePlaying
+        : VIDEO_TUNING.desktopPlaying;
+      const kept = new Set(
+        sorted.slice(0, maxEntries).map(([itemIndex]) => itemIndex),
+      );
+      const playing = new Set(
+        sorted.slice(0, maxPlaying).map(([itemIndex]) => itemIndex),
+      );
+
+      for (const itemIndex of [...videoEntries.keys()]) {
+        if (!kept.has(itemIndex)) disposeVideoEntry(itemIndex);
+      }
+
+      for (const [itemIndex] of sorted.slice(0, maxEntries)) {
+        const entry = ensureVideoEntry(itemIndex);
+        if (!entry || entry.failed) continue;
+
+        if (playing.has(itemIndex)) {
+          if (entry.element.paused) {
+            void entry.element.play().catch(() => {
+              entry.failed = true;
+              entry.playing = false;
+            });
+          }
+        } else if (!entry.element.paused) {
+          entry.element.pause();
+        }
+      }
+
+      return hasPlayingVideos();
+    }
+
     function disposePlanes(): void {
       for (const plane of planes) {
         scene.remove(plane.mesh);
@@ -448,11 +700,14 @@ export const InfiniteCanvas = forwardRef<
           const planeHeight = baseWidth * orientationRatio(aspect);
           const url = urls[itemIndex];
           const entry = ensureTexture(url);
-          const opacity = entry.loaded ? 1 : 0;
+          const videoEntry = videoEntries.get(itemIndex);
+          const videoTexture = videoEntry?.ready ? videoEntry.texture : null;
+          const loaded = Boolean(videoTexture || entry.loaded);
+          const opacity = loaded ? 1 : 0;
 
           const material = new THREE.ShaderMaterial({
             uniforms: {
-              uTexture: { value: entry.texture },
+              uTexture: { value: videoTexture ?? entry.texture },
               uImageSizes: {
                 value: new THREE.Vector2(media.width, media.height),
               },
@@ -488,7 +743,8 @@ export const InfiniteCanvas = forwardRef<
             baseX: (col - (cols - 1) / 2) * pitchX,
             baseY: (row - (rows - 1) / 2) * pitchY,
             textureUrl: url,
-            loaded: entry.loaded,
+            isVideo: media.kind === "video",
+            loaded,
             opacity,
           };
 
@@ -517,6 +773,24 @@ export const InfiniteCanvas = forwardRef<
       debug.scroll.y = scrollRef.current.y;
       debug.dragging = panIsDragging();
       debug.hidden = hiddenPlane !== null;
+      debug.videoEntries = videoEntries.size;
+
+      let playingVideos = 0;
+      let videoTextures = 0;
+      for (const video of videoEntries.values()) {
+        if (video.playing) playingVideos += 1;
+        if (video.texture) videoTextures += 1;
+      }
+
+      debug.videosPlaying = playingVideos;
+      debug.videoTextures = videoTextures;
+      debug.videoPlanesBound = planes.filter((plane) => {
+        const video = videoEntries.get(plane.itemIndex);
+        return Boolean(
+          video?.texture &&
+          plane.material.uniforms.uTexture.value === video.texture,
+        );
+      }).length;
     }
 
     function projectPlane(plane: Plane): Box {
@@ -733,11 +1007,12 @@ export const InfiniteCanvas = forwardRef<
       const moving = panTick(now);
       const zooming = updateCamera(dt);
       const fading = updatePlanes(dt);
+      const videosActive = syncVideos(now);
 
       renderer.render(scene, camera);
       updateDebug();
 
-      if (moving || zooming || fading) {
+      if (moving || zooming || fading || videosActive) {
         raf = requestAnimationFrame(renderFrame);
       } else {
         last = 0;
@@ -789,6 +1064,7 @@ export const InfiniteCanvas = forwardRef<
       if (document.hidden) {
         if (raf !== 0) cancelAnimationFrame(raf);
         raf = 0;
+        pauseAllVideos();
         return;
       }
 
@@ -810,6 +1086,7 @@ export const InfiniteCanvas = forwardRef<
     pickRef.current = pick;
     centerRef.current = openCentred;
     restoreRef.current = revealPlane;
+    pauseVideosRef.current = pauseAllVideos;
     api.rectForIndex = rectForIndex;
     api.reveal = revealPlane;
 
@@ -829,9 +1106,17 @@ export const InfiniteCanvas = forwardRef<
       pickRef.current = () => {};
       centerRef.current = () => {};
       restoreRef.current = () => {};
+      pauseVideosRef.current = () => {};
       api.rectForIndex = () => null;
       api.reveal = () => {};
 
+      pauseAllVideos();
+
+      for (const itemIndex of [...videoEntries.keys()]) {
+        disposeVideoEntry(itemIndex);
+      }
+
+      videoHost.remove();
       disposePlanes();
       geometry.dispose();
 
