@@ -1,0 +1,197 @@
+/*
+ * /dev/human-contact — overlay for the three.js grid.
+ *
+ * The canvas supplies every pixel of the field; this file only places the
+ * text (wordmark, monogram, nav, credit) and the variant toggle. The overlay
+ * is pointer-transparent so the pointer reaches the canvas; the nav and the
+ * toggle take events back.
+ */
+
+.hc-page {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #111;
+  color: #fff;
+  isolation: isolate;
+}
+
+.hc-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #111;
+}
+
+.hc-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+.hc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.hc-monogram {
+  position: absolute;
+  top: clamp(22px, 4.2vh, 48px);
+  left: clamp(18px, 1.3vw, 40px);
+  font-family: var(--font-work-sans), "Segoe UI", sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: #fff;
+}
+
+.hc-nav {
+  position: absolute;
+  top: clamp(22px, 4.2vh, 48px);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2vw, 38px);
+  transform: translateX(-50%);
+  font-family: var(--font-work-sans), "Segoe UI", sans-serif;
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  color: #fff;
+  pointer-events: auto;
+}
+
+.hc-nav span {
+  cursor: default;
+}
+
+.hc-nav span:last-child {
+  color: #c5c5c5;
+}
+
+.hc-wordmark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  transform: translate(calc(-50% + 0.16em), -50%);
+  font-family:
+    "Bodoni MT", Didot, "Didot LT STD", "Times New Roman", Times, serif;
+  font-size: clamp(24px, 3.12vw, 68px);
+  font-weight: 400;
+  letter-spacing: 0.32em;
+  line-height: 1;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.hc-credit {
+  position: absolute;
+  bottom: clamp(10px, 1.6vh, 18px);
+  left: 50%;
+  max-width: min(80vw, 900px);
+  margin: 0;
+  transform: translateX(-50%);
+  font-family: var(--font-work-sans), "Segoe UI", sans-serif;
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.045em;
+  line-height: 1.55;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.hc-variants {
+  position: fixed;
+  right: clamp(12px, 1.4vw, 22px);
+  bottom: clamp(12px, 1.6vh, 20px);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(14, 14, 14, 0.72);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+
+.hc-variants button {
+  appearance: none;
+  height: 40px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  font-family: var(--font-work-sans), "Segoe UI", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.hc-variants button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.hc-variants button[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
+}
+
+.hc-variants button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+@media (max-width: 1280px) {
+  .hc-credit {
+    right: 16px;
+    bottom: 72px;
+    left: 16px;
+    max-width: none;
+    transform: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .hc-nav {
+    gap: 16px;
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 720px) {
+  .hc-nav {
+    gap: 12px;
+    font-size: 12px;
+  }
+
+  .hc-variants button {
+    height: 38px;
+    padding: 0 10px;
+    font-size: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-variants button {
+    transition: none;
+  }
+}
