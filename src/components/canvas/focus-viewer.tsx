@@ -13,11 +13,24 @@ import { MediaImage } from "@/components/media/media-image";
 import { MediaVideo } from "@/components/media/media-video";
 import type { CanvasItem } from "./infinite-canvas";
 import { TRANSITION, fitBox } from "./transition";
+import { ownViewerVideo } from "./viewer-playback";
 
 const FADE_S = 0.12;
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), video[controls], [tabindex]:not([tabindex="-1"])';
+
+/** The video inside the slide for this media, not an exiting neighbour. */
+function videoInSlide(
+  frame: HTMLElement,
+  mediaId: string,
+): HTMLVideoElement | null {
+  const slide = [...frame.querySelectorAll(".cv-viewer__slide")].find(
+    (element) => element.getAttribute("data-media-id") === mediaId,
+  );
+
+  return slide?.querySelector("video") ?? null;
+}
 
 /**
  * Full-screen media viewer.
@@ -141,7 +154,7 @@ export function FocusViewer({
     timer = window.setTimeout(finish, TRANSITION.mediaReadyTimeoutMs);
 
     if (media?.kind === "video") {
-      const video = frame.querySelector("video");
+      const video = videoInSlide(frame, media.id);
       if (!video) {
         finish();
         return;
@@ -209,53 +222,19 @@ export function FocusViewer({
     return;
   }, [media, onReady, reduce, startAt]);
 
-  // Viewer controls and playback. The first piece inherits the canvas time.
+  // Viewer controls and playback. The viewer is the only owner: MediaVideo's
+  // observer is off for this instance, the readiness effect above makes the
+  // one handoff seek, and this starts the piece once. After the first playing
+  // frame it stands back, so the native controls (and the user) own play/pause.
   useEffect(() => {
     const frame = frameRef.current;
     if (!frame || media?.kind !== "video") return;
 
-    const videos = [...frame.querySelectorAll("video")];
-    const cleanups: (() => void)[] = [];
-    const seekTo = index === initialIndex ? startAt : undefined;
+    const video = videoInSlide(frame, media.id);
+    if (!video) return;
 
-    for (const video of videos) {
-      video.controls = true;
-      video.muted = true;
-      const start = () => {
-        video.muted = true;
-        void video.play().catch(() => {
-          // The controls and poster remain the manual path.
-        });
-      };
-      const seek = () => {
-        if (
-          seekTo !== undefined &&
-          Number.isFinite(seekTo) &&
-          video.readyState >= 1
-        ) {
-          video.currentTime = seekTo;
-        }
-      };
-
-      seek();
-      start();
-      video.addEventListener("loadedmetadata", seek);
-      video.addEventListener("canplay", seek);
-      video.addEventListener("loadeddata", start);
-      video.addEventListener("canplay", start);
-      cleanups.push(() => {
-        video.removeEventListener("loadedmetadata", seek);
-        video.removeEventListener("canplay", seek);
-        video.removeEventListener("loadeddata", start);
-        video.removeEventListener("canplay", start);
-        video.pause();
-      });
-    }
-
-    return () => {
-      for (const cleanup of cleanups) cleanup();
-    };
-  }, [index, initialIndex, media, startAt]);
+    return ownViewerVideo(video);
+  }, [index, media]);
 
   const close = useCallback(() => {
     if (closingRef.current) return;
@@ -268,9 +247,9 @@ export function FocusViewer({
       return;
     }
 
-    const video = frame.querySelector("video");
-    const mediaTime =
-      video && media?.kind === "video" ? video.currentTime : undefined;
+    const video =
+      media?.kind === "video" ? videoInSlide(frame, media.id) : null;
+    const mediaTime = video ? video.currentTime : undefined;
     // Freeze the full-quality frame while the canvas seeks its persistent
     // clip to the same time; the viewer stays visible until that is ready.
     video?.pause();
@@ -446,6 +425,7 @@ export function FocusViewer({
                       media={media}
                       alt={media.alt}
                       className="cv-viewer__media"
+                      viewerOwned
                     />
                   )}
                 </motion.div>
