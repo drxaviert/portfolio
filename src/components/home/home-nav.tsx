@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { NavOrb } from "@/components/player/nav-orb";
 import { NavPlayerControl } from "@/components/player/nav-player-control";
 import { useOffHomeVariant } from "@/components/player/offhome-variant";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -30,22 +30,6 @@ import "./ring-hover.css";
  * The bar is one hover host: its own fill moves to the ring surface, and
  * keyboard focus inside it (the theme toggle, the links) opens the ring.
  */
-function OrbHead() {
-  return (
-    <div
-      aria-hidden="true"
-      className="relative size-9 shrink-0 overflow-hidden rounded-full"
-      style={{ backgroundImage: "var(--orb-gradient)" }}
-    >
-      <span className="absolute top-[10.5px] left-[13.5px] h-2 w-[3.4px] rounded-full bg-white" />
-      <span className="absolute top-[10.5px] left-[20.6px] h-2 w-[3.4px] rounded-full bg-white" />
-    </div>
-  );
-}
-
-const FOCUS_RING =
-  "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
-
 export function HomeNav() {
   const tooltips = useTooltipWarm();
   const offHomeVariant = useOffHomeVariant();
@@ -60,19 +44,7 @@ export function HomeNav() {
     >
       <RingLayers fill="bg-surface-container-low" />
 
-      <Link
-        href="/"
-        aria-label="Home"
-        className={`nav-logo relative shrink-0 rounded-full no-underline ${FOCUS_RING}`}
-      >
-        <OrbHead />
-        <span
-          aria-hidden="true"
-          className="nav-tooltip pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface"
-        >
-          Home
-        </span>
-      </Link>
+      <NavOrb variant={offHomeVariant} />
 
       <div className="relative flex min-w-0 items-center gap-3">
         {offHomeVariant === "nav" ? <NavPlayerControl /> : null}

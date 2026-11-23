@@ -1,0 +1,474 @@
+/*
+ * Orb player concepts 02, 04 and 05.
+ *
+ * The orb stays the nav's Home affordance unless a variant is active. Each
+ * active control is absolute inside the 36px orb slot, so the nav's layout and
+ * the resting pixels never change.
+ */
+
+.orb-shell {
+  position: relative;
+}
+
+.orb-shell > .nav-logo {
+  z-index: 1;
+}
+
+.orb-head {
+  position: relative;
+  display: block;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: 50%;
+  background-image: var(--orb-gradient);
+}
+
+.orb-focus-ring:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Orb face ---------- */
+
+.orb-eyes {
+  position: absolute;
+  inset: 0;
+  opacity: 1;
+  transition: opacity 150ms var(--ease-decelerate);
+}
+
+.orb-eyes span {
+  position: absolute;
+  top: 10.5px;
+  width: 3.4px;
+  height: 8px;
+  border-radius: 999px;
+  background-color: #fff;
+}
+
+.orb-eyes span:first-child {
+  left: 13.5px;
+}
+
+.orb-eyes span:last-child {
+  left: 20.6px;
+}
+
+.orb-glyph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 150ms var(--ease-decelerate);
+}
+
+.orb-glyph-pause {
+  gap: 3.5px;
+}
+
+.orb-glyph-pause > span {
+  width: 3.5px;
+  height: 12px;
+  border-radius: 2px;
+  background-color: #fff;
+}
+
+.orb-glyph-play svg {
+  display: block;
+}
+
+.orb-head[data-paused="true"] .orb-eyes {
+  opacity: 0;
+}
+
+.orb-head[data-paused="true"] .orb-glyph-play {
+  opacity: 1;
+}
+
+.orb-ring-button:not([data-paused="true"]):hover .orb-eyes,
+.orb-ring-button:not([data-paused="true"]):focus-visible .orb-eyes {
+  opacity: 0;
+}
+
+.orb-ring-button:not([data-paused="true"]):hover .orb-glyph-pause,
+.orb-ring-button:not([data-paused="true"]):focus-visible .orb-glyph-pause {
+  opacity: 1;
+}
+
+/* ---------- 02 · Progress ring ---------- */
+
+.orb-ring {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 200ms var(--ease-emphasized-decelerate);
+}
+
+.orb-ring-track {
+  stroke: color-mix(in oklab, var(--on-surface) 8%, transparent);
+}
+
+[data-phase="night"] .orb-ring-track {
+  stroke: color-mix(in oklab, var(--on-surface) 10%, transparent);
+}
+
+.orb-ring-progress {
+  opacity: 1;
+  transition: opacity 150ms var(--ease-accelerate);
+}
+
+.orb-ring-progress[data-paused="true"] {
+  opacity: 0.45;
+}
+
+.orb-ring-button {
+  z-index: 1;
+}
+
+/* The hover cue is the pause glyph, not the nav's light hover wash. */
+.orb-ring-button::after {
+  display: none;
+}
+
+.orb-hold-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: 50%;
+  background-color: rgb(255 255 255 / 0.22);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.92);
+  transition:
+    opacity 150ms var(--ease-decelerate),
+    transform 150ms var(--ease-decelerate);
+}
+
+.orb-ring-button[data-holding="true"] .orb-hold-fill {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.orb-ring-tooltip {
+  bottom: calc(100% + 8px);
+  left: 0;
+  transform: none;
+}
+
+.wd-nav-dock[data-nav-state="reader"] .orb-ring-tooltip {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+
+/*
+ * Keyboard users cannot hold the orb, and the nav has no other Home link, so
+ * the active ring carries a visually hidden link that becomes a small Home
+ * chip only while focused.
+ */
+.orb-home-alt {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The keyboard Home chip owns the space below the orb while it is focused. */
+.orb-shell:has(.orb-home-alt:focus-visible) .orb-ring-tooltip {
+  opacity: 0;
+}
+
+.orb-home-alt:focus-visible {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 4px 8px;
+  overflow: visible;
+  clip: auto;
+  border-radius: var(--radius-md);
+  background-color: var(--on-surface);
+  color: var(--surface);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  text-decoration: none;
+  white-space: nowrap;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ---------- 04 · Orb + attached pill ---------- */
+
+.orb-pill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  z-index: 0;
+  display: flex;
+  width: 252px;
+  height: 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 40px;
+  border: 0;
+  border-radius: 999px;
+  background-image: var(--orb-gradient);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-8px, -50%);
+  clip-path: inset(0 100% 0 0 round 999px);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    opacity 150ms var(--ease-accelerate),
+    transform 150ms var(--ease-accelerate),
+    clip-path 150ms var(--ease-accelerate);
+}
+
+.orb-pill[data-visible="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(0, -50%);
+  clip-path: inset(0 0 0 0 round 999px);
+  transition:
+    opacity 200ms var(--ease-emphasized-decelerate),
+    transform 200ms var(--ease-emphasized-decelerate),
+    clip-path 200ms var(--ease-emphasized-decelerate);
+}
+
+.orb-pill-eq {
+  display: flex;
+  width: 10px;
+  height: 14px;
+  flex: none;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.orb-pill-eq span {
+  width: 2px;
+  border-radius: 1px;
+  background-color: #fff;
+  transform-origin: bottom;
+  animation: orb-eq 900ms ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+
+.orb-pill-eq span:nth-child(1) {
+  height: 7px;
+  animation-duration: 760ms;
+  animation-delay: -120ms;
+}
+
+.orb-pill-eq span:nth-child(2) {
+  height: 12px;
+  animation-duration: 900ms;
+  animation-delay: -300ms;
+}
+
+.orb-pill-eq span:nth-child(3) {
+  height: 9px;
+  animation-duration: 820ms;
+  animation-delay: -60ms;
+}
+
+.orb-pill-eq[data-playing="true"] span {
+  animation-play-state: running;
+}
+
+@keyframes orb-eq {
+  from {
+    transform: scaleY(0.45);
+  }
+
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.orb-pill-text {
+  min-width: 0;
+  flex: 1 1 0;
+  overflow: hidden;
+  color: #fff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orb-pill-glyph {
+  display: flex;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  transition: background-color 150ms var(--ease-decelerate);
+}
+
+.orb-pill:hover .orb-pill-glyph,
+.orb-pill:focus-visible .orb-pill-glyph {
+  background-color: rgb(255 255 255 / 0.16);
+}
+
+/* ---------- 05 · Satellite ---------- */
+
+.orb-satellite {
+  position: absolute;
+  top: 21px;
+  left: 21px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 150ms var(--ease-accelerate);
+}
+
+.orb-satellite[data-visible="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 200ms var(--ease-emphasized-decelerate);
+}
+
+.orb-sat-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background-image: var(--orb-gradient);
+  box-shadow: 0 0 0 2px #fff;
+  transform: translate(-50%, -50%);
+  transition:
+    opacity 150ms var(--ease-accelerate),
+    transform 150ms var(--ease-accelerate);
+}
+
+.orb-sat-dot::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-image: var(--orb-gradient);
+  content: "";
+  opacity: 0;
+}
+
+.orb-sat-dot[data-playing="true"]::after {
+  animation: orb-satellite-pulse 1600ms var(--ease-decelerate) infinite;
+}
+
+@keyframes orb-satellite-pulse {
+  0% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+.orb-sat-grown {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-image: var(--orb-gradient);
+  box-shadow: 0 0 0 2px #fff;
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.542);
+  transition:
+    opacity 150ms var(--ease-accelerate),
+    transform 150ms var(--ease-accelerate);
+}
+
+.orb-shell:hover .orb-sat-grown,
+.orb-shell:focus-within .orb-sat-grown,
+.orb-satellite[data-paused="true"] .orb-sat-grown {
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 200ms var(--ease-emphasized-decelerate),
+    transform 200ms var(--ease-emphasized-decelerate);
+}
+
+.orb-shell:hover .orb-sat-dot,
+.orb-shell:focus-within .orb-sat-dot,
+.orb-satellite[data-paused="true"] .orb-sat-dot {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.542);
+}
+
+/* ---------- Reduced motion: opacity only, no pulse ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-pill,
+  .orb-pill[data-visible="true"],
+  .orb-satellite,
+  .orb-satellite[data-visible="true"],
+  .orb-sat-dot,
+  .orb-sat-grown {
+    transition: opacity 150ms var(--ease-linear);
+  }
+
+  .orb-sat-grown,
+  .orb-shell:hover .orb-sat-grown,
+  .orb-shell:focus-within .orb-sat-grown {
+    transform: none;
+  }
+
+  .orb-sat-dot,
+  .orb-shell:hover .orb-sat-dot,
+  .orb-shell:focus-within .orb-sat-dot {
+    transform: translate(-50%, -50%);
+  }
+
+  .orb-sat-dot::after,
+  .orb-sat-dot[data-playing="true"]::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .orb-glyph,
+  .orb-eyes,
+  .orb-hold-fill,
+  .orb-ring {
+    transition: opacity 150ms var(--ease-linear);
+  }
+
+  .orb-hold-fill {
+    transform: none;
+  }
+
+  .orb-pill-eq span {
+    animation: none;
+  }
+}

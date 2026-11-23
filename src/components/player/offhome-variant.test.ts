@@ -36,4 +36,13 @@ describe("offhome variant", () => {
 
     expect(rememberOffHomeVariant("?offhome=pill")).toBe("pill");
   });
+
+  it.each(["ring", "pill-orb", "satellite"])(
+    "accepts the orb variant %s",
+    async (variant) => {
+      const { rememberOffHomeVariant } = await import("./offhome-variant");
+
+      expect(rememberOffHomeVariant(`?offhome=${variant}`)).toBe(variant);
+    },
+  );
 });

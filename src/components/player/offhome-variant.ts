@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 
-export type OffHomeVariant = "pill" | "nav";
+export type OffHomeVariant = "pill" | "nav" | "ring" | "pill-orb" | "satellite";
 
 const STORAGE_KEY = "offhome:v1";
 
@@ -43,7 +43,13 @@ function getVariantSnapshot(): OffHomeVariant {
 }
 
 function isVariant(value: string | null): value is OffHomeVariant {
-  return value === "pill" || value === "nav";
+  return (
+    value === "pill" ||
+    value === "nav" ||
+    value === "ring" ||
+    value === "pill-orb" ||
+    value === "satellite"
+  );
 }
 
 /**
@@ -51,7 +57,8 @@ function isVariant(value: string | null): value is OffHomeVariant {
  * read; after that the module cache (and sessionStorage across reloads) keeps
  * the variant through client navigations that drop the query.
  *
- * Production always gets the pill: the nav variant is a dev comparison only.
+ * Production always gets the pill: the nav and orb variants are dev-only
+ * comparisons.
  */
 export function rememberOffHomeVariant(search: string): OffHomeVariant {
   if (process.env.NODE_ENV === "production") return "pill";
