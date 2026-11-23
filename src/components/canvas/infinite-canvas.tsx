@@ -458,6 +458,9 @@ export const InfiniteCanvas = forwardRef<
 
           if (entry) entry.loaded = true;
           markLoaded(url);
+          // Upload every poster as it arrives, not when its plane first flies
+          // into view during a drag. Already-uploaded textures are a no-op.
+          renderer.initTexture(texture);
 
           if (textureLoadMs === null) {
             let loaded = 0;
