@@ -83,6 +83,12 @@ const FRAGMENT_SHADER = /* glsl */ `
   uniform vec2 uParallax;
   uniform float uZoom;
   uniform float uOpacity;
+  /**
+   * Video frames are uploaded as straight RGBA, not SRGB8_ALPHA8 (three forces
+   * a linear transfer for video textures), so their sRGB values must be
+   * decoded here. Images are hardware-decoded, so they must skip this.
+   */
+  uniform float uDecodeVideo;
 
   varying vec2 vUv;
 
@@ -102,9 +108,17 @@ const FRAGMENT_SHADER = /* glsl */ `
     uv += uParallax;
 
     vec4 texel = texture2D(uTexture, uv);
+
+    if (uDecodeVideo > 0.5) {
+      texel = sRGBTransferEOTF(texel);
+    }
+
     gl_FragColor = vec4(texel.rgb, uOpacity);
 
     #include <colorspace_fragment>
+
+    // The renderer composites a premultiplied canvas.
+    gl_FragColor.rgb *= gl_FragColor.a;
   }
 `;
 
@@ -326,6 +340,7 @@ export const InfiniteCanvas = forwardRef<
     renderer.setPixelRatio(dpr);
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.NoToneMapping;
     renderer.domElement.className = "cv-webgl";
     hostElement.appendChild(renderer.domElement);
 
@@ -466,6 +481,7 @@ export const InfiniteCanvas = forwardRef<
         }
 
         plane.material.uniforms.uTexture.value = poster.texture;
+        plane.material.uniforms.uDecodeVideo.value = 0;
         plane.loaded = poster.loaded;
       }
     }
@@ -477,6 +493,7 @@ export const InfiniteCanvas = forwardRef<
         if (plane.itemIndex !== itemIndex || !plane.isVideo) continue;
 
         plane.material.uniforms.uTexture.value = entry.texture;
+        plane.material.uniforms.uDecodeVideo.value = 1;
         plane.loaded = true;
       }
     }
@@ -550,6 +567,9 @@ export const InfiniteCanvas = forwardRef<
         }
 
         const texture = new THREE.VideoTexture(element);
+        // Source frames are sRGB. Three uploads video as straight RGBA, so the
+        // shader decodes these manually (uDecodeVideo); the colorSpace tag is
+        // documentation, not a hardware decode.
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
@@ -717,10 +737,12 @@ export const InfiniteCanvas = forwardRef<
               uParallax: parallaxUniform,
               uZoom: zoomUniform,
               uOpacity: { value: opacity },
+              uDecodeVideo: { value: videoTexture ? 1 : 0 },
             },
             vertexShader: VERTEX_SHADER,
             fragmentShader: FRAGMENT_SHADER,
             transparent: true,
+            premultipliedAlpha: true,
             depthTest: false,
             depthWrite: false,
             toneMapped: false,
