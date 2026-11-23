@@ -37,6 +37,8 @@ export type UsePanResult = {
   tick: (now: number) => boolean;
   isActive: () => boolean;
   isDragging: () => boolean;
+  /** Current glide speed in px per 60fps frame. */
+  speed: () => number;
   /** Stop drag/momentum/keys but leave the scroll where it is. */
   halt: () => void;
 };
@@ -254,6 +256,12 @@ export function usePan({
   }, []);
 
   const isDragging = useCallback(() => stateRef.current.dragging, []);
+
+  const speed = useCallback(() => {
+    const velocity = stateRef.current.velocity;
+
+    return Math.hypot(velocity.x, velocity.y);
+  }, []);
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -523,6 +531,7 @@ export function usePan({
     tick,
     isActive,
     isDragging,
+    speed,
     halt,
   };
 }

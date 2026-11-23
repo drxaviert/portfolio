@@ -59,8 +59,13 @@ const PARALLAX_LIMIT = 0.025;
 const VIDEO_TUNING = {
   desktopPlaying: 12,
   desktopEntries: 16,
-  /** A drag plays six and keeps the warm set; release restores the budget. */
+  /** A drag or fast glide plays six from the warm set; settling restores 12. */
   dragPlaying: 6,
+  /** Freeze selection above this glide speed (px per 60fps frame). */
+  freezeEnterSpeed: 3,
+  /** Stay frozen until speed is below this for settleMs. */
+  freezeExitSpeed: 0.4,
+  settleMs: 220,
   mobilePlaying: 6,
   mobileEntries: 8,
   /** The playing set is recomputed this often; 0 means every frame. */
@@ -164,6 +169,7 @@ type CanvasDebug = {
   texturesTotal: number;
   textureLoadMs: number | null;
   cameraZ: number;
+  panSpeed: number;
   scroll: { x: number; y: number };
   dragging: boolean;
   hidden: boolean;
@@ -300,6 +306,7 @@ export const InfiniteCanvas = forwardRef<
     handlers,
     tick: panTick,
     isDragging: panIsDragging,
+    speed: panSpeed,
   } = pan;
 
   useEffect(() => {
@@ -390,10 +397,13 @@ export const InfiniteCanvas = forwardRef<
     let last = 0;
     let lastScroll = { x: 0, y: 0 };
     let videoCheckAt = 0;
-    let dragVideoMode = false;
+    let videoFrozen = false;
+    let settledAt = 0;
     let videoUploads = 0;
     const videoOff =
       new URLSearchParams(window.location.search).get("video") === "0";
+    const freezeOff =
+      new URLSearchParams(window.location.search).get("freeze") === "0";
     let resizeFrame = 0;
     let reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -409,6 +419,7 @@ export const InfiniteCanvas = forwardRef<
             texturesTotal: 0,
             textureLoadMs: null,
             cameraZ: CAMERA_Z,
+            panSpeed: 0,
             scroll: { x: 0, y: 0 },
             dragging: false,
             hidden: false,
@@ -691,16 +702,32 @@ export const InfiniteCanvas = forwardRef<
         return false;
       }
 
-      const dragging = panIsDragging();
+      const speed = panSpeed();
+      const fast = freezeOff
+        ? panIsDragging()
+        : panIsDragging() || speed > VIDEO_TUNING.freezeEnterSpeed;
 
-      // Selecting at drag start keeps one stable set through the gesture; a
-      // release selects again at the full budget.
-      if (dragging !== dragVideoMode) {
-        dragVideoMode = dragging;
-        videoCheckAt = 0;
+      // Freeze through the whole fast burst, including the glide between
+      // flicks. The set only changes once the speed has stayed low long
+      // enough, which stops decoder start-up on every flick.
+      if (fast) {
+        settledAt = 0;
+        if (!videoFrozen) {
+          videoFrozen = true;
+          videoCheckAt = 0;
+        }
+      } else if (videoFrozen) {
+        if (speed > VIDEO_TUNING.freezeExitSpeed) {
+          settledAt = 0;
+        } else if (settledAt === 0) {
+          settledAt = now;
+        } else if (now - settledAt >= VIDEO_TUNING.settleMs) {
+          videoFrozen = false;
+          videoCheckAt = 0;
+        }
       }
 
-      if (dragVideoMode && videoCheckAt !== 0) {
+      if (videoFrozen && videoCheckAt !== 0) {
         return hasPlayingVideos();
       }
 
@@ -748,7 +775,7 @@ export const InfiniteCanvas = forwardRef<
         : VIDEO_TUNING.desktopEntries;
       const maxPlaying = mobile
         ? VIDEO_TUNING.mobilePlaying
-        : dragVideoMode
+        : videoFrozen
           ? VIDEO_TUNING.dragPlaying
           : VIDEO_TUNING.desktopPlaying;
       const kept = new Set(
@@ -887,6 +914,7 @@ export const InfiniteCanvas = forwardRef<
       debug.texturesTotal = textures.size;
       debug.textureLoadMs = textureLoadMs;
       debug.cameraZ = camera.position.z;
+      debug.panSpeed = Number(panSpeed().toFixed(2));
       debug.scroll.x = scrollRef.current.x;
       debug.scroll.y = scrollRef.current.y;
       debug.dragging = panIsDragging();
@@ -1248,7 +1276,7 @@ export const InfiniteCanvas = forwardRef<
       renderer.forceContextLoss();
       renderer.domElement.remove();
     };
-  }, [items, panIsDragging, panTick, scrollRef]);
+  }, [items, panIsDragging, panSpeed, panTick, scrollRef]);
 
   return (
     <div
