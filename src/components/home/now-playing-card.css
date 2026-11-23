@@ -1,11 +1,15 @@
 /*
- * Static player card — Paper "Static player · Pulled in", row 2, V1 Frosted.
+ * Static player card — Paper "Static player · Pulled in" board.
  *
- * The card sits flush with the page: its fill is the page surface token, there
- * is no outer shadow, and a soft white inset rim carries the edge. The inset
- * rim lives on .ring-surface (the fill layer) so the hover ring's existing grow
- * still reads. The card's own box-shadow is removed only for this host; the
- * rest of the home cards keep --shadow-card.
+ * Default: row 1 "Current" flat. The card is a standard home card —
+ * surface-container-low fill, --shadow-card, no inset rim, and a
+ * surface-container title/artist well.
+ *
+ * Comparison: ?surface=pulled (dev only) restores row 2 V1 Frosted. The card
+ * sits flush with the page — page-surface fill, no outer shadow, a soft white
+ * inset rim, and the white-75% well. The inset rim lives on .ring-surface so
+ * the hover ring's existing grow still carries it. Nothing in the pulled-in
+ * styling is removed; it is only gated by [data-surface="pulled"].
  *
  * The Paper card is 275×276 with 12px padding. The body is the 251px content
  * column, so the inner geometry scales with cqw: 196px art = 78.0876cqw, 48px
@@ -14,8 +18,8 @@
  * itself.
  */
 
-.ring-host.now-playing-card {
-  /* The surface carries the rim; the host has no outer shadow by design. */
+.ring-host.now-playing-card[data-surface="pulled"] {
+  /* The pulled-in surface carries the rim; the host has no outer shadow. */
   box-shadow: none;
 }
 
@@ -25,7 +29,7 @@
   --now-playing-inset:
     inset 0 0 20px 4px rgb(255 255 255 / 0.95),
     inset 0 0 6px 0 rgb(255 255 255 / 0.7);
-  --now-playing-well: rgb(255 255 255 / 0.75);
+  --now-playing-well: var(--surface-container);
   --now-playing-fade: var(--surface-bright);
   --now-playing-glyph: var(--palette-neutral-50);
   --now-playing-button-ring: rgb(0 0 0 / 0.08);
@@ -34,7 +38,15 @@
   padding: 7px;
 }
 
-.now-playing-card .ring-surface {
+/* The pulled-in comparison keeps its row-2 well, fill and inset rim. The Night
+   block below deliberately resets the well to surface-container for both
+   surfaces. */
+.now-playing-card[data-surface="pulled"] {
+  --now-playing-well: rgb(255 255 255 / 0.75);
+}
+
+.now-playing-card[data-surface="pulled"] .ring-surface {
+  background-color: var(--surface);
   box-shadow: var(--now-playing-inset);
 }
 

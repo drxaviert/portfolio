@@ -375,6 +375,22 @@ export function NowPlayingCard() {
     void ensurePlayer();
   }, [ensurePlayer]);
 
+  // Dev-only surface comparison. The default is Paper row 1's flat card;
+  // ?surface=pulled restores row 2's fill/rim/well. The attribute is set once
+  // on the client, so production and ordinary visits never depend on the query
+  // and no React state is involved.
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+
+    const card = cardRef.current;
+
+    if (!card) return;
+
+    const surface = new URLSearchParams(window.location.search).get("surface");
+
+    card.dataset.surface = surface === "pulled" ? "pulled" : "flat";
+  }, []);
+
   // Activity unmounts a hidden route's effects. Pausing here is what makes /
   // and /work mutually exclusive; on reveal the one-frame sync below catches a
   // player that paused or kept going behind the Activity boundary.
@@ -564,12 +580,13 @@ export function NowPlayingCard() {
       role="group"
       aria-labelledby={titleId}
       data-phase={phase}
+      data-surface="flat"
       onPointerEnter={warmPlayer}
       onFocus={warmPlayer}
       onPointerDown={warmPlayer}
       className="ring-host now-playing-card flex h-40 w-40 flex-col rounded-lg md:size-[220px] xl:h-[276px] xl:w-[275px]"
     >
-      <RingLayers fill="bg-surface" />
+      <RingLayers fill="bg-surface-container-low" />
 
       <div className="now-playing-body">
         <div className="now-playing-art" aria-hidden="true">

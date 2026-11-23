@@ -20,6 +20,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  window.history.replaceState({}, "", "/");
 });
 
 describe("NowPlayingCard", () => {
@@ -33,6 +34,26 @@ describe("NowPlayingCard", () => {
       screen.getByRole("button", { name: "Play Get Lucky" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Daft Punk")).toBeInTheDocument();
+  });
+
+  it("defaults to the flat row-1 surface", () => {
+    const { container } = render(<NowPlayingCard />);
+
+    expect(container.querySelector(".now-playing-card")).toHaveAttribute(
+      "data-surface",
+      "flat",
+    );
+  });
+
+  it("switches to the pulled-in surface with ?surface=pulled", () => {
+    window.history.replaceState({}, "", "/?surface=pulled");
+
+    const { container } = render(<NowPlayingCard />);
+
+    expect(container.querySelector(".now-playing-card")).toHaveAttribute(
+      "data-surface",
+      "pulled",
+    );
   });
 
   it("keeps the times decorative and leaves a polite status", () => {
