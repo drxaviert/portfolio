@@ -86,12 +86,14 @@
 .now-playing-timebar {
   position: absolute;
   right: 0;
-  bottom: 0;
+  bottom: calc(max(19.1235cqw, 2rem) + 3.1873cqw);
   left: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr auto;
   gap: 3.1873cqw;
   padding: 9.5618cqw 4.7809cqw 4.7809cqw; /* 24 / 12 / 12 over 251 */
+  border-radius: 0 0 var(--now-playing-art-radius)
+    var(--now-playing-art-radius);
   background-image: linear-gradient(
     0deg,
     var(--now-playing-fade) 0%,
@@ -101,24 +103,21 @@
   );
 }
 
-.now-playing-times {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 3.1873cqw;
-}
-
 .now-playing-elapsed,
 .now-playing-total {
   white-space: nowrap;
 }
 
 .now-playing-elapsed {
+  grid-column: 1;
+  grid-row: 1;
   color: var(--on-surface);
 }
 
 .now-playing-total {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
   color: var(--on-surface-variant);
 }
 
@@ -127,6 +126,8 @@
   --now-playing-thumb: clamp(10px, 4.7809cqw, 12px);
 
   position: relative;
+  grid-column: 1 / -1;
+  grid-row: 2;
   width: 100%;
   height: clamp(1.5px, 0.7968cqw, 2px);
   border-radius: 999px;
@@ -135,7 +136,7 @@
 }
 
 /* The visual bar stays thin; the target is 41px tall at the largest card.
-   The art's overflow clips the target below its bottom padding. */
+   b and ab recenter it in their own row. */
 .now-playing-scrub::before {
   position: absolute;
   inset: -39px 0 0;
@@ -305,6 +306,105 @@
   inset: -7px;
   border-radius: 50%;
   content: "";
+}
+
+/* ---------- Dev-only card variants (?card=) ---------- */
+
+/* Only the title is semibold; both times recede to one tone. */
+.now-playing-card[data-card]:not([data-card="current"]) .now-playing-elapsed,
+.now-playing-card[data-card]:not([data-card="current"]) .now-playing-total {
+  color: var(--on-surface-variant);
+  font-weight: 400;
+}
+
+/* a and ab: no well; text sits on the card, flush with the art. */
+.now-playing-card[data-card="a"] .now-playing-meta,
+.now-playing-card[data-card="ab"] .now-playing-meta {
+  padding-inline: 0;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+/* a and ab: a 40px control row; c uses the same button inside a pill. */
+.now-playing-card[data-card="a"] .now-playing-row,
+.now-playing-card[data-card="ab"] .now-playing-row {
+  height: 40px;
+}
+
+.now-playing-card[data-card="a"] .now-playing-button,
+.now-playing-card[data-card="ab"] .now-playing-button,
+.now-playing-card[data-card="c"] .now-playing-button {
+  height: 40px;
+}
+
+/* a: the timebar stays over the art, above the 40px row. */
+.now-playing-card[data-card="a"] .now-playing-timebar {
+  bottom: calc(40px + 3.1873cqw);
+}
+
+/* b and ab: the timebar becomes a static row under the art. */
+.now-playing-card[data-card="b"] .now-playing-art,
+.now-playing-card[data-card="ab"] .now-playing-art {
+  margin-bottom: 8px;
+}
+
+.now-playing-card[data-card="b"] .now-playing-art-image,
+.now-playing-card[data-card="ab"] .now-playing-art-image {
+  clip-path: none;
+}
+
+.now-playing-card[data-card="b"] .now-playing-timebar,
+.now-playing-card[data-card="ab"] .now-playing-timebar {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 0;
+  border-radius: 0;
+  background-image: none;
+}
+
+.now-playing-card[data-card="b"] .now-playing-scrub,
+.now-playing-card[data-card="ab"] .now-playing-scrub {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.now-playing-card[data-card="b"] .now-playing-scrub::before,
+.now-playing-card[data-card="ab"] .now-playing-scrub::before {
+  top: 50%;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: 40px;
+  transform: translateY(-50%);
+}
+
+/* ab: the same 8px rhythm between the card's parts. */
+.now-playing-card[data-card="ab"] .now-playing-row {
+  gap: 8px;
+}
+
+/* c: the well becomes a 48px pill around the 40px button. */
+.now-playing-card[data-card="c"] .now-playing-row {
+  height: 48px;
+  gap: 0;
+  padding: 4px 4px 4px 16px;
+  border-radius: 24px;
+  background-color: var(--now-playing-well);
+}
+
+.now-playing-card[data-card="c"] .now-playing-meta {
+  padding-inline: 0;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+.now-playing-card[data-card="c"] .now-playing-timebar {
+  bottom: calc(48px + 3.1873cqw);
+  background-image: none;
 }
 
 .now-playing-icon {

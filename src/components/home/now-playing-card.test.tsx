@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPlayerStore } from "@/components/player/player-store";
 import type { PlayerStore } from "@/components/player/player-store";
@@ -18,6 +24,8 @@ let store: PlayerStore;
 beforeEach(() => {
   imageMock.renders = 0;
   store = createPlayerStore();
+  window.history.replaceState({}, "", "/");
+  window.sessionStorage.clear();
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -53,17 +61,32 @@ function stubScrubRect(slider: HTMLElement) {
 }
 
 describe("NowPlayingCard", () => {
-  it("names the card and the play control for the track", () => {
+  it("names the card and the play control for the track", async () => {
     render(<NowPlayingCard store={store} />);
 
-    expect(
-      screen.getByRole("group", { name: "Now playing" }),
-    ).toBeInTheDocument();
+    const card = screen.getByRole("group", { name: "Now playing" });
+
+    await waitFor(() => expect(card).toHaveAttribute("data-card", "current"));
     expect(
       screen.getByRole("button", { name: "Play Get Lucky" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Daft Punk")).toBeInTheDocument();
   });
+
+  it.each(["a", "b", "c", "ab"])(
+    "applies the %s card variant from ?card=",
+    async (variant) => {
+      window.history.replaceState({}, "", `/?card=${variant}`);
+      render(<NowPlayingCard store={store} />);
+
+      await waitFor(() =>
+        expect(screen.getByRole("group", { name: "Now playing" })).toHaveAttribute(
+          "data-card",
+          variant,
+        ),
+      );
+    },
+  );
 
   it("exposes a seek slider with aria values and keyboard steps", () => {
     render(<NowPlayingCard store={store} />);
@@ -156,7 +179,11 @@ describe("NowPlayingCard", () => {
 
     expect(screen.getByText("0:00")).toBeInTheDocument();
     expect(screen.getByText("4:09")).toBeInTheDocument();
-    expect(container.querySelector(".now-playing-times")).toHaveAttribute(
+    expect(container.querySelector(".now-playing-elapsed")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(container.querySelector(".now-playing-total")).toHaveAttribute(
       "aria-hidden",
       "true",
     );
