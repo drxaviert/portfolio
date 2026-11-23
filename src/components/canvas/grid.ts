@@ -1,3 +1,5 @@
+import { INTRO } from "./intro";
+
 /**
  * The reference gallery's measured spacing, ported to our viewport.
  *
@@ -14,6 +16,8 @@ export const SQUARE_RATIO = 1;
 export const LANDSCAPE_RATIO = 0.66;
 /** A phone still needs a usable tap target. */
 export const MIN_PLANE_WIDTH = 96;
+/** The intro starts with this gap before spreading to the final spacing. */
+export const INTRO_GAP = 8;
 /** Extra cells past the viewport so the wrap seam stays off screen. */
 export const EXTRA_COLS = 4;
 export const EXTRA_ROWS = 4;
@@ -51,8 +55,18 @@ export function gridMetrics(
   const cellHeight = Math.round(baseWidth * PORTRAIT_RATIO);
   const pitchX = baseWidth + gap;
   const pitchY = cellHeight + gap;
-  const cols = Math.ceil(viewportWidth / pitchX) + EXTRA_COLS;
-  const rows = Math.ceil(viewportHeight / pitchY) + EXTRA_ROWS;
+  // The intro packs the grid at INTRO_GAP while the camera sits 200px back,
+  // so the cell count must cover that wider, tightest view as well as the
+  // final one.
+  const introScale = INTRO.cameraFromZ / INTRO.cameraToZ;
+  const cols =
+    Math.ceil(
+      (viewportWidth * introScale) / (baseWidth + INTRO_GAP),
+    ) + EXTRA_COLS;
+  const rows =
+    Math.ceil(
+      (viewportHeight * introScale) / (cellHeight + INTRO_GAP),
+    ) + EXTRA_ROWS;
 
   return {
     baseWidth,

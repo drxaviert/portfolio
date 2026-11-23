@@ -22,7 +22,19 @@ import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
 import type { MediaManifest } from "@/lib/media-types";
 import type { Box } from "@/components/work/morph";
-import { gridMetrics, orientationRatio } from "./grid";
+import { gridMetrics, INTRO_GAP, orientationRatio } from "./grid";
+import {
+  INTRO,
+  introCameraZ,
+  introEnded,
+  introGapProgress,
+  introGray,
+  introPlaneOpacity,
+  introVideosReady,
+  introZoom,
+  reducedIntroEnded,
+  reducedOpacity,
+} from "./intro";
 import { usePan } from "./use-pan";
 import { planePosition } from "./wrap";
 
@@ -45,7 +57,7 @@ export type InfiniteCanvasProps = {
   onOpen: (index: number, rect: Box) => void;
 };
 
-const CAMERA_Z = 500;
+const CAMERA_Z = INTRO.cameraToZ;
 const CAMERA_DRAG_Z = 475;
 const FRAME_MS = 1000 / 60;
 const TEXTURE_TARGET_WIDTH = 640;
@@ -64,6 +76,13 @@ const VIDEO_TUNING = {
   checkMs: 80,
   /** Extra screen px around the viewport that counts as visible. */
   margin: 160,
+  /**
+   * New starts wait out fast motion. Videos already playing are never paused
+   * for speed; this only keeps decoder starts off the fast-drag path.
+   */
+  startFreezeEnterSpeed: 3,
+  startFreezeExitSpeed: 0.4,
+  startFreezeSettleMs: 220,
 } as const;
 
 const VERTEX_SHADER = /* glsl */ `
@@ -81,6 +100,8 @@ const FRAGMENT_SHADER = /* glsl */ `
   uniform vec2 uPlaneSizes;
   uniform vec2 uParallax;
   uniform float uZoom;
+  uniform float uZoomFactor;
+  uniform float uGray;
   uniform float uOpacity;
   /**
    * Video frames are uploaded as straight RGBA, not SRGB8_ALPHA8 (three forces
@@ -103,7 +124,7 @@ const FRAGMENT_SHADER = /* glsl */ `
     else scale.x = planeAspect / imageAspect;
 
     vec2 uv = (vUv - 0.5) * scale + 0.5;
-    uv = (uv - 0.5) / uZoom + 0.5;
+    uv = (uv - 0.5) / (uZoom * uZoomFactor) + 0.5;
     uv += uParallax;
 
     vec4 texel = texture2D(uTexture, uv);
@@ -111,6 +132,10 @@ const FRAGMENT_SHADER = /* glsl */ `
     if (uDecodeVideo > 0.5) {
       texel = sRGBTransferEOTF(texel);
     }
+
+    // Grayscale in linear light, matching the decode above.
+    float luma = dot(texel.rgb, vec3(0.2126, 0.7152, 0.0722));
+    texel.rgb = mix(texel.rgb, vec3(luma), uGray);
 
     gl_FragColor = vec4(texel.rgb, uOpacity);
 
@@ -131,6 +156,10 @@ type Plane = {
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   material: THREE.ShaderMaterial;
   itemIndex: number;
+  col: number;
+  row: number;
+  /** Staggered start for the intro opacity, 500-1250ms. */
+  opacityDelay: number;
   /** Cell centre in screen px relative to the viewport centre, before scroll. */
   baseX: number;
   baseY: number;
@@ -162,6 +191,11 @@ type CanvasDebug = {
   textureLoadMs: number | null;
   cameraZ: number;
   panSpeed: number;
+  introEnded: boolean;
+  introMs: number;
+  gap: number;
+  gray: number;
+  introZoom: number;
   scroll: { x: number; y: number };
   dragging: boolean;
   hidden: boolean;
@@ -249,6 +283,7 @@ export const InfiniteCanvas = forwardRef<
 >(function InfiniteCanvas({ items, paused, onOpen }, ref) {
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
+  const [introReady, setIntroReady] = useState(false);
   const reduceMotion = useReducedMotion();
 
   const apiRef = useRef<InfiniteCanvasHandle>({
@@ -282,7 +317,7 @@ export const InfiniteCanvas = forwardRef<
 
   const pan = usePan({
     reduceMotion,
-    disabled: paused,
+    disabled: paused || !introReady,
     onTap: (x, y) => {
       if (!pausedRef.current) pickRef.current(x, y);
     },
@@ -358,6 +393,8 @@ export const InfiniteCanvas = forwardRef<
     const geometry = new THREE.PlaneGeometry(1, 1);
     const parallaxUniform = { value: new THREE.Vector2() };
     const zoomUniform = { value: TEXTURE_ZOOM };
+    const introZoomUniform: { value: number } = { value: INTRO.zoomFrom };
+    const grayUniform: { value: number } = { value: 1 };
     const loader = new THREE.TextureLoader();
     const raycaster = new THREE.Raycaster();
     const ndc = new THREE.Vector2();
@@ -377,6 +414,9 @@ export const InfiniteCanvas = forwardRef<
     let planes: Plane[] = [];
     let cols = 0;
     let rows = 0;
+    let baseWidth = 0;
+    let cellHeight = 0;
+    let finalGap = 0;
     let pitchX = 0;
     let pitchY = 0;
     let halfX = 0;
@@ -390,10 +430,21 @@ export const InfiniteCanvas = forwardRef<
     let lastScroll = { x: 0, y: 0 };
     let videoCheckAt = 0;
     let videoUploads = 0;
+    let startsFrozen = false;
+    let startsSettledAt = 0;
     const videoOff =
       new URLSearchParams(window.location.search).get("video") === "0";
     let resizeFrame = 0;
     let reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    /** -1 while waiting for the posters, then ms since the intro started. */
+    let introElapsed = -1;
+    let introEndedFlag = false;
+    let introCamera: number = INTRO.cameraFromZ;
+    let introGap = 0;
+    let introGrayValue = 1;
+    let introZoomValue: number = INTRO.zoomFrom;
+    let introVideos = false;
+    let introAnnounced = false;
 
     const debug: CanvasDebug | null =
       process.env.NODE_ENV === "production"
@@ -408,6 +459,11 @@ export const InfiniteCanvas = forwardRef<
             textureLoadMs: null,
             cameraZ: CAMERA_Z,
             panSpeed: 0,
+            introEnded: false,
+            introMs: -1,
+            gap: INTRO_GAP,
+            gray: 1,
+            introZoom: INTRO.zoomFrom,
             scroll: { x: 0, y: 0 },
             dragging: false,
             hidden: false,
@@ -695,6 +751,13 @@ export const InfiniteCanvas = forwardRef<
         return false;
       }
 
+      // Posters lead the intro; videos join once the last opacity tween has
+      // finished (or the reduced-motion fade).
+      if (!introVideos) {
+        if (videoEntries.size > 0) pauseAllVideos();
+        return false;
+      }
+
       if (now - videoCheckAt < VIDEO_TUNING.checkMs) {
         return hasPlayingVideos();
       }
@@ -747,8 +810,12 @@ export const InfiniteCanvas = forwardRef<
         if (!kept.has(itemIndex)) disposeVideoEntry(itemIndex);
       }
 
+      // Create at most one new element per check, nearest the centre first.
       for (const [itemIndex] of sorted) {
-        ensureVideoEntry(itemIndex);
+        if (!videoEntries.has(itemIndex)) {
+          ensureVideoEntry(itemIndex);
+          break;
+        }
       }
 
       let active = 0;
@@ -756,10 +823,30 @@ export const InfiniteCanvas = forwardRef<
         if (entry.playing || !entry.element.paused) active += 1;
       }
 
+      const speed = panSpeed();
+      const fast =
+        panIsDragging() || speed > VIDEO_TUNING.startFreezeEnterSpeed;
+
+      if (fast) {
+        startsSettledAt = 0;
+        startsFrozen = true;
+      } else if (startsFrozen) {
+        if (speed > VIDEO_TUNING.startFreezeExitSpeed) {
+          startsSettledAt = 0;
+        } else if (startsSettledAt === 0) {
+          startsSettledAt = now;
+        } else if (
+          now - startsSettledAt >=
+          VIDEO_TUNING.startFreezeSettleMs
+        ) {
+          startsFrozen = false;
+        }
+      }
+
       // At most one new decoder per check, nearest the centre first. If the
       // cap is full the entry waits for a plane to leave rather than pausing
       // one that is already playing.
-      if (active < maxPlaying) {
+      if (active < maxPlaying && !startsFrozen) {
         for (const [itemIndex] of sorted) {
           const entry = videoEntries.get(itemIndex);
           if (!entry || entry.failed || !entry.element.paused) continue;
@@ -787,14 +874,17 @@ export const InfiniteCanvas = forwardRef<
       disposePlanes();
 
       const grid = gridMetrics(width, height);
-      const { baseWidth } = grid;
-
-      pitchX = grid.pitchX;
-      pitchY = grid.pitchY;
+      baseWidth = grid.baseWidth;
+      cellHeight = grid.cellHeight;
+      finalGap = grid.gap;
       cols = grid.cols;
       rows = grid.rows;
-      halfX = grid.halfX;
-      halfY = grid.halfY;
+
+      const gap = INTRO_GAP + (finalGap - INTRO_GAP) * introGap;
+      pitchX = baseWidth + gap;
+      pitchY = cellHeight + gap;
+      halfX = (cols * pitchX) / 2;
+      halfY = (rows * pitchY) / 2;
 
       const urls = items.map((item) => textureUrl(item.media));
 
@@ -810,7 +900,11 @@ export const InfiniteCanvas = forwardRef<
           const videoEntry = videoEntries.get(itemIndex);
           const videoTexture = videoEntry?.ready ? videoEntry.texture : null;
           const loaded = Boolean(videoTexture || entry.loaded);
-          const opacity = loaded ? 1 : 0;
+          const opacity = loaded && introEndedFlag ? 1 : 0;
+          const opacityDelay =
+            INTRO.opacityDelayMinMs +
+            ((col * 73 + row * 37 + itemIndex * 19) %
+              (INTRO.opacityDelayMaxMs - INTRO.opacityDelayMinMs + 1));
 
           const material = new THREE.ShaderMaterial({
             uniforms: {
@@ -823,6 +917,8 @@ export const InfiniteCanvas = forwardRef<
               },
               uParallax: parallaxUniform,
               uZoom: zoomUniform,
+              uZoomFactor: introZoomUniform,
+              uGray: grayUniform,
               uOpacity: { value: opacity },
               uDecodeVideo: { value: videoTexture ? 1 : 0 },
             },
@@ -835,13 +931,11 @@ export const InfiniteCanvas = forwardRef<
             toneMapped: false,
           });
 
+          const baseX = (col - (cols - 1) / 2) * pitchX;
+          const baseY = (row - (rows - 1) / 2) * pitchY;
           const mesh = new THREE.Mesh(geometry, material);
           mesh.scale.set(planeWidth, planeHeight, 1);
-          mesh.position.set(
-            (col - (cols - 1) / 2) * pitchX,
-            -((row - (rows - 1) / 2) * pitchY),
-            0,
-          );
+          mesh.position.set(baseX, -baseY, 0);
           mesh.frustumCulled = true;
           scene.add(mesh);
 
@@ -849,8 +943,11 @@ export const InfiniteCanvas = forwardRef<
             mesh,
             material,
             itemIndex,
-            baseX: (col - (cols - 1) / 2) * pitchX,
-            baseY: (row - (rows - 1) / 2) * pitchY,
+            col,
+            row,
+            opacityDelay,
+            baseX,
+            baseY,
             textureUrl: url,
             isVideo: media.kind === "video",
             loaded,
@@ -879,6 +976,11 @@ export const InfiniteCanvas = forwardRef<
       debug.textureLoadMs = textureLoadMs;
       debug.cameraZ = camera.position.z;
       debug.panSpeed = Number(panSpeed().toFixed(2));
+      debug.introEnded = introEndedFlag;
+      debug.introMs = Math.round(introElapsed);
+      debug.gap = Number(pitchX ? (pitchX - baseWidth).toFixed(1) : INTRO_GAP);
+      debug.gray = Number(introGrayValue.toFixed(3));
+      debug.introZoom = Number(introZoomValue.toFixed(3));
       debug.scroll.x = scrollRef.current.x;
       debug.scroll.y = scrollRef.current.y;
       debug.dragging = panIsDragging();
@@ -1050,6 +1152,11 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function updateCamera(dt: number): boolean {
+      if (!introEndedFlag) {
+        camera.position.z = introCamera;
+        return true;
+      }
+
       const targetZ = panIsDragging() && !reduced ? CAMERA_DRAG_Z : CAMERA_Z;
       const ease = 1 - Math.pow(0.975, dt);
 
@@ -1081,16 +1188,37 @@ export const InfiniteCanvas = forwardRef<
         Math.abs(targetX - parallaxUniform.value.x) > 0.0005 ||
         Math.abs(targetY - parallaxUniform.value.y) > 0.0005;
 
+      // The intro packs the grid at 8 and spreads it to the measured gap, so
+      // the pitch and wrap extents are recomputed while it runs.
+      const gap = INTRO_GAP + (finalGap - INTRO_GAP) * introGap;
+      pitchX = baseWidth + gap;
+      pitchY = cellHeight + gap;
+      halfX = (cols * pitchX) / 2;
+      halfY = (rows * pitchY) / 2;
+
       const opacityEase = 1 - Math.pow(0.72, dt);
+      const introRunning = introElapsed >= 0 && !introEndedFlag;
 
       for (const plane of planes) {
+        plane.baseX = (plane.col - (cols - 1) / 2) * pitchX;
+        plane.baseY = (plane.row - (rows - 1) / 2) * pitchY;
+
         const x = planePosition(plane.baseX, scroll.x, halfX);
         const y = planePosition(plane.baseY, scroll.y, halfY);
         plane.mesh.position.set(x, -y, 0);
 
-        const target = plane.loaded && plane.mesh.visible ? 1 : 0;
+        const alpha = introElapsed < 0
+          ? 0
+          : introRunning
+            ? reduced
+              ? reducedOpacity(introElapsed)
+              : introPlaneOpacity(introElapsed, plane.opacityDelay)
+            : 1;
+        const target = plane.loaded && plane.mesh.visible ? alpha : 0;
 
-        if (Math.abs(plane.opacity - target) > 0.002) {
+        if (introRunning || introElapsed < 0) {
+          plane.opacity = target;
+        } else if (Math.abs(plane.opacity - target) > 0.002) {
           plane.opacity += (target - plane.opacity) * opacityEase;
           active = true;
         } else if (plane.opacity !== target) {
@@ -1101,6 +1229,48 @@ export const InfiniteCanvas = forwardRef<
       }
 
       return active;
+    }
+
+    function updateIntro(now: number, dtMs: number): boolean {
+      if (introElapsed < 0) {
+        // Wait for the posters (or a failed one) before starting the clock.
+        if (textureLoadMs !== null || now - textureStartedAt > 2500) {
+          introElapsed = 0;
+        } else {
+          grayUniform.value = 1;
+          introZoomUniform.value = INTRO.zoomFrom;
+          return true;
+        }
+      }
+
+      const end = reduced ? INTRO.reducedFadeMs : INTRO.endMs;
+      introElapsed = Math.min(end, introElapsed + dtMs);
+
+      if (reduced) {
+        introCamera = CAMERA_Z;
+        introGap = 1;
+        introGrayValue = 0;
+        introZoomValue = 1;
+        introVideos = reducedIntroEnded(introElapsed);
+        introEndedFlag = reducedIntroEnded(introElapsed);
+      } else {
+        introCamera = introCameraZ(introElapsed);
+        introGap = introGapProgress(introElapsed);
+        introGrayValue = introGray(introElapsed);
+        introZoomValue = introZoom(introElapsed);
+        introVideos = introVideosReady(introElapsed);
+        introEndedFlag = introEnded(introElapsed);
+      }
+
+      grayUniform.value = introGrayValue;
+      introZoomUniform.value = introZoomValue;
+
+      if (introEndedFlag && !introAnnounced) {
+        introAnnounced = true;
+        setIntroReady(true);
+      }
+
+      return !introEndedFlag;
     }
 
     function renderFrame(now: number): void {
@@ -1115,6 +1285,7 @@ export const InfiniteCanvas = forwardRef<
       const dt = dtMs / FRAME_MS;
       last = now;
 
+      const introActive = updateIntro(now, dtMs);
       const moving = panTick(now);
       const zooming = updateCamera(dt);
       const fading = updatePlanes(dt);
@@ -1124,7 +1295,7 @@ export const InfiniteCanvas = forwardRef<
       renderer.render(scene, camera);
       updateDebug();
 
-      if (moving || zooming || fading || videosActive) {
+      if (moving || zooming || fading || videosActive || introActive) {
         raf = requestAnimationFrame(renderFrame);
       } else {
         last = 0;
