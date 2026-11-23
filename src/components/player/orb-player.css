@@ -121,7 +121,8 @@
   height: 13px;
   border-radius: 50%;
   background-image: var(--orb-gradient);
-  box-shadow: 0 0 0 2px var(--palette-neutral-50);
+  /* The ring is the nav surface showing through, not a white stroke. */
+  box-shadow: 0 0 0 2px var(--surface-container-low);
   transform: translate(-50%, -50%);
   transition:
     opacity var(--duration-medium-1) var(--ease-accelerate),
@@ -163,7 +164,7 @@
   justify-content: center;
   border-radius: 50%;
   background-image: var(--orb-gradient);
-  box-shadow: 0 0 0 2px var(--palette-neutral-50);
+  box-shadow: 0 0 0 2px var(--surface-container-low);
   color: var(--palette-neutral-50);
   opacity: 0;
   transform: scale(0.542);
