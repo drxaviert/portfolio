@@ -29,11 +29,12 @@ function readOnce(): OffHomeVariant {
   return rememberOffHomeVariant(window.location.search);
 }
 
-if (typeof window !== "undefined") {
-  cached = readOnce();
-}
+function subscribeVariant(listener: () => void) {
+  // Resolve on the client after hydration and wake the hook once so both the
+  // nav control and the provider agree before anything can play.
+  readOnce();
+  listener();
 
-function subscribeVariant() {
   return () => {};
 }
 

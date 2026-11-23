@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { NavPlayerControl } from "@/components/player/nav-player-control";
+import { useOffHomeVariant } from "@/components/player/offhome-variant";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { useTooltipWarm } from "@/components/nav/use-tooltip-warm";
 import { NavItems } from "./nav-items";
@@ -46,6 +48,7 @@ const FOCUS_RING =
 
 export function HomeNav() {
   const tooltips = useTooltipWarm();
+  const offHomeVariant = useOffHomeVariant();
 
   return (
     <nav
@@ -71,7 +74,8 @@ export function HomeNav() {
         </span>
       </Link>
 
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="relative flex min-w-0 items-center gap-3">
+        {offHomeVariant === "nav" ? <NavPlayerControl /> : null}
         <NavItems />
         <ThemeToggle />
       </div>
