@@ -190,61 +190,21 @@
 /* ---------- Panel (?thumb=panel) ---------- */
 
 /*
- * The reference's layout, translated into the drawer: the media panel runs to
- * the reading surface's left edge (the drawer's own 16px inset is the page
- * gutter the reference also has, 17px at 1440 / 22px at 1920) and the list
- * shifts right past a 32px gutter. The frame is a fixed 16:10 surface with the
- * media contained inside it, and it is sticky under the nav with the list's top
- * as its resting position.
- *
- * The layout keys on the document marker, not on WorkList's state: the /work
- * layout sets it from the query before the list is parsed, so a hard load of
- * ?thumb=panel paints the shifted list once instead of jumping after hydration
- * (the panel itself only mounts after hydration, and idle shows nothing).
+ * The panel lives in the empty left margin of the shipped, centred list, the
+ * way the reference shows its image beside its list. The list's own layout is
+ * untouched in this mode: the panel is a fixed box in the thumb's viewport clip,
+ * and `placePanel` measures the margin (surface edge + 16px to list edge - 32px,
+ * capped at 600px and right-aligned when capped) and its sticky Y. Height is the
+ * shipped thumb's 4:3, and it takes the thumb's radius and shadow.
  */
-html[data-work-thumb="panel"] .wd-work-column {
-  max-width: none;
-  padding-inline: 0;
-}
-
-/* The column loses its inline padding so the panel can reach the surface edge;
-   the chrome above the list and the list's right edge keep it. */
-html[data-work-thumb="panel"] .wd-breadcrumb,
-html[data-work-thumb="panel"] .wd-work-dev {
-  padding-inline: 32px;
-}
-
-html[data-work-thumb="panel"] .wd-work-group {
-  display: grid;
-  grid-template-columns: var(--wd-panel-w) minmax(0, 1fr);
-  column-gap: 32px;
-  align-items: start;
-}
-
-html[data-work-thumb="panel"] .wd-work-list-column {
-  grid-column: 2;
-  grid-row: 1;
-  min-width: 0;
-  padding-right: 32px;
-}
-
-.wd-work-column {
-  /* 30vw: the reference's panel is 31-32vw of its viewport; clamped so the
-     frame still reads at the gate and stops growing on very wide screens. */
-  --wd-panel-w: clamp(300px, 30vw, 640px);
-}
-
 .wd-work-panel {
-  position: sticky;
-  top: calc(
-    var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
-  );
-  grid-column: 1;
-  grid-row: 1;
-  width: var(--wd-panel-w);
-  aspect-ratio: 16 / 10;
+  position: absolute;
+  top: 0;
+  left: 0;
   overflow: hidden;
+  border-radius: var(--radius-lg);
   background: var(--surface-container);
+  box-shadow: var(--shadow-card);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--duration-short-3) var(--ease-decelerate);
@@ -263,19 +223,7 @@ html[data-work-thumb="panel"] .wd-work-list-column {
   transition-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
 }
 
-/* Contain, not crop: the media sits centred in the frame with its colour
-   around it, as in the reference's portrait case. The cover wrapper's own
-   12px radius and tint would show inside the square frame. */
-.wd-work-panel [data-cover="media"] {
-  border-radius: 0;
-  background: transparent;
-}
-
-.wd-work-panel [data-cover="media"] img {
-  object-fit: contain;
-}
-
-/* Reduced motion: instant swap. The frame's own enter/exit keeps the shipped
+/* Reduced motion: instant swap. The panel's own enter/exit keeps the shipped
    thumb's reduced 120ms opacity. */
 @media (prefers-reduced-motion: reduce) {
   .wd-work-panel,

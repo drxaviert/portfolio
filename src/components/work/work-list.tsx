@@ -27,6 +27,14 @@ const ENTRANCE_MAX = 12;
 const FAST_SCROLL_PX_PER_MS = 1.5;
 /** The row-to-row glide in the snap variant. */
 const SNAP_MS = 200;
+/** The panel's air from the reading surface's left edge. */
+const PANEL_GUTTER = 16;
+/** The panel's air from the list's left edge. */
+const PANEL_GAP = 32;
+/** Below this the left margin cannot hold a readable thumb, so the panel yields. */
+const PANEL_MIN_WIDTH = 320;
+/** Above this the panel stops growing and hugs the list instead. */
+const PANEL_MAX_WIDTH = 600;
 
 /**
  * Prototype switch, `?thumb=<value>`: `cursor` is the shipped thumb that follows
@@ -52,10 +60,9 @@ function readThumbVariant(): ThumbVariant {
 }
 
 /**
- * The prototype modes only exist where they fit and the pointer can hover: a
- * fine pointer and 1200px and up, which leaves the 480px left thumb a readable
- * list and gives the panel's 30vw plus gutter enough room at the narrow end.
- * Below that (and on touch) the list keeps the shipped cursor thumb.
+ * The left modes keep the list exactly as it ships, so they need only a fine
+ * pointer and 1200px, where the 480px thumb can sit over the list. The panel
+ * has its own width gate (the left margin), measured from the layout.
  */
 const WIDE_QUERY = "(min-width: 1200px) and (hover: hover) and (pointer: fine)";
 
@@ -122,10 +129,10 @@ const getServerSnapshot = () => false;
  * on the list's left edge (X locked), the cursor stays visible, and Y is either
  * the cursor (`left-follow`), the hovered row with a short glide between rows
  * (`left-snap`), or one Y for the whole list (`left-fixed`). A fourth mode,
- * `panel`, is the reference's layout instead: a sticky 30vw media panel at the
- * reading surface's left edge, with the list shifted right past a gutter and the
- * media contained in a 16:10 frame. All four are gated to 1200px and up on a
- * fine pointer; below that the shipped thumb is used.
+ * `panel`, leaves the list alone entirely and parks the thumb in the empty left
+ * margin beside it (the reference's picture-beside-the-list layout), gated by
+ * the margin the shipped centred list leaves. The three left modes are gated to
+ * 1200px and up on a fine pointer; below that the shipped thumb is used.
  */
 export function WorkList({
   works,
@@ -140,8 +147,11 @@ export function WorkList({
   const [dimActive, setDimActive] = useState(false);
   const [variant, setVariant] = useState<ThumbVariant>("cursor");
   const [wideFits, setWideFits] = useState(false);
+  const [panelFits, setPanelFits] = useState(false);
   const activeVariant: ThumbVariant =
-    variant !== "cursor" && wideFits ? variant : "cursor";
+    variant !== "cursor" && wideFits && (variant !== "panel" || panelFits)
+      ? variant
+      : "cursor";
   const portalReady = useSyncExternalStore(
     subscribeClient,
     getClientSnapshot,
@@ -157,6 +167,7 @@ export function WorkList({
   const groupRef = useRef<HTMLDivElement | null>(null);
   const listColumnRef = useRef<HTMLDivElement | null>(null);
   const thumbRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const clipRef = useRef<HTMLDivElement | null>(null);
   const rowRefs = useRef<(HTMLLIElement | null)[]>([]);
   const hoveredRef = useRef<number | null>(null);
@@ -188,6 +199,27 @@ export function WorkList({
     snap.frame = 0;
   }, []);
 
+  /**
+   * The panel lives in the empty left margin of the shipped list, so its gate
+   * is a measurement, not a breakpoint: from the reading surface's left edge
+   * plus the gutter, to the list's left edge minus the gap, there must be room
+   * for a readable 320px thumb. Measured from the layout at rest (the drawer's
+   * open pose scales the rects, so the phase observer re-measures when it
+   * lands) and again on every resize and reveal.
+   */
+  const measurePanel = useCallback(() => {
+    const scroll = scrollRef.current;
+    const list = listColumnRef.current;
+
+    if (!scroll || !list) return;
+
+    const surface = scroll.getBoundingClientRect();
+    const listRect = list.getBoundingClientRect();
+    const available = listRect.left - PANEL_GAP - (surface.left + PANEL_GUTTER);
+
+    setPanelFits(available >= PANEL_MIN_WIDTH);
+  }, []);
+
   // Read the prototype param and the left gate before paint, and re-read them
   // whenever the environment changes.
   //
@@ -213,6 +245,7 @@ export function WorkList({
       snap.row = null;
       setWideFits(query.matches);
       setVariant((current) => (next === current ? current : next));
+      measurePanel();
       hoveredRef.current = null;
       focusedRef.current = null;
       pointerRef.current = null;
@@ -225,28 +258,12 @@ export function WorkList({
     query.addEventListener("change", sync);
 
     return () => query.removeEventListener("change", sync);
-  }, []);
+  }, [measurePanel]);
 
   // The placement code is shared by pointer, scroll and tween frames, so it
   // reads the active mode through a ref rather than closing over the state.
   useLayoutEffect(() => {
     activeVariantRef.current = activeVariant;
-  }, [activeVariant]);
-
-  // The panel is the one mode that moves the list, so its layout keys on a
-  // document marker rather than on this component's state: the /work layout
-  // sets it from the query before the list is parsed, and a hard load paints
-  // the shifted layout once instead of jumping after hydration. Keep it in step
-  // after that; it is not removed on hide, because a swap fades a DOM copy of
-  // the index after the real one is hidden and the copy needs its layout.
-  useLayoutEffect(() => {
-    const root = document.documentElement;
-
-    if (activeVariant === "panel") {
-      root.setAttribute("data-work-thumb", "panel");
-    } else {
-      root.removeAttribute("data-work-thumb");
-    }
   }, [activeVariant]);
 
   // The list keeps its place while a study takes the panel.
@@ -311,21 +328,66 @@ export function WorkList({
   );
 
   /**
+   * The panel's box in the empty left margin. The reading surface's left edge
+   * plus 16px starts it and the list's left edge minus 32px ends it, so its
+   * width is whatever the shipped, centred list leaves. Past 600px it stops
+   * growing and right-aligns to the list (it keeps hugging the list, the way the
+   * reference does) rather than drifting away from it. Height is the shipped
+   * thumb's 4:3; the top is the first row's top and sticks under the nav.
+   */
+  const placePanel = useCallback(() => {
+    const panel = panelRef.current;
+    const clip = clipRef.current;
+    const scroll = scrollRef.current;
+    const list = listColumnRef.current;
+    const firstRow = rowRefs.current[0];
+
+    if (!panel || !clip || !scroll || !list || !firstRow) return;
+
+    const clipRect = clip.getBoundingClientRect();
+    const scrollRect = scroll.getBoundingClientRect();
+    const listRect = list.getBoundingClientRect();
+    const firstRowRect = firstRow.getBoundingClientRect();
+    const left = scrollRect.left + PANEL_GUTTER;
+    const right = listRect.left - PANEL_GAP;
+    const available = right - left;
+
+    if (available < PANEL_MIN_WIDTH) return;
+
+    const width = Math.min(PANEL_MAX_WIDTH, available);
+    const height = width * (THUMB_HEIGHT / THUMB_WIDTH);
+    const x = (width < available ? right - width : left) - clipRect.left;
+    const y = Math.max(firstRowRect.top, visibleTop(scrollRect)) - clipRect.top;
+
+    panel.style.width = `${width}px`;
+    panel.style.height = `${height}px`;
+    panel.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  }, []);
+
+  /**
    * Where the thumbnail is. The cursor variant is the shipped one, unchanged:
    * centred on the pointer, or parked at the focused row's right end. The left
    * modes all lock X to the list's left edge and only choose Y: the cursor
-   * (follow), the hovered row (snap), or the list block's centre (fixed).
+   * (follow), the hovered row (snap), or the list block's centre (fixed). The
+   * panel is a separate fixed box in the left margin.
    */
   const placeThumb = useCallback(() => {
-    const thumb = thumbRef.current;
     const clip = clipRef.current;
-
-    if (!thumb || !clip) return;
-
-    const clipRect = clip.getBoundingClientRect();
     const point = pointerRef.current;
     const mode = activeVariantRef.current;
     const index = hoveredRef.current ?? focusedRef.current;
+
+    if (!clip) return;
+
+    if (mode === "panel") {
+      placePanel();
+      return;
+    }
+
+    const thumb = thumbRef.current;
+    const clipRect = clip.getBoundingClientRect();
+
+    if (!thumb) return;
 
     if (mode === "cursor") {
       let x: number;
@@ -424,7 +486,7 @@ export function WorkList({
     stopSnap();
     snap.row = index;
     writeThumb(x, targetY);
-  }, [glideTo, stopSnap, writeThumb]);
+  }, [glideTo, placePanel, stopSnap, writeThumb]);
 
   // One write per frame, always from the latest pointer event.
   const scheduleThumb = useCallback(() => {
@@ -442,6 +504,25 @@ export function WorkList({
       stopSnap();
     };
   }, [stopSnap]);
+
+  // Size and place the parked panel while it is idle, so its first hover cannot
+  // paint a zero-sized frame for a frame.
+  useLayoutEffect(() => {
+    if (activeVariant === "panel") scheduleThumb();
+  }, [activeVariant, scheduleThumb]);
+
+  // A resize moves the list and the margin around it: re-measure the gate and
+  // put the panel back where the new margins put it.
+  useEffect(() => {
+    const onResize = () => {
+      measurePanel();
+      scheduleThumb();
+    };
+
+    window.addEventListener("resize", onResize);
+
+    return () => window.removeEventListener("resize", onResize);
+  }, [measurePanel, scheduleThumb]);
 
   const clearDimTimer = useCallback(() => {
     if (dimTimerRef.current) {
@@ -709,6 +790,9 @@ export function WorkList({
       const phase = layer.dataset.phase;
 
       if (phase === "open") {
+        // The drawer has landed (scale 1), so the panel's margin can be
+        // measured for real, including after a soft open.
+        measurePanel();
         if (entered) return;
         entered = true;
 
@@ -763,7 +847,7 @@ export function WorkList({
       delete root.dataset.workAnim;
       clearEntrance();
     };
-  }, [clearEntrance]);
+  }, [clearEntrance, measurePanel]);
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!canHover()) return;
@@ -837,9 +921,32 @@ export function WorkList({
       );
     });
 
+  // Distinct keys: both are a bare div in the same slot, and React would
+  // otherwise reuse one DOM node across the swap, keeping the other mode's
+  // inline width/height/transform.
   const thumbNode = (
-    <div className="wd-work-thumb" ref={thumbRef} aria-hidden="true">
+    <div
+      key="cursor-thumb"
+      className="wd-work-thumb"
+      ref={thumbRef}
+      aria-hidden="true"
+    >
       <div className="wd-work-thumb-in">{mediaSlots("cover")}</div>
+    </div>
+  );
+
+  // The panel keeps the shipped cover fit and the thumb's own radius and
+  // shadow; it is positioned by placePanel in the fixed clip layer, so the
+  // list's layout is never involved.
+  const panelNode = (
+    <div
+      key="panel-thumb"
+      className="wd-work-panel"
+      ref={panelRef}
+      aria-hidden="true"
+      data-work-active={thumbActive ? "" : undefined}
+    >
+      {mediaSlots("cover")}
     </div>
   );
 
@@ -888,16 +995,6 @@ export function WorkList({
               activeVariant === "cursor" && hovered !== null ? "" : undefined
             }
           >
-            {activeVariant === "panel" ? (
-              <div
-                className="wd-work-panel"
-                aria-hidden="true"
-                data-work-active={thumbActive ? "" : undefined}
-              >
-                {mediaSlots("contain")}
-              </div>
-            ) : null}
-
             <div
               className="wd-work-list-column"
               ref={listColumnRef}
@@ -937,7 +1034,7 @@ export function WorkList({
         </div>
       </div>
 
-      {portalReady && activeVariant !== "panel"
+      {portalReady
         ? createPortal(
             <div
               className="wd-work-thumb-clip"
@@ -946,7 +1043,7 @@ export function WorkList({
               data-work-active={thumbActive ? "" : undefined}
               data-work-variant={activeVariant}
             >
-              {thumbNode}
+              {activeVariant === "panel" ? panelNode : thumbNode}
             </div>,
             document.body,
           )

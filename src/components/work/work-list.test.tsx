@@ -68,6 +68,50 @@ function mockListGeometry() {
   );
 }
 
+/**
+ * The panel's case at a wide viewport: the shipped list is a centred column, so
+ * at 2560 the reading surface starts at 16, the list at 744, and the left
+ * margin (744 - 32 - (16 + 16) = 680) is wider than the 600px cap.
+ */
+function mockPanelGeometry() {
+  const rect = (left: number, top: number, width: number, height: number) =>
+    ({
+      left,
+      top,
+      width,
+      height,
+      right: left + width,
+      bottom: top + height,
+      x: left,
+      y: top,
+      toJSON: () => ({}),
+    }) as DOMRect;
+
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+    function (this: Element) {
+      const element = this as HTMLElement;
+
+      if (element.classList.contains("wd-work-thumb-clip")) {
+        return rect(0, 0, 2560, 1400);
+      }
+
+      if (element.id === INDEX_SCROLL_ID) return rect(16, 16, 2513, 1368);
+
+      if (element.classList.contains("wd-work-list-column")) {
+        return rect(744, 221, 1056, 318);
+      }
+
+      if (element.classList.contains("wd-work-row-item")) {
+        const index = Number(element.dataset.workIndex);
+
+        return rect(744, 221 + index * 106, 1056, 106);
+      }
+
+      return rect(0, 0, 0, 0);
+    },
+  );
+}
+
 /** The one thumb layer's last written position, or null before it is placed. */
 function thumbXY(): { x: number; y: number } | null {
   const thumb = document.body.querySelector<HTMLElement>(".wd-work-thumb");
@@ -281,29 +325,27 @@ describe("work list", () => {
     await waitFor(() => expect(thumbXY()).toEqual({ x: 132, y: 180 }));
   });
 
-  it("adds the panel mode: shifted list, idle-hidden 16:10 frame", () => {
+  it("parks the panel in the left margin without moving the list", async () => {
     window.history.replaceState({}, "", "/work?thumb=panel");
+    mockPanelGeometry();
 
     const { container } = renderList();
     const group = container.querySelector<HTMLElement>(".wd-work-group")!;
-    const panel = container.querySelector<HTMLElement>(".wd-work-panel")!;
+    const clip = document.body.querySelector<HTMLElement>(
+      ".wd-work-thumb-clip",
+    )!;
+    const panel = clip.querySelector<HTMLElement>(".wd-work-panel")!;
     const front = () =>
       panel.querySelector<HTMLElement>(".wd-work-thumb-img[data-front]");
 
-    // The document marker is what the panel layout CSS keys on (set before
-    // paint by the /work layout script on a hard load).
-    expect(document.documentElement).toHaveAttribute(
-      "data-work-thumb",
-      "panel",
-    );
+    // The group is still just the list: no dock, no shift, no markup change.
+    expect(group.children).toHaveLength(1);
+    expect(container.querySelector(".wd-work-panel")).toBeNull();
     expect(container.querySelector(".wd-work-column")).toHaveAttribute(
       "data-thumb",
       "panel",
     );
-    expect(group.children).toHaveLength(2);
     expect(panel).not.toHaveAttribute("data-work-active");
-    // The panel replaces the cursor-follow layer.
-    expect(document.body.querySelector(".wd-work-thumb-clip")).toBeNull();
 
     hoverRow(container, 1);
 
@@ -311,6 +353,12 @@ describe("work list", () => {
     expect(group).toHaveAttribute("data-work-dim");
     expect(group).not.toHaveAttribute("data-work-pointer");
     expect(front()?.firstElementChild).not.toBeNull();
+
+    // Margin 16+16 to list-32 is 680px, so the box caps at 600 and hugs the
+    // list (right edge list left - 32) at the shipped thumb's 4:3.
+    await waitFor(() => expect(panel.style.width).toBe("600px"));
+    expect(panel.style.height).toBe("450px");
+    expect(panel.style.transform).toBe("translate3d(112px, 221px, 0px)");
 
     const firstFront = front();
 
@@ -321,6 +369,24 @@ describe("work list", () => {
     expect(container.querySelectorAll(".wd-work-row-item")[2]).toHaveAttribute(
       "data-work-current",
     );
+  });
+
+  it("yields the panel to the shipped thumb when the margin is too small", () => {
+    window.history.replaceState({}, "", "/work?thumb=panel");
+    mockListGeometry();
+
+    const { container } = renderList();
+    const clip = document.body.querySelector<HTMLElement>(
+      ".wd-work-thumb-clip",
+    )!;
+
+    // List at 132, surface at 100: 132 - 32 - (100 + 16) = -16.
+    expect(container.querySelector(".wd-work-column")).toHaveAttribute(
+      "data-thumb",
+      "cursor",
+    );
+    expect(clip.querySelector(".wd-work-panel")).toBeNull();
+    expect(clip.querySelector(".wd-work-thumb")).not.toBeNull();
   });
 
   it("swaps the panel media on the reference's 1s expo-out fade", () => {
@@ -405,7 +471,6 @@ describe("work list", () => {
       );
       expect(clip).toHaveAttribute("data-work-variant", "cursor");
       expect(container.querySelector(".wd-work-panel")).toBeNull();
-      expect(document.documentElement).not.toHaveAttribute("data-work-thumb");
 
       fireEvent.pointerMove(
         container.querySelector<HTMLElement>(".wd-work-row")!,
