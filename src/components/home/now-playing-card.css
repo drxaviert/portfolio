@@ -20,8 +20,8 @@
  * column, so the inner geometry scales with cqw: 196px art = 78.0876cqw, 48px
  * row = 19.1235cqw, 8px gap = 3.1873cqw. Container units are used on the body's
  * children, never on the body's own gap, because a container cannot query
- * itself. All card text is DS classes (text-xs / xl:text-sm, font-medium,
- * tabular-nums); no free cqw or px type sizes.
+ * itself. All card text is DS classes (text-xs / xl:text-sm, font-medium or
+ * font-semibold, tabular-nums); no free cqw or px type sizes.
  */
 
 .ring-host.now-playing-card[data-surface="pulled"] {
@@ -35,7 +35,6 @@
     inset 0 0 6px 0 rgb(255 255 255 / 0.7);
   --now-playing-well: var(--surface-container);
   --now-playing-fade: var(--surface-bright);
-  --now-playing-button-ring: rgb(0 0 0 / 0.08);
   --now-playing-track: color-mix(in oklab, var(--on-surface) 14%, transparent);
   /* The img is rectangular and clipped by the rounded art box; its placeholder
      must be the card fill, or the clip's antialiased bottom edge blends the dark
@@ -79,7 +78,6 @@
     inset 0 0 6px 0 rgb(255 255 255 / 0.05);
   --now-playing-well: var(--surface-container);
   --now-playing-fade: var(--surface-container-low);
-  --now-playing-button-ring: rgb(255 255 255 / 0.1);
   --now-playing-track: color-mix(in oklab, var(--on-surface) 20%, transparent);
 }
 
@@ -339,11 +337,10 @@
   border: 0;
   border-radius: 50%;
   background-image: var(--orb-gradient);
-  box-shadow:
-    0 0 0 1px var(--now-playing-button-ring),
-    0 2.3904cqw 6.3745cqw -1.5936cqw
-      color-mix(in oklab, var(--orb-2) 45%, transparent);
-  color: var(--palette-neutral-700);
+  /* Dat's call: white glyph in every phase. The button carries no shadow,
+     drop-shadow or halo — only the orb gradient, the press scale and the
+     focus outline. */
+  color: var(--palette-neutral-50);
   cursor: pointer;
   place-items: center;
   -webkit-tap-highlight-color: transparent;

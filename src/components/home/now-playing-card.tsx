@@ -893,7 +893,7 @@ export function NowPlayingCard() {
           <div className="now-playing-meta">
             <p
               id={titleId}
-              className="now-playing-title text-xs font-medium xl:text-sm"
+              className="now-playing-title text-xs font-semibold xl:text-sm"
             >
               {NOW_PLAYING_TRACK.title}
             </p>
