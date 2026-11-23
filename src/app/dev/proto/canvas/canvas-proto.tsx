@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LensMode } from "@/components/canvas/lens";
 import { LENS, clamp } from "@/components/canvas/lens";
+import { BREATH } from "@/components/canvas/breathing";
+import type { BreathSettings } from "@/components/canvas/breathing";
 import { FocusViewer } from "@/components/canvas/focus-viewer";
 import { InfiniteCanvas } from "@/components/canvas/infinite-canvas";
 import type {
@@ -25,8 +27,8 @@ const MAX = {
   vignette: LENS.maxVignette,
 } as const;
 
-function valuesQuery(lens: LensSettings): string {
-  return `lens=${lens.mode}&strength=${lens.strength.toFixed(2)}&boost=${lens.boost.toFixed(2)}&vignette=${lens.vignette.toFixed(2)}`;
+function valuesQuery(lens: LensSettings, breath: BreathSettings): string {
+  return `lens=${lens.mode}&strength=${lens.strength.toFixed(2)}&boost=${lens.boost.toFixed(2)}&vignette=${lens.vignette.toFixed(2)}&breath=${breath.amplitude.toFixed(3)}&breathPeriod=${Math.round(breath.periodMs)}`;
 }
 
 /** Clipboard with the dev server's older/denied-permission fallback. */
@@ -63,19 +65,23 @@ function writeClipboard(text: string): Promise<void> {
  * focus viewer keeps its DOM media and chrome; the canvas supplies the clicked
  * plane's projected rect for the FLIP and the current rect on close.
  *
- * The lens panel keeps the flat/globe A/B and its three strengths in the URL,
- * so a dialled-in look can be linked or pasted back to another session.
+ * The lens panel keeps the flat/globe A/B, its three strengths and the idle
+ * breathing amplitude/period in the URL, so a dialled-in look can be linked or
+ * pasted back to another session.
  */
 export function CanvasProto({
   items,
   initialLens,
+  initialBreath,
 }: {
   items: CanvasItem[];
   initialLens: LensSettings;
+  initialBreath: BreathSettings;
 }) {
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const [viewerClosing, setViewerClosing] = useState(false);
   const [lens, setLens] = useState<LensSettings>(initialLens);
+  const [breath, setBreath] = useState<BreathSettings>(initialBreath);
   const [copied, setCopied] = useState(false);
   const canvasRef = useRef<InfiniteCanvasHandle | null>(null);
   const copyTimer = useRef(0);
@@ -111,8 +117,10 @@ export function CanvasProto({
     url.searchParams.set("strength", lens.strength.toFixed(2));
     url.searchParams.set("boost", lens.boost.toFixed(2));
     url.searchParams.set("vignette", lens.vignette.toFixed(2));
+    url.searchParams.set("breath", breath.amplitude.toFixed(3));
+    url.searchParams.set("breathPeriod", String(Math.round(breath.periodMs)));
     window.history.replaceState(window.history.state, "", url);
-  }, [lens]);
+  }, [lens, breath]);
 
   useEffect(() => () => window.clearTimeout(copyTimer.current), []);
 
@@ -134,6 +142,23 @@ export function CanvasProto({
     [],
   );
 
+  const setBreathValue = useCallback(
+    (key: keyof BreathSettings, raw: string) => {
+      const value = Number(raw);
+
+      if (!Number.isFinite(value)) return;
+
+      setBreath((current) => ({
+        ...current,
+        [key]:
+          key === "amplitude"
+            ? clamp(value, BREATH.minAmplitude, BREATH.maxAmplitude)
+            : clamp(value, BREATH.minPeriodMs, BREATH.maxPeriodMs),
+      }));
+    },
+    [],
+  );
+
   const copyValues = useCallback(() => {
     const done = () => {
       setCopied(true);
@@ -141,8 +166,8 @@ export function CanvasProto({
       copyTimer.current = window.setTimeout(() => setCopied(false), 1500);
     };
 
-    void writeClipboard(valuesQuery(lens)).then(done, done);
-  }, [lens]);
+    void writeClipboard(valuesQuery(lens, breath)).then(done, done);
+  }, [breath, lens]);
 
   return (
     <main
@@ -155,6 +180,7 @@ export function CanvasProto({
           items={items}
           paused={viewer !== null}
           lens={lens}
+          breath={breath}
           onOpen={openViewer}
         />
       </div>
@@ -165,7 +191,11 @@ export function CanvasProto({
           <span aria-hidden="true">·</span> Click opens
         </p>
 
-        <div className="cv-lens" role="group" aria-label="Lens controls">
+        <div
+          className="cv-lens"
+          role="group"
+          aria-label="Lens and breathing controls"
+        >
           <div className="cv-lens__head">
             <span className="cv-lens__title">Lens</span>
             <div className="cv-lens__seg" role="group" aria-label="Lens mode">
@@ -225,6 +255,39 @@ export function CanvasProto({
             <output>{lens.vignette.toFixed(2)}</output>
           </label>
 
+          <div className="cv-lens__divider" aria-hidden="true" />
+          <span className="cv-lens__subhead">Breathing</span>
+
+          <label className="cv-lens__field">
+            <span>Amplitude</span>
+            <input
+              type="range"
+              min={BREATH.minAmplitude}
+              max={BREATH.maxAmplitude}
+              step={0.005}
+              value={breath.amplitude}
+              onChange={(event) =>
+                setBreathValue("amplitude", event.target.value)
+              }
+            />
+            <output>{(breath.amplitude * 100).toFixed(1)}%</output>
+          </label>
+
+          <label className="cv-lens__field">
+            <span>Period</span>
+            <input
+              type="range"
+              min={BREATH.minPeriodMs}
+              max={BREATH.maxPeriodMs}
+              step={250}
+              value={breath.periodMs}
+              onChange={(event) =>
+                setBreathValue("periodMs", event.target.value)
+              }
+            />
+            <output>{(breath.periodMs / 1000).toFixed(1)}s</output>
+          </label>
+
           <div className="cv-lens__foot">
             <button
               type="button"
@@ -233,7 +296,9 @@ export function CanvasProto({
             >
               {copied ? "Copied" : "Copy values"}
             </button>
-            <code className="cv-lens__values">?{valuesQuery(lens)}</code>
+            <code className="cv-lens__values">
+              ?{valuesQuery(lens, breath)}
+            </code>
           </div>
         </div>
       </div>

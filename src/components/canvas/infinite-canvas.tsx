@@ -52,6 +52,13 @@ import {
 import type { TransitionPhase } from "./transition";
 import { LENS, lensProject, lensTargetStrength } from "./lens";
 import type { LensMode } from "./lens";
+import {
+  BREATH,
+  breathEnvelope,
+  breathPhase,
+  easeBreathLevel,
+} from "./breathing";
+import type { BreathSettings } from "./breathing";
 import { usePan } from "./use-pan";
 import { planePosition } from "./wrap";
 
@@ -83,6 +90,7 @@ export type InfiniteCanvasProps = {
   items: CanvasItem[];
   paused: boolean;
   lens: LensSettings;
+  breath: BreathSettings;
   onOpen: (index: number, startAt?: number) => void;
 };
 
@@ -237,6 +245,9 @@ type Plane = {
   /** Cell centre in screen px relative to the viewport centre, before scroll. */
   baseX: number;
   baseY: number;
+  /** The resting tile size, before the idle breath scale. */
+  tileWidth: number;
+  tileHeight: number;
   textureUrl: string;
   isVideo: boolean;
   loaded: boolean;
@@ -310,6 +321,10 @@ type CanvasDebug = {
     width: number;
     height: number;
   }[];
+  breathActive: boolean;
+  breathAmplitude: number;
+  breathIdleMs: number;
+  renderedFrames: number;
   transition: TransitionPhase;
   transitionMs: number;
   waitingForViewer: boolean;
@@ -402,12 +417,13 @@ function StaticFallback({ items }: { items: CanvasItem[] }) {
 export const InfiniteCanvas = forwardRef<
   InfiniteCanvasHandle,
   InfiniteCanvasProps
->(function InfiniteCanvas({ items, paused, lens, onOpen }, ref) {
+>(function InfiniteCanvas({ items, paused, lens, breath, onOpen }, ref) {
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const [introReady, setIntroReady] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const lensRef = useRef(lens);
+  const breathRef = useRef(breath);
   const reduceMotion = useReducedMotion();
 
   const apiRef = useRef<InfiniteCanvasHandle>({
@@ -434,6 +450,11 @@ export const InfiniteCanvas = forwardRef<
     lensRef.current = lens;
     wakeRef.current();
   }, [lens]);
+
+  useEffect(() => {
+    breathRef.current = breath;
+    wakeRef.current();
+  }, [breath]);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -636,6 +657,16 @@ export const InfiniteCanvas = forwardRef<
     let lensBase = 0;
     let lensApplied = 0;
     let lensWanted = 0;
+    /** Breathing stays at rest until the canvas has been settled for a beat. */
+    let breathIdleSince = 0;
+    let breathActive = false;
+    let breathLevel = 0;
+    let breathAmplitude = 0;
+    let breathIdleMs = 0;
+    let renderedFrames = 0;
+    /** The last frame was only breathing, so it may be held to 30fps. */
+    let breathOnly = false;
+    let lastRenderAt = 0;
 
     const idleTransition = (): CanvasTransition => ({
       phase: "idle",
@@ -683,6 +714,10 @@ export const InfiniteCanvas = forwardRef<
             rtHeight: 0,
             rtSamples: 0,
             rects: [],
+            breathActive: false,
+            breathAmplitude: 0,
+            breathIdleMs: 0,
+            renderedFrames: 0,
             transition: "idle",
             transitionMs: 0,
             waitingForViewer: false,
@@ -1192,6 +1227,8 @@ export const InfiniteCanvas = forwardRef<
             opacityDelay,
             baseX,
             baseY,
+            tileWidth: planeWidth,
+            tileHeight: planeHeight,
             textureUrl: url,
             isVideo: media.kind === "video",
             loaded,
@@ -1245,6 +1282,10 @@ export const InfiniteCanvas = forwardRef<
             height: Number(rect.height.toFixed(1)),
           };
         });
+      debug.breathActive = breathActive;
+      debug.breathAmplitude = Number(breathAmplitude.toFixed(4));
+      debug.breathIdleMs = Math.round(breathIdleMs);
+      debug.renderedFrames = renderedFrames;
       debug.transition = transition.phase;
       debug.transitionMs =
         transition.phase === "idle"
@@ -1789,6 +1830,90 @@ export const InfiniteCanvas = forwardRef<
       return active;
     }
 
+    function resetBreathScales(): void {
+      for (const plane of planes) {
+        plane.mesh.scale.set(plane.tileWidth, plane.tileHeight, 1);
+      }
+    }
+
+    /**
+     * The whole tile breathes around its centre while the canvas is settled.
+     * The grid col/row keys the phase, so a wrap across the seam cannot jump.
+     * The level is the only thing that fades; the phase keeps running, and a
+     * move takes the level to 0 over a short fade instead of freezing it.
+     */
+    function updateBreathing(
+      now: number,
+      moving: boolean,
+      dtMs: number,
+    ): boolean {
+      const idle =
+        introEndedFlag &&
+        transition.phase === "idle" &&
+        !pausedRef.current;
+
+      if (!idle) {
+        breathLevel = 0;
+        breathIdleSince = now;
+        breathActive = false;
+        breathAmplitude = 0;
+        breathIdleMs = 0;
+        return false;
+      }
+
+      if (!breathIdleSince) breathIdleSince = now;
+
+      const settings = breathRef.current;
+      const config = {
+        ...BREATH,
+        amplitude: settings.amplitude,
+        periodMs: settings.periodMs,
+      };
+
+      if (reduced) {
+        breathLevel = 0;
+        breathIdleSince = now;
+        breathActive = false;
+        breathAmplitude = 0;
+        breathIdleMs = 0;
+        resetBreathScales();
+        return false;
+      }
+
+      const idleMs = now - breathIdleSince;
+      const envelope = breathEnvelope(idleMs, {
+        moving,
+        enabled: true,
+        reduced: false,
+        config,
+      });
+
+      breathLevel = easeBreathLevel(breathLevel, envelope, dtMs, config);
+
+      const amplitude = settings.amplitude * breathLevel;
+
+      for (const plane of planes) {
+        const scale =
+          1 +
+          amplitude *
+            Math.sin(breathPhase(now, plane.col, plane.row, config));
+
+        plane.mesh.scale.set(
+          plane.tileWidth * scale,
+          plane.tileHeight * scale,
+          1,
+        );
+      }
+
+      breathActive = !moving;
+      breathAmplitude = amplitude;
+      breathIdleMs = moving ? 0 : idleMs;
+
+      if (moving) breathIdleSince = now;
+
+      return !moving;
+    }
+
     function handoff(): void {
       const t = transition;
 
@@ -2006,6 +2131,14 @@ export const InfiniteCanvas = forwardRef<
 
       for (const plane of planes) {
         if (plane === target) continue;
+
+        // Normalize the others while they are hidden, so the first breath
+        // after the close cannot snap a leftover scale.
+        plane.mesh.scale.set(plane.tileWidth, plane.tileHeight, 1);
+        plane.material.uniforms.uPlaneSizes.value.set(
+          plane.tileWidth,
+          plane.tileHeight,
+        );
         plane.opacity = 0;
         plane.material.uniforms.uOpacity.value = 0;
       }
@@ -2102,6 +2235,13 @@ export const InfiniteCanvas = forwardRef<
         return;
       }
 
+      if (breathOnly && now - lastRenderAt < BREATH.frameMs) {
+        raf = requestAnimationFrame(renderFrame);
+        return;
+      }
+
+      lastRenderAt = now;
+
       const dtMs = last ? Math.min(48, Math.max(0, now - last)) : FRAME_MS;
       const dt = dtMs / FRAME_MS;
       last = now;
@@ -2113,12 +2253,16 @@ export const InfiniteCanvas = forwardRef<
       const fading = updatePlanes(dt, now);
       const videosActive = syncVideos(now);
       const lensActive = updateLens(dt, now);
+      const breathMoving =
+        panIsDragging() || panSpeed() > BREATH.settleSpeed;
+      const breathing = updateBreathing(now, breathMoving, dtMs);
 
       updateVideoFallback(now);
+      renderedFrames += 1;
       renderScene();
       updateDebug();
 
-      if (
+      const otherActive =
         moving ||
         zooming ||
         fading ||
@@ -2126,8 +2270,11 @@ export const InfiniteCanvas = forwardRef<
         lensActive ||
         introActive ||
         transitionRunning ||
-        transitionActive
-      ) {
+        transitionActive;
+
+      breathOnly = breathing && !otherActive;
+
+      if (otherActive || breathing) {
         raf = requestAnimationFrame(renderFrame);
       } else {
         last = 0;
@@ -2135,7 +2282,13 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function wake(): void {
-      if (disposed || raf !== 0 || document.hidden) {
+      if (disposed || document.hidden) {
+        return;
+      }
+
+      breathOnly = false;
+
+      if (raf !== 0) {
         return;
       }
 

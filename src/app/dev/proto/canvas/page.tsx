@@ -4,6 +4,8 @@ import type {
   LensSettings,
 } from "@/components/canvas/infinite-canvas";
 import { LENS, clamp } from "@/components/canvas/lens";
+import { BREATH } from "@/components/canvas/breathing";
+import type { BreathSettings } from "@/components/canvas/breathing";
 import { getMedia } from "@/lib/media";
 import { CanvasProto } from "./canvas-proto";
 import { CANVAS_MEDIA_IDS } from "./items";
@@ -17,7 +19,7 @@ import { CANVAS_MEDIA_IDS } from "./items";
  *
  * `?lens=flat` compares the flat view; the orb is the default. The strength,
  * drag-boost and vignette values are read here too, so a tuned look survives a
- * reload or a share.
+ * reload or a share. `breath` and `breathPeriod` tune the idle wave.
  */
 export const metadata = {
   title: "Prototype · drag canvas",
@@ -39,6 +41,19 @@ function amount(
   return Number.isFinite(parsed) ? clamp(parsed, 0, max) : fallback;
 }
 
+function between(
+  value: string | string[] | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  if (typeof value !== "string" || value.trim() === "") return fallback;
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? clamp(parsed, min, max) : fallback;
+}
+
 export default async function CanvasPage({
   searchParams,
 }: {
@@ -55,10 +70,21 @@ export default async function CanvasPage({
     boost: amount(query.boost, LENS.defaultBoost, LENS.maxBoost),
     vignette: amount(query.vignette, LENS.defaultVignette, LENS.maxVignette),
   };
+  const breath: BreathSettings = {
+    amplitude: amount(query.breath, BREATH.amplitude, BREATH.maxAmplitude),
+    periodMs: between(
+      query.breathPeriod,
+      BREATH.periodMs,
+      BREATH.minPeriodMs,
+      BREATH.maxPeriodMs,
+    ),
+  };
   const items: CanvasItem[] = CANVAS_MEDIA_IDS.map((id, index) => ({
     key: `${id}--${index}`,
     media: getMedia(id),
   }));
 
-  return <CanvasProto items={items} initialLens={lens} />;
+  return (
+    <CanvasProto items={items} initialLens={lens} initialBreath={breath} />
+  );
 }
