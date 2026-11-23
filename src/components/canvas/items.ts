@@ -1,8 +1,7 @@
 /**
  * The real media shown on the WebGL canvas, in the order the grid cycles it.
  * Round-robin by project, so consecutive cells are usually different clients.
- * The three placeholder manifests stay on disk for other pages but are absent
- * here.
+ * Shared by the live Motion & Stills study and the dev prototype.
  */
 export const CANVAS_MEDIA_IDS = [
   "attitude-oceanly-2-66x-1920x1080-ahq-11-00b9511a3c",

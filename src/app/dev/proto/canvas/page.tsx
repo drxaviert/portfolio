@@ -10,7 +10,7 @@ import { HOVER } from "@/components/canvas/hover";
 import type { HoverSettings } from "@/components/canvas/hover";
 import { getMedia } from "@/lib/media";
 import { CanvasProto } from "./canvas-proto";
-import { CANVAS_MEDIA_IDS } from "./items";
+import { CANVAS_MEDIA_IDS } from "@/components/canvas/items";
 
 /**
  * Throwaway prototype: an infinite, looping WebGL plane grid of real media.
