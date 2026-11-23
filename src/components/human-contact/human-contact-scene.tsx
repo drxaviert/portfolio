@@ -3,6 +3,12 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
+import {
+  createWaveConfig,
+  sampleWave,
+  shadowForLift,
+  type WaveConfig,
+} from "./motion";
 import { createPropSet } from "./props";
 import { Spring } from "./springs";
 
@@ -27,6 +33,7 @@ const COARSE_DRAG_PX = 8;
 type SceneProp = {
   root: THREE.Group;
   bob: THREE.Group;
+  shadow: THREE.Mesh;
   shadowMaterial: THREE.MeshBasicMaterial;
   restX: number;
   restY: number;
@@ -35,13 +42,33 @@ type SceneProp = {
   baseRY: number;
   baseRZ: number;
   sizeScale: number;
-  idleSpeed: number;
-  idlePhase: number;
-  idlePhase2: number;
-  idlePhase3: number;
-  idleAmp: number;
+  wave: WaveConfig;
+  shadowBaseX: number;
+  shadowBaseY: number;
+  shadowBaseZ: number;
+  shadowBaseW: number;
+  shadowBaseH: number;
+  shadowBaseOpacity: number;
   springs: {
     scale: Spring;
+  };
+};
+
+type DebugObject = {
+  z: number;
+  turnX: number;
+  turnY: number;
+  phase: number;
+  period: number;
+  scale: number;
+  shadowScale: number;
+  shadowOpacity: number;
+};
+
+type DebugWindow = Window & {
+  __humanContactDebug?: {
+    fieldRotation: () => { x: number; y: number; z: number };
+    objects: () => DebugObject[];
   };
 };
 
@@ -135,6 +162,8 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0x111111, 0.6));
 
+    // The field is fixed. Only the props move inside it; the camera never
+    // moves and the grid group is never rotated.
     const grid = new THREE.Group();
 
     scene.add(grid);
@@ -156,8 +185,6 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
     let tapStartX = 0;
     let tapStartY = 0;
     let tapTimer: number | null = null;
-    let pointerTiltX = 0;
-    let pointerTiltZ = 0;
     let elapsed = 0;
     let running = false;
     let inView = true;
@@ -178,24 +205,31 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
 
     function applyProps(time: number): void {
       for (const prop of props) {
-        const drift = reducedNow
-          ? 0
-          : Math.sin(time * prop.idleSpeed + prop.idlePhase) * prop.idleAmp;
-        const driftRz = reducedNow
-          ? 0
-          : Math.sin(time * prop.idleSpeed * 0.73 + prop.idlePhase2) * 0.02;
-        const driftRx = reducedNow
-          ? 0
-          : Math.sin(time * prop.idleSpeed * 0.61 + prop.idlePhase3) * 0.012;
+        const wave = sampleWave(prop.wave, time, reducedNow);
+        const lift =
+          prop.wave.amplitude === 0 ? 0 : wave.z / prop.wave.amplitude;
+        const shadow = shadowForLift(lift, prop.shadowBaseOpacity);
 
         prop.root.position.set(prop.restX, prop.restY, prop.restZ);
-        prop.bob.position.y = drift;
+        prop.bob.position.set(0, 0, wave.z);
         prop.bob.rotation.set(
-          prop.baseRX + driftRx,
-          prop.baseRY,
-          prop.baseRZ + driftRz,
+          prop.baseRX + wave.turnX,
+          prop.baseRY + wave.turnY,
+          prop.baseRZ,
         );
         prop.bob.scale.setScalar(prop.sizeScale * prop.springs.scale.value);
+
+        prop.shadow.position.set(
+          prop.shadowBaseX + shadow.offsetX,
+          prop.shadowBaseY + shadow.offsetY,
+          prop.shadowBaseZ,
+        );
+        prop.shadow.scale.set(
+          prop.shadowBaseW * shadow.scale,
+          prop.shadowBaseH * shadow.scale,
+          1,
+        );
+        prop.shadowMaterial.opacity = shadow.opacity;
       }
     }
 
@@ -260,13 +294,6 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
         prop.springs.scale.step(dt);
       }
 
-      if (!reducedNow) {
-        const ease = 1 - Math.pow(5 / 6, dt * 60);
-
-        grid.rotation.x += (pointerTiltX - grid.rotation.x) * ease;
-        grid.rotation.z += (pointerTiltZ - grid.rotation.z) * ease;
-      }
-
       applyProps(elapsed);
     }
 
@@ -312,6 +339,9 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
           const baseRZ = (hash(index, 5) - 0.5) * 0.9;
           const baseRX = (hash(index, 6) - 0.5) * 0.22;
           const baseRY = (hash(index, 7) - 0.5) * 0.28;
+          const wave = createWaveConfig(col, row, (salt) =>
+            hash(index, salt + 16),
+          );
 
           const root = new THREE.Group();
 
@@ -323,26 +353,24 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
           bob.add(prototype.object.clone(true));
           root.add(bob);
 
+          const shadowBaseX = restX + prototype.width * 0.35;
+          const shadowBaseY = restY - prototype.height * 0.44;
+          const shadowBaseZ = restZ + SHADOW_DEPTH;
+          const shadowBaseW = prototype.width * 1.25 * sizeScale;
+          const shadowBaseH = prototype.height * 1.08 * sizeScale;
+          const shadowBaseOpacity = 0.5;
           const shadowMaterial = new THREE.MeshBasicMaterial({
             map: propSet.shadowTexture,
             color: 0x000000,
             transparent: true,
-            opacity: 0.5,
+            opacity: shadowBaseOpacity,
             depthWrite: false,
             fog: false,
           });
           const shadow = new THREE.Mesh(shadowGeometry, shadowMaterial);
 
-          shadow.position.set(
-            restX + prototype.width * 0.35,
-            restY - prototype.height * 0.44,
-            restZ + SHADOW_DEPTH,
-          );
-          shadow.scale.set(
-            prototype.width * 1.25 * sizeScale,
-            prototype.height * 1.08 * sizeScale,
-            1,
-          );
+          shadow.position.set(shadowBaseX, shadowBaseY, shadowBaseZ);
+          shadow.scale.set(shadowBaseW, shadowBaseH, 1);
           shadow.rotation.z = baseRZ;
           shadow.renderOrder = -1;
 
@@ -357,6 +385,7 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
           props.push({
             root,
             bob,
+            shadow,
             shadowMaterial,
             restX,
             restY,
@@ -365,11 +394,13 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
             baseRY,
             baseRZ,
             sizeScale,
-            idleSpeed: 0.34 + hash(index, 8) * 0.34,
-            idlePhase: hash(index, 9) * Math.PI * 2,
-            idlePhase2: hash(index, 10) * Math.PI * 2,
-            idlePhase3: hash(index, 11) * Math.PI * 2,
-            idleAmp: 0.16 + hash(index, 12) * 0.22,
+            wave,
+            shadowBaseX,
+            shadowBaseY,
+            shadowBaseZ,
+            shadowBaseW,
+            shadowBaseH,
+            shadowBaseOpacity,
             springs: {
               scale: new Spring(1, 200, 25),
             },
@@ -466,9 +497,6 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
         return;
       }
 
-      pointerTiltX = 0.0002 * (event.clientY - window.innerHeight / 2);
-      pointerTiltZ = 0.0001 * (event.clientX - window.innerWidth / 2);
-
       setHovered(pickAt(event.clientX, event.clientY));
     }
 
@@ -508,8 +536,6 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
         return;
       }
 
-      pointerTiltX = 0;
-      pointerTiltZ = 0;
       setHovered(null);
     }
 
@@ -548,6 +574,31 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
 
     resize();
 
+    const debugWindow = window as DebugWindow;
+
+    if (process.env.NODE_ENV !== "production") {
+      // Dev-only probe for the motion checks: the grid must stay at identity,
+      // and the per-object samples prove the wave is running and staggered.
+      debugWindow.__humanContactDebug = {
+        fieldRotation: () => ({
+          x: grid.rotation.x,
+          y: grid.rotation.y,
+          z: grid.rotation.z,
+        }),
+        objects: () =>
+          props.map((prop) => ({
+            z: prop.bob.position.z,
+            turnX: prop.bob.rotation.x - prop.baseRX,
+            turnY: prop.bob.rotation.y - prop.baseRY,
+            phase: prop.wave.phase,
+            period: prop.wave.period,
+            scale: prop.springs.scale.value,
+            shadowScale: prop.shadow.scale.x / prop.shadowBaseW,
+            shadowOpacity: prop.shadowMaterial.opacity,
+          })),
+      };
+    }
+
     if (reducedNow) {
       syncTargets();
     } else {
@@ -561,7 +612,6 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
         if (next) {
           clearTapTimer();
           stop();
-          grid.rotation.set(0, 0, 0);
           syncTargets();
         } else {
           updatePlayback();
@@ -602,6 +652,10 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
       renderer.domElement.remove();
       delete host.dataset.scene;
       delete host.dataset.active;
+
+      if (process.env.NODE_ENV !== "production") {
+        delete debugWindow.__humanContactDebug;
+      }
     };
   }, []);
 
