@@ -2,12 +2,13 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { createPropSet } from "./props";
 import { Spring } from "./springs";
-import type { HoverVariant } from "./variant";
 
 type HumanContactSceneProps = {
-  variant: HoverVariant;
+  /** The browser could not keep a live context; the still behind it takes over. */
+  onFallback?: () => void;
 };
 
 const FOV = 28;
@@ -19,18 +20,14 @@ const SPACING_X = (VISIBLE_HEIGHT * (16 / 9)) / 8;
 const SPACING_Y = VISIBLE_HEIGHT / 4;
 
 const HOVER_SCALE = 1.25;
-const LIFT_Z = 16;
-const NUDGE_NEAR = 3.2;
-const NUDGE_FAR = 1.1;
+const TAP_HOLD_MS = 300;
 const SHADOW_DEPTH = -6;
+const COARSE_DRAG_PX = 8;
 
 type SceneProp = {
   root: THREE.Group;
   bob: THREE.Group;
-  shadow: THREE.Mesh;
   shadowMaterial: THREE.MeshBasicMaterial;
-  row: number;
-  col: number;
   restX: number;
   restY: number;
   restZ: number;
@@ -38,25 +35,13 @@ type SceneProp = {
   baseRY: number;
   baseRZ: number;
   sizeScale: number;
-  shadowX: number;
-  shadowY: number;
-  shadowW: number;
-  shadowH: number;
-  shadowOpacity: number;
   idleSpeed: number;
   idlePhase: number;
   idlePhase2: number;
   idlePhase3: number;
   idleAmp: number;
-  hoverTiltX: number;
-  hoverTiltZ: number;
   springs: {
     scale: Spring;
-    lift: Spring;
-    nudgeX: Spring;
-    nudgeY: Spring;
-    rotX: Spring;
-    rotZ: Spring;
   };
 };
 
@@ -67,17 +52,23 @@ function hash(index: number, salt: number): number {
   return value - Math.floor(value);
 }
 
-export function HumanContactScene({ variant }: HumanContactSceneProps) {
+export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<{
-    setVariant: (next: HoverVariant) => void;
+    setReduced: (next: boolean) => void;
   } | null>(null);
-  const variantRef = useRef(variant);
+  const reduced = useReducedMotion();
+  const reducedRef = useRef(reduced);
+  const fallbackRef = useRef(onFallback);
 
   useEffect(() => {
-    variantRef.current = variant;
-    controlsRef.current?.setVariant(variant);
-  }, [variant]);
+    fallbackRef.current = onFallback;
+  }, [onFallback]);
+
+  useEffect(() => {
+    reducedRef.current = reduced;
+    controlsRef.current?.setReduced(reduced);
+  }, [reduced]);
 
   useEffect(() => {
     const hostElement = containerRef.current;
@@ -98,7 +89,7 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
         powerPreference: "high-performance",
       });
     } catch {
-      // No WebGL: the page keeps its #111 backdrop and the overlay still reads.
+      // The wrapper's still stays visible; the overlay still reads.
       host.dataset.scene = "unavailable";
 
       return;
@@ -157,12 +148,14 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
     const proxies: THREE.Mesh[] = [];
     const raycaster = new THREE.Raycaster();
     const pointerNdc = new THREE.Vector2();
+    const hoverQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
 
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const reducedMotion = () => media.matches;
-
-    let activeVariant: HoverVariant = variantRef.current;
+    let reducedNow = reducedRef.current;
     let hovered: SceneProp | null = null;
+    let tapCandidate: SceneProp | null = null;
+    let tapStartX = 0;
+    let tapStartY = 0;
+    let tapTimer: number | null = null;
     let pointerTiltX = 0;
     let pointerTiltZ = 0;
     let elapsed = 0;
@@ -173,6 +166,8 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
     let lastFrame = 0;
     let raf = 0;
 
+    host.style.cursor = hoverQuery.matches ? "default" : "";
+
     function renderFrame(): void {
       renderer.render(scene, camera);
 
@@ -182,94 +177,47 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
     }
 
     function applyProps(time: number): void {
-      const reduced = reducedMotion();
-
       for (const prop of props) {
-        const drift = reduced
+        const drift = reducedNow
           ? 0
           : Math.sin(time * prop.idleSpeed + prop.idlePhase) * prop.idleAmp;
-        const driftRz = reduced
+        const driftRz = reducedNow
           ? 0
           : Math.sin(time * prop.idleSpeed * 0.73 + prop.idlePhase2) * 0.02;
-        const driftRx = reduced
+        const driftRx = reducedNow
           ? 0
           : Math.sin(time * prop.idleSpeed * 0.61 + prop.idlePhase3) * 0.012;
 
-        prop.root.position.set(
-          prop.restX + prop.springs.nudgeX.value,
-          prop.restY + prop.springs.nudgeY.value,
-          prop.restZ,
-        );
-        prop.bob.position.set(0, drift, prop.springs.lift.value);
+        prop.root.position.set(prop.restX, prop.restY, prop.restZ);
+        prop.bob.position.y = drift;
         prop.bob.rotation.set(
-          prop.baseRX + driftRx + prop.springs.rotX.value,
+          prop.baseRX + driftRx,
           prop.baseRY,
-          prop.baseRZ + driftRz + prop.springs.rotZ.value,
+          prop.baseRZ + driftRz,
         );
         prop.bob.scale.setScalar(prop.sizeScale * prop.springs.scale.value);
-
-        const liftMix = prop.springs.lift.value / LIFT_Z;
-        const spread = 1 + 0.24 * liftMix;
-
-        prop.shadow.position.set(
-          prop.restX + prop.springs.nudgeX.value + prop.shadowX,
-          prop.restY + prop.springs.nudgeY.value + prop.shadowY,
-          prop.restZ + SHADOW_DEPTH,
-        );
-        prop.shadow.rotation.z = prop.baseRZ;
-        prop.shadow.scale.set(prop.shadowW * spread, prop.shadowH * spread, 1);
-        prop.shadowMaterial.opacity = prop.shadowOpacity * (1 - 0.35 * liftMix);
       }
     }
 
     function syncTargets(): void {
-      const reduced = reducedMotion();
-      const variantNow = activeVariant;
-
       for (const prop of props) {
-        const isHovered = prop === hovered;
+        prop.springs.scale.target = prop === hovered ? HOVER_SCALE : 1;
 
-        prop.springs.scale.target = isHovered ? HOVER_SCALE : 1;
-        prop.springs.lift.target =
-          !reduced && isHovered && variantNow === "b" ? LIFT_Z : 0;
-        prop.springs.rotX.target =
-          !reduced && isHovered && variantNow === "b" ? prop.hoverTiltX : 0;
-        prop.springs.rotZ.target =
-          !reduced && isHovered && variantNow === "b" ? prop.hoverTiltZ : 0;
-
-        let nudgeX = 0;
-        let nudgeY = 0;
-
-        if (!reduced && variantNow === "c" && hovered && !isHovered) {
-          const dx = prop.restX - hovered.restX;
-          const dy = prop.restY - hovered.restY;
-          const distance = Math.max(0.0001, Math.hypot(dx, dy));
-          const ring = Math.max(
-            Math.abs(prop.col - hovered.col),
-            Math.abs(prop.row - hovered.row),
-          );
-          const push = ring <= 1 ? NUDGE_NEAR : ring === 2 ? NUDGE_FAR : 0;
-
-          nudgeX = (dx / distance) * push;
-          nudgeY = (dy / distance) * push;
+        if (reducedNow) {
+          prop.springs.scale.snap();
         }
-
-        prop.springs.nudgeX.target = nudgeX;
-        prop.springs.nudgeY.target = nudgeY;
       }
 
-      if (reduced) {
-        for (const prop of props) {
-          prop.springs.scale.snap();
-          prop.springs.lift.snap();
-          prop.springs.nudgeX.snap();
-          prop.springs.nudgeY.snap();
-          prop.springs.rotX.snap();
-          prop.springs.rotZ.snap();
-        }
-
+      if (reducedNow) {
         applyProps(elapsed);
         renderFrame();
+      }
+    }
+
+    function clearTapTimer(): void {
+      if (tapTimer !== null) {
+        window.clearTimeout(tapTimer);
+        tapTimer = null;
       }
     }
 
@@ -279,8 +227,30 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
       }
 
       hovered = next;
-      host.style.cursor = next ? "pointer" : "default";
+      host.toggleAttribute("data-active", next !== null);
+
+      if (hoverQuery.matches) {
+        host.style.cursor = next ? "pointer" : "default";
+      }
+
       syncTargets();
+    }
+
+    function pickAt(clientX: number, clientY: number): SceneProp | null {
+      const rect = host.getBoundingClientRect();
+
+      pointerNdc.set(
+        ((clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1,
+        -((clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1,
+      );
+      raycaster.setFromCamera(pointerNdc, camera);
+      grid.updateMatrixWorld();
+
+      const hit = raycaster.intersectObjects(proxies, false)[0];
+
+      return hit
+        ? (props[hit.object.userData.propIndex as number] ?? null)
+        : null;
     }
 
     function simulate(dt: number): void {
@@ -288,14 +258,9 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
 
       for (const prop of props) {
         prop.springs.scale.step(dt);
-        prop.springs.lift.step(dt);
-        prop.springs.nudgeX.step(dt);
-        prop.springs.nudgeY.step(dt);
-        prop.springs.rotX.step(dt);
-        prop.springs.rotZ.step(dt);
       }
 
-      if (!reducedMotion()) {
+      if (!reducedNow) {
         const ease = 1 - Math.pow(5 / 6, dt * 60);
 
         grid.rotation.x += (pointerTiltX - grid.rotation.x) * ease;
@@ -307,7 +272,9 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
 
     function buildGrid(): void {
       hovered = null;
-      host.style.cursor = "default";
+      clearTapTimer();
+      host.removeAttribute("data-active");
+      host.style.cursor = hoverQuery.matches ? "default" : "";
 
       for (const prop of props) {
         prop.shadowMaterial.dispose();
@@ -366,9 +333,18 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
           });
           const shadow = new THREE.Mesh(shadowGeometry, shadowMaterial);
 
-          shadow.renderOrder = -1;
-          shadow.scale.set(prototype.width * 1.25, prototype.height * 1.08, 1);
+          shadow.position.set(
+            restX + prototype.width * 0.35,
+            restY - prototype.height * 0.44,
+            restZ + SHADOW_DEPTH,
+          );
+          shadow.scale.set(
+            prototype.width * 1.25 * sizeScale,
+            prototype.height * 1.08 * sizeScale,
+            1,
+          );
           shadow.rotation.z = baseRZ;
+          shadow.renderOrder = -1;
 
           const proxy = new THREE.Mesh(proxyGeometry, proxyMaterial);
 
@@ -381,10 +357,7 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
           props.push({
             root,
             bob,
-            shadow,
             shadowMaterial,
-            row,
-            col,
             restX,
             restY,
             restZ,
@@ -392,25 +365,13 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
             baseRY,
             baseRZ,
             sizeScale,
-            shadowX: prototype.width * 0.35,
-            shadowY: -prototype.height * 0.44,
-            shadowW: prototype.width * 1.25 * sizeScale,
-            shadowH: prototype.height * 1.08 * sizeScale,
-            shadowOpacity: 0.5,
             idleSpeed: 0.34 + hash(index, 8) * 0.34,
             idlePhase: hash(index, 9) * Math.PI * 2,
             idlePhase2: hash(index, 10) * Math.PI * 2,
             idlePhase3: hash(index, 11) * Math.PI * 2,
             idleAmp: 0.16 + hash(index, 12) * 0.22,
-            hoverTiltX: (hash(index, 13) - 0.5) * 0.16,
-            hoverTiltZ: (hash(index, 14) - 0.5) * 0.1,
             springs: {
               scale: new Spring(1, 200, 25),
-              lift: new Spring(0, 150, 20),
-              nudgeX: new Spring(0, 130, 17),
-              nudgeY: new Spring(0, 130, 17),
-              rotX: new Spring(0, 120, 16),
-              rotZ: new Spring(0, 120, 16),
             },
           });
           proxies.push(proxy);
@@ -440,7 +401,7 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
       camera.updateProjectionMatrix();
       buildGrid();
 
-      if (reducedMotion()) {
+      if (reducedNow) {
         renderFrame();
       }
     }
@@ -460,7 +421,7 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
     }
 
     function start(): void {
-      if (running || reducedMotion()) {
+      if (running || reducedNow) {
         return;
       }
 
@@ -475,10 +436,10 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
     }
 
     function updatePlayback(): void {
-      if (document.hidden || !inView || reducedMotion()) {
+      if (document.hidden || !inView || reducedNow) {
         stop();
 
-        if (!document.hidden && inView && reducedMotion()) {
+        if (!document.hidden && inView && reducedNow) {
           renderFrame();
         }
 
@@ -493,45 +454,77 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
         return;
       }
 
-      const rect = host.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
+      if (!hoverQuery.matches) {
+        if (
+          tapCandidate &&
+          Math.hypot(event.clientX - tapStartX, event.clientY - tapStartY) >
+            COARSE_DRAG_PX
+        ) {
+          tapCandidate = null;
+        }
 
-      pointerNdc.set(
-        (x / Math.max(1, rect.width)) * 2 - 1,
-        -(y / Math.max(1, rect.height)) * 2 + 1,
-      );
+        return;
+      }
+
       pointerTiltX = 0.0002 * (event.clientY - window.innerHeight / 2);
       pointerTiltZ = 0.0001 * (event.clientX - window.innerWidth / 2);
 
-      raycaster.setFromCamera(pointerNdc, camera);
-      grid.updateMatrixWorld();
+      setHovered(pickAt(event.clientX, event.clientY));
+    }
 
-      const hit = raycaster.intersectObjects(proxies, false)[0];
+    function onPointerDown(event: PointerEvent): void {
+      if (!event.isPrimary || hoverQuery.matches) {
+        return;
+      }
 
-      setHovered(
-        hit ? (props[hit.object.userData.propIndex as number] ?? null) : null,
-      );
+      tapCandidate = pickAt(event.clientX, event.clientY);
+      tapStartX = event.clientX;
+      tapStartY = event.clientY;
+    }
+
+    function onPointerUp(event: PointerEvent): void {
+      if (!event.isPrimary || hoverQuery.matches) {
+        return;
+      }
+
+      const hit = tapCandidate;
+
+      tapCandidate = null;
+
+      if (!hit) {
+        return;
+      }
+
+      clearTapTimer();
+      setHovered(hit);
+      tapTimer = window.setTimeout(() => {
+        tapTimer = null;
+        setHovered(null);
+      }, TAP_HOLD_MS);
     }
 
     function onPointerLeave(): void {
+      if (!hoverQuery.matches) {
+        return;
+      }
+
       pointerTiltX = 0;
       pointerTiltZ = 0;
       setHovered(null);
+    }
+
+    function onPointerCancel(): void {
+      tapCandidate = null;
     }
 
     function onVisibilityChange(): void {
       updatePlayback();
     }
 
-    function onReducedChange(): void {
-      if (reducedMotion()) {
-        stop();
-        grid.rotation.set(0, 0, 0);
-        syncTargets();
-      } else {
-        updatePlayback();
-      }
+    function onContextLost(event: Event): void {
+      event.preventDefault();
+      stop();
+      fallbackRef.current?.();
     }
 
     const resizeObserver = new ResizeObserver(resize);
@@ -546,33 +539,51 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
     resizeObserver.observe(host);
     intersectionObserver.observe(host);
     document.addEventListener("visibilitychange", onVisibilityChange);
-    media.addEventListener("change", onReducedChange);
+    renderer.domElement.addEventListener("webglcontextlost", onContextLost);
     host.addEventListener("pointermove", onPointerMove, { passive: true });
+    host.addEventListener("pointerdown", onPointerDown, { passive: true });
+    host.addEventListener("pointerup", onPointerUp, { passive: true });
+    host.addEventListener("pointercancel", onPointerCancel, { passive: true });
     host.addEventListener("pointerleave", onPointerLeave);
 
     resize();
 
-    if (reducedMotion()) {
+    if (reducedNow) {
       syncTargets();
     } else {
       start();
     }
 
     controlsRef.current = {
-      setVariant: (next: HoverVariant) => {
-        activeVariant = next;
-        syncTargets();
+      setReduced: (next: boolean) => {
+        reducedNow = next;
+
+        if (next) {
+          clearTapTimer();
+          stop();
+          grid.rotation.set(0, 0, 0);
+          syncTargets();
+        } else {
+          updatePlayback();
+        }
       },
     };
 
     return () => {
       stop();
+      clearTapTimer();
       controlsRef.current = null;
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      media.removeEventListener("change", onReducedChange);
+      renderer.domElement.removeEventListener(
+        "webglcontextlost",
+        onContextLost,
+      );
       host.removeEventListener("pointermove", onPointerMove);
+      host.removeEventListener("pointerdown", onPointerDown);
+      host.removeEventListener("pointerup", onPointerUp);
+      host.removeEventListener("pointercancel", onPointerCancel);
       host.removeEventListener("pointerleave", onPointerLeave);
 
       for (const prop of props) {
@@ -590,6 +601,7 @@ export function HumanContactScene({ variant }: HumanContactSceneProps) {
       renderer.forceContextLoss();
       renderer.domElement.remove();
       delete host.dataset.scene;
+      delete host.dataset.active;
     };
   }, []);
 

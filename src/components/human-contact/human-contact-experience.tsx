@@ -1,25 +1,62 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { HOVER_VARIANTS, selectHoverVariant, useHoverVariant } from "./variant";
+import Link from "next/link";
+import { useSyncExternalStore, useState } from "react";
+import { hasWebGLSupport, isSafari } from "./environment";
+import "./human-contact.css";
 
 const HumanContactScene = dynamic(
   () =>
     import("./human-contact-scene").then((module) => module.HumanContactScene),
   {
     ssr: false,
-    loading: () => <div className="hc-canvas" aria-hidden="true" />,
+    loading: () => null,
   },
 );
 
 const NAV_ITEMS = ["ABOUT", "WORK", "HUMANS", "CAREERS", "CONTACT", "FRANÇAIS"];
 
-export function HumanContactExperience() {
-  const variant = useHoverVariant();
+export type HumanContactMode = "full" | "embed";
+
+/** Safari gets the still; the page never starts a WebGL loop there. */
+function subscribe() {
+  return () => {};
+}
+
+let liveCapability: boolean | null = null;
+
+function getLiveCapability(): boolean {
+  if (typeof navigator === "undefined") return false;
+
+  if (liveCapability === null) {
+    liveCapability = !isSafari() && hasWebGLSupport();
+  }
+
+  return liveCapability;
+}
+
+function getServerLiveCapability(): boolean {
+  return false;
+}
+
+export function HumanContactExperience({
+  mode = "full",
+}: {
+  mode?: HumanContactMode;
+}) {
+  const capable = useSyncExternalStore(
+    subscribe,
+    getLiveCapability,
+    getServerLiveCapability,
+  );
+  const [failed, setFailed] = useState(false);
+  const live = capable && !failed;
 
   return (
-    <main className="hc-page">
-      <HumanContactScene variant={variant} />
+    <div className="hc-experience" data-mode={mode}>
+      {live ? <HumanContactScene onFallback={() => setFailed(true)} /> : null}
+
       <div className="hc-cover" aria-hidden="true" />
 
       <div className="hc-overlay">
@@ -33,26 +70,27 @@ export function HumanContactExperience() {
           ))}
         </nav>
 
-        <h1 className="hc-wordmark">HUMANCONTACT</h1>
+        {mode === "full" ? (
+          <h1 className="hc-wordmark">HUMANCONTACT</h1>
+        ) : (
+          <p className="hc-wordmark" aria-hidden="true">
+            HUMANCONTACT
+          </p>
+        )}
 
         <p className="hc-credit">
-          Recreation of HUMANCONTACT INC.&apos;s homepage (humancontact.com).
-          Hover interaction added by Dat.
+          Original design: HUMANCONTACT INC. (humancontact.com).{" "}
+          <span className="hc-credit-hover">
+            Hover interaction: Dat&apos;s addition.
+          </span>
         </p>
-      </div>
 
-      <div className="hc-variants" role="group" aria-label="Hover variant">
-        {HOVER_VARIANTS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            aria-pressed={variant === option.id}
-            onClick={() => selectHoverVariant(option.id)}
-          >
-            {option.id.toUpperCase()} · {option.label}
-          </button>
-        ))}
+        {mode === "full" ? (
+          <Link className="hc-back" href="/work/human-contact">
+            <span aria-hidden="true">←</span> Case study
+          </Link>
+        ) : null}
       </div>
-    </main>
+    </div>
   );
 }

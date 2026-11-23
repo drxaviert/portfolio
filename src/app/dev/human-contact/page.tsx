@@ -1,17 +1,13 @@
 import { notFound } from "next/navigation";
-import "@/components/human-contact/human-contact.css";
-import { HumanContactExperience } from "@/components/human-contact/human-contact-experience";
+import { HumanContactFull } from "@/components/human-contact/human-contact-full";
 
 /**
- * Dev-only rebuild of HUMANCONTACT's home grid: seven procedural props on a
- * staggered field, with a hover interaction the original never had. The
- * toggle compares three spring treatments (plain scale, lift toward camera,
- * neighbours making room); `?variant=a|b|c` selects one on load.
- *
- * Dev-only; deep links 404 in a production build.
+ * Dev-only route for the live scene. The shipped study is
+ * `/work/human-contact`; this page keeps a production-gated full-screen entry
+ * for checking the scene without the drawer.
  */
 export const metadata = {
-  title: "Human Contact clone · hover study",
+  title: "Human Contact clone · dev",
   robots: { index: false, follow: false },
 };
 
@@ -20,5 +16,5 @@ export default function HumanContactPage() {
     notFound();
   }
 
-  return <HumanContactExperience />;
+  return <HumanContactFull />;
 }
