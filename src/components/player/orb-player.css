@@ -65,7 +65,7 @@
   pointer-events: none;
   -webkit-tap-highlight-color: transparent;
   transition:
-    opacity var(--duration-medium-1) var(--ease-accelerate),
+    opacity var(--duration-short-1) var(--ease-accelerate),
     transform var(--duration-short-4) var(--ease-emphasized-decelerate);
 }
 
@@ -83,6 +83,29 @@
   transition:
     opacity var(--duration-long-1) var(--ease-emphasized-decelerate),
     transform var(--duration-short-4) var(--ease-emphasized-decelerate);
+}
+
+/*
+ * The dock sets data-nav-leaving before it starts flying home, so this exit
+ * starts on the nav's first frame instead of waiting for the route change that
+ * lands after the 300ms close. 100ms fits inside the shorter 120ms fade used by
+ * browser Back. Visibility flips after the fade so the control leaves the tab
+ * order and the accessibility tree.
+ */
+.wd-nav-dock[data-nav-leaving="true"] .orb-satellite {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity var(--duration-short-1) var(--ease-accelerate),
+    visibility 0s linear var(--duration-short-1);
+}
+
+/* A settled home nav never paints the satellite, including a re-revealed
+   Activity copy with stale player state. */
+.wd-nav-dock[data-nav-state="home"]:not([data-nav-leaving="true"])
+  .orb-satellite {
+  visibility: hidden;
 }
 
 .orb-satellite:active {
@@ -184,6 +207,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .orb-satellite[data-visible="false"],
+  .wd-nav-dock[data-nav-leaving="true"] .orb-satellite {
+    opacity: 0;
+    visibility: hidden;
+    transition: none;
+  }
+
   .orb-satellite,
   .orb-satellite[data-visible="true"],
   .orb-sat-dot,
