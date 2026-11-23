@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "**.public.blob.vercel-storage.com",
       },
+      {
+        // The vinyl card's sleeve artwork is the video's own thumbnail.
+        protocol: "https",
+        hostname: "i.ytimg.com",
+        pathname: "/vi/**",
+      },
     ],
   },
   // Lets Dat test dev servers from a laptop on the LAN (Next 16 blocks
