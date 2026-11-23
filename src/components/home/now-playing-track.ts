@@ -1,19 +1,24 @@
 /**
- * The one track the static player card plays. Values come from the Paper file
- * "portfolio" (Static player · Pulled in, row 2, V1 Frosted).
+ * The one track the static player card plays. The title, artist and drawn
+ * duration come from the Paper file "portfolio" (Static player · Pulled in,
+ * row 2, V1 Frosted) and stay as the design placeholder.
  *
- * TODO_VIDEO_ID is the placeholder called out in the build brief: Daft Punk's
- * "Get Lucky" official audio. It is a real embeddable video, so the playback,
- * progress and four phase accents can be tested end to end. The title and
- * artist match it, and the duration is confirmed from the player once ready.
+ * TODO_VIDEO_ID is deliberately a technical placeholder, not the design's
+ * track: Daft Punk's official "Get Lucky" audio (5NV6Rdv1a3I) returns YouTube
+ * error 150 on the LAN origin (http://192.168.2.33:4310) in every tested
+ * configuration — youtube-nocookie.com or youtube.com, with or without the
+ * origin param, with a valid referer — while it plays on localhost. The same
+ * player and origin play this YouTube IFrame API demo on both origins. Swap it
+ * for the real track when the client supplies one; the player reports the
+ * video's own duration on ready.
  */
-export const TODO_VIDEO_ID = "5NV6Rdv1a3I";
+export const TODO_VIDEO_ID = "M7lc1UVf-VE";
 
 export const NOW_PLAYING_TRACK = {
   videoId: TODO_VIDEO_ID,
   title: "Get Lucky",
   artist: "Daft Punk",
-  /** Paper draws 4:09; the player confirms it on ready. */
+  /** Paper draws 4:09; the placeholder video reports its own length on ready. */
   durationSeconds: 249,
   durationLabel: "4:09",
 } as const;

@@ -8,10 +8,10 @@ import {
 } from "./now-playing-track";
 
 describe("now-playing track", () => {
-  it("describes the Get Lucky placeholder", () => {
+  it("keeps the design copy and the embeddable placeholder video", () => {
     expect(NOW_PLAYING_TRACK.title).toBe("Get Lucky");
     expect(NOW_PLAYING_TRACK.artist).toBe("Daft Punk");
-    expect(NOW_PLAYING_TRACK.videoId).toBe("5NV6Rdv1a3I");
+    expect(NOW_PLAYING_TRACK.videoId).toBe("M7lc1UVf-VE");
     expect(NOW_PLAYING_TRACK.durationLabel).toBe("4:09");
   });
 
