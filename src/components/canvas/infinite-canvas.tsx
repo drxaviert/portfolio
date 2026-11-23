@@ -59,6 +59,8 @@ const PARALLAX_LIMIT = 0.025;
 const VIDEO_TUNING = {
   desktopPlaying: 12,
   desktopEntries: 16,
+  /** A drag plays six and keeps the warm set; release restores the budget. */
+  dragPlaying: 6,
   mobilePlaying: 6,
   mobileEntries: 8,
   /** The playing set is recomputed this often; 0 means every frame. */
@@ -143,10 +145,14 @@ type Plane = {
 
 type VideoEntry = {
   element: HTMLVideoElement;
-  texture: THREE.VideoTexture | null;
+  texture: THREE.Texture | null;
   ready: boolean;
   playing: boolean;
   failed: boolean;
+  /** performance.now of the last manual upload. */
+  lastUpload: number;
+  /** Pending requestVideoFrameCallback, if the browser has it. */
+  frameRequest: number | null;
 };
 
 type CanvasDebug = {
@@ -165,6 +171,7 @@ type CanvasDebug = {
   videoEntries: number;
   videoTextures: number;
   videoPlanesBound: number;
+  videoUploads: number;
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -383,6 +390,10 @@ export const InfiniteCanvas = forwardRef<
     let last = 0;
     let lastScroll = { x: 0, y: 0 };
     let videoCheckAt = 0;
+    let dragVideoMode = false;
+    let videoUploads = 0;
+    const videoOff =
+      new URLSearchParams(window.location.search).get("video") === "0";
     let resizeFrame = 0;
     let reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -405,6 +416,7 @@ export const InfiniteCanvas = forwardRef<
             videoEntries: 0,
             videoTextures: 0,
             videoPlanesBound: 0,
+            videoUploads: 0,
           };
 
     if (debug) {
@@ -503,6 +515,15 @@ export const InfiniteCanvas = forwardRef<
       if (!entry) return;
 
       entry.element.pause();
+
+      if (
+        entry.frameRequest !== null &&
+        typeof entry.element.cancelVideoFrameCallback === "function"
+      ) {
+        entry.element.cancelVideoFrameCallback(entry.frameRequest);
+        entry.frameRequest = null;
+      }
+
       entry.element.removeAttribute("src");
       entry.element.load();
       entry.element.remove();
@@ -528,9 +549,25 @@ export const InfiniteCanvas = forwardRef<
       return false;
     }
 
+    /** Browsers without requestVideoFrameCallback upload on a 33ms cadence. */
+    function updateVideoFallback(now: number): void {
+      for (const entry of videoEntries.values()) {
+        if (!entry.texture || entry.texture.needsUpdate) continue;
+        if (entry.element.paused) continue;
+        if (typeof entry.element.requestVideoFrameCallback === "function") {
+          continue;
+        }
+        if (now - entry.lastUpload < 33) continue;
+
+        entry.lastUpload = now;
+        entry.texture.needsUpdate = true;
+      }
+    }
+
     function ensureVideoEntry(itemIndex: number): VideoEntry | null {
       const existing = videoEntries.get(itemIndex);
       if (existing) return existing;
+      if (videoOff) return null;
 
       const media = items[itemIndex]?.media;
       if (!media || media.kind !== "video") return null;
@@ -552,8 +589,28 @@ export const InfiniteCanvas = forwardRef<
         ready: false,
         playing: false,
         failed: false,
+        lastUpload: 0,
+        frameRequest: null,
       };
       videoEntries.set(itemIndex, entry);
+
+      const scheduleFrame = () => {
+        if (entry.frameRequest !== null) return;
+        if (typeof element.requestVideoFrameCallback !== "function") return;
+
+        entry.frameRequest = element.requestVideoFrameCallback(() => {
+          entry.frameRequest = null;
+          if (disposed || videoEntries.get(itemIndex) !== entry) return;
+
+          if (entry.texture && performance.now() - entry.lastUpload >= 30) {
+            entry.lastUpload = performance.now();
+            entry.texture.needsUpdate = true;
+            wake();
+          }
+
+          scheduleFrame();
+        });
+      };
 
       const markReady = () => {
         if (
@@ -566,24 +623,48 @@ export const InfiniteCanvas = forwardRef<
           return;
         }
 
-        const texture = new THREE.VideoTexture(element);
-        // Source frames are sRGB. Three uploads video as straight RGBA, so the
-        // shader decodes these manually (uDecodeVideo); the colorSpace tag is
-        // documentation, not a hardware decode.
-        texture.colorSpace = THREE.SRGBColorSpace;
+        // A plain Texture (not VideoTexture) uploads only when needsUpdate is
+        // set. Three allocates from width/height, so mirror the intrinsic size.
+        element.width = element.videoWidth;
+        element.height = element.videoHeight;
+
+        const texture = new THREE.Texture(element);
+        // Source frames are sRGB. The upload stays RGBA8 and the shader
+        // decodes manually (uDecodeVideo), so the colors are not encoded twice.
+        texture.colorSpace = THREE.NoColorSpace;
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
         texture.generateMipmaps = false;
+        texture.needsUpdate = true;
+        texture.onUpdate = () => {
+          videoUploads += 1;
+          if (debug) debug.videoUploads = videoUploads;
+        };
+
         entry.texture = texture;
+        entry.lastUpload = performance.now();
         entry.ready = true;
         applyVideoTexture(itemIndex, entry);
+        scheduleFrame();
         wake();
       };
 
+      element.addEventListener("loadedmetadata", () => {
+        element.width = element.videoWidth;
+        element.height = element.videoHeight;
+      });
       element.addEventListener("loadeddata", markReady);
       element.addEventListener("canplay", markReady);
+      element.addEventListener("seeked", () => {
+        if (!entry.texture) return;
+
+        entry.texture.needsUpdate = true;
+        entry.lastUpload = performance.now();
+        wake();
+      });
       element.addEventListener("playing", () => {
         entry.playing = true;
+        scheduleFrame();
         wake();
       });
       element.addEventListener("pause", () => {
@@ -605,9 +686,22 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function syncVideos(now: number): boolean {
-      if (document.hidden || pausedRef.current) {
+      if (videoOff || document.hidden || pausedRef.current) {
         pauseAllVideos();
         return false;
+      }
+
+      const dragging = panIsDragging();
+
+      // Selecting at drag start keeps one stable set through the gesture; a
+      // release selects again at the full budget.
+      if (dragging !== dragVideoMode) {
+        dragVideoMode = dragging;
+        videoCheckAt = 0;
+      }
+
+      if (dragVideoMode && videoCheckAt !== 0) {
+        return hasPlayingVideos();
       }
 
       if (now - videoCheckAt < VIDEO_TUNING.checkMs) {
@@ -654,7 +748,9 @@ export const InfiniteCanvas = forwardRef<
         : VIDEO_TUNING.desktopEntries;
       const maxPlaying = mobile
         ? VIDEO_TUNING.mobilePlaying
-        : VIDEO_TUNING.desktopPlaying;
+        : dragVideoMode
+          ? VIDEO_TUNING.dragPlaying
+          : VIDEO_TUNING.desktopPlaying;
       const kept = new Set(
         sorted.slice(0, maxEntries).map(([itemIndex]) => itemIndex),
       );
@@ -806,6 +902,7 @@ export const InfiniteCanvas = forwardRef<
 
       debug.videosPlaying = playingVideos;
       debug.videoTextures = videoTextures;
+      debug.videoUploads = videoUploads;
       debug.videoPlanesBound = planes.filter((plane) => {
         const video = videoEntries.get(plane.itemIndex);
         return Boolean(
@@ -1031,6 +1128,7 @@ export const InfiniteCanvas = forwardRef<
       const fading = updatePlanes(dt);
       const videosActive = syncVideos(now);
 
+      updateVideoFallback(now);
       renderer.render(scene, camera);
       updateDebug();
 
