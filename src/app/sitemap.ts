@@ -8,5 +8,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...listWork().map(({ slug }) => ({
       url: new URL(`/work/${slug}`, SITE_URL).toString(),
     })),
+    { url: new URL("/live/human-contact", SITE_URL).toString() },
   ];
 }

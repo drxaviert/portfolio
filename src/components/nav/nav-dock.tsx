@@ -286,9 +286,10 @@ export function NavDock() {
     }
   }
 
-  // The dock is the site's nav; the /dev prototype routes draw their own
-  // chrome and the dock's reader rules would cover their corners (T16 M3).
-  if (pathname.startsWith("/dev")) return null;
+  // The dock is the site's nav; the /dev prototype routes and the /live
+  // full-screen pieces draw their own chrome, and the dock's reader rules
+  // would cover their corners (T16 M3).
+  if (pathname.startsWith("/dev") || pathname.startsWith("/live")) return null;
 
   return (
     <>
