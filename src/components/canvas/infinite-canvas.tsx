@@ -35,6 +35,20 @@ import {
   reducedIntroEnded,
   reducedOpacity,
 } from "./intro";
+import {
+  TRANSITION,
+  canClose,
+  canOpen,
+  closeComplete,
+  closeFadeProgress,
+  fadeOutProgress,
+  fitBox,
+  glideProgress,
+  growProgress,
+  handoffProgress,
+  nextPhase,
+} from "./transition";
+import type { TransitionPhase } from "./transition";
 import { usePan } from "./use-pan";
 import { planePosition } from "./wrap";
 
@@ -49,12 +63,14 @@ export type InfiniteCanvasHandle = {
   rectForIndex: (index: number) => Box | null;
   /** Restore the plane hidden for a focused item, before the close flight. */
   reveal: () => void;
+  /** Centre a stepped-to item, reveal it, and start the canvas close fade. */
+  closeTo: (index: number) => void;
 };
 
 export type InfiniteCanvasProps = {
   items: CanvasItem[];
   paused: boolean;
-  onOpen: (index: number, rect: Box) => void;
+  onOpen: (index: number, rect: Box, startAt?: number) => void;
 };
 
 const CAMERA_Z = INTRO.cameraToZ;
@@ -169,6 +185,28 @@ type Plane = {
   opacity: number;
 };
 
+type CanvasTransition = {
+  phase: TransitionPhase;
+  startedAt: number;
+  /** The item being opened or stepped to. */
+  index: number;
+  /** The plane that grows on open. */
+  plane: Plane | null;
+  /** The plane the close lands on (may differ after stepping). */
+  target: Plane | null;
+  fromScrollX: number;
+  fromScrollY: number;
+  toScrollX: number;
+  toScrollY: number;
+  fromCameraZ: number;
+  tileWidth: number;
+  tileHeight: number;
+  focusWidth: number;
+  focusHeight: number;
+  /** performance.now when the grow handed off to the viewer, or -1. */
+  handoffAt: number;
+};
+
 type VideoEntry = {
   element: HTMLVideoElement;
   texture: THREE.Texture | null;
@@ -196,6 +234,8 @@ type CanvasDebug = {
   gap: number;
   gray: number;
   introZoom: number;
+  transition: TransitionPhase;
+  transitionMs: number;
   scroll: { x: number; y: number };
   dragging: boolean;
   hidden: boolean;
@@ -284,11 +324,13 @@ export const InfiniteCanvas = forwardRef<
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const [introReady, setIntroReady] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
   const reduceMotion = useReducedMotion();
 
   const apiRef = useRef<InfiniteCanvasHandle>({
     rectForIndex: () => null,
     reveal: () => {},
+    closeTo: () => {},
   });
   const wakeRef = useRef<() => void>(() => {});
   const pickRef = useRef<(x: number, y: number) => void>(() => {});
@@ -317,7 +359,7 @@ export const InfiniteCanvas = forwardRef<
 
   const pan = usePan({
     reduceMotion,
-    disabled: paused || !introReady,
+    disabled: paused || !introReady || transitioning,
     onTap: (x, y) => {
       if (!pausedRef.current) pickRef.current(x, y);
     },
@@ -334,6 +376,7 @@ export const InfiniteCanvas = forwardRef<
     tick: panTick,
     isDragging: panIsDragging,
     speed: panSpeed,
+    halt: panHalt,
   } = pan;
 
   useEffect(() => {
@@ -392,7 +435,6 @@ export const InfiniteCanvas = forwardRef<
 
     const geometry = new THREE.PlaneGeometry(1, 1);
     const parallaxUniform = { value: new THREE.Vector2() };
-    const zoomUniform = { value: TEXTURE_ZOOM };
     const introZoomUniform: { value: number } = { value: INTRO.zoomFrom };
     const grayUniform: { value: number } = { value: 1 };
     const loader = new THREE.TextureLoader();
@@ -446,6 +488,25 @@ export const InfiniteCanvas = forwardRef<
     let introVideos = false;
     let introAnnounced = false;
 
+    const idleTransition = (): CanvasTransition => ({
+      phase: "idle",
+      startedAt: 0,
+      index: -1,
+      plane: null,
+      target: null,
+      fromScrollX: 0,
+      fromScrollY: 0,
+      toScrollX: 0,
+      toScrollY: 0,
+      fromCameraZ: CAMERA_Z,
+      tileWidth: 0,
+      tileHeight: 0,
+      focusWidth: 0,
+      focusHeight: 0,
+      handoffAt: -1,
+    });
+    let transition = idleTransition();
+
     const debug: CanvasDebug | null =
       process.env.NODE_ENV === "production"
         ? null
@@ -464,6 +525,8 @@ export const InfiniteCanvas = forwardRef<
             gap: INTRO_GAP,
             gray: 1,
             introZoom: INTRO.zoomFrom,
+            transition: "idle",
+            transitionMs: 0,
             scroll: { x: 0, y: 0 },
             dragging: false,
             hidden: false,
@@ -758,6 +821,23 @@ export const InfiniteCanvas = forwardRef<
         return false;
       }
 
+      // Only leaving the viewport plus margin pauses a video. During the open
+      // transition the clicked clip keeps playing; the rest pause once faded.
+      if (transition.phase === "opening") {
+        if (now - transition.startedAt >= TRANSITION.fadeOutMs) {
+          for (const [itemIndex, entry] of videoEntries) {
+            if (
+              itemIndex !== transition.index &&
+              !entry.element.paused
+            ) {
+              entry.element.pause();
+            }
+          }
+        }
+
+        return hasPlayingVideos();
+      }
+
       if (now - videoCheckAt < VIDEO_TUNING.checkMs) {
         return hasPlayingVideos();
       }
@@ -916,7 +996,7 @@ export const InfiniteCanvas = forwardRef<
                 value: new THREE.Vector2(planeWidth, planeHeight),
               },
               uParallax: parallaxUniform,
-              uZoom: zoomUniform,
+              uZoom: { value: TEXTURE_ZOOM },
               uZoomFactor: introZoomUniform,
               uGray: grayUniform,
               uOpacity: { value: opacity },
@@ -981,6 +1061,11 @@ export const InfiniteCanvas = forwardRef<
       debug.gap = Number(pitchX ? (pitchX - baseWidth).toFixed(1) : INTRO_GAP);
       debug.gray = Number(introGrayValue.toFixed(3));
       debug.introZoom = Number(introZoomValue.toFixed(3));
+      debug.transition = transition.phase;
+      debug.transitionMs =
+        transition.phase === "idle"
+          ? 0
+          : Math.round(performance.now() - transition.startedAt);
       debug.scroll.x = scrollRef.current.x;
       debug.scroll.y = scrollRef.current.y;
       debug.dragging = panIsDragging();
@@ -1094,11 +1179,58 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function openPlane(plane: Plane): void {
-      const rect = projectPlane(plane);
-      if (rect.width < 1 || rect.height < 1) return;
+      if (!introEndedFlag || pausedRef.current) return;
+      if (!canOpen(transition.phase)) return;
 
-      hidePlane(plane);
-      onOpenRef.current(plane.itemIndex, rect);
+      const media = items[plane.itemIndex]?.media;
+      if (!media) return;
+
+      panHalt();
+
+      const focus = fitBox(media.width, media.height, width, height);
+      const fromScrollX = scrollRef.current.x;
+      const fromScrollY = scrollRef.current.y;
+      const px = planePosition(plane.baseX, fromScrollX, halfX);
+      const py = planePosition(plane.baseY, fromScrollY, halfY);
+      const now = performance.now();
+      const base = {
+        startedAt: now,
+        index: plane.itemIndex,
+        plane,
+        target: plane,
+        fromScrollX,
+        fromScrollY,
+        toScrollX: fromScrollX - px,
+        toScrollY: fromScrollY - py,
+        fromCameraZ: camera.position.z,
+        tileWidth: plane.mesh.scale.x,
+        tileHeight: plane.mesh.scale.y,
+        focusWidth: focus.width,
+        focusHeight: focus.height,
+        handoffAt: -1,
+      };
+
+      if (reduced) {
+        // No glide: the viewer's own 120ms fade is the whole transition.
+        transition = { ...base, phase: "open" };
+        setTransitioning(true);
+        const video = videoEntries.get(plane.itemIndex);
+        onOpenRef.current(
+          plane.itemIndex,
+          {
+            left: width / 2 - focus.width / 2,
+            top: height / 2 - focus.height / 2,
+            width: focus.width,
+            height: focus.height,
+          },
+          video?.element.currentTime,
+        );
+        return;
+      }
+
+      transition = { ...base, phase: nextPhase("idle", "open") };
+      setTransitioning(true);
+      wake();
     }
 
     function pick(x: number, y: number): void {
@@ -1151,9 +1283,47 @@ export const InfiniteCanvas = forwardRef<
       if (plane) openPlane(plane);
     }
 
+    function placePlanes(): void {
+      const scroll = scrollRef.current;
+
+      for (const plane of planes) {
+        plane.baseX = (plane.col - (cols - 1) / 2) * pitchX;
+        plane.baseY = (plane.row - (rows - 1) / 2) * pitchY;
+
+        const x = planePosition(plane.baseX, scroll.x, halfX);
+        const y = planePosition(plane.baseY, scroll.y, halfY);
+        plane.mesh.position.set(x, -y, 0);
+      }
+    }
+
+    function findPlane(index: number): Plane | null {
+      const scroll = scrollRef.current;
+      let best: Plane | null = null;
+      let bestDistance = Infinity;
+
+      for (const plane of planes) {
+        if (plane.itemIndex !== index) continue;
+
+        const x = planePosition(plane.baseX, scroll.x, halfX);
+        const y = planePosition(plane.baseY, scroll.y, halfY);
+        const distance = x * x + y * y;
+
+        if (distance < bestDistance) {
+          best = plane;
+          bestDistance = distance;
+        }
+      }
+
+      return best;
+    }
+
     function updateCamera(dt: number): boolean {
       if (!introEndedFlag) {
         camera.position.z = introCamera;
+        return true;
+      }
+
+      if (transition.phase === "opening") {
         return true;
       }
 
@@ -1169,7 +1339,7 @@ export const InfiniteCanvas = forwardRef<
       return Math.abs(targetZ - camera.position.z) > 0.001;
     }
 
-    function updatePlanes(dt: number): boolean {
+    function updatePlanes(dt: number, now: number): boolean {
       const scroll = scrollRef.current;
       const deltaX = scroll.x - lastScroll.x;
       const deltaY = scroll.y - lastScroll.y;
@@ -1184,6 +1354,13 @@ export const InfiniteCanvas = forwardRef<
       parallaxUniform.value.y +=
         (targetY - parallaxUniform.value.y) * parallaxEase;
 
+      // The focus crop must be exact at the handoff, so the glide's parallax
+      // does not ride along.
+      if (transition.phase !== "idle") {
+        parallaxUniform.value.x = 0;
+        parallaxUniform.value.y = 0;
+      }
+
       let active =
         Math.abs(targetX - parallaxUniform.value.x) > 0.0005 ||
         Math.abs(targetY - parallaxUniform.value.y) > 0.0005;
@@ -1195,18 +1372,72 @@ export const InfiniteCanvas = forwardRef<
       pitchY = cellHeight + gap;
       halfX = (cols * pitchX) / 2;
       halfY = (rows * pitchY) / 2;
+      placePlanes();
+
+      const elapsed =
+        transition.phase === "idle" ? 0 : now - transition.startedAt;
+
+      if (transition.phase === "opening") {
+        const fade = 1 - fadeOutProgress(elapsed);
+        const grow = growProgress(elapsed);
+        const hand =
+          transition.handoffAt >= 0
+            ? 1 - handoffProgress(now - transition.handoffAt)
+            : 1;
+        const opened = transition.plane;
+
+        for (const plane of planes) {
+          const opacity = plane === opened ? hand : fade;
+          plane.opacity = opacity;
+          plane.material.uniforms.uOpacity.value = opacity;
+
+          if (plane === opened) {
+            const w =
+              transition.tileWidth +
+              (transition.focusWidth - transition.tileWidth) * grow;
+            const h =
+              transition.tileHeight +
+              (transition.focusHeight - transition.tileHeight) * grow;
+
+            plane.mesh.scale.set(w, h, 1);
+            plane.material.uniforms.uPlaneSizes.value.set(w, h);
+            plane.material.uniforms.uZoom.value =
+              TEXTURE_ZOOM + (1 - TEXTURE_ZOOM) * grow;
+          }
+        }
+
+        return true;
+      }
+
+      if (transition.phase === "open") {
+        if (transition.handoffAt >= 0 && transition.plane) {
+          const hand =
+            1 - handoffProgress(now - transition.handoffAt);
+          transition.plane.opacity = hand;
+          transition.plane.material.uniforms.uOpacity.value = hand;
+        }
+
+        return transition.handoffAt >= 0;
+      }
+
+      if (transition.phase === "closing") {
+        const fade = reduced
+          ? reducedOpacity(elapsed)
+          : closeFadeProgress(elapsed);
+
+        for (const plane of planes) {
+          const opacity = plane === transition.target ? 1 : fade;
+          plane.opacity = opacity;
+          plane.material.uniforms.uOpacity.value = opacity;
+        }
+
+        return true;
+      }
 
       const opacityEase = 1 - Math.pow(0.72, dt);
       const introRunning = introElapsed >= 0 && !introEndedFlag;
 
       for (const plane of planes) {
-        plane.baseX = (plane.col - (cols - 1) / 2) * pitchX;
-        plane.baseY = (plane.row - (rows - 1) / 2) * pitchY;
-
-        const x = planePosition(plane.baseX, scroll.x, halfX);
-        const y = planePosition(plane.baseY, scroll.y, halfY);
-        plane.mesh.position.set(x, -y, 0);
-
         const alpha = introElapsed < 0
           ? 0
           : introRunning
@@ -1229,6 +1460,142 @@ export const InfiniteCanvas = forwardRef<
       }
 
       return active;
+    }
+
+    function updateTransition(now: number): boolean {
+      const t = transition;
+
+      if (t.phase === "idle") return false;
+
+      const elapsed = now - t.startedAt;
+
+      if (t.phase === "opening") {
+        const p = glideProgress(elapsed);
+        scrollRef.current.x =
+          t.fromScrollX + (t.toScrollX - t.fromScrollX) * p;
+        scrollRef.current.y =
+          t.fromScrollY + (t.toScrollY - t.fromScrollY) * p;
+        camera.position.z =
+          t.fromCameraZ + (CAMERA_Z - t.fromCameraZ) * p;
+
+        if (
+          elapsed >= TRANSITION.growDelayMs + TRANSITION.growMs &&
+          t.handoffAt < 0
+        ) {
+          t.handoffAt = now;
+          t.phase = nextPhase(t.phase, "opened");
+          const video = videoEntries.get(t.index);
+          onOpenRef.current(
+            t.index,
+            {
+              left: width / 2 - t.focusWidth / 2,
+              top: height / 2 - t.focusHeight / 2,
+              width: t.focusWidth,
+              height: t.focusHeight,
+            },
+            video?.element.currentTime,
+          );
+        }
+
+        return true;
+      }
+
+      if (t.phase === "open") {
+        if (
+          t.handoffAt >= 0 &&
+          now - t.handoffAt >= TRANSITION.handoffMs
+        ) {
+          if (t.plane) hidePlane(t.plane);
+          t.handoffAt = -1;
+          return false;
+        }
+
+        return t.handoffAt >= 0;
+      }
+
+      if (t.phase === "closing") {
+        const done = reduced
+          ? elapsed >= TRANSITION.reducedFadeMs
+          : closeComplete(elapsed);
+
+        if (done) {
+          t.phase = nextPhase(t.phase, "closed");
+          t.index = -1;
+          t.plane = null;
+          t.target = null;
+          t.handoffAt = -1;
+
+          for (const plane of planes) {
+            const opacity =
+              plane.loaded && plane.mesh.visible ? 1 : 0;
+            plane.opacity = opacity;
+            plane.material.uniforms.uOpacity.value = opacity;
+          }
+
+          setTransitioning(false);
+          return false;
+        }
+
+        return true;
+      }
+
+      return false;
+    }
+
+    function closeTo(index: number): void {
+      if (!canClose(transition.phase)) return;
+
+      panHalt();
+      const t = transition;
+      const opened = t.plane;
+
+      if (opened) {
+        opened.mesh.scale.set(t.tileWidth, t.tileHeight, 1);
+        opened.material.uniforms.uPlaneSizes.value.set(
+          t.tileWidth,
+          t.tileHeight,
+        );
+        opened.material.uniforms.uZoom.value = TEXTURE_ZOOM;
+        opened.mesh.visible = true;
+        opened.opacity = 1;
+        opened.material.uniforms.uOpacity.value = 1;
+      }
+
+      hiddenPlane = null;
+      const target = findPlane(index) ?? opened;
+
+      t.phase = nextPhase(t.phase, "close");
+      t.startedAt = performance.now();
+      t.index = index;
+      t.target = target;
+      t.handoffAt = -1;
+
+      if (target) {
+        const px = planePosition(
+          target.baseX,
+          scrollRef.current.x,
+          halfX,
+        );
+        const py = planePosition(
+          target.baseY,
+          scrollRef.current.y,
+          halfY,
+        );
+
+        scrollRef.current.x -= px;
+        scrollRef.current.y -= py;
+      }
+
+      placePlanes();
+
+      for (const plane of planes) {
+        const opacity = plane === target ? 1 : 0;
+        plane.opacity = opacity;
+        plane.material.uniforms.uOpacity.value = opacity;
+      }
+
+      setTransitioning(true);
+      wake();
     }
 
     function updateIntro(now: number, dtMs: number): boolean {
@@ -1276,7 +1643,17 @@ export const InfiniteCanvas = forwardRef<
     function renderFrame(now: number): void {
       raf = 0;
 
-      if (document.hidden || pausedRef.current) {
+      if (document.hidden) {
+        last = 0;
+        return;
+      }
+
+      const transitionActive =
+        transition.phase === "opening" ||
+        transition.phase === "closing" ||
+        (transition.phase === "open" && transition.handoffAt >= 0);
+
+      if (pausedRef.current && !transitionActive) {
         last = 0;
         return;
       }
@@ -1286,16 +1663,25 @@ export const InfiniteCanvas = forwardRef<
       last = now;
 
       const introActive = updateIntro(now, dtMs);
+      const transitionRunning = updateTransition(now);
       const moving = panTick(now);
       const zooming = updateCamera(dt);
-      const fading = updatePlanes(dt);
+      const fading = updatePlanes(dt, now);
       const videosActive = syncVideos(now);
 
       updateVideoFallback(now);
       renderer.render(scene, camera);
       updateDebug();
 
-      if (moving || zooming || fading || videosActive || introActive) {
+      if (
+        moving ||
+        zooming ||
+        fading ||
+        videosActive ||
+        introActive ||
+        transitionRunning ||
+        transitionActive
+      ) {
         raf = requestAnimationFrame(renderFrame);
       } else {
         last = 0;
@@ -1303,7 +1689,16 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function wake(): void {
-      if (disposed || raf !== 0 || document.hidden || pausedRef.current) {
+      if (disposed || raf !== 0 || document.hidden) {
+        return;
+      }
+
+      const transitionActive =
+        transition.phase === "opening" ||
+        transition.phase === "closing" ||
+        (transition.phase === "open" && transition.handoffAt >= 0);
+
+      if (pausedRef.current && !transitionActive) {
         return;
       }
 
@@ -1372,6 +1767,7 @@ export const InfiniteCanvas = forwardRef<
     pauseVideosRef.current = pauseAllVideos;
     api.rectForIndex = rectForIndex;
     api.reveal = revealPlane;
+    api.closeTo = closeTo;
 
     resize();
 
@@ -1392,6 +1788,7 @@ export const InfiniteCanvas = forwardRef<
       pauseVideosRef.current = () => {};
       api.rectForIndex = () => null;
       api.reveal = () => {};
+      api.closeTo = () => {};
 
       pauseAllVideos();
 
@@ -1411,7 +1808,7 @@ export const InfiniteCanvas = forwardRef<
       renderer.forceContextLoss();
       renderer.domElement.remove();
     };
-  }, [items, panIsDragging, panSpeed, panTick, scrollRef]);
+  }, [items, panHalt, panIsDragging, panSpeed, panTick, scrollRef]);
 
   return (
     <div

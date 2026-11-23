@@ -14,6 +14,7 @@ import "./canvas.css";
 type ViewerState = {
   index: number;
   rect: Box;
+  startAt?: number;
 };
 
 /**
@@ -29,21 +30,24 @@ export function CanvasProto({ items }: { items: CanvasItem[] }) {
   const [viewerClosing, setViewerClosing] = useState(false);
   const canvasRef = useRef<InfiniteCanvasHandle | null>(null);
 
-  const openViewer = useCallback((index: number, rect: Box) => {
-    setViewerClosing(false);
-    setViewer({ index, rect });
-  }, []);
+  const openViewer = useCallback(
+    (index: number, rect: Box, startAt?: number) => {
+      setViewerClosing(false);
+      setViewer({ index, rect, startAt });
+    },
+    [],
+  );
 
   const closeViewer = useCallback(() => {
     setViewer(null);
     setViewerClosing(false);
   }, []);
 
-  const markViewerClosing = useCallback(() => {
+  const markViewerClosing = useCallback((index: number) => {
     setViewerClosing(true);
-    // Restore the hidden plane before the reverse flight measures its landing
-    // rect, so the close never reveals a one-frame hole.
-    canvasRef.current?.reveal();
+    // Centre the current piece and reveal it before the reverse flight measures
+    // its landing rect, so stepping then closing lands on the right tile.
+    canvasRef.current?.closeTo(index);
   }, []);
 
   const rectForViewer = useCallback(
@@ -81,7 +85,9 @@ export function CanvasProto({ items }: { items: CanvasItem[] }) {
           items={items}
           initialIndex={viewer.index}
           originRect={viewer.rect}
+          startAt={viewer.startAt}
           getTargetRect={rectForViewer}
+          handoff
           onClosing={markViewerClosing}
           onClosed={closeViewer}
         />

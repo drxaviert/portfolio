@@ -14,6 +14,7 @@ import { MediaVideo } from "@/components/media/media-video";
 import { MORPH_EASE, flipFrom, toBox } from "@/components/work/morph";
 import type { Box } from "@/components/work/morph";
 import type { CanvasItem } from "./infinite-canvas";
+import { TRANSITION, fitBox } from "./transition";
 
 /**
  * The focus flight, from the repo's motion scale:
@@ -22,30 +23,12 @@ import type { CanvasItem } from "./infinite-canvas";
  * the open because the reader has already decided to leave.
  */
 const OPEN_S = 0.36;
-const CLOSE_S = 0.24;
+const CLOSE_S = TRANSITION.closeShrinkMs / 1000;
 const FADE_S = 0.12;
 const LEAVE_SCALE = 0.96;
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), video[controls], [tabindex]:not([tabindex="-1"])';
-
-/** Fit a media ratio inside the viewer's allowance, keeping its aspect. */
-function fitBox(
-  width: number,
-  height: number,
-  viewportW: number,
-  viewportH: number,
-): { width: number; height: number } {
-  const scale = Math.min(
-    (viewportW * 0.88) / width,
-    (viewportH * 0.8) / height,
-  );
-
-  return {
-    width: Math.max(1, Math.round(width * scale)),
-    height: Math.max(1, Math.round(height * scale)),
-  };
-}
 
 /**
  * The frame's untransformed layout box, whatever flight is currently applied.
@@ -76,7 +59,9 @@ export function FocusViewer({
   items,
   initialIndex,
   originRect,
+  startAt,
   getTargetRect,
+  handoff = false,
   onClosing,
   onClosed,
 }: {
@@ -84,10 +69,14 @@ export function FocusViewer({
   initialIndex: number;
   /** The clicked plane's screen rect, captured before it is hidden. */
   originRect: Box;
+  /** The canvas clip's time at the handoff, so the full source starts in sync. */
+  startAt?: number;
   /** The current plane rect for a close after ←/→ stepping. */
   getTargetRect: (index: number) => Box | null;
-  /** The reverse flight has started; the shell can stop dimming the canvas. */
-  onClosing?: () => void;
+  /** The canvas grew the plane; fade the frame in at its resting box. */
+  handoff?: boolean;
+  /** The reverse flight has started for this index; the shell can stop dimming. */
+  onClosing?: (index: number) => void;
   onClosed: () => void;
 }) {
   const [index, setIndex] = useState(() =>
@@ -144,6 +133,31 @@ export function FocusViewer({
     flightRef.current?.stop();
     releaseElement(frame);
 
+    // The canvas already grew the plane to this frame's box; fade the DOM
+    // media in over it so the cover crop and the full-quality source swap
+    // without a cut.
+    if (handoff && !reduce) {
+      frame.style.transform = "none";
+      frame.style.transformOrigin = "50% 50%";
+      frame.style.opacity = "0";
+
+      const animation = animate(
+        frame,
+        { opacity: 1 },
+        { duration: TRANSITION.handoffMs / 1000, ease: "easeOut" },
+      );
+
+      flightRef.current = animation;
+      void animation.finished.then(
+        () => {
+          if (flightRef.current === animation) flightRef.current = null;
+          frame.style.opacity = "1";
+        },
+        () => undefined,
+      );
+      return;
+    }
+
     if (
       !reduce &&
       from.width > 0 &&
@@ -192,7 +206,7 @@ export function FocusViewer({
       },
       () => undefined,
     );
-  }, [originRect, reduce]);
+  }, [handoff, originRect, reduce]);
 
   // MediaVideo's short-loop contract is a silent ambient loop with no controls;
   // in the viewer the clip is the subject, so give it the native transport. HLS
@@ -203,6 +217,9 @@ export function FocusViewer({
 
     const videos = [...frame.querySelectorAll("video")];
     const cleanups: (() => void)[] = [];
+    // Only the initially opened piece inherits the canvas clip's time; a
+    // stepped-to piece starts from its own beginning.
+    const seekTo = index === initialIndex ? startAt : undefined;
 
     for (const video of videos) {
       video.controls = true;
@@ -214,11 +231,25 @@ export function FocusViewer({
           // The controls and poster remain the manual path.
         });
       };
+      const seek = () => {
+        if (
+          seekTo !== undefined &&
+          Number.isFinite(seekTo) &&
+          video.readyState >= 1
+        ) {
+          video.currentTime = seekTo;
+        }
+      };
 
+      seek();
       start();
+      video.addEventListener("loadedmetadata", seek);
+      video.addEventListener("canplay", seek);
       video.addEventListener("loadeddata", start);
       video.addEventListener("canplay", start);
       cleanups.push(() => {
+        video.removeEventListener("loadedmetadata", seek);
+        video.removeEventListener("canplay", seek);
         video.removeEventListener("loadeddata", start);
         video.removeEventListener("canplay", start);
         video.pause();
@@ -228,13 +259,13 @@ export function FocusViewer({
     return () => {
       for (const cleanup of cleanups) cleanup();
     };
-  }, [index, media]);
+  }, [index, initialIndex, media, startAt]);
 
   const close = useCallback(() => {
     if (closingRef.current) return;
     closingRef.current = true;
     setClosing(true);
-    onClosing?.();
+    onClosing?.(indexRef.current);
 
     const frame = frameRef.current;
     if (!frame) {
@@ -268,6 +299,7 @@ export function FocusViewer({
         // Set the visual start explicitly: the open flight may still have been
         // running, and its stopped state is not something to rely on.
         frame.style.transformOrigin = "left top";
+        frame.style.opacity = "1";
         frame.style.transform = `translate3d(${start.x}px, ${start.y}px, 0) scale(${start.scaleX}, ${start.scaleY})`;
 
         const animation = animate(
@@ -279,6 +311,18 @@ export function FocusViewer({
             scaleY: end.scaleY,
           },
           { duration: CLOSE_S, ease: MORPH_EASE },
+        );
+
+        // Fade the DOM frame over its last third so the cover-cropped canvas
+        // tile underneath takes over without a crop pop.
+        animate(
+          frame,
+          { opacity: 0 },
+          {
+            duration: CLOSE_S * 0.35,
+            delay: CLOSE_S * 0.65,
+            ease: "easeOut",
+          },
         );
 
         flightRef.current = animation;
@@ -414,6 +458,7 @@ export function FocusViewer({
       ref={overlayRef}
       className="cv-viewer"
       data-closing={closing || undefined}
+      data-handoff={handoff || undefined}
       role="dialog"
       aria-modal="true"
       aria-label={label}
@@ -422,43 +467,45 @@ export function FocusViewer({
       <div className="cv-viewer__backdrop" aria-hidden="true" onClick={close} />
 
       <div className="cv-viewer__stage">
-        <div
-          ref={frameRef}
-          className="cv-viewer__frame"
-          style={{ width: size.width, height: size.height }}
-        >
-          <div className="cv-viewer__content">
-            <AnimatePresence initial={false}>
-              <motion.div
-                key={item.key}
-                className="cv-viewer__slide"
-                data-media-id={media.id}
-                data-media-kind={media.kind}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{
-                  duration: reduce ? 0 : 0.18,
-                  ease: "easeOut",
-                }}
-              >
-                {media.kind === "image" ? (
-                  <MediaImage
-                    media={media}
-                    alt={media.alt}
-                    priority
-                    sizes={`${size.width}px`}
-                    className="cv-viewer__media"
-                  />
-                ) : (
-                  <MediaVideo
-                    media={media}
-                    alt={media.alt}
-                    className="cv-viewer__media"
-                  />
-                )}
-              </motion.div>
-            </AnimatePresence>
+        <div className="cv-viewer__slot">
+          <div
+            ref={frameRef}
+            className="cv-viewer__frame"
+            style={{ width: size.width, height: size.height }}
+          >
+            <div className="cv-viewer__content">
+              <AnimatePresence initial={false}>
+                <motion.div
+                  key={item.key}
+                  className="cv-viewer__slide"
+                  data-media-id={media.id}
+                  data-media-kind={media.kind}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{
+                    duration: reduce ? 0 : 0.18,
+                    ease: "easeOut",
+                  }}
+                >
+                  {media.kind === "image" ? (
+                    <MediaImage
+                      media={media}
+                      alt={media.alt}
+                      priority
+                      sizes={`${size.width}px`}
+                      className="cv-viewer__media"
+                    />
+                  ) : (
+                    <MediaVideo
+                      media={media}
+                      alt={media.alt}
+                      className="cv-viewer__media"
+                    />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </div>
         </div>
 
@@ -470,6 +517,7 @@ export function FocusViewer({
             animate={{ opacity: 1 }}
             transition={{
               duration: reduce ? 0 : 0.18,
+              delay: handoff && !reduce ? TRANSITION.captionDelayMs / 1000 : 0,
               ease: "easeOut",
             }}
           >
