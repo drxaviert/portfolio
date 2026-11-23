@@ -2,6 +2,10 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import { RingLayers } from "./ring-hover";
 import {
   NOW_PLAYING_TRACK,
@@ -15,13 +19,18 @@ import type { YouTubeHandle } from "./now-playing-youtube";
 import "./now-playing-card.css";
 
 /**
- * The homepage's top-left card: Paper's "Static player · Pulled in" row 2,
- * V1 Frosted, at 275×276 and scaled down with container units.
+ * The homepage's top-left card: Paper's "Static player · Pulled in" board.
  *
- * The card is flush with the page — the surface is the page token, with the
- * soft white inset rim carrying the edge. The album art fills the top, the
- * times and progress sit over its bottom gradient, and the title/artist well
- * and play button share the bottom row.
+ * The default surface is row 1 "Current" (flat); ?surface=pulled restores row
+ * 2 V1 Frosted for comparison. The album art fills the top, the times and a
+ * role="slider" seek bar sit over its bottom gradient, and the title/artist
+ * well and play button share the bottom row.
+ *
+ * The play button, progress fill and scrubber thumb all use the site's nav orb
+ * gradient (--orb-gradient, composed in globals.css from the --orb-* stops and
+ * painted by OrbHead in home-nav.tsx). The glyph is dark in every phase; the
+ * measured contrast against the rendered gradient is 4.97:1 Day, 8.12 Dawn,
+ * 12.08 Dusk and 6.66 Night.
  *
  * Playback is the same lazy, hidden youtube-nocookie embed as before. Activity
  * hides home copies on / and /work; this card pauses on effect cleanup and
@@ -49,9 +58,13 @@ export function NowPlayingCard() {
   }, []);
 
   const [elapsedLabel, setElapsedLabel] = useState("0:00");
+  const [currentSeconds, setCurrentSeconds] = useState(0);
   const lastElapsedRef = useRef("0:00");
   const [totalLabel, setTotalLabel] = useState<string>(
     NOW_PLAYING_TRACK.durationLabel,
+  );
+  const [durationSeconds, setDurationSeconds] = useState<number>(
+    NOW_PLAYING_TRACK.durationSeconds,
   );
   const [showSpinner, setShowSpinner] = useState(false);
   const [artVariant, setArtVariant] = useState<typeof MAXRES | typeof HQ>(
@@ -61,7 +74,8 @@ export function NowPlayingCard() {
 
   const cardRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const progressRef = useRef<HTMLDivElement | null>(null);
+  const scrubRef = useRef<HTMLDivElement | null>(null);
+  const elapsedRef = useRef<HTMLSpanElement | null>(null);
   const playerRef = useRef<YouTubeHandle | null>(null);
   const playerPromiseRef = useRef<Promise<YouTubeHandle | null> | null>(null);
   const playTokenRef = useRef(0);
@@ -69,15 +83,19 @@ export function NowPlayingCard() {
   const lastTimeRef = useRef(0);
   const hasReadyRef = useRef(false);
   const warmAttemptedRef = useRef(false);
+  const draggingRef = useRef(false);
+  const dragTargetRef = useRef(0);
+  const seekHoldUntilRef = useRef(0);
+  const pointerIdRef = useRef<number | null>(null);
 
   const setProgress = useCallback((fraction: number) => {
-    const fill = progressRef.current;
+    const scrub = scrubRef.current;
 
-    if (!fill) return;
+    if (!scrub) return;
 
     const clamped = Math.max(0, Math.min(1, fraction));
 
-    fill.style.transform = `scaleX(${clamped})`;
+    scrub.style.setProperty("--now-playing-progress", String(clamped));
   }, []);
 
   const syncTime = useCallback(() => {
@@ -95,6 +113,7 @@ export function NowPlayingCard() {
       if (label !== lastElapsedRef.current) {
         lastElapsedRef.current = label;
         setElapsedLabel(label);
+        setCurrentSeconds(Math.floor(current));
       }
 
       setProgress(current / Math.max(1, durationRef.current));
@@ -107,6 +126,7 @@ export function NowPlayingCard() {
     lastTimeRef.current = 0;
     lastElapsedRef.current = "0:00";
     setElapsedLabel("0:00");
+    setCurrentSeconds(0);
     setProgress(0);
   }, [setProgress]);
 
@@ -176,6 +196,7 @@ export function NowPlayingCard() {
 
               if (duration > 0) {
                 durationRef.current = duration;
+                setDurationSeconds(Math.round(duration));
                 setTotalLabel(formatDuration(duration));
               }
 
@@ -200,7 +221,10 @@ export function NowPlayingCard() {
                * of showing a paused card at 0:00.
                */
               const live = phaseRef.current;
-              const resumeAt = lastTimeRef.current;
+              const resumeAt = Math.min(
+                lastTimeRef.current,
+                Math.max(0, durationRef.current - 0.25),
+              );
 
               try {
                 if (live === "playing" || live === "loading") {
@@ -240,6 +264,7 @@ export function NowPlayingCard() {
 
                 if (duration > 0) {
                   durationRef.current = duration;
+                  setDurationSeconds(Math.round(duration));
                   setTotalLabel(formatDuration(duration));
                 }
               } else if (state === 2) {
@@ -293,7 +318,19 @@ export function NowPlayingCard() {
     }
 
     setPhase("loading");
-    resetTime();
+
+    const startAt = lastTimeRef.current;
+
+    if (startAt > 0) {
+      const label = formatTime(startAt);
+
+      lastElapsedRef.current = label;
+      setElapsedLabel(label);
+      setCurrentSeconds(Math.floor(startAt));
+      setProgress(startAt / Math.max(1, durationRef.current));
+    } else {
+      resetTime();
+    }
 
     const token = ++playTokenRef.current;
 
@@ -307,7 +344,14 @@ export function NowPlayingCard() {
         if (phaseRef.current !== "loading") return;
 
         try {
-          handle.seek(0);
+          // A scrub while idle or loading sets the start position; play from
+          // there instead of always restarting at 0.
+          handle.seek(
+            Math.min(
+              lastTimeRef.current,
+              Math.max(0, durationRef.current - 0.25),
+            ),
+          );
           handle.play();
         } catch {
           fail();
@@ -316,7 +360,7 @@ export function NowPlayingCard() {
       .catch(() => {
         if (token === playTokenRef.current) fail();
       });
-  }, [ensurePlayer, fail, resetTime, setPhase]);
+  }, [ensurePlayer, fail, resetTime, setPhase, setProgress]);
 
   const pause = useCallback(() => {
     syncTime();
@@ -374,6 +418,198 @@ export function NowPlayingCard() {
     warmAttemptedRef.current = true;
     void ensurePlayer();
   }, [ensurePlayer]);
+
+  const seekPlayer = useCallback(
+    (seconds: number) => {
+      // Seeking exactly to a rounded total that is a fraction above the real
+      // duration makes the embed restart from 0. Land 250ms short of the end;
+      // the player then emits ENDED and the card takes its normal idle path.
+      const safe = Math.min(seconds, Math.max(0, durationRef.current - 0.25));
+      const player = playerRef.current;
+
+      if (player) {
+        try {
+          player.seek(safe);
+        } catch {
+          // The player is already torn down.
+        }
+        return;
+      }
+
+      void ensurePlayer().then((handle) => {
+        if (!handle) return;
+
+        try {
+          handle.seek(safe);
+        } catch {
+          // The lazy player failed to initialize.
+        }
+      });
+    },
+    [ensurePlayer],
+  );
+
+  // Drag preview: no React state, so a 60Hz pointermove only writes the CSS
+  // variable, the elapsed text and the slider's ARIA values.
+  const previewTime = useCallback(
+    (seconds: number) => {
+      const duration = Math.max(1, Math.round(durationRef.current));
+      const clamped = Math.max(0, Math.min(duration, seconds));
+      const fraction = clamped / duration;
+
+      dragTargetRef.current = clamped;
+      lastTimeRef.current = clamped;
+      lastElapsedRef.current = formatTime(clamped);
+      setProgress(fraction);
+
+      const scrub = scrubRef.current;
+
+      if (scrub) {
+        scrub.setAttribute("aria-valuenow", String(Math.floor(clamped)));
+        scrub.setAttribute(
+          "aria-valuetext",
+          `${formatTime(clamped)} of ${totalLabel}`,
+        );
+      }
+
+      if (elapsedRef.current) {
+        elapsedRef.current.textContent = formatTime(clamped);
+      }
+    },
+    [setProgress, totalLabel],
+  );
+
+  const commitSeek = useCallback(
+    (seconds: number) => {
+      previewTime(seconds);
+
+      const target = dragTargetRef.current;
+
+      setElapsedLabel(formatTime(target));
+      setCurrentSeconds(Math.floor(target));
+      seekHoldUntilRef.current = performance.now() + 400;
+      seekPlayer(target);
+    },
+    [previewTime, seekPlayer],
+  );
+
+  const previewFromClientX = useCallback(
+    (clientX: number) => {
+      const scrub = scrubRef.current;
+
+      if (!scrub) return;
+
+      const rect = scrub.getBoundingClientRect();
+
+      if (rect.width <= 0) return;
+
+      const fraction = Math.max(
+        0,
+        Math.min(1, (clientX - rect.left) / rect.width),
+      );
+
+      previewTime(fraction * Math.max(1, Math.round(durationRef.current)));
+    },
+    [previewTime],
+  );
+
+  const onScrubPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+
+      const scrub = scrubRef.current;
+
+      if (!scrub) return;
+
+      event.preventDefault();
+      draggingRef.current = true;
+      pointerIdRef.current = event.pointerId;
+      scrub.setAttribute("data-dragging", "");
+      try {
+        scrub.setPointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture is unavailable in some synthetic environments.
+      }
+      scrub.focus({ preventScroll: true });
+      previewFromClientX(event.clientX);
+    },
+    [previewFromClientX],
+  );
+
+  const onScrubPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!draggingRef.current || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+
+      previewFromClientX(event.clientX);
+    },
+    [previewFromClientX],
+  );
+
+  const finishScrub = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!draggingRef.current || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+
+      const scrub = scrubRef.current;
+
+      draggingRef.current = false;
+      pointerIdRef.current = null;
+      scrub?.removeAttribute("data-dragging");
+      try {
+        scrub?.releasePointerCapture(event.pointerId);
+      } catch {
+        // The capture was already released.
+      }
+      commitSeek(dragTargetRef.current);
+    },
+    [commitSeek],
+  );
+
+  const onScrubLostPointerCapture = useCallback(() => {
+    if (!draggingRef.current) return;
+
+    draggingRef.current = false;
+    pointerIdRef.current = null;
+    scrubRef.current?.removeAttribute("data-dragging");
+    commitSeek(dragTargetRef.current);
+  }, [commitSeek]);
+
+  const onScrubKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const duration = Math.max(1, Math.round(durationRef.current));
+      let next = lastTimeRef.current;
+
+      switch (event.key) {
+        case "ArrowLeft":
+          next -= 5;
+          break;
+        case "ArrowRight":
+          next += 5;
+          break;
+        case "Home":
+          next = 0;
+          break;
+        case "End":
+          next = duration;
+          break;
+        case "PageUp":
+          next += duration * 0.1;
+          break;
+        case "PageDown":
+          next -= duration * 0.1;
+          break;
+        default:
+          return;
+      }
+
+      event.preventDefault();
+      commitSeek(Math.max(0, Math.min(duration, next)));
+    },
+    [commitSeek],
+  );
 
   // Dev-only surface comparison. The default is Paper row 1's flat card;
   // ?surface=pulled restores row 2's fill/rim/well. The attribute is set once
@@ -488,11 +724,17 @@ export function NowPlayingCard() {
   }, [phase, setPhase]);
 
   // Elapsed time in tabular numbers, at most one text update per second. The
-  // fill is scaleX, updated four times a second so it glides between seconds.
+  // fill is a fixed-width orb gradient revealed by clip-path, updated four
+  // times a second; skip polling while dragging or just after a seek so the
+  // preview never fights the player.
   useEffect(() => {
     if (phase !== "playing") return;
 
     const update = () => {
+      if (draggingRef.current || performance.now() < seekHoldUntilRef.current) {
+        return;
+      }
+
       const player = playerRef.current;
 
       if (!player) return;
@@ -506,6 +748,7 @@ export function NowPlayingCard() {
         if (label !== lastElapsedRef.current) {
           lastElapsedRef.current = label;
           setElapsedLabel(label);
+          setCurrentSeconds(Math.floor(current));
         }
 
         setProgress(current / Math.max(1, durationRef.current));
@@ -589,7 +832,7 @@ export function NowPlayingCard() {
       <RingLayers fill="bg-surface-container-low" />
 
       <div className="now-playing-body">
-        <div className="now-playing-art" aria-hidden="true">
+        <div className="now-playing-art">
           {artFailed ? null : (
             <Image
               key={artVariant}
@@ -610,24 +853,53 @@ export function NowPlayingCard() {
           )}
 
           <div className="now-playing-timebar">
-            <div className="now-playing-times">
-              <span className="now-playing-elapsed">{elapsedLabel}</span>
-              <span className="now-playing-total">{totalLabel}</span>
+            <div className="now-playing-times" aria-hidden="true">
+              <span
+                ref={elapsedRef}
+                className="now-playing-elapsed text-xs font-medium tabular-nums"
+              >
+                {elapsedLabel}
+              </span>
+              <span className="now-playing-total text-xs tabular-nums">
+                {totalLabel}
+              </span>
             </div>
-            <div className="now-playing-progress">
-              <div ref={progressRef} className="now-playing-progress-fill" />
+            <div
+              ref={scrubRef}
+              className="now-playing-scrub"
+              role="slider"
+              tabIndex={0}
+              aria-label="Seek"
+              aria-valuemin={0}
+              aria-valuemax={durationSeconds}
+              aria-valuenow={currentSeconds}
+              aria-valuetext={`${formatTime(currentSeconds)} of ${totalLabel}`}
+              onPointerDown={onScrubPointerDown}
+              onPointerMove={onScrubPointerMove}
+              onPointerUp={finishScrub}
+              onPointerCancel={finishScrub}
+              onLostPointerCapture={onScrubLostPointerCapture}
+              onKeyDown={onScrubKeyDown}
+            >
+              <div className="now-playing-progress">
+                <div className="now-playing-progress-fill" />
+              </div>
+              <span className="now-playing-progress-thumb" aria-hidden="true" />
             </div>
           </div>
         </div>
 
         <div className="now-playing-row">
           <div className="now-playing-meta">
-            <p id={titleId} className="now-playing-title">
+            <p
+              id={titleId}
+              className="now-playing-title text-xs font-medium xl:text-sm"
+            >
               {NOW_PLAYING_TRACK.title}
             </p>
             {phase === "error" ? (
               <a
-                className="now-playing-link"
+                className="now-playing-link text-xs"
                 href={watchUrl(NOW_PLAYING_TRACK.videoId)}
                 target="_blank"
                 rel="noreferrer"
@@ -635,7 +907,9 @@ export function NowPlayingCard() {
                 Open on YouTube <span aria-hidden="true">↗</span>
               </a>
             ) : (
-              <p className="now-playing-artist">{NOW_PLAYING_TRACK.artist}</p>
+              <p className="now-playing-artist text-xs">
+                {NOW_PLAYING_TRACK.artist}
+              </p>
             )}
           </div>
 

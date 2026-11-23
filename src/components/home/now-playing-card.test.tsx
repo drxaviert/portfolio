@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NowPlayingCard } from "./now-playing-card";
 
@@ -56,15 +56,52 @@ describe("NowPlayingCard", () => {
     );
   });
 
+  it("exposes a seek slider with aria values and keyboard steps", () => {
+    render(<NowPlayingCard />);
+
+    const slider = screen.getByRole("slider", { name: "Seek" });
+
+    expect(slider).toHaveAttribute("aria-valuemin", "0");
+    expect(slider).toHaveAttribute("aria-valuemax", "249");
+    expect(slider).toHaveAttribute("aria-valuenow", "0");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:00 of 4:09");
+
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    expect(slider).toHaveAttribute("aria-valuenow", "5");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:05 of 4:09");
+    expect(screen.getByText("0:05")).toBeInTheDocument();
+
+    fireEvent.keyDown(slider, { key: "PageUp" });
+    expect(slider).toHaveAttribute("aria-valuenow", "29");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:29 of 4:09");
+
+    fireEvent.keyDown(slider, { key: "Home" });
+    expect(slider).toHaveAttribute("aria-valuenow", "0");
+    expect(slider).toHaveAttribute("aria-valuetext", "0:00 of 4:09");
+
+    fireEvent.keyDown(slider, { key: "End" });
+    expect(slider).toHaveAttribute("aria-valuenow", "249");
+    expect(slider).toHaveAttribute("aria-valuetext", "4:09 of 4:09");
+
+    fireEvent.keyDown(slider, { key: "ArrowLeft" });
+    expect(slider).toHaveAttribute("aria-valuenow", "244");
+    expect(slider).toHaveAttribute("aria-valuetext", "4:04 of 4:09");
+
+    fireEvent.keyDown(slider, { key: "PageDown" });
+    expect(slider).toHaveAttribute("aria-valuenow", "219");
+    expect(slider).toHaveAttribute("aria-valuetext", "3:39 of 4:09");
+  });
+
   it("keeps the times decorative and leaves a polite status", () => {
     const { container } = render(<NowPlayingCard />);
 
     expect(screen.getByText("0:00")).toBeInTheDocument();
     expect(screen.getByText("4:09")).toBeInTheDocument();
-    expect(container.querySelector(".now-playing-art")).toHaveAttribute(
+    expect(container.querySelector(".now-playing-times")).toHaveAttribute(
       "aria-hidden",
       "true",
     );
+    expect(screen.getByRole("slider", { name: "Seek" })).toBeInTheDocument();
 
     const status = screen.getByRole("status");
 
