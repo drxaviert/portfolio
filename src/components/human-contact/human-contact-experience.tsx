@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSyncExternalStore, useState } from "react";
 import { hasWebGLSupport, isSafari } from "./environment";
+import type { LightingPreset } from "./lighting";
 import "./human-contact.css";
 
 const HumanContactScene = dynamic(
@@ -42,8 +43,10 @@ function getServerLiveCapability(): boolean {
 
 export function HumanContactExperience({
   mode = "full",
+  lighting = "current",
 }: {
   mode?: HumanContactMode;
+  lighting?: LightingPreset;
 }) {
   const capable = useSyncExternalStore(
     subscribe,
@@ -54,10 +57,19 @@ export function HumanContactExperience({
   const live = capable && !failed;
 
   return (
-    <div className="hc-experience" data-mode={mode}>
-      {live ? <HumanContactScene onFallback={() => setFailed(true)} /> : null}
+    <div className="hc-experience" data-mode={mode} data-light={lighting}>
+      {live ? (
+        <HumanContactScene
+          lighting={lighting}
+          onFallback={() => setFailed(true)}
+        />
+      ) : null}
 
       <div className="hc-cover" aria-hidden="true" />
+
+      {lighting === "film" ? (
+        <div className="hc-film" aria-hidden="true" />
+      ) : null}
 
       <div className="hc-overlay">
         <div className="hc-monogram" aria-hidden="true">

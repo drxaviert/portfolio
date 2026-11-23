@@ -4,6 +4,11 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import {
+  LIGHTING_PRESETS,
+  type LightSpec,
+  type LightingPreset,
+} from "./lighting";
+import {
   createWaveConfig,
   sampleWave,
   shadowForLift,
@@ -13,6 +18,8 @@ import { createPropSet } from "./props";
 import { Spring } from "./springs";
 
 type HumanContactSceneProps = {
+  /** The lab preset; the public routes leave this at the shipped current rig. */
+  lighting?: LightingPreset;
   /** The browser could not keep a live context; the still behind it takes over. */
   onFallback?: () => void;
 };
@@ -48,7 +55,6 @@ type SceneProp = {
   shadowBaseZ: number;
   shadowBaseW: number;
   shadowBaseH: number;
-  shadowBaseOpacity: number;
   springs: {
     scale: Spring;
   };
@@ -68,6 +74,7 @@ type DebugObject = {
 type DebugWindow = Window & {
   __humanContactDebug?: {
     fieldRotation: () => { x: number; y: number; z: number };
+    lighting: () => LightingPreset | null;
     objects: () => DebugObject[];
   };
 };
@@ -79,13 +86,18 @@ function hash(index: number, salt: number): number {
   return value - Math.floor(value);
 }
 
-export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
+export function HumanContactScene({
+  lighting = "current",
+  onFallback,
+}: HumanContactSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<{
     setReduced: (next: boolean) => void;
+    setLighting: (next: LightingPreset) => void;
   } | null>(null);
   const reduced = useReducedMotion();
   const reducedRef = useRef(reduced);
+  const lightingRef = useRef(lighting);
   const fallbackRef = useRef(onFallback);
 
   useEffect(() => {
@@ -96,6 +108,11 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
     reducedRef.current = reduced;
     controlsRef.current?.setReduced(reduced);
   }, [reduced]);
+
+  useEffect(() => {
+    lightingRef.current = lighting;
+    controlsRef.current?.setLighting(lighting);
+  }, [lighting]);
 
   useEffect(() => {
     const hostElement = containerRef.current;
@@ -127,8 +144,8 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
     renderer.setPixelRatio(dpr);
     renderer.setSize(1, 1, false);
     renderer.setClearColor(0x111111, 1);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
     renderer.domElement.style.display = "block";
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
@@ -144,23 +161,66 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
     camera.position.set(0, CAMERA_Y, CAMERA_Z);
     camera.lookAt(0, 0, 0);
 
-    // Key from upper-left: highlights land top-left, blobs sit lower-right.
-    const key = new THREE.DirectionalLight(0xffffff, 2.4);
+    const lightRig = new THREE.Group();
 
-    key.position.set(-140, 170, 230);
-    scene.add(key);
+    scene.add(lightRig);
 
-    const fill = new THREE.DirectionalLight(0xd8e0ea, 0.55);
+    let activeLighting: LightingPreset | null = null;
+    let shadowBaseOpacity = LIGHTING_PRESETS.current.shadowOpacity;
+    let shadowScale = LIGHTING_PRESETS.current.shadowScale;
 
-    fill.position.set(160, -70, 140);
-    scene.add(fill);
+    function createLight(spec: LightSpec): THREE.Light {
+      if (spec.type === "directional") {
+        const light = new THREE.DirectionalLight(spec.color, spec.intensity);
 
-    const rim = new THREE.DirectionalLight(0xffffff, 0.7);
+        light.position.set(...spec.position);
 
-    rim.position.set(70, 180, -200);
-    scene.add(rim);
+        return light;
+      }
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x111111, 0.6));
+      if (spec.type === "spot") {
+        const light = new THREE.SpotLight(
+          spec.color,
+          spec.intensity,
+          spec.distance,
+          spec.angle,
+          spec.penumbra,
+          spec.decay,
+        );
+
+        light.position.set(...spec.position);
+        light.target.position.set(...spec.target);
+        lightRig.add(light.target);
+
+        return light;
+      }
+
+      return new THREE.HemisphereLight(
+        spec.sky,
+        spec.ground,
+        spec.intensity,
+      );
+    }
+
+    function applyLighting(preset: LightingPreset): void {
+      if (preset === activeLighting) {
+        return;
+      }
+
+      const config = LIGHTING_PRESETS[preset];
+
+      activeLighting = preset;
+      renderer.toneMappingExposure = config.exposure;
+      shadowBaseOpacity = config.shadowOpacity;
+      shadowScale = config.shadowScale;
+      lightRig.clear();
+
+      for (const spec of config.lights) {
+        lightRig.add(createLight(spec));
+      }
+    }
+
+    applyLighting(lightingRef.current);
 
     // The field is fixed. Only the props move inside it; the camera never
     // moves and the grid group is never rotated.
@@ -208,7 +268,7 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
         const wave = sampleWave(prop.wave, time, reducedNow);
         const lift =
           prop.wave.amplitude === 0 ? 0 : wave.z / prop.wave.amplitude;
-        const shadow = shadowForLift(lift, prop.shadowBaseOpacity);
+        const shadow = shadowForLift(lift, shadowBaseOpacity);
 
         prop.root.position.set(prop.restX, prop.restY, prop.restZ);
         prop.bob.position.set(0, 0, wave.z);
@@ -225,8 +285,8 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
           prop.shadowBaseZ,
         );
         prop.shadow.scale.set(
-          prop.shadowBaseW * shadow.scale,
-          prop.shadowBaseH * shadow.scale,
+          prop.shadowBaseW * shadowScale * shadow.scale,
+          prop.shadowBaseH * shadowScale * shadow.scale,
           1,
         );
         prop.shadowMaterial.opacity = shadow.opacity;
@@ -358,7 +418,6 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
           const shadowBaseZ = restZ + SHADOW_DEPTH;
           const shadowBaseW = prototype.width * 1.25 * sizeScale;
           const shadowBaseH = prototype.height * 1.08 * sizeScale;
-          const shadowBaseOpacity = 0.5;
           const shadowMaterial = new THREE.MeshBasicMaterial({
             map: propSet.shadowTexture,
             color: 0x000000,
@@ -400,7 +459,6 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
             shadowBaseZ,
             shadowBaseW,
             shadowBaseH,
-            shadowBaseOpacity,
             springs: {
               scale: new Spring(1, 200, 25),
             },
@@ -585,6 +643,7 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
           y: grid.rotation.y,
           z: grid.rotation.z,
         }),
+        lighting: () => activeLighting,
         objects: () =>
           props.map((prop) => ({
             z: prop.bob.position.z,
@@ -617,6 +676,14 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
           updatePlayback();
         }
       },
+      setLighting: (next: LightingPreset) => {
+        applyLighting(next);
+
+        if (reducedNow) {
+          applyProps(elapsed);
+          renderFrame();
+        }
+      },
     };
 
     return () => {
@@ -643,6 +710,7 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
       props.length = 0;
       proxies.length = 0;
       grid.clear();
+      lightRig.clear();
       propSet.dispose();
       shadowGeometry.dispose();
       proxyGeometry.dispose();
