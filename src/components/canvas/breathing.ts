@@ -34,7 +34,8 @@ export type BreathConfig = {
 
 export const BREATH = {
   periodMs: 5000,
-  amplitude: 0.03,
+  /** The owner's 6% default. */
+  amplitude: 0.06,
   waveRadians: 0.6,
   idleDelayMs: 1000,
   fadeMs: 1200,

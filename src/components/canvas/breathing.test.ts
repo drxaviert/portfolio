@@ -11,6 +11,11 @@ const CONFIG = { ...BREATH };
 const EPSILON = 1e-12;
 
 describe("breathScale", () => {
+  it("locks the owner's 6% / 5s defaults", () => {
+    expect(BREATH.amplitude).toBe(0.06);
+    expect(BREATH.periodMs).toBe(5000);
+  });
+
   it("keeps every scale inside ±amplitude", () => {
     for (let time = 0; time <= 12000; time += 37) {
       for (let col = 0; col < 12; col += 1) {
