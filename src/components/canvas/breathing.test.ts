@@ -24,6 +24,30 @@ describe("breathScale", () => {
     }
   });
 
+  it("derives the phase from absolute time", () => {
+    const time = 3456;
+    const expected =
+      1 +
+      CONFIG.amplitude *
+        Math.sin(
+          (time / CONFIG.periodMs) * Math.PI * 2 -
+            (3 + 4) * CONFIG.waveRadians,
+        );
+
+    expect(breathScale(time, 3, 4, CONFIG)).toBeCloseTo(expected, 12);
+
+    // The value at an absolute timestamp cannot depend on how many frames
+    // preceded it; an irregular sample path lands on the same phase.
+    for (const sample of [0, 17, 41, 1000, 2001, time]) {
+      expect(breathScale(sample, 3, 4, CONFIG)).toBeCloseTo(
+        1 +
+          CONFIG.amplitude *
+            Math.sin(breathPhase(sample, 3, 4, CONFIG)),
+        12,
+      );
+    }
+  });
+
   it("runs the wave diagonally from the grid index", () => {
     const time = 1234;
 

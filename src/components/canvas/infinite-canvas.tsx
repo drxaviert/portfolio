@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /* eslint-disable @next/next/no-img-element -- the no-WebGL fallback needs a
    plain poster <img>; the WebGL path never renders one. */
@@ -176,9 +176,20 @@ const FRAGMENT_SHADER = /* glsl */ `
     float luma = dot(texel.rgb, vec3(0.2126, 0.7152, 0.0722));
     texel.rgb = mix(texel.rgb, vec3(luma), uGray);
 
+    // Analytic 1px edge coverage for high-DPI targets without MSAA, so the
+    // slow breath does not make the quad edge hop whole pixels. The lens pass
+    // then filters the already-antialiased edge linearly.
+    vec2 edge = min(vUv, 1.0 - vUv);
+    vec2 edgeStep = max(fwidth(vUv), vec2(0.00001));
+    float edgeAlpha =
+      smoothstep(0.0, 1.0, edge.x / edgeStep.x) *
+      smoothstep(0.0, 1.0, edge.y / edgeStep.y);
+
+    float alpha = uOpacity * edgeAlpha;
+
     // Linear premultiplied for the render target; the lens pass does the one
     // sRGB encode when it draws to the canvas.
-    gl_FragColor = vec4(texel.rgb * uOpacity, uOpacity);
+    gl_FragColor = vec4(texel.rgb * alpha, alpha);
   }
 `;
 
@@ -324,6 +335,7 @@ type CanvasDebug = {
   breathActive: boolean;
   breathAmplitude: number;
   breathIdleMs: number;
+  breathSample: number;
   renderedFrames: number;
   transition: TransitionPhase;
   transitionMs: number;
@@ -377,7 +389,7 @@ function clippedArea(rect: Box, width: number, height: number): number {
 function StaticFallback({ items }: { items: CanvasItem[] }) {
   return (
     <div className="cv-fallback" aria-hidden="true">
-      <p className="cv-fallback__note">WebGL unavailable · static grid</p>
+      <p className="cv-fallback__note">WebGL unavailable ┬╖ static grid</p>
       <div className="cv-fallback__grid">
         {items.slice(0, 12).map((item) => (
           <div key={item.key} className="cv-fallback__item">
@@ -663,10 +675,8 @@ export const InfiniteCanvas = forwardRef<
     let breathLevel = 0;
     let breathAmplitude = 0;
     let breathIdleMs = 0;
+    let breathSample = 1;
     let renderedFrames = 0;
-    /** The last frame was only breathing, so it may be held to 30fps. */
-    let breathOnly = false;
-    let lastRenderAt = 0;
 
     const idleTransition = (): CanvasTransition => ({
       phase: "idle",
@@ -717,6 +727,7 @@ export const InfiniteCanvas = forwardRef<
             breathActive: false,
             breathAmplitude: 0,
             breathIdleMs: 0,
+            breathSample: 1,
             renderedFrames: 0,
             transition: "idle",
             transitionMs: 0,
@@ -1285,6 +1296,7 @@ export const InfiniteCanvas = forwardRef<
       debug.breathActive = breathActive;
       debug.breathAmplitude = Number(breathAmplitude.toFixed(4));
       debug.breathIdleMs = Math.round(breathIdleMs);
+      debug.breathSample = Number(breathSample.toFixed(6));
       debug.renderedFrames = renderedFrames;
       debug.transition = transition.phase;
       debug.transitionMs =
@@ -1908,6 +1920,11 @@ export const InfiniteCanvas = forwardRef<
       breathActive = !moving;
       breathAmplitude = amplitude;
       breathIdleMs = moving ? 0 : idleMs;
+      breathSample = planes[0]
+        ? 1 +
+          amplitude *
+            Math.sin(breathPhase(now, planes[0].col, planes[0].row, config))
+        : 1;
 
       if (moving) breathIdleSince = now;
 
@@ -2235,13 +2252,6 @@ export const InfiniteCanvas = forwardRef<
         return;
       }
 
-      if (breathOnly && now - lastRenderAt < BREATH.frameMs) {
-        raf = requestAnimationFrame(renderFrame);
-        return;
-      }
-
-      lastRenderAt = now;
-
       const dtMs = last ? Math.min(48, Math.max(0, now - last)) : FRAME_MS;
       const dt = dtMs / FRAME_MS;
       last = now;
@@ -2272,8 +2282,6 @@ export const InfiniteCanvas = forwardRef<
         transitionRunning ||
         transitionActive;
 
-      breathOnly = breathing && !otherActive;
-
       if (otherActive || breathing) {
         raf = requestAnimationFrame(renderFrame);
       } else {
@@ -2285,8 +2293,6 @@ export const InfiniteCanvas = forwardRef<
       if (disposed || document.hidden) {
         return;
       }
-
-      breathOnly = false;
 
       if (raf !== 0) {
         return;

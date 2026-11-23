@@ -40,8 +40,6 @@ export const BREATH = {
   fadeMs: 1200,
   fadeOutMs: 300,
   settleSpeed: 0.1,
-  /** Cap the render loop at 30fps when breathing is the only motion. */
-  frameMs: 1000 / 30,
   minAmplitude: 0,
   maxAmplitude: 0.06,
   minPeriodMs: 2000,
