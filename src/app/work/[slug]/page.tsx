@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { CANVAS_MEDIA_IDS } from "@/components/canvas/items";
+import type { CanvasItem } from "@/components/canvas/infinite-canvas";
+import { CanvasReader } from "@/components/work/canvas-reader";
 import { mdxComponents } from "@/components/work/mdx-components";
 import { Reader } from "@/components/work/reader";
+import { getMedia } from "@/lib/media";
 import { getWork, listWork } from "@/lib/work";
 import { WORK_BODIES } from "@/lib/work-bodies";
 import { workMetadata } from "@/lib/work-metadata";
@@ -38,6 +42,15 @@ export default async function WorkPage({
   const meta = getWork(slug);
 
   if (!meta) notFound();
+
+  if (meta.layout === "canvas") {
+    const items: CanvasItem[] = CANVAS_MEDIA_IDS.map((id, index) => ({
+      key: `${id}--${index}`,
+      media: getMedia(id),
+    }));
+
+    return <CanvasReader meta={meta} items={items} />;
+  }
 
   const { default: Body } = await WORK_BODIES[meta.slug]();
 

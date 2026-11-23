@@ -1,0 +1,110 @@
+/*
+ * The WebGL surface and its no-WebGL fallback. Shared by the live Motion &
+ * Stills study and the dev prototype; the page frame (the dev chrome, the
+ * drawer panel) belongs to whichever route hosts it.
+ */
+
+.cv-surface {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+
+.cv-surface[data-dragging] {
+  cursor: grabbing;
+}
+
+.cv-surface[data-hover]:not([data-dragging]) {
+  cursor: pointer;
+}
+
+.cv-surface:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -4px;
+}
+
+.cv-webgl-host {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cv-webgl-host canvas,
+.cv-webgl {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cv-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  padding: 24px;
+  margin: 0;
+  place-items: center;
+  color: var(--on-surface-variant);
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.cv-empty code {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+
+.cv-fallback {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 56px 24px 96px;
+  pointer-events: none;
+}
+
+.cv-fallback__note {
+  width: fit-content;
+  padding: 8px 12px;
+  margin: 0 auto 20px;
+  border-radius: 999px;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  box-shadow: var(--shadow-card);
+}
+
+.cv-fallback__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.cv-fallback__item {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-highest);
+  box-shadow: var(--shadow-card);
+}
+
+.cv-fallback__item .media,
+.cv-fallback__item > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (forced-colors: active) {
+  .cv-fallback__note,
+  .cv-fallback__item {
+    border: 1px solid CanvasText;
+  }
+}

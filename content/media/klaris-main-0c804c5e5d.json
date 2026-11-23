@@ -1,0 +1,24 @@
+{
+  "id": "klaris-main-0c804c5e5d",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Klaris motion piece",
+  "caption": "Klaris",
+  "createdAt": "2026-11-23T15:22:48.631Z",
+  "original": "Klaris_Main.webm",
+  "mp4": {
+    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-main-0c804c5e5d/video.mp4",
+    "bytes": 1152515
+  },
+  "canvas": {
+    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-main-0c804c5e5d/canvas.mp4",
+    "bytes": 238818
+  },
+  "poster": {
+    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-main-0c804c5e5d/poster.avif",
+    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-main-0c804c5e5d/poster.jpg"
+  },
+  "duration": 12,
+  "hasAudio": false
+}

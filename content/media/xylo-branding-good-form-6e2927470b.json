@@ -1,0 +1,24 @@
+{
+  "id": "xylo-branding-good-form-6e2927470b",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Xylo motion piece",
+  "caption": "Xylo",
+  "createdAt": "2026-11-23T15:24:31.832Z",
+  "original": "xylo Branding Good Form.webm",
+  "mp4": {
+    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/xylo-branding-good-form-6e2927470b/video.mp4",
+    "bytes": 8526752
+  },
+  "canvas": {
+    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/xylo-branding-good-form-6e2927470b/canvas.mp4",
+    "bytes": 971485
+  },
+  "poster": {
+    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/xylo-branding-good-form-6e2927470b/poster.avif",
+    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/xylo-branding-good-form-6e2927470b/poster.jpg"
+  },
+  "duration": 15,
+  "hasAudio": false
+}

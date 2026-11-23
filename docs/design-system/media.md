@@ -131,6 +131,20 @@ Playback (`src/components/media/media-video.tsx`):
 - Short loops are unchanged: muted, looping, autoplaying in view, and the reduced-motion button
   is still the only way in under `prefers-reduced-motion: reduce`.
 
+## Canvas rendition
+
+The WebGL grid draws its planes at roughly 111-197px, so a 1080p frame is wasted decode and
+texture upload. When the main MP4 is taller than 480px, `pnpm post` also encodes `canvas.mp4`:
+H.264, no audio, at most 480px tall, `-crf 24 -maxrate 650k -bufsize 1300k`, `+faststart`, uploaded
+as `media/<id>/canvas.mp4` and recorded as `canvas: { url, bytes }` next to `mp4`.
+
+- The canvas uses `canvas ?? mp4` (`src/components/canvas/infinite-canvas.tsx`).
+- The live `/work/motion-and-stills` study uses the same list as the dev prototype. An HLS piece has no `canvas` rendition, so its grid plane uses the progressive MP4 while the full-screen viewer uses the ladder.
+- Clips already at or below 480p skip the extra encode, so the field is optional and absent for
+  them; `validateManifest` accepts both shapes.
+- The 16 existing clips over 480p were backfilled from `media/archive/<id>.webm`; only the new
+  `canvas.mp4` files were uploaded. The archives themselves were not modified.
+
 Cache check on the existing Blob store (`media/pipeline-test-loop-c0fe9c23ef/`): both `poster.jpg`
 and `video.mp4` return `x-vercel-cache: HIT`, `cache-control: public, max-age=31536000`,
 `accept-ranges: bytes`, and a `206` for a `Range` request; the second request only advanced `age`.
@@ -166,9 +180,9 @@ component decision, not just a manifest flag.
 - no `content/media/<id>.json` (`media.ts:235-239`);
 - a manifest that does not validate: id mismatch, unknown `kind`, non-integer or non-positive
   dimensions, non-`https` media URLs, empty `sources`, a `lqip` that is not an image data URI, a
-  non-positive `duration`, a non-boolean `hasAudio`, or an `hls` block whose `url` is not an https
+  non-positive `duration`, a non-boolean `hasAudio`, an `hls` block whose `url` is not an https
   `.m3u8`, whose `bytes` is not a positive integer, or whose `levels` are empty or not positive
-  (`media.ts:122-155`, `:157-221`);
+  (`media.ts:122-155`, `:157-221`), or a `canvas` block with a non-https url or non-positive bytes;
 - an image manifest with no sources to draw (`media-image.tsx:33-37`).
 
 Manifests are read once per id per process (`media.ts:50`, `:223-253`), so a newly posted file needs

@@ -1,0 +1,118 @@
+/*
+ * The live canvas study. It fills the drawer panel, so the panel's own inset,
+ * radius, shadow and morph stay in charge around it.
+ */
+
+.cv-reader {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--on-surface);
+}
+
+.cv-reader__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.cv-reader__stage {
+  position: absolute;
+  inset: 0;
+  transition: opacity var(--duration-medium-5) var(--ease-decelerate);
+}
+
+.cv-reader[data-viewing] .cv-reader__stage {
+  opacity: 0.4;
+}
+
+.cv-reader__back {
+  position: absolute;
+  top: calc(
+    var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
+  );
+  left: max(16px, env(safe-area-inset-left));
+  z-index: 4;
+  pointer-events: auto;
+}
+
+.cv-reader__back .wd-breadcrumb {
+  margin: 0;
+}
+
+.cv-reader__hint {
+  position: absolute;
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 24px);
+  left: max(16px, env(safe-area-inset-left));
+  z-index: 3;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 8px 12px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: var(--shadow-card);
+  pointer-events: none;
+}
+
+.cv-reader__credit {
+  position: absolute;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  left: max(16px, env(safe-area-inset-left));
+  z-index: 3;
+  margin: 0;
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.cv-reader__credit a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  pointer-events: auto;
+}
+
+.cv-reader__credit a:hover {
+  color: var(--on-surface);
+}
+
+.cv-reader__credit a:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (min-width: 768px) {
+  .cv-reader__back {
+    left: 32px;
+  }
+
+  .cv-reader__hint,
+  .cv-reader__credit {
+    left: 32px;
+  }
+}
+
+@media (max-width: 640px) {
+  .cv-reader__hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-reader__stage {
+    transition: none;
+  }
+}
