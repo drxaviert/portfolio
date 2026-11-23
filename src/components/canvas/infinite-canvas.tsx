@@ -22,7 +22,7 @@ import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
 import type { MediaManifest } from "@/lib/media-types";
 import type { Box } from "@/components/work/morph";
-import { gridMetrics } from "./grid";
+import { gridMetrics, orientationRatio } from "./grid";
 import { usePan } from "./use-pan";
 import { planePosition } from "./wrap";
 
@@ -428,7 +428,7 @@ export const InfiniteCanvas = forwardRef<
       disposePlanes();
 
       const grid = gridMetrics(width, height);
-      const { baseWidth, cellHeight } = grid;
+      const { baseWidth } = grid;
 
       pitchX = grid.pitchX;
       pitchY = grid.pitchY;
@@ -444,9 +444,8 @@ export const InfiniteCanvas = forwardRef<
           const itemIndex = (row * cols + col) % items.length;
           const media = items[itemIndex].media;
           const aspect = media.width / Math.max(1, media.height);
-          const planeWidth =
-            baseWidth / aspect > cellHeight ? cellHeight * aspect : baseWidth;
-          const planeHeight = Math.min(baseWidth / aspect, cellHeight);
+          const planeWidth = baseWidth;
+          const planeHeight = baseWidth * orientationRatio(aspect);
           const url = urls[itemIndex];
           const entry = ensureTexture(url);
           const opacity = entry.loaded ? 1 : 0;
