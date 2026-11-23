@@ -12,6 +12,9 @@
  * at z-index 70, above the nav, clipped only by the viewport. The inner layer
  * owns the radius, shadow, fade and scale; the crossfade between rows is two
  * stacked images. Touch has no thumbnail.
+ *
+ * When the empty left margin can hold it, the same media is a 4:3 panel beside
+ * the list instead (see "Margin panel" below); the list never moves either way.
  */
 
 .wd-work-sr-only {
@@ -165,37 +168,15 @@
   cursor: none;
 }
 
-/* ---------- Left modes (?thumb=left-*) ---------- */
+/* ---------- Margin panel ---------- */
 
 /*
- * The three left modes keep the list exactly as it ships — same width, same
- * position — and overlay the same 480x360 thumb, with X locked to the list's
- * left edge in work-list.tsx. Only Y differs, so there is no layout work here:
- * the fixed mode's row-to-row swap is a touch shorter than the shipped 200ms
- * fade.
- */
-.wd-work-thumb-clip[data-work-variant="left-fixed"] .wd-work-thumb-img {
-  transition-duration: var(--duration-short-6);
-}
-
-/* Reduced motion has no glide and no crossfade in the left modes: the thumb is
-   placed and its media swapped on the same frame. The shared enter/exit fade
-   keeps its reduced 120ms, as the shipped thumb does. */
-@media (prefers-reduced-motion: reduce) {
-  .wd-work-thumb-clip[data-work-variant^="left"] .wd-work-thumb-img {
-    transition: none;
-  }
-}
-
-/* ---------- Panel (?thumb=panel) ---------- */
-
-/*
- * The panel lives in the empty left margin of the shipped, centred list, the
- * way the reference shows its image beside its list. The list's own layout is
- * untouched in this mode: the panel is a fixed box in the thumb's viewport clip,
- * and `placePanel` measures the margin (surface edge + 16px to list edge - 32px,
- * capped at 600px and right-aligned when capped) and its sticky Y. Height is the
- * shipped thumb's 4:3, and it takes the thumb's radius and shadow.
+ * The panel lives in the empty left margin of the centred list, beside it. The
+ * list's own layout is untouched: the panel is a fixed box in the thumb's
+ * viewport clip, and `placePanel` measures the margin (surface edge + 16px to
+ * list edge - 32px, capped at 600px and right-aligned when capped) and its
+ * sticky Y. Height is the thumb's 4:3, and it takes the thumb's radius and
+ * shadow.
  */
 .wd-work-panel {
   position: absolute;
@@ -215,9 +196,9 @@
   transition: opacity 200ms var(--ease-emphasized-decelerate);
 }
 
-/* The reference's swap: 1s on an expo-out fade, both layers together, so the
-   two images are always blended rather than stepping. Opacity retargets, so a
-   fast sweep across rows interrupts the fade in place. */
+/* The panel's swap: 1s on an expo-out fade, both layers together, so the two
+   images are always blended rather than stepping. Opacity retargets, so a fast
+   sweep across rows interrupts the fade in place. */
 .wd-work-panel .wd-work-thumb-img {
   transition-duration: 1000ms;
   transition-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
@@ -234,31 +215,6 @@
   .wd-work-panel .wd-work-thumb-img {
     transition: none;
   }
-}
-
-/* ---------- Dev-only variant switch ---------- */
-
-.wd-work-dev {
-  display: flex;
-  justify-content: flex-end;
-  gap: 4px;
-  margin-bottom: 12px;
-}
-
-.wd-work-dev-option {
-  padding: 4px 10px;
-  border-radius: var(--radius-md);
-  font-size: var(--text-xs);
-  line-height: 1.4;
-  color: var(--on-surface-variant);
-  background: transparent;
-  cursor: pointer;
-  transition: background-color var(--duration-short-3) var(--ease-decelerate);
-}
-
-.wd-work-dev-option[aria-pressed="true"] {
-  color: var(--on-surface);
-  background: var(--surface-container);
 }
 
 /* ---------- Narrow ---------- */
