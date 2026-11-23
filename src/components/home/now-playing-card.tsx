@@ -26,7 +26,7 @@ import "@/components/player/player.css";
 import "./now-playing-card.css";
 
 /**
- * The homepage's top-left card: Paper's "Static player · Pulled in" board.
+ * The homepage's top-left card: Paper's "Static player" board.
  *
  * It is a pure view over the app-wide player store. The one hidden YouTube
  * iframe lives in the root provider, so navigation never unmounts the audio and
@@ -34,10 +34,11 @@ import "./now-playing-card.css";
  * state. The card only owns UI state: the delayed spinner, the drag preview and
  * the artwork fallback.
  *
- * The default surface is row 1 "Current" (flat); ?surface=pulled restores row
- * 2 V1 Frosted for comparison. The album art fills the top, the times and a
- * role="slider" seek bar sit over its bottom gradient, and the title/artist
- * well and play button share the bottom row.
+ * The card is Paper's row 1 "Current" flat surface: surface-container-low
+ * fill, --shadow-card, no inset rim, and a surface-container title/artist
+ * well. The album art fills the top, the times and a role="slider" seek bar
+ * sit over its bottom gradient, and the title/artist well and play button
+ * share the bottom row.
  *
  * The play button, progress fill and scrubber thumb all use the site's nav orb
  * gradient (--orb-gradient in globals.css, painted by OrbHead in
@@ -67,7 +68,6 @@ export function NowPlayingCard({
   const [preview, setPreview] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  const cardRef = useRef<HTMLDivElement | null>(null);
   const scrubRef = useRef<HTMLDivElement | null>(null);
   const pointerIdRef = useRef<number | null>(null);
   const previewRef = useRef(0);
@@ -92,21 +92,6 @@ export function NowPlayingCard({
       setShowSpinner(false);
     };
   }, [status]);
-
-  // Dev-only surface comparison. The default is Paper row 1's flat card;
-  // ?surface=pulled restores row 2's fill/rim/well. The attribute is set once
-  // on the client, so production and ordinary visits never depend on the query.
-  useEffect(() => {
-    if (process.env.NODE_ENV === "production") return;
-
-    const card = cardRef.current;
-
-    if (!card) return;
-
-    const surface = new URLSearchParams(window.location.search).get("surface");
-
-    card.dataset.surface = surface === "pulled" ? "pulled" : "flat";
-  }, []);
 
   const previewFromClientX = useCallback(
     (clientX: number) => {
@@ -239,11 +224,9 @@ export function NowPlayingCard({
 
   return (
     <div
-      ref={cardRef}
       role="group"
       aria-labelledby={titleId}
       data-phase={status}
-      data-surface="flat"
       onPointerEnter={store.warm}
       onFocus={store.warm}
       onPointerDown={store.warm}

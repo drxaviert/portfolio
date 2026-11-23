@@ -2,8 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { FloatingMiniPlayer } from "./floating-mini-player";
-import { useOffHomeVariant } from "./offhome-variant";
 import { playerStore } from "./player-store";
 import "./player.css";
 
@@ -21,7 +19,6 @@ export function PersistentPlayerProvider({
   children: ReactNode;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const variant = useOffHomeVariant();
 
   useEffect(() => {
     playerStore.attachHost(hostRef.current);
@@ -33,7 +30,6 @@ export function PersistentPlayerProvider({
     <>
       {children}
       <div ref={hostRef} className="player-host" aria-hidden="true" />
-      {variant === "pill" ? <FloatingMiniPlayer /> : null}
     </>
   );
 }

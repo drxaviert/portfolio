@@ -1,15 +1,9 @@
 /*
- * Static player card — Paper "Static player · Pulled in" board.
+ * Static player card — Paper "Static player" board.
  *
- * Default: row 1 "Current" flat. The card is a standard home card —
- * surface-container-low fill, --shadow-card, no inset rim, and a
- * surface-container title/artist well.
- *
- * Comparison: ?surface=pulled (dev only) restores row 2 V1 Frosted. The card
- * sits flush with the page — page-surface fill, no outer shadow, a soft white
- * inset rim, and the white-75% well. The inset rim lives on .ring-surface so
- * the hover ring's existing grow still carries it. Nothing in the pulled-in
- * styling is removed; it is only gated by [data-surface="pulled"].
+ * The card is Paper's row 1 "Current" flat surface: surface-container-low
+ * fill, --shadow-card, no inset rim, and a surface-container title/artist
+ * well.
  *
  * The play button, progress fill and scrubber thumb use the nav orb gradient
  * (globals.css --orb-gradient, painted by home-nav.tsx OrbHead). The fill is a
@@ -26,15 +20,7 @@
  * font-semibold, tabular-nums); no free cqw or px type sizes.
  */
 
-.ring-host.now-playing-card[data-surface="pulled"] {
-  /* The pulled-in surface carries the rim; the host has no outer shadow. */
-  box-shadow: none;
-}
-
 .now-playing-card {
-  --now-playing-inset:
-    inset 0 0 20px 4px rgb(255 255 255 / 0.95),
-    inset 0 0 6px 0 rgb(255 255 255 / 0.7);
   --now-playing-well: var(--surface-container);
   --now-playing-fade: var(--surface-bright);
   --now-playing-track: color-mix(in oklab, var(--on-surface) 14%, transparent);
@@ -47,19 +33,6 @@
   --now-playing-art-radius: clamp(5px, 3.1873cqw, 8px);
 
   padding: 7px;
-}
-
-/* The pulled-in comparison keeps its row-2 well, fill and inset rim. The Night
-   block below deliberately resets the well to surface-container for both
-   surfaces. */
-.now-playing-card[data-surface="pulled"] {
-  --now-playing-well: rgb(255 255 255 / 0.75);
-  --now-playing-art-bg: var(--surface);
-}
-
-.now-playing-card[data-surface="pulled"] .ring-surface {
-  background-color: var(--surface);
-  box-shadow: var(--now-playing-inset);
 }
 
 @media (min-width: 768px) {
@@ -75,9 +48,6 @@
 }
 
 [data-phase="night"] .now-playing-card {
-  --now-playing-inset:
-    inset 0 0 20px 3px rgb(255 255 255 / 0.08),
-    inset 0 0 6px 0 rgb(255 255 255 / 0.05);
   --now-playing-well: var(--surface-container);
   --now-playing-fade: var(--surface-container-low);
   --now-playing-track: color-mix(in oklab, var(--on-surface) 20%, transparent);

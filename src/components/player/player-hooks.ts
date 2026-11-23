@@ -13,7 +13,7 @@ export function usePlayer(store: PlayerStore = playerStore) {
   );
 }
 
-/** Status, duration and dismiss only: no re-render on time ticks. */
+/** Status and duration only: no re-render on time ticks. */
 export function usePlayerStatus(store: PlayerStore = playerStore) {
   return useSyncExternalStore(
     store.subscribeStatus,

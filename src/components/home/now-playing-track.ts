@@ -1,7 +1,7 @@
 /**
  * The one track the static player card plays. The title, artist and drawn
- * duration come from the Paper file "portfolio" (Static player · Pulled in,
- * row 2, V1 Frosted) and stay as the design placeholder.
+ * duration come from the Paper file "portfolio" (Static player) and stay as
+ * the design placeholder.
  *
  * TODO_VIDEO_ID is deliberately a technical placeholder, not the design's
  * track: Daft Punk's official "Get Lucky" audio (5NV6Rdv1a3I) returns YouTube

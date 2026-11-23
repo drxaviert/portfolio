@@ -92,7 +92,6 @@ describe("player store", () => {
     expect(snapshot.duration).toBe(249);
     expect(snapshot.track.title).toBe("Get Lucky");
     expect(snapshot.track.artist).toBe("Daft Punk");
-    expect(snapshot.dismissed).toBe(false);
   });
 
   it("does not touch YouTube until a player control asks for it", async () => {
@@ -193,20 +192,6 @@ describe("player store", () => {
     expect(harness.store.getSnapshot().status).toBe("error");
     expect(harness.store.getSnapshot().currentTime).toBe(0);
     expect(harness.handle.pause).toHaveBeenCalled();
-  });
-
-  it("dismisses by pausing, and a new play brings it back", async () => {
-    const harness = await playingHarness();
-
-    harness.store.dismiss();
-
-    expect(harness.store.getSnapshot().status).toBe("paused");
-    expect(harness.store.getSnapshot().dismissed).toBe(true);
-
-    harness.store.play();
-
-    expect(harness.store.getSnapshot().dismissed).toBe(false);
-    expect(harness.store.getSnapshot().status).toBe("playing");
   });
 
   it("notifies time listeners without waking status-only listeners", async () => {

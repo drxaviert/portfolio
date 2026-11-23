@@ -1,8 +1,6 @@
 "use client";
 
 import { NavOrb } from "@/components/player/nav-orb";
-import { NavPlayerControl } from "@/components/player/nav-player-control";
-import { useOffHomeVariant } from "@/components/player/offhome-variant";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { useTooltipWarm } from "@/components/nav/use-tooltip-warm";
 import { NavItems } from "./nav-items";
@@ -32,7 +30,6 @@ import "./ring-hover.css";
  */
 export function HomeNav() {
   const tooltips = useTooltipWarm();
-  const offHomeVariant = useOffHomeVariant();
 
   return (
     <nav
@@ -44,10 +41,9 @@ export function HomeNav() {
     >
       <RingLayers fill="bg-surface-container-low" />
 
-      <NavOrb variant={offHomeVariant} />
+      <NavOrb />
 
-      <div className="relative flex min-w-0 items-center gap-3">
-        {offHomeVariant === "nav" ? <NavPlayerControl /> : null}
+      <div className="flex min-w-0 items-center gap-3">
         <NavItems />
         <ThemeToggle />
       </div>

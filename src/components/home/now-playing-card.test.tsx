@@ -26,7 +26,6 @@ beforeEach(() => {
 afterEach(() => {
   store.destroy();
   vi.unstubAllGlobals();
-  window.history.replaceState({}, "", "/");
 });
 
 describe("NowPlayingCard", () => {
@@ -40,26 +39,6 @@ describe("NowPlayingCard", () => {
       screen.getByRole("button", { name: "Play Get Lucky" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Daft Punk")).toBeInTheDocument();
-  });
-
-  it("defaults to the flat row-1 surface", () => {
-    const { container } = render(<NowPlayingCard store={store} />);
-
-    expect(container.querySelector(".now-playing-card")).toHaveAttribute(
-      "data-surface",
-      "flat",
-    );
-  });
-
-  it("switches to the pulled-in surface with ?surface=pulled", () => {
-    window.history.replaceState({}, "", "/?surface=pulled");
-
-    const { container } = render(<NowPlayingCard store={store} />);
-
-    expect(container.querySelector(".now-playing-card")).toHaveAttribute(
-      "data-surface",
-      "pulled",
-    );
   });
 
   it("exposes a seek slider with aria values and keyboard steps", () => {

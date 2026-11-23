@@ -12,13 +12,11 @@ export type PlayerSnapshot = {
   currentTime: number;
   duration: number;
   track: typeof NOW_PLAYING_TRACK;
-  /** True after the pill's ×, until the next play. */
-  dismissed: boolean;
 };
 
 export type PlayerStatusSnapshot = Pick<
   PlayerSnapshot,
-  "status" | "duration" | "track" | "dismissed"
+  "status" | "duration" | "track"
 >;
 
 export type PlayerStoreDeps = {
@@ -39,7 +37,6 @@ export type PlayerStore = {
   pause: () => void;
   toggle: () => void;
   seek: (seconds: number) => void;
-  dismiss: () => void;
   destroy: () => void;
 };
 
@@ -59,7 +56,6 @@ function initialSnapshot(): PlayerSnapshot {
     currentTime: 0,
     duration: TRACK.durationSeconds,
     track: TRACK,
-    dismissed: false,
   };
 }
 
@@ -68,7 +64,6 @@ function toStatus(snapshot: PlayerSnapshot): PlayerStatusSnapshot {
     status: snapshot.status,
     duration: snapshot.duration,
     track: snapshot.track,
-    dismissed: snapshot.dismissed,
   };
 }
 
@@ -78,8 +73,8 @@ function toStatus(snapshot: PlayerSnapshot): PlayerStatusSnapshot {
  * host, and is never owned by a card or a route.
  *
  * Two listener sets: the full snapshot ticks four times a second while playing,
- * while the status set only wakes on status, duration or dismiss changes. That
- * keeps the nav control out of the time-tick renders.
+ * while the status set only wakes on status or duration changes. That keeps the
+ * nav control out of the time-tick renders.
  */
 export function createPlayerStore(
   deps: Partial<PlayerStoreDeps> = {},
@@ -119,8 +114,7 @@ export function createPlayerStore(
     const nextStatus = toStatus(next);
     const statusChanged =
       nextStatus.status !== previousStatus.status ||
-      nextStatus.duration !== previousStatus.duration ||
-      nextStatus.dismissed !== previousStatus.dismissed;
+      nextStatus.duration !== previousStatus.duration;
 
     if (statusChanged) {
       statusSnapshot = nextStatus;
@@ -386,7 +380,7 @@ export function createPlayerStore(
     const startAt = snapshot.currentTime;
 
     if (live === "paused" && handle) {
-      update({ status: "playing", dismissed: false });
+      update({ status: "playing" });
       startPolling();
 
       try {
@@ -401,7 +395,7 @@ export function createPlayerStore(
     requestToken += 1;
     const token = requestToken;
 
-    update({ status: "loading", dismissed: false });
+    update({ status: "loading" });
     startLoadTimeout();
 
     void ensurePlayer().then((player) => {
@@ -513,18 +507,6 @@ export function createPlayerStore(
     });
   }
 
-  function dismiss() {
-    const live = snapshot.status;
-
-    if (live === "playing") {
-      pause();
-    } else if (live === "loading") {
-      cancelLoading();
-    }
-
-    update({ dismissed: true });
-  }
-
   function destroy() {
     clearLoadTimeout();
     stopPolling();
@@ -565,7 +547,6 @@ export function createPlayerStore(
     pause,
     toggle,
     seek,
-    dismiss,
     destroy,
   };
 }

@@ -1,6 +1,5 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ThemeProvider } from "@/components/theme/theme-provider";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   YouTubeCallbacks,
   YouTubeHandle,
@@ -8,14 +7,12 @@ import type {
 } from "@/components/home/now-playing-youtube";
 import { createPlayerStore } from "./player-store";
 import type { PlayerStore } from "./player-store";
-import type { OffHomeVariant } from "./offhome-variant";
 import { NavOrb } from "./nav-orb";
 
-const mocks = vi.hoisted(() => ({ pathname: "/work", push: vi.fn() }));
+const mocks = vi.hoisted(() => ({ pathname: "/work" }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
-  useRouter: () => ({ push: mocks.push }),
 }));
 
 const YT_STATE: YouTubeState = {
@@ -29,14 +26,8 @@ const YT_STATE: YouTubeState = {
 
 const cleanups: (() => void)[] = [];
 
-beforeEach(() => {
-  mocks.pathname = "/work";
-  mocks.push.mockReset();
-});
-
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
-  vi.useRealTimers();
 });
 
 function makeHarness() {
@@ -83,182 +74,21 @@ function makeHarness() {
   return { store, handle, playThrough };
 }
 
-function renderOrb(variant: OffHomeVariant, store: PlayerStore) {
-  return render(
-    <ThemeProvider>
-      <NavOrb variant={variant} store={store} />
-    </ThemeProvider>,
-  );
+function renderOrb(store: PlayerStore) {
+  return render(<NavOrb store={store} />);
 }
 
-describe("orb player variants", () => {
-  it("keeps the idle ring variant as the normal Home link", () => {
+describe("orb satellite control", () => {
+  it("keeps the idle nav as the normal Home link", () => {
+    mocks.pathname = "/work";
     const harness = makeHarness();
-    const { container } = renderOrb("ring", harness.store);
+    const { container } = renderOrb(harness.store);
 
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
       "href",
       "/",
     );
-    expect(
-      screen.queryByRole("button", { name: /hold for home/ }),
-    ).not.toBeInTheDocument();
-    expect(container.querySelector(".orb-ring")).toBeNull();
-  });
-
-  it("keeps the idle pill and satellite variants as the normal Home link", () => {
-    const pillHarness = makeHarness();
-    const pill = renderOrb("pill-orb", pillHarness.store);
-    expect(pill.container.querySelector(".orb-pill")).toHaveAttribute(
-      "data-visible",
-      "false",
-    );
-    expect(
-      screen.queryByRole("button", { name: "Pause Get Lucky" }),
-    ).not.toBeInTheDocument();
-    pill.unmount();
-
-    const satHarness = makeHarness();
-    const sat = renderOrb("satellite", satHarness.store);
-    expect(sat.container.querySelector(".orb-satellite")).toHaveAttribute(
-      "data-visible",
-      "false",
-    );
-    expect(
-      screen.queryByRole("button", { name: "Pause Get Lucky" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
-      "href",
-      "/",
-    );
-  });
-
-  it("shows the ring off-home, toggles, and exposes a keyboard Home link", async () => {
-    const harness = makeHarness();
-
-    await harness.playThrough();
-
-    const { container } = renderOrb("ring", harness.store);
-    const button = screen.getByRole("button", {
-      name: "Pause, hold for home",
-    });
-
-    expect(container.querySelector(".orb-ring")).not.toBeNull();
-    expect(container.querySelector("[data-ring-progress]")).not.toBeNull();
-    expect(
-      screen.getByText("Click to pause · hold for home"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Home" })).toHaveClass(
-      "orb-home-alt",
-    );
-
-    fireEvent.click(button);
-
-    expect(harness.store.getSnapshot().status).toBe("paused");
-    expect(
-      screen.getByRole("button", { name: "Play, hold for home" }),
-    ).toBeInTheDocument();
-  });
-
-  it("tracks the shared time in the ring arc", async () => {
-    const harness = makeHarness();
-
-    await harness.playThrough();
-    act(() => harness.store.seek(60));
-
-    const { container } = renderOrb("ring", harness.store);
-    const progress = container.querySelector("[data-ring-progress]");
-    const dash = Number.parseFloat(
-      progress?.getAttribute("stroke-dasharray") ?? "",
-    );
-    const expected = 2 * Math.PI * 22 * (60 / 249);
-
-    expect(dash).toBeCloseTo(expected, 1);
-  });
-
-  it("holds the ring for 500ms to go home without toggling", async () => {
-    vi.useFakeTimers();
-    const harness = makeHarness();
-
-    await harness.playThrough();
-
-    renderOrb("ring", harness.store);
-
-    const button = screen.getByRole("button", {
-      name: "Pause, hold for home",
-    });
-
-    fireEvent.pointerDown(button, {
-      button: 0,
-      pointerId: 1,
-      pointerType: "mouse",
-    });
-    expect(button).toHaveAttribute("data-holding", "true");
-
-    act(() => {
-      vi.advanceTimersByTime(520);
-    });
-
-    expect(mocks.push).toHaveBeenCalledWith("/");
-    expect(harness.store.getSnapshot().status).toBe("playing");
-
-    fireEvent.pointerUp(button, { pointerId: 1, pointerType: "mouse" });
-    fireEvent.click(button);
-    expect(harness.store.getSnapshot().status).toBe("playing");
-  });
-
-  it("keeps the ring hidden on the home route", async () => {
-    mocks.pathname = "/";
-    const harness = makeHarness();
-
-    await harness.playThrough();
-
-    const { container } = renderOrb("ring", harness.store);
-
-    expect(
-      screen.queryByRole("button", { name: /hold for home/ }),
-    ).not.toBeInTheDocument();
-    expect(container.querySelector(".orb-ring")).toBeNull();
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
-      "href",
-      "/",
-    );
-  });
-
-  it("shows the pill off-home, toggles, and truncates its text", async () => {
-    const harness = makeHarness();
-
-    await harness.playThrough();
-
-    const { container } = renderOrb("pill-orb", harness.store);
-    const pill = container.querySelector(".orb-pill");
-    const button = screen.getByRole("button", { name: "Pause Get Lucky" });
-
-    expect(pill).toHaveAttribute("data-visible", "true");
-    expect(screen.getByText("Get Lucky – Daft Punk")).toHaveClass("truncate");
-    expect(container.querySelectorAll(".orb-pill-eq span")).toHaveLength(3);
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
-      "href",
-      "/",
-    );
-
-    fireEvent.click(button);
-
-    expect(harness.store.getSnapshot().status).toBe("paused");
-    expect(
-      screen.getByRole("button", { name: "Play Get Lucky" }),
-    ).toBeInTheDocument();
-  });
-
-  it("keeps the pill hidden on the home route", async () => {
-    mocks.pathname = "/";
-    const harness = makeHarness();
-
-    await harness.playThrough();
-
-    const { container } = renderOrb("pill-orb", harness.store);
-
-    expect(container.querySelector(".orb-pill")).toHaveAttribute(
+    expect(container.querySelector(".orb-satellite")).toHaveAttribute(
       "data-visible",
       "false",
     );
@@ -267,18 +97,18 @@ describe("orb player variants", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the satellite off-home and toggles it", async () => {
+  it("shows the satellite off-home, toggles, and parks as play when paused", async () => {
+    mocks.pathname = "/work";
     const harness = makeHarness();
 
     await harness.playThrough();
 
-    const { container } = renderOrb("satellite", harness.store);
+    const { container } = renderOrb(harness.store);
     const satellite = container.querySelector(".orb-satellite");
     const button = screen.getByRole("button", { name: "Pause Get Lucky" });
 
     expect(satellite).toHaveAttribute("data-visible", "true");
     expect(satellite).toHaveAttribute("data-paused", "false");
-    expect(button).toHaveClass("orb-satellite");
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
       "href",
       "/",
@@ -299,7 +129,7 @@ describe("orb player variants", () => {
 
     await harness.playThrough();
 
-    const { container } = renderOrb("satellite", harness.store);
+    const { container } = renderOrb(harness.store);
 
     expect(container.querySelector(".orb-satellite")).toHaveAttribute(
       "data-visible",
@@ -308,5 +138,20 @@ describe("orb player variants", () => {
     expect(
       screen.queryByRole("button", { name: "Pause Get Lucky" }),
     ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
+      "href",
+      "/",
+    );
+  });
+
+  it("keeps the satellite hidden while idle off-home", () => {
+    mocks.pathname = "/work";
+    const harness = makeHarness();
+    const { container } = renderOrb(harness.store);
+
+    expect(container.querySelector(".orb-satellite")).toHaveAttribute(
+      "data-visible",
+      "false",
+    );
   });
 });

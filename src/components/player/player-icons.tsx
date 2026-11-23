@@ -1,4 +1,4 @@
-/** The transport glyphs, shared by the card, the mini-player and the nav. */
+/** The transport glyphs, shared by the card and the satellite. */
 export function PlayIcon({ size = 12 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 12 12" aria-hidden="true">
@@ -49,23 +49,6 @@ export function SpinnerIcon({ size = 12 }: { size?: number }) {
         strokeWidth="1.5"
         strokeLinecap="round"
       />
-    </svg>
-  );
-}
-
-export function CloseIcon({ size = 12 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 12 12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <path d="M3 3l6 6M9 3l-6 6" />
     </svg>
   );
 }
