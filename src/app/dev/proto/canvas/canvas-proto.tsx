@@ -7,13 +7,11 @@ import type {
   CanvasItem,
   InfiniteCanvasHandle,
 } from "@/components/canvas/infinite-canvas";
-import type { Box } from "@/components/work/morph";
 import "@/components/media/media.css";
 import "./canvas.css";
 
 type ViewerState = {
   index: number;
-  rect: Box;
   startAt?: number;
 };
 
@@ -31,9 +29,9 @@ export function CanvasProto({ items }: { items: CanvasItem[] }) {
   const canvasRef = useRef<InfiniteCanvasHandle | null>(null);
 
   const openViewer = useCallback(
-    (index: number, rect: Box, startAt?: number) => {
+    (index: number, startAt?: number) => {
       setViewerClosing(false);
-      setViewer({ index, rect, startAt });
+      setViewer({ index, startAt });
     },
     [],
   );
@@ -43,17 +41,16 @@ export function CanvasProto({ items }: { items: CanvasItem[] }) {
     setViewerClosing(false);
   }, []);
 
-  const markViewerClosing = useCallback((index: number) => {
+  const markViewerClosing = useCallback((index: number, time?: number) => {
     setViewerClosing(true);
-    // Centre the current piece and reveal it before the reverse flight measures
-    // its landing rect, so stepping then closing lands on the right tile.
-    canvasRef.current?.closeTo(index);
+    // Centre and reveal the current piece, sync its persistent clip to the
+    // viewer frame, and resolve when the canvas is ready to take over.
+    return canvasRef.current?.closeTo(index, time);
   }, []);
 
-  const rectForViewer = useCallback(
-    (index: number) => canvasRef.current?.rectForIndex(index) ?? null,
-    [],
-  );
+  const markViewerReady = useCallback(() => {
+    canvasRef.current?.handoff();
+  }, []);
 
   return (
     <main
@@ -84,10 +81,8 @@ export function CanvasProto({ items }: { items: CanvasItem[] }) {
         <FocusViewer
           items={items}
           initialIndex={viewer.index}
-          originRect={viewer.rect}
           startAt={viewer.startAt}
-          getTargetRect={rectForViewer}
-          handoff
+          onReady={markViewerReady}
           onClosing={markViewerClosing}
           onClosed={closeViewer}
         />

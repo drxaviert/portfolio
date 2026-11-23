@@ -17,13 +17,21 @@ export const TRANSITION = {
   /** Grow starts 150ms before the glide ends. */
   growDelayMs: 850,
   growMs: 600,
-  /** Canvas plane cross-fades into the DOM viewer at the grown size. */
+  /** The canvas plane cross-fades with the DOM viewer at the grown size. */
   handoffMs: 200,
   captionDelayMs: 200,
-  /** 0.8x the open's viewer flight. */
-  closeShrinkMs: 290,
-  /** 0.8x the open's 900ms fade. */
-  closeFadeMs: 720,
+  /** Close: caption/controls out, then the same 200ms handoff reversed. */
+  closeCaptionMs: 150,
+  closeCrossFadeMs: 200,
+  /** The reverse grow: 600ms, same as the open. */
+  closeShrinkMs: 600,
+  /** Other planes start fading in over the last 150ms of the shrink. */
+  closeFadeDelayMs: 450,
+  closeFadeMs: 900,
+  /** 200ms cross-fade + 450ms delay + 900ms fade. */
+  closeTotalMs: 1550,
+  /** Wait for the viewer's decoded frame before starting the open handoff. */
+  mediaReadyTimeoutMs: 700,
   reducedFadeMs: 200,
 } as const;
 
@@ -114,11 +122,20 @@ export function handoffProgress(elapsedMs: number): number {
 }
 
 export function closeFadeProgress(elapsedMs: number): number {
-  return power3InOut(clamp01(elapsedMs / TRANSITION.closeFadeMs));
+  return power3InOut(
+    clamp01(
+      (elapsedMs - TRANSITION.closeCrossFadeMs - TRANSITION.closeFadeDelayMs) /
+        TRANSITION.closeFadeMs,
+    ),
+  );
 }
 
 export function closeShrinkProgress(elapsedMs: number): number {
-  return power3InOut(clamp01(elapsedMs / TRANSITION.closeShrinkMs));
+  return power3InOut(
+    clamp01(
+      (elapsedMs - TRANSITION.closeCrossFadeMs) / TRANSITION.closeShrinkMs,
+    ),
+  );
 }
 
 export function openComplete(elapsedMs: number): boolean {
@@ -126,5 +143,5 @@ export function openComplete(elapsedMs: number): boolean {
 }
 
 export function closeComplete(elapsedMs: number): boolean {
-  return elapsedMs >= TRANSITION.closeFadeMs;
+  return elapsedMs >= TRANSITION.closeTotalMs;
 }

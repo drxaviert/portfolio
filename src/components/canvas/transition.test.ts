@@ -93,14 +93,24 @@ describe("transition timeline", () => {
     expect(openComplete(TRANSITION.growDelayMs + TRANSITION.growMs)).toBe(true);
   });
 
-  it("cross-fades over 200ms and closes over 720ms", () => {
+  it("cross-fades over 200ms and closes over 1.55s", () => {
     expect(handoffProgress(0)).toBe(0);
     expect(handoffProgress(100)).toBeCloseTo(0.5, 6);
     expect(handoffProgress(TRANSITION.handoffMs)).toBe(1);
-    expect(closeFadeProgress(TRANSITION.closeFadeMs)).toBe(1);
-    expect(closeShrinkProgress(TRANSITION.closeShrinkMs)).toBe(1);
-    expect(closeComplete(TRANSITION.closeFadeMs - 1)).toBe(false);
-    expect(closeComplete(TRANSITION.closeFadeMs)).toBe(true);
+    expect(closeShrinkProgress(TRANSITION.closeCrossFadeMs)).toBe(0);
+    expect(closeShrinkProgress(500)).toBeCloseTo(0.5, 6);
+    expect(
+      closeShrinkProgress(TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs),
+    ).toBe(1);
+    expect(
+      closeFadeProgress(
+        TRANSITION.closeCrossFadeMs + TRANSITION.closeFadeDelayMs,
+      ),
+    ).toBe(0);
+    expect(closeFadeProgress(1100)).toBeCloseTo(0.5, 6);
+    expect(closeFadeProgress(TRANSITION.closeTotalMs)).toBe(1);
+    expect(closeComplete(TRANSITION.closeTotalMs - 1)).toBe(false);
+    expect(closeComplete(TRANSITION.closeTotalMs)).toBe(true);
   });
 });
 

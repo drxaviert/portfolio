@@ -286,16 +286,19 @@
 .cv-viewer[data-closing] .cv-viewer__caption,
 .cv-viewer[data-closing] .cv-viewer__close {
   opacity: 0;
-  transition: opacity var(--duration-short-2) var(--ease-decelerate);
+  transition: opacity 150ms var(--ease-decelerate);
 }
 
-/* The close button joins the frame after the grow, matching the caption. */
-.cv-viewer[data-handoff] .cv-viewer__close {
+/* The close button joins the frame after the viewer's first decoded frame. */
+.cv-viewer .cv-viewer__close {
   opacity: 0;
+}
+
+.cv-viewer[data-ready] .cv-viewer__close {
   animation: cv-viewer-chrome-in 180ms var(--ease-decelerate) 200ms forwards;
 }
 
-.cv-viewer[data-handoff][data-closing] .cv-viewer__close {
+.cv-viewer[data-ready][data-closing] .cv-viewer__close {
   animation: none;
   opacity: 0;
 }
@@ -337,7 +340,7 @@
     transition: none;
   }
 
-  .cv-viewer[data-handoff] .cv-viewer__close {
+  .cv-viewer[data-ready] .cv-viewer__close {
     animation: none;
     opacity: 1;
   }

@@ -41,6 +41,7 @@ import {
   canOpen,
   closeComplete,
   closeFadeProgress,
+  closeShrinkProgress,
   fadeOutProgress,
   fitBox,
   glideProgress,
@@ -63,14 +64,16 @@ export type InfiniteCanvasHandle = {
   rectForIndex: (index: number) => Box | null;
   /** Restore the plane hidden for a focused item, before the close flight. */
   reveal: () => void;
-  /** Centre a stepped-to item, reveal it, and start the canvas close fade. */
-  closeTo: (index: number) => void;
+  /** The viewer has a decoded frame; start the canvas handoff fade. */
+  handoff: () => void;
+  /** Centre and prepare the current piece; resolve when the canvas owns it. */
+  closeTo: (index: number, time?: number) => Promise<void>;
 };
 
 export type InfiniteCanvasProps = {
   items: CanvasItem[];
   paused: boolean;
-  onOpen: (index: number, rect: Box, startAt?: number) => void;
+  onOpen: (index: number, startAt?: number) => void;
 };
 
 const CAMERA_Z = INTRO.cameraToZ;
@@ -205,6 +208,10 @@ type CanvasTransition = {
   focusHeight: number;
   /** performance.now when the grow handed off to the viewer, or -1. */
   handoffAt: number;
+  /** The grow is done and the viewer is preparing its first decoded frame. */
+  waitingForViewer: boolean;
+  /** The close target is at the focus and synced; the timeline has started. */
+  prepared: boolean;
 };
 
 type VideoEntry = {
@@ -236,6 +243,12 @@ type CanvasDebug = {
   introZoom: number;
   transition: TransitionPhase;
   transitionMs: number;
+  waitingForViewer: boolean;
+  prepared: boolean;
+  targetWidth: number;
+  targetHeight: number;
+  targetOpacity: number;
+  targetZoom: number;
   scroll: { x: number; y: number };
   dragging: boolean;
   hidden: boolean;
@@ -330,7 +343,8 @@ export const InfiniteCanvas = forwardRef<
   const apiRef = useRef<InfiniteCanvasHandle>({
     rectForIndex: () => null,
     reveal: () => {},
-    closeTo: () => {},
+    handoff: () => {},
+    closeTo: async () => {},
   });
   const wakeRef = useRef<() => void>(() => {});
   const pickRef = useRef<(x: number, y: number) => void>(() => {});
@@ -445,6 +459,10 @@ export const InfiniteCanvas = forwardRef<
     const textures = new Map<string, TextureEntry>();
     const planeByMesh = new Map<THREE.Object3D, Plane>();
     const videoEntries = new Map<number, VideoEntry>();
+    const preloaded = new Map<
+      string,
+      HTMLVideoElement | HTMLImageElement
+    >();
     const videoHost = document.createElement("div");
     videoHost.style.cssText =
       "position:absolute;left:0;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none";
@@ -504,6 +522,8 @@ export const InfiniteCanvas = forwardRef<
       focusWidth: 0,
       focusHeight: 0,
       handoffAt: -1,
+      waitingForViewer: false,
+      prepared: false,
     });
     let transition = idleTransition();
 
@@ -527,6 +547,12 @@ export const InfiniteCanvas = forwardRef<
             introZoom: INTRO.zoomFrom,
             transition: "idle",
             transitionMs: 0,
+            waitingForViewer: false,
+            prepared: false,
+            targetWidth: 0,
+            targetHeight: 0,
+            targetOpacity: 0,
+            targetZoom: 1,
             scroll: { x: 0, y: 0 },
             dragging: false,
             hidden: false,
@@ -1066,6 +1092,20 @@ export const InfiniteCanvas = forwardRef<
         transition.phase === "idle"
           ? 0
           : Math.round(performance.now() - transition.startedAt);
+      debug.waitingForViewer = transition.waitingForViewer;
+      debug.prepared = transition.prepared;
+
+      const target = transition.target ?? transition.plane;
+      debug.targetWidth = target
+        ? Number(target.mesh.scale.x.toFixed(1))
+        : 0;
+      debug.targetHeight = target
+        ? Number(target.mesh.scale.y.toFixed(1))
+        : 0;
+      debug.targetOpacity = target ? Number(target.opacity.toFixed(3)) : 0;
+      debug.targetZoom = target
+        ? Number(target.material.uniforms.uZoom.value.toFixed(3))
+        : 1;
       debug.scroll.x = scrollRef.current.x;
       debug.scroll.y = scrollRef.current.y;
       debug.dragging = panIsDragging();
@@ -1178,6 +1218,45 @@ export const InfiniteCanvas = forwardRef<
       wake();
     }
 
+    function preloadItem(itemIndex: number): void {
+      const media = items[itemIndex]?.media;
+      if (!media) return;
+
+      if (media.kind === "video") {
+        const key = `video:${media.id}`;
+        if (preloaded.has(key)) return;
+
+        const video = document.createElement("video");
+        video.muted = true;
+        video.playsInline = true;
+        video.crossOrigin = "anonymous";
+        video.preload = "auto";
+        video.src = media.mp4.url;
+        video.setAttribute("aria-hidden", "true");
+        videoHost.appendChild(video);
+        preloaded.set(key, video);
+        return;
+      }
+
+      for (const format of ["avif", "webp"] as const) {
+        const source = media.sources
+          .filter((candidate) => candidate.format === format)
+          .sort((a, b) => b.width - a.width)[0];
+        if (!source) continue;
+
+        const key = `image:${source.url}`;
+        if (preloaded.has(key)) continue;
+
+        const image = new Image();
+        image.decoding = "async";
+        image.src = source.url;
+        preloaded.set(key, image);
+        void image.decode().catch(() => {
+          // The viewer falls back to its own decode.
+        });
+      }
+    }
+
     function openPlane(plane: Plane): void {
       if (!introEndedFlag || pausedRef.current) return;
       if (!canOpen(transition.phase)) return;
@@ -1186,6 +1265,7 @@ export const InfiniteCanvas = forwardRef<
       if (!media) return;
 
       panHalt();
+      preloadItem(plane.itemIndex);
 
       const focus = fitBox(media.width, media.height, width, height);
       const fromScrollX = scrollRef.current.x;
@@ -1208,6 +1288,8 @@ export const InfiniteCanvas = forwardRef<
         focusWidth: focus.width,
         focusHeight: focus.height,
         handoffAt: -1,
+        waitingForViewer: false,
+        prepared: false,
       };
 
       if (reduced) {
@@ -1215,16 +1297,7 @@ export const InfiniteCanvas = forwardRef<
         transition = { ...base, phase: "open" };
         setTransitioning(true);
         const video = videoEntries.get(plane.itemIndex);
-        onOpenRef.current(
-          plane.itemIndex,
-          {
-            left: width / 2 - focus.width / 2,
-            top: height / 2 - focus.height / 2,
-            width: focus.width,
-            height: focus.height,
-          },
-          video?.element.currentTime,
-        );
+        onOpenRef.current(plane.itemIndex, video?.element.currentTime);
         return;
       }
 
@@ -1233,9 +1306,9 @@ export const InfiniteCanvas = forwardRef<
       wake();
     }
 
-    function pick(x: number, y: number): void {
+    function planeAt(x: number, y: number): Plane | null {
       const rect = hostElement.getBoundingClientRect();
-      if (rect.width < 1 || rect.height < 1) return;
+      if (rect.width < 1 || rect.height < 1) return null;
 
       ndc.set(
         ((x - rect.left) / rect.width) * 2 - 1,
@@ -1251,9 +1324,11 @@ export const InfiniteCanvas = forwardRef<
         .map((plane) => plane.mesh);
       const hit = raycaster.intersectObjects(meshes, false)[0];
 
-      if (!hit) return;
+      return hit ? (planeByMesh.get(hit.object) ?? null) : null;
+    }
 
-      const plane = planeByMesh.get(hit.object);
+    function pick(x: number, y: number): void {
+      const plane = planeAt(x, y);
       if (plane) openPlane(plane);
     }
 
@@ -1410,25 +1485,52 @@ export const InfiniteCanvas = forwardRef<
       }
 
       if (transition.phase === "open") {
-        if (transition.handoffAt >= 0 && transition.plane) {
+        if (transition.plane) {
           const hand =
-            1 - handoffProgress(now - transition.handoffAt);
+            transition.handoffAt >= 0
+              ? 1 - handoffProgress(now - transition.handoffAt)
+              : 1;
           transition.plane.opacity = hand;
           transition.plane.material.uniforms.uOpacity.value = hand;
         }
 
-        return transition.handoffAt >= 0;
+        return transition.waitingForViewer || transition.handoffAt >= 0;
       }
 
       if (transition.phase === "closing") {
-        const fade = reduced
-          ? reducedOpacity(elapsed)
-          : closeFadeProgress(elapsed);
+        const target = transition.target;
+        const elapsed = transition.prepared
+          ? now - transition.startedAt
+          : 0;
+        const shrink = reduced ? 0 : closeShrinkProgress(elapsed);
+        const fade = transition.prepared
+          ? reduced
+            ? reducedOpacity(elapsed)
+            : closeFadeProgress(elapsed)
+          : 0;
 
         for (const plane of planes) {
-          const opacity = plane === transition.target ? 1 : fade;
-          plane.opacity = opacity;
-          plane.material.uniforms.uOpacity.value = opacity;
+          if (plane === target && target) {
+            if (!reduced) {
+              const w =
+                transition.focusWidth +
+                (transition.tileWidth - transition.focusWidth) * shrink;
+              const h =
+                transition.focusHeight +
+                (transition.tileHeight - transition.focusHeight) * shrink;
+
+              plane.mesh.scale.set(w, h, 1);
+              plane.material.uniforms.uPlaneSizes.value.set(w, h);
+              plane.material.uniforms.uZoom.value =
+                1 + (TEXTURE_ZOOM - 1) * shrink;
+            }
+
+            plane.opacity = 1;
+            plane.material.uniforms.uOpacity.value = 1;
+          } else {
+            plane.opacity = fade;
+            plane.material.uniforms.uOpacity.value = fade;
+          }
         }
 
         return true;
@@ -1462,6 +1564,16 @@ export const InfiniteCanvas = forwardRef<
       return active;
     }
 
+    function handoff(): void {
+      const t = transition;
+
+      if (t.phase !== "open" || !t.waitingForViewer) return;
+
+      t.waitingForViewer = false;
+      t.handoffAt = performance.now();
+      wake();
+    }
+
     function updateTransition(now: number): boolean {
       const t = transition;
 
@@ -1480,27 +1592,20 @@ export const InfiniteCanvas = forwardRef<
 
         if (
           elapsed >= TRANSITION.growDelayMs + TRANSITION.growMs &&
-          t.handoffAt < 0
+          !t.waitingForViewer
         ) {
-          t.handoffAt = now;
+          t.waitingForViewer = true;
           t.phase = nextPhase(t.phase, "opened");
           const video = videoEntries.get(t.index);
-          onOpenRef.current(
-            t.index,
-            {
-              left: width / 2 - t.focusWidth / 2,
-              top: height / 2 - t.focusHeight / 2,
-              width: t.focusWidth,
-              height: t.focusHeight,
-            },
-            video?.element.currentTime,
-          );
+          onOpenRef.current(t.index, video?.element.currentTime);
         }
 
         return true;
       }
 
       if (t.phase === "open") {
+        if (t.waitingForViewer) return true;
+
         if (
           t.handoffAt >= 0 &&
           now - t.handoffAt >= TRANSITION.handoffMs
@@ -1514,6 +1619,8 @@ export const InfiniteCanvas = forwardRef<
       }
 
       if (t.phase === "closing") {
+        if (!t.prepared) return true;
+
         const done = reduced
           ? elapsed >= TRANSITION.reducedFadeMs
           : closeComplete(elapsed);
@@ -1523,6 +1630,7 @@ export const InfiniteCanvas = forwardRef<
           t.index = -1;
           t.plane = null;
           t.target = null;
+          t.prepared = false;
           t.handoffAt = -1;
 
           for (const plane of planes) {
@@ -1542,58 +1650,168 @@ export const InfiniteCanvas = forwardRef<
       return false;
     }
 
-    function closeTo(index: number): void {
+    function waitFrames(count: number): Promise<void> {
+      return new Promise((resolve) => {
+        let remaining = count;
+
+        const step = () => {
+          remaining -= 1;
+          if (remaining <= 0) resolve();
+          else requestAnimationFrame(step);
+        };
+
+        requestAnimationFrame(step);
+      });
+    }
+
+    async function waitForVideoEntry(
+      entry: VideoEntry,
+      timeoutMs: number,
+    ): Promise<void> {
+      const start = performance.now();
+
+      while (
+        !entry.ready &&
+        !entry.failed &&
+        performance.now() - start < timeoutMs
+      ) {
+        await new Promise((resolve) => window.setTimeout(resolve, 16));
+      }
+    }
+
+    async function seekVideo(
+      entry: VideoEntry,
+      time: number,
+    ): Promise<void> {
+      const video = entry.element;
+
+      if (!(video.duration > 0)) return;
+
+      const target = ((time % video.duration) + video.duration) % video.duration;
+
+      if (Math.abs(video.currentTime - target) < 0.04) return;
+
+      await new Promise<void>((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          video.removeEventListener("seeked", finish);
+          resolve();
+        };
+
+        video.addEventListener("seeked", finish, { once: true });
+        try {
+          video.currentTime = target;
+        } catch {
+          finish();
+        }
+        window.setTimeout(finish, 450);
+      });
+    }
+
+    async function closeTo(index: number, time?: number): Promise<void> {
       if (!canClose(transition.phase)) return;
 
       panHalt();
       const t = transition;
+      const media = items[index]?.media;
+      if (!media) return;
+
+      const focus = fitBox(media.width, media.height, width, height);
       const opened = t.plane;
+      let target: Plane | null = null;
 
-      if (opened) {
-        opened.mesh.scale.set(t.tileWidth, t.tileHeight, 1);
-        opened.material.uniforms.uPlaneSizes.value.set(
-          t.tileWidth,
-          t.tileHeight,
-        );
-        opened.material.uniforms.uZoom.value = TEXTURE_ZOOM;
-        opened.mesh.visible = true;
-        opened.opacity = 1;
-        opened.material.uniforms.uOpacity.value = 1;
-      }
+      if (opened && opened.itemIndex === index) target = opened;
+      else target = findPlane(index) ?? opened;
 
-      hiddenPlane = null;
-      const target = findPlane(index) ?? opened;
+      if (!target) return;
 
       t.phase = nextPhase(t.phase, "close");
-      t.startedAt = performance.now();
       t.index = index;
       t.target = target;
       t.handoffAt = -1;
+      t.waitingForViewer = false;
+      t.prepared = false;
+      t.focusWidth = focus.width;
+      t.focusHeight = focus.height;
 
-      if (target) {
-        const px = planePosition(
-          target.baseX,
-          scrollRef.current.x,
-          halfX,
-        );
-        const py = planePosition(
-          target.baseY,
-          scrollRef.current.y,
-          halfY,
-        );
+      const aspect = media.width / Math.max(1, media.height);
+      t.tileWidth = baseWidth;
+      t.tileHeight = baseWidth * orientationRatio(aspect);
 
-        scrollRef.current.x -= px;
-        scrollRef.current.y -= py;
-      }
-
+      // Reposition under the viewer (the other planes are at zero opacity).
+      const px = planePosition(target.baseX, scrollRef.current.x, halfX);
+      const py = planePosition(target.baseY, scrollRef.current.y, halfY);
+      scrollRef.current.x -= px;
+      scrollRef.current.y -= py;
       placePlanes();
 
-      for (const plane of planes) {
-        const opacity = plane === target ? 1 : 0;
-        plane.opacity = opacity;
-        plane.material.uniforms.uOpacity.value = opacity;
+      // The opened copy may be a different item after stepping; put it back
+      // at its tile and let it join the fade-in.
+      if (opened && opened !== target) {
+        const openedMedia = items[opened.itemIndex]?.media;
+        const openedAspect = openedMedia
+          ? openedMedia.width / Math.max(1, openedMedia.height)
+          : 1;
+        const openedH = baseWidth * orientationRatio(openedAspect);
+
+        opened.mesh.scale.set(baseWidth, openedH, 1);
+        opened.material.uniforms.uPlaneSizes.value.set(baseWidth, openedH);
+        opened.material.uniforms.uZoom.value = TEXTURE_ZOOM;
+        opened.mesh.visible = true;
+        opened.opacity = 0;
+        opened.material.uniforms.uOpacity.value = 0;
       }
 
+      hiddenPlane = null;
+
+      // The target sits exactly under the viewer, at the same contain crop.
+      target.mesh.visible = true;
+      if (!reduced) {
+        target.mesh.scale.set(focus.width, focus.height, 1);
+        target.material.uniforms.uPlaneSizes.value.set(
+          focus.width,
+          focus.height,
+        );
+        target.material.uniforms.uZoom.value = 1;
+      }
+      target.opacity = 1;
+      target.material.uniforms.uOpacity.value = 1;
+
+      for (const plane of planes) {
+        if (plane === target) continue;
+        plane.opacity = 0;
+        plane.material.uniforms.uOpacity.value = 0;
+      }
+
+      // Keep the target's persistent texture. A stepped-to video may not have
+      // an entry yet; load it while the viewer still covers the centre.
+      if (media.kind === "video") {
+        let entry: VideoEntry | null = videoEntries.get(index) ?? null;
+        if (!entry) entry = ensureVideoEntry(index);
+
+        if (entry) {
+          entry.element.pause();
+
+          if (entry.texture) {
+            applyVideoTexture(index, entry);
+          } else {
+            await waitForVideoEntry(entry, 500);
+            if (entry.texture) applyVideoTexture(index, entry);
+          }
+
+          if (entry.texture && time !== undefined) {
+            await seekVideo(entry, time);
+            entry.texture.needsUpdate = true;
+            entry.lastUpload = performance.now();
+            await waitFrames(2);
+          }
+        }
+      }
+
+      t.prepared = true;
+      t.startedAt = performance.now();
       setTransitioning(true);
       wake();
     }
@@ -1651,7 +1869,8 @@ export const InfiniteCanvas = forwardRef<
       const transitionActive =
         transition.phase === "opening" ||
         transition.phase === "closing" ||
-        (transition.phase === "open" && transition.handoffAt >= 0);
+        (transition.phase === "open" &&
+          (transition.waitingForViewer || transition.handoffAt >= 0));
 
       if (pausedRef.current && !transitionActive) {
         last = 0;
@@ -1696,7 +1915,8 @@ export const InfiniteCanvas = forwardRef<
       const transitionActive =
         transition.phase === "opening" ||
         transition.phase === "closing" ||
-        (transition.phase === "open" && transition.handoffAt >= 0);
+        (transition.phase === "open" &&
+          (transition.waitingForViewer || transition.handoffAt >= 0));
 
       if (pausedRef.current && !transitionActive) {
         return;
@@ -1760,6 +1980,18 @@ export const InfiniteCanvas = forwardRef<
     document.addEventListener("visibilitychange", onVisibilityChange);
     motionQuery.addEventListener("change", onMotionChange);
 
+    const surface = containerRef.current;
+    const onPreloadPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 || pausedRef.current || !introEndedFlag) return;
+      if (!canOpen(transition.phase)) return;
+
+      const plane = planeAt(event.clientX, event.clientY);
+      if (plane) preloadItem(plane.itemIndex);
+    };
+    surface?.addEventListener("pointerdown", onPreloadPointerDown, {
+      passive: true,
+    });
+
     wakeRef.current = wake;
     pickRef.current = pick;
     centerRef.current = openCentred;
@@ -1767,6 +1999,7 @@ export const InfiniteCanvas = forwardRef<
     pauseVideosRef.current = pauseAllVideos;
     api.rectForIndex = rectForIndex;
     api.reveal = revealPlane;
+    api.handoff = handoff;
     api.closeTo = closeTo;
 
     resize();
@@ -1780,6 +2013,7 @@ export const InfiniteCanvas = forwardRef<
       resizeObserver.disconnect();
       document.removeEventListener("visibilitychange", onVisibilityChange);
       motionQuery.removeEventListener("change", onMotionChange);
+      surface?.removeEventListener("pointerdown", onPreloadPointerDown);
 
       wakeRef.current = () => {};
       pickRef.current = () => {};
@@ -1788,13 +2022,24 @@ export const InfiniteCanvas = forwardRef<
       pauseVideosRef.current = () => {};
       api.rectForIndex = () => null;
       api.reveal = () => {};
-      api.closeTo = () => {};
+      api.handoff = () => {};
+      api.closeTo = async () => {};
 
       pauseAllVideos();
 
       for (const itemIndex of [...videoEntries.keys()]) {
         disposeVideoEntry(itemIndex);
       }
+
+      for (const element of preloaded.values()) {
+        if (element instanceof HTMLVideoElement) {
+          element.pause();
+          element.removeAttribute("src");
+          element.load();
+          element.remove();
+        }
+      }
+      preloaded.clear();
 
       videoHost.remove();
       disposePlanes();
@@ -1808,7 +2053,7 @@ export const InfiniteCanvas = forwardRef<
       renderer.forceContextLoss();
       renderer.domElement.remove();
     };
-  }, [items, panHalt, panIsDragging, panSpeed, panTick, scrollRef]);
+  }, [items, panHalt, panIsDragging, panSpeed, panTick, scrollRef, containerRef]);
 
   return (
     <div

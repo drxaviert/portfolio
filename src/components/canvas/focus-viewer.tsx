@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, animate, motion, releaseElement } from "motion/react";
+import { AnimatePresence, animate, motion } from "motion/react";
 import {
   useCallback,
   useEffect,
@@ -11,72 +11,38 @@ import {
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
 import { MediaVideo } from "@/components/media/media-video";
-import { MORPH_EASE, flipFrom, toBox } from "@/components/work/morph";
-import type { Box } from "@/components/work/morph";
 import type { CanvasItem } from "./infinite-canvas";
 import { TRANSITION, fitBox } from "./transition";
 
-/**
- * The focus flight, from the repo's motion scale:
- * --duration-medium-7 for the open, --duration-medium-1 for the close, and
- * --ease-emphasized-standard for both. The close is deliberately quicker than
- * the open because the reader has already decided to leave.
- */
-const OPEN_S = 0.36;
-const CLOSE_S = TRANSITION.closeShrinkMs / 1000;
 const FADE_S = 0.12;
-const LEAVE_SCALE = 0.96;
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), video[controls], [tabindex]:not([tabindex="-1"])';
 
 /**
- * The frame's untransformed layout box, whatever flight is currently applied.
- * Temporarily clearing the inline transform is exact in a flex/centred stage,
- * where offsetLeft would have to account for the caption's changing height.
- * This runs only on open and close, never per frame.
- */
-function layoutBox(element: HTMLElement): Box {
-  const previous = element.style.transform;
-
-  element.style.transform = "none";
-  const box = toBox(element.getBoundingClientRect());
-  element.style.transform = previous;
-
-  return box;
-}
-
-/**
  * Full-screen media viewer.
  *
- * Opening FLIPs the frame out of the clicked WebGL plane's projected rect onto
- * its fit-to-viewport box; closing flies it back to the current plane. Only
- * transform and opacity animate. ←/→ move through the canvas's content order
- * with a crossfade instead of another FLIP, and the dialog traps focus, closes
- * on Esc/backdrop, and hands focus back to the canvas surface when it leaves.
+ * Opening and closing are cross-fades at the same full-size box the WebGL
+ * plane grows to. The canvas keeps a persistent texture/plane underneath; the
+ * viewer waits for a decoded frame before fading in and hands the paused video
+ * time to the canvas before fading out, so nothing reloads or changes crop.
  */
 export function FocusViewer({
   items,
   initialIndex,
-  originRect,
   startAt,
-  getTargetRect,
-  handoff = false,
+  onReady,
   onClosing,
   onClosed,
 }: {
   items: CanvasItem[];
   initialIndex: number;
-  /** The clicked plane's screen rect, captured before it is hidden. */
-  originRect: Box;
   /** The canvas clip's time at the handoff, so the full source starts in sync. */
   startAt?: number;
-  /** The current plane rect for a close after ←/→ stepping. */
-  getTargetRect: (index: number) => Box | null;
-  /** The canvas grew the plane; fade the frame in at its resting box. */
-  handoff?: boolean;
-  /** The reverse flight has started for this index; the shell can stop dimming. */
-  onClosing?: (index: number) => void;
+  /** The viewer has a decoded frame and is starting its fade-in. */
+  onReady?: () => void;
+  /** The canvas should sync/prepare the exit; resolve when it is ready. */
+  onClosing?: (index: number, time?: number) => void | Promise<void>;
   onClosed: () => void;
 }) {
   const [index, setIndex] = useState(() =>
@@ -88,19 +54,18 @@ export function FocusViewer({
   }));
   const [closing, setClosing] = useState(false);
   const reduce = useReducedMotion();
+  const [ready, setReady] = useState(reduce);
 
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const indexRef = useRef(index);
-  const flightRef = useRef<ReturnType<typeof animate> | null>(null);
   const closingRef = useRef(false);
   const openedRef = useRef(false);
+  const flightRef = useRef<ReturnType<typeof animate> | null>(null);
 
   const item = items[index];
   const media = item?.media;
 
-  // Synced after commit: every reader of indexRef is an event handler or an
-  // unmount cleanup, never render.
   useEffect(() => {
     indexRef.current = index;
   }, [index]);
@@ -118,9 +83,9 @@ export function FocusViewer({
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Opening flight: projected plane -> the frame's resting box. The frame is
-  // laid out at its final size from the first paint, so only a transform ever
-  // moves.
+  // Wait for the initial source to have a frame before fading the DOM over
+  // the WebGL plane. A slow source keeps the plane visible instead of cutting
+  // to a blank or a poster.
   useLayoutEffect(() => {
     if (openedRef.current) return;
     openedRef.current = true;
@@ -128,25 +93,41 @@ export function FocusViewer({
     const frame = frameRef.current;
     if (!frame) return;
 
-    const frameBox = layoutBox(frame);
-    const from = originRect;
-    flightRef.current?.stop();
-    releaseElement(frame);
+    frame.style.transform = "none";
+    frame.style.opacity = "0";
 
-    // The canvas already grew the plane to this frame's box; fade the DOM
-    // media in over it so the cover crop and the full-quality source swap
-    // without a cut.
-    if (handoff && !reduce) {
-      frame.style.transform = "none";
-      frame.style.transformOrigin = "50% 50%";
+    if (reduce) {
+      onReady?.();
+      const animation = animate(
+        frame,
+        { opacity: 1 },
+        { duration: FADE_S, ease: "easeOut" },
+      );
+      flightRef.current = animation;
+      void animation.finished.then(
+        () => {
+          if (flightRef.current === animation) flightRef.current = null;
+        },
+        () => undefined,
+      );
+      return;
+    }
+
+    let finished = false;
+    let timer = 0;
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      window.clearTimeout(timer);
+      setReady(true);
+      onReady?.();
       frame.style.opacity = "0";
-
       const animation = animate(
         frame,
         { opacity: 1 },
         { duration: TRANSITION.handoffMs / 1000, ease: "easeOut" },
       );
-
       flightRef.current = animation;
       void animation.finished.then(
         () => {
@@ -155,75 +136,90 @@ export function FocusViewer({
         },
         () => undefined,
       );
+    };
+
+    timer = window.setTimeout(finish, TRANSITION.mediaReadyTimeoutMs);
+
+    if (media?.kind === "video") {
+      const video = frame.querySelector("video");
+      if (!video) {
+        finish();
+        return;
+      }
+
+      let waited = false;
+      const waitFrame = () => {
+        if (waited) return;
+        waited = true;
+
+        if (typeof video.requestVideoFrameCallback === "function") {
+          video.requestVideoFrameCallback(() => finish());
+        } else {
+          requestAnimationFrame(() => finish());
+        }
+      };
+
+      const seekAndWait = () => {
+        if (
+          startAt === undefined ||
+          !Number.isFinite(startAt) ||
+          video.readyState < 1
+        ) {
+          // No synced time: the first presented frame is enough.
+          if (video.readyState >= 2) waitFrame();
+          else video.addEventListener("canplay", waitFrame, { once: true });
+          return;
+        }
+
+        if (Math.abs(video.currentTime - startAt) < 0.05) {
+          waitFrame();
+          return;
+        }
+
+        video.addEventListener("seeked", waitFrame, { once: true });
+        try {
+          video.currentTime = startAt;
+        } catch {
+          waitFrame();
+        }
+      };
+
+      if (video.readyState >= 1) seekAndWait();
+      else video.addEventListener("loadedmetadata", seekAndWait, { once: true });
+
+      // The canvas may have started playing while this effect mounted; a seek
+      // that lands later is still the frame to wait for.
+      if (startAt !== undefined) {
+        video.addEventListener("seeked", waitFrame, { once: true });
+      }
+
+      timer = window.setTimeout(finish, TRANSITION.mediaReadyTimeoutMs);
       return;
     }
 
-    if (
-      !reduce &&
-      from.width > 0 &&
-      from.height > 0 &&
-      Number.isFinite(from.left) &&
-      Number.isFinite(from.top)
-    ) {
-      const pose = flipFrom(from, frameBox);
-
-      frame.style.transformOrigin = "left top";
-      frame.style.transform = `translate3d(${pose.x}px, ${pose.y}px, 0) scale(${pose.scaleX}, ${pose.scaleY})`;
-
-      const animation = animate(
-        frame,
-        { x: 0, y: 0, scaleX: 1, scaleY: 1 },
-        { duration: OPEN_S, ease: MORPH_EASE },
-      );
-
-      flightRef.current = animation;
-      void animation.finished.then(
-        () => {
-          if (flightRef.current !== animation) return;
-
-          flightRef.current = null;
-          releaseElement(frame);
-          frame.style.removeProperty("transform");
-          frame.style.removeProperty("transform-origin");
-        },
-        () => undefined,
-      );
-      return;
+    const image = frame.querySelector("img");
+    if (image) {
+      void image
+        .decode()
+        .then(finish)
+        .catch(finish);
+    } else {
+      finish();
     }
+    return;
+  }, [media, onReady, reduce, startAt]);
 
-    // No measurable plane (or reduced motion): a fade is the gentle equivalent.
-    frame.style.opacity = "0";
-    const animation = animate(
-      frame,
-      { opacity: 1 },
-      { duration: FADE_S, ease: "easeOut" },
-    );
-
-    flightRef.current = animation;
-    void animation.finished.then(
-      () => {
-        if (flightRef.current === animation) flightRef.current = null;
-      },
-      () => undefined,
-    );
-  }, [handoff, originRect, reduce]);
-
-  // MediaVideo's short-loop contract is a silent ambient loop with no controls;
-  // in the viewer the clip is the subject, so give it the native transport. HLS
-  // clips already arrive with controls.
+  // Viewer controls and playback. The first piece inherits the canvas time.
   useEffect(() => {
     const frame = frameRef.current;
     if (!frame || media?.kind !== "video") return;
 
     const videos = [...frame.querySelectorAll("video")];
     const cleanups: (() => void)[] = [];
-    // Only the initially opened piece inherits the canvas clip's time; a
-    // stepped-to piece starts from its own beginning.
     const seekTo = index === initialIndex ? startAt : undefined;
 
     for (const video of videos) {
       video.controls = true;
-      // Autoplay muted; the native controls are the way to unmute.
       video.muted = true;
       const start = () => {
         video.muted = true;
@@ -265,7 +261,6 @@ export function FocusViewer({
     if (closingRef.current) return;
     closingRef.current = true;
     setClosing(true);
-    onClosing?.(indexRef.current);
 
     const frame = frameRef.current;
     if (!frame) {
@@ -273,76 +268,30 @@ export function FocusViewer({
       return;
     }
 
-    const layout = layoutBox(frame);
-    const visual = toBox(frame.getBoundingClientRect());
-    const target = reduce ? null : getTargetRect(indexRef.current);
+    const video = frame.querySelector("video");
+    const mediaTime =
+      video && media?.kind === "video" ? video.currentTime : undefined;
+    // Freeze the full-quality frame while the canvas seeks its persistent
+    // clip to the same time; the viewer stays visible until that is ready.
+    video?.pause();
 
-    flightRef.current?.stop();
-    releaseElement(frame);
+    const prepared = onClosing?.(indexRef.current, mediaTime);
 
-    if (reduce) {
-      const animation = animate(
-        frame,
-        { opacity: 0 },
-        { duration: FADE_S, ease: "easeOut" },
-      );
-      flightRef.current = animation;
-      void animation.finished.then(onClosed, onClosed);
-      return;
-    }
-
-    if (target) {
-      if (target.width > 0 && target.height > 0) {
-        const start = flipFrom(visual, layout);
-        const end = flipFrom(target, layout);
-
-        // Set the visual start explicitly: the open flight may still have been
-        // running, and its stopped state is not something to rely on.
-        frame.style.transformOrigin = "left top";
-        frame.style.opacity = "1";
-        frame.style.transform = `translate3d(${start.x}px, ${start.y}px, 0) scale(${start.scaleX}, ${start.scaleY})`;
-
+    void Promise.resolve(prepared)
+      .catch(() => undefined)
+      .then(() => {
         const animation = animate(
-          frame,
-          {
-            x: end.x,
-            y: end.y,
-            scaleX: end.scaleX,
-            scaleY: end.scaleY,
-          },
-          { duration: CLOSE_S, ease: MORPH_EASE },
-        );
-
-        // Fade the DOM frame over its last third so the cover-cropped canvas
-        // tile underneath takes over without a crop pop.
-        animate(
           frame,
           { opacity: 0 },
           {
-            duration: CLOSE_S * 0.35,
-            delay: CLOSE_S * 0.65,
+            duration: reduce ? FADE_S : TRANSITION.closeCrossFadeMs / 1000,
             ease: "easeOut",
           },
         );
-
         flightRef.current = animation;
         void animation.finished.then(onClosed, onClosed);
-        return;
-      }
-    }
-
-    // No copy of this item is on screen: leave in place rather than fly to an
-    // off-screen point.
-    frame.style.transform = "none";
-    frame.style.transformOrigin = "50% 50%";
-    const animation = animate(
-      frame,
-      { opacity: 0, scale: LEAVE_SCALE },
-      { duration: CLOSE_S, ease: MORPH_EASE },
-    );
-    flightRef.current = animation;
-    void animation.finished.then(onClosed, onClosed);
-  }, [getTargetRect, onClosed, onClosing, reduce]);
+      });
+  }, [media, onClosed, onClosing, reduce]);
 
   const step = useCallback(
     (direction: number) => {
@@ -357,8 +306,6 @@ export function FocusViewer({
   );
 
   useEffect(() => {
-    // The dialog itself takes focus so the accessible name is announced; Tab
-    // then lands on the close button inside the trap.
     overlayRef.current?.focus({ preventScroll: true });
   }, []);
 
@@ -370,12 +317,9 @@ export function FocusViewer({
         return;
       }
 
-      // The close flight is already leaving; a step now would move the frame
-      // out from under it.
       if (closingRef.current) return;
 
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-        // Native video controls use the arrow keys for seeking.
         if (event.target instanceof HTMLVideoElement) return;
 
         event.preventDefault();
@@ -433,7 +377,6 @@ export function FocusViewer({
   useEffect(() => {
     return () => {
       requestAnimationFrame(() => {
-        // A new viewer opened before this frame; it owns focus now.
         if (document.querySelector(".cv-viewer")) return;
 
         document
@@ -452,13 +395,15 @@ export function FocusViewer({
     viewport.height,
   );
   const label = media.caption || media.alt || "Media viewer";
+  const chromeVisible = reduce || ready;
 
   return (
     <div
       ref={overlayRef}
       className="cv-viewer"
       data-closing={closing || undefined}
-      data-handoff={handoff || undefined}
+      data-ready={chromeVisible || undefined}
+      data-start-at={startAt !== undefined ? startAt.toFixed(2) : "none"}
       role="dialog"
       aria-modal="true"
       aria-label={label}
@@ -513,11 +458,16 @@ export function FocusViewer({
           <motion.p
             key={`${item.key}-caption`}
             className="cv-viewer__caption"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            initial={false}
+            animate={{
+              opacity: closing ? 0 : chromeVisible ? 1 : 0,
+            }}
             transition={{
-              duration: reduce ? 0 : 0.18,
-              delay: handoff && !reduce ? TRANSITION.captionDelayMs / 1000 : 0,
+              duration: closing ? 0.15 : reduce ? 0 : 0.18,
+              delay:
+                closing || !chromeVisible || reduce
+                  ? 0
+                  : TRANSITION.captionDelayMs / 1000,
               ease: "easeOut",
             }}
           >
