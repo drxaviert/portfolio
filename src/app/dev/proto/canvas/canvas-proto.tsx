@@ -5,6 +5,8 @@ import type { LensMode } from "@/components/canvas/lens";
 import { LENS, clamp } from "@/components/canvas/lens";
 import { BREATH } from "@/components/canvas/breathing";
 import type { BreathSettings } from "@/components/canvas/breathing";
+import { HOVER } from "@/components/canvas/hover";
+import type { HoverSettings } from "@/components/canvas/hover";
 import { FocusViewer } from "@/components/canvas/focus-viewer";
 import { InfiniteCanvas } from "@/components/canvas/infinite-canvas";
 import type {
@@ -27,8 +29,12 @@ const MAX = {
   vignette: LENS.maxVignette,
 } as const;
 
-function valuesQuery(lens: LensSettings, breath: BreathSettings): string {
-  return `lens=${lens.mode}&strength=${lens.strength.toFixed(2)}&boost=${lens.boost.toFixed(2)}&vignette=${lens.vignette.toFixed(2)}&breath=${breath.amplitude.toFixed(3)}&breathPeriod=${Math.round(breath.periodMs)}`;
+function valuesQuery(
+  lens: LensSettings,
+  breath: BreathSettings,
+  hover: HoverSettings,
+): string {
+  return `lens=${lens.mode}&strength=${lens.strength.toFixed(2)}&boost=${lens.boost.toFixed(2)}&vignette=${lens.vignette.toFixed(2)}&breath=${breath.amplitude.toFixed(3)}&breathPeriod=${Math.round(breath.periodMs)}&hover=${hover.scale.toFixed(2)}`;
 }
 
 /** Clipboard with the dev server's older/denied-permission fallback. */
@@ -65,23 +71,26 @@ function writeClipboard(text: string): Promise<void> {
  * focus viewer keeps its DOM media and chrome; the canvas supplies the clicked
  * plane's projected rect for the FLIP and the current rect on close.
  *
- * The lens panel keeps the flat/globe A/B, its three strengths and the idle
- * breathing amplitude/period in the URL, so a dialled-in look can be linked or
- * pasted back to another session.
+ * The lens panel keeps the flat/globe A/B, its three strengths, the idle
+ * breathing amplitude/period and the hover lift in the URL, so a dialled-in
+ * look can be linked or pasted back to another session.
  */
 export function CanvasProto({
   items,
   initialLens,
   initialBreath,
+  initialHover,
 }: {
   items: CanvasItem[];
   initialLens: LensSettings;
   initialBreath: BreathSettings;
+  initialHover: HoverSettings;
 }) {
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const [viewerClosing, setViewerClosing] = useState(false);
   const [lens, setLens] = useState<LensSettings>(initialLens);
   const [breath, setBreath] = useState<BreathSettings>(initialBreath);
+  const [hover, setHover] = useState<HoverSettings>(initialHover);
   const [copied, setCopied] = useState(false);
   const canvasRef = useRef<InfiniteCanvasHandle | null>(null);
   const copyTimer = useRef(0);
@@ -119,8 +128,9 @@ export function CanvasProto({
     url.searchParams.set("vignette", lens.vignette.toFixed(2));
     url.searchParams.set("breath", breath.amplitude.toFixed(3));
     url.searchParams.set("breathPeriod", String(Math.round(breath.periodMs)));
+    url.searchParams.set("hover", hover.scale.toFixed(2));
     window.history.replaceState(window.history.state, "", url);
-  }, [lens, breath]);
+  }, [breath, hover, lens]);
 
   useEffect(() => () => window.clearTimeout(copyTimer.current), []);
 
@@ -159,6 +169,16 @@ export function CanvasProto({
     [],
   );
 
+  const setHoverScale = useCallback((raw: string) => {
+    const value = Number(raw);
+
+    if (!Number.isFinite(value)) return;
+
+    setHover({
+      scale: clamp(value, HOVER.minScale, HOVER.maxScale),
+    });
+  }, []);
+
   const copyValues = useCallback(() => {
     const done = () => {
       setCopied(true);
@@ -166,8 +186,8 @@ export function CanvasProto({
       copyTimer.current = window.setTimeout(() => setCopied(false), 1500);
     };
 
-    void writeClipboard(valuesQuery(lens, breath)).then(done, done);
-  }, [breath, lens]);
+    void writeClipboard(valuesQuery(lens, breath, hover)).then(done, done);
+  }, [breath, hover, lens]);
 
   return (
     <main
@@ -181,6 +201,7 @@ export function CanvasProto({
           paused={viewer !== null}
           lens={lens}
           breath={breath}
+          hover={hover}
           onOpen={openViewer}
         />
       </div>
@@ -194,7 +215,7 @@ export function CanvasProto({
         <div
           className="cv-lens"
           role="group"
-          aria-label="Lens and breathing controls"
+          aria-label="Lens, breathing and hover controls"
         >
           <div className="cv-lens__head">
             <span className="cv-lens__title">Lens</span>
@@ -288,6 +309,22 @@ export function CanvasProto({
             <output>{(breath.periodMs / 1000).toFixed(1)}s</output>
           </label>
 
+          <div className="cv-lens__divider" aria-hidden="true" />
+          <span className="cv-lens__subhead">Hover</span>
+
+          <label className="cv-lens__field">
+            <span>Scale</span>
+            <input
+              type="range"
+              min={HOVER.minScale}
+              max={HOVER.maxScale}
+              step={0.01}
+              value={hover.scale}
+              onChange={(event) => setHoverScale(event.target.value)}
+            />
+            <output>{hover.scale.toFixed(2)}×</output>
+          </label>
+
           <div className="cv-lens__foot">
             <button
               type="button"
@@ -297,7 +334,7 @@ export function CanvasProto({
               {copied ? "Copied" : "Copy values"}
             </button>
             <code className="cv-lens__values">
-              ?{valuesQuery(lens, breath)}
+              ?{valuesQuery(lens, breath, hover)}
             </code>
           </div>
         </div>

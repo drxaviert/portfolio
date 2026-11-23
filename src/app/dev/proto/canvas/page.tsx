@@ -6,6 +6,8 @@ import type {
 import { LENS, clamp } from "@/components/canvas/lens";
 import { BREATH } from "@/components/canvas/breathing";
 import type { BreathSettings } from "@/components/canvas/breathing";
+import { HOVER } from "@/components/canvas/hover";
+import type { HoverSettings } from "@/components/canvas/hover";
 import { getMedia } from "@/lib/media";
 import { CanvasProto } from "./canvas-proto";
 import { CANVAS_MEDIA_IDS } from "./items";
@@ -20,6 +22,7 @@ import { CANVAS_MEDIA_IDS } from "./items";
  * `?lens=flat` compares the flat view; the orb is the default. The strength,
  * drag-boost and vignette values are read here too, so a tuned look survives a
  * reload or a share. `breath` and `breathPeriod` tune the idle wave.
+ * `hover` tunes the pointer lift.
  */
 export const metadata = {
   title: "Prototype · drag canvas",
@@ -79,12 +82,20 @@ export default async function CanvasPage({
       BREATH.maxPeriodMs,
     ),
   };
+  const hover: HoverSettings = {
+    scale: between(query.hover, HOVER.defaultScale, HOVER.minScale, HOVER.maxScale),
+  };
   const items: CanvasItem[] = CANVAS_MEDIA_IDS.map((id, index) => ({
     key: `${id}--${index}`,
     media: getMedia(id),
   }));
 
   return (
-    <CanvasProto items={items} initialLens={lens} initialBreath={breath} />
+    <CanvasProto
+      items={items}
+      initialLens={lens}
+      initialBreath={breath}
+      initialHover={hover}
+    />
   );
 }

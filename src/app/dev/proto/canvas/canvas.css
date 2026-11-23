@@ -44,6 +44,10 @@
   cursor: grabbing;
 }
 
+.cv-surface[data-hover]:not([data-dragging]) {
+  cursor: pointer;
+}
+
 .cv-surface:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: -4px;

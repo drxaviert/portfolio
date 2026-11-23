@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /* eslint-disable @next/next/no-img-element -- the no-WebGL fallback needs a
    plain poster <img>; the WebGL path never renders one. */
@@ -59,6 +59,8 @@ import {
   easeBreathLevel,
 } from "./breathing";
 import type { BreathSettings } from "./breathing";
+import { hoverValue, retargetHover } from "./hover";
+import type { HoverSettings, HoverTween } from "./hover";
 import { usePan } from "./use-pan";
 import { planePosition } from "./wrap";
 
@@ -91,6 +93,7 @@ export type InfiniteCanvasProps = {
   paused: boolean;
   lens: LensSettings;
   breath: BreathSettings;
+  hover: HoverSettings;
   onOpen: (index: number, startAt?: number) => void;
 };
 
@@ -259,6 +262,9 @@ type Plane = {
   /** The resting tile size, before the idle breath scale. */
   tileWidth: number;
   tileHeight: number;
+  /** Pointer hover lift, 0-1, retargeted from its current value. */
+  hover: HoverTween;
+  hoverLevel: number;
   textureUrl: string;
   isVideo: boolean;
   loaded: boolean;
@@ -337,6 +343,8 @@ type CanvasDebug = {
   breathIdleMs: number;
   breathSample: number;
   renderedFrames: number;
+  hoverIndex: number;
+  hoverLevel: number;
   transition: TransitionPhase;
   transitionMs: number;
   waitingForViewer: boolean;
@@ -389,7 +397,7 @@ function clippedArea(rect: Box, width: number, height: number): number {
 function StaticFallback({ items }: { items: CanvasItem[] }) {
   return (
     <div className="cv-fallback" aria-hidden="true">
-      <p className="cv-fallback__note">WebGL unavailable ┬╖ static grid</p>
+      <p className="cv-fallback__note">WebGL unavailable · static grid</p>
       <div className="cv-fallback__grid">
         {items.slice(0, 12).map((item) => (
           <div key={item.key} className="cv-fallback__item">
@@ -429,13 +437,17 @@ function StaticFallback({ items }: { items: CanvasItem[] }) {
 export const InfiniteCanvas = forwardRef<
   InfiniteCanvasHandle,
   InfiniteCanvasProps
->(function InfiniteCanvas({ items, paused, lens, breath, onOpen }, ref) {
+>(function InfiniteCanvas(
+  { items, paused, lens, breath, hover, onOpen },
+  ref,
+) {
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const [introReady, setIntroReady] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const lensRef = useRef(lens);
   const breathRef = useRef(breath);
+  const hoverRef = useRef(hover);
   const reduceMotion = useReducedMotion();
 
   const apiRef = useRef<InfiniteCanvasHandle>({
@@ -449,6 +461,7 @@ export const InfiniteCanvas = forwardRef<
   const centerRef = useRef<() => void>(() => {});
   const restoreRef = useRef<() => void>(() => {});
   const pauseVideosRef = useRef<() => void>(() => {});
+  const clearHoverRef = useRef<() => void>(() => {});
   const pausedRef = useRef(paused);
   const onOpenRef = useRef(onOpen);
 
@@ -469,10 +482,16 @@ export const InfiniteCanvas = forwardRef<
   }, [breath]);
 
   useEffect(() => {
+    hoverRef.current = hover;
+    wakeRef.current();
+  }, [hover]);
+
+  useEffect(() => {
     pausedRef.current = paused;
 
     if (paused) {
       pauseVideosRef.current();
+      clearHoverRef.current();
     } else {
       restoreRef.current();
       wakeRef.current();
@@ -676,6 +695,11 @@ export const InfiniteCanvas = forwardRef<
     let breathAmplitude = 0;
     let breathIdleMs = 0;
     let breathSample = 1;
+    /** Pointer hover, sampled once per frame through the inverse lens. */
+    let hoverPoint: { x: number; y: number } | null = null;
+    let hoverDirty = false;
+    let hoverWasAllowed = false;
+    let hoveredPlane: Plane | null = null;
     let renderedFrames = 0;
 
     const idleTransition = (): CanvasTransition => ({
@@ -729,6 +753,8 @@ export const InfiniteCanvas = forwardRef<
             breathIdleMs: 0,
             breathSample: 1,
             renderedFrames: 0,
+            hoverIndex: -1,
+            hoverLevel: 0,
             transition: "idle",
             transitionMs: 0,
             waitingForViewer: false,
@@ -1162,6 +1188,9 @@ export const InfiniteCanvas = forwardRef<
 
     function buildPlanes(): void {
       disposePlanes();
+      hoveredPlane = null;
+      hoverDirty = true;
+      setHoverCursor(false);
 
       const grid = gridMetrics(width, height);
       baseWidth = grid.baseWidth;
@@ -1240,6 +1269,8 @@ export const InfiniteCanvas = forwardRef<
             baseY,
             tileWidth: planeWidth,
             tileHeight: planeHeight,
+            hover: { from: 0, to: 0, startedAt: 0, durationMs: 0 },
+            hoverLevel: 0,
             textureUrl: url,
             isVideo: media.kind === "video",
             loaded,
@@ -1298,6 +1329,10 @@ export const InfiniteCanvas = forwardRef<
       debug.breathIdleMs = Math.round(breathIdleMs);
       debug.breathSample = Number(breathSample.toFixed(6));
       debug.renderedFrames = renderedFrames;
+      debug.hoverIndex = hoveredPlane ? hoveredPlane.itemIndex : -1;
+      debug.hoverLevel = hoveredPlane
+        ? Number(hoveredPlane.hoverLevel.toFixed(3))
+        : 0;
       debug.transition = transition.phase;
       debug.transitionMs =
         transition.phase === "idle"
@@ -1903,16 +1938,18 @@ export const InfiniteCanvas = forwardRef<
       breathLevel = easeBreathLevel(breathLevel, envelope, dtMs, config);
 
       const amplitude = settings.amplitude * breathLevel;
+      const hoverScale = Math.max(1, hoverRef.current.scale);
 
       for (const plane of planes) {
         const scale =
           1 +
           amplitude *
             Math.sin(breathPhase(now, plane.col, plane.row, config));
+        const hover = 1 + (hoverScale - 1) * plane.hoverLevel;
 
         plane.mesh.scale.set(
-          plane.tileWidth * scale,
-          plane.tileHeight * scale,
+          plane.tileWidth * scale * hover,
+          plane.tileHeight * scale * hover,
           1,
         );
       }
@@ -1929,6 +1966,91 @@ export const InfiniteCanvas = forwardRef<
       if (moving) breathIdleSince = now;
 
       return !moving;
+    }
+
+    function setHoverCursor(active: boolean): void {
+      const surface = containerRef.current;
+
+      if (!surface) return;
+
+      if (active) surface.dataset.hover = "true";
+      else delete surface.dataset.hover;
+    }
+
+    /**
+     * One raycast per frame at the last pointer position, through the inverse
+     * lens. Only the idle state hovers; each plane's tween retargets from its
+     * current value so fast passes and interruptions never jump.
+     */
+    function updateHover(now: number, moving: boolean): boolean {
+      const allowed =
+        introEndedFlag &&
+        transition.phase === "idle" &&
+        !pausedRef.current &&
+        !moving;
+
+      if (allowed !== hoverWasAllowed) {
+        hoverWasAllowed = allowed;
+        hoverDirty = true;
+      }
+
+      if (hoverDirty) {
+        hoverDirty = false;
+
+        const next =
+          allowed && hoverPoint ? planeAt(hoverPoint.x, hoverPoint.y) : null;
+
+        if (next !== hoveredPlane) {
+          if (hoveredPlane) {
+            hoveredPlane.hover = retargetHover(hoveredPlane.hover, 0, now);
+          }
+
+          hoveredPlane = next;
+
+          if (next) next.hover = retargetHover(next.hover, 1, now);
+
+          setHoverCursor(Boolean(next));
+        }
+      }
+
+      let active = false;
+
+      for (const plane of planes) {
+        if (reduced) {
+          plane.hoverLevel = 0;
+          plane.hover = { from: 0, to: 0, startedAt: now, durationMs: 0 };
+          plane.mesh.renderOrder = 0;
+          continue;
+        }
+
+        plane.hoverLevel = hoverValue(plane.hover, now);
+
+        if (
+          plane.hover.durationMs > 0 &&
+          now < plane.hover.startedAt + plane.hover.durationMs
+        ) {
+          active = true;
+        }
+
+        plane.mesh.renderOrder =
+          plane === hoveredPlane || plane.hoverLevel > 0.001 ? 1 : 0;
+      }
+
+      return active;
+    }
+
+    function clearHoverNow(): void {
+      hoverPoint = null;
+      hoverDirty = false;
+      hoverWasAllowed = false;
+      hoveredPlane = null;
+      setHoverCursor(false);
+
+      for (const plane of planes) {
+        plane.hover = { from: 0, to: 0, startedAt: 0, durationMs: 0 };
+        plane.hoverLevel = 0;
+        plane.mesh.renderOrder = 0;
+      }
     }
 
     function handoff(): void {
@@ -2265,6 +2387,7 @@ export const InfiniteCanvas = forwardRef<
       const lensActive = updateLens(dt, now);
       const breathMoving =
         panIsDragging() || panSpeed() > BREATH.settleSpeed;
+      const hovering = updateHover(now, breathMoving);
       const breathing = updateBreathing(now, breathMoving, dtMs);
 
       updateVideoFallback(now);
@@ -2280,7 +2403,8 @@ export const InfiniteCanvas = forwardRef<
         lensActive ||
         introActive ||
         transitionRunning ||
-        transitionActive;
+        transitionActive ||
+        hovering;
 
       if (otherActive || breathing) {
         raf = requestAnimationFrame(renderFrame);
@@ -2410,11 +2534,32 @@ export const InfiniteCanvas = forwardRef<
       passive: true,
     });
 
+    const onHoverPointerMove = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse") return;
+
+      hoverPoint = { x: event.clientX, y: event.clientY };
+      hoverDirty = true;
+      wake();
+    };
+    const onHoverPointerLeave = () => {
+      hoverPoint = null;
+      hoverDirty = true;
+      wake();
+    };
+
+    surface?.addEventListener("pointermove", onHoverPointerMove, {
+      passive: true,
+    });
+    surface?.addEventListener("pointerleave", onHoverPointerLeave, {
+      passive: true,
+    });
+
     wakeRef.current = wake;
     pickRef.current = pick;
     centerRef.current = openCentred;
     restoreRef.current = revealPlane;
     pauseVideosRef.current = pauseAllVideos;
+    clearHoverRef.current = clearHoverNow;
     api.rectForIndex = rectForIndex;
     api.reveal = revealPlane;
     api.handoff = handoff;
@@ -2432,12 +2577,15 @@ export const InfiniteCanvas = forwardRef<
       document.removeEventListener("visibilitychange", onVisibilityChange);
       motionQuery.removeEventListener("change", onMotionChange);
       surface?.removeEventListener("pointerdown", onPreloadPointerDown);
+      surface?.removeEventListener("pointermove", onHoverPointerMove);
+      surface?.removeEventListener("pointerleave", onHoverPointerLeave);
 
       wakeRef.current = () => {};
       pickRef.current = () => {};
       centerRef.current = () => {};
       restoreRef.current = () => {};
       pauseVideosRef.current = () => {};
+      clearHoverRef.current = () => {};
       api.rectForIndex = () => null;
       api.reveal = () => {};
       api.handoff = () => {};
