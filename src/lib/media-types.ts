@@ -66,6 +66,11 @@ export interface VideoMedia extends MediaBase {
   kind: "video";
   mp4: VideoFile;
   webm?: VideoFile;
+  /**
+   * Small progressive rendition for the WebGL canvas (at most 480px tall, no
+   * audio). Absent when the main MP4 is already that small.
+   */
+  canvas?: VideoFile;
   /** Present when the clip was long enough for an adaptive ladder. */
   hls?: VideoHls;
   poster: MediaPoster;

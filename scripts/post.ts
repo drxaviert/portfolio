@@ -67,6 +67,13 @@ const IMAGE_WIDTHS = [640, 1280, 1920, 2560];
 const MP4_WARN_BYTES = 6 * 1024 * 1024;
 const MP4_MAX_BYTES = 10 * 1024 * 1024;
 const MAX_VIDEO_HEIGHT = 1080;
+/**
+ * The WebGL canvas draws planes at ~111-197px. A 480px rendition is already
+ * more than it needs, and keeps decode and upload cheap while dragging.
+ */
+export const CANVAS_MAX_HEIGHT = 480;
+const CANVAS_MAXRATE = "650k";
+const CANVAS_BUFSIZE = "1300k";
 
 /** Above this many seconds a clip is worth an adaptive ladder instead of one MP4. */
 export const HLS_MIN_DURATION = 20;
@@ -260,7 +267,9 @@ Video
   A clip longer than 20 s is encoded as an HLS ladder (1080/720/480, dropping
   rungs above the source) plus a low-rung progressive MP4 as the required
   fallback. Shorter clips stay one MP4. HLS budgets: warn over 60 MB, fail over
-  150 MB. The 10 MB MP4 cap applies to non-HLS clips only.
+  150 MB. The 10 MB MP4 cap applies to non-HLS clips only. Any main encode over
+  480p also gets canvas.mp4 (480px tall, H.264, no audio, ~650 kbps) for the
+  WebGL grid.
 
 Environment
   Blob auth comes from .env.blob (BLOB_STORE_ID + VERCEL_OIDC_TOKEN). A missing
@@ -541,17 +550,36 @@ async function probeVideo(file: string): Promise<ProbeResult> {
   };
 }
 
-function videoTargetSize(
+function videoSizeAtHeight(
   width: number,
   height: number,
+  maxHeight: number,
 ): { width: number; height: number } {
-  const scale = Math.min(1, MAX_VIDEO_HEIGHT / height);
+  const scale = Math.min(1, maxHeight / height);
   // Floor to even numbers: H.264 with yuv420p needs both dimensions even, and flooring
   // guarantees we never upscale the source.
   return {
     width: Math.max(2, Math.floor((width * scale) / 2) * 2),
     height: Math.max(2, Math.floor((height * scale) / 2) * 2),
   };
+}
+
+function videoTargetSize(
+  width: number,
+  height: number,
+): { width: number; height: number } {
+  return videoSizeAtHeight(width, height, MAX_VIDEO_HEIGHT);
+}
+
+/** The smallest rendition the canvas needs, or undefined when the MP4 fits. */
+export function canvasTargetSize(
+  width: number,
+  height: number,
+  mp4Height: number,
+): { width: number; height: number } | undefined {
+  if (mp4Height <= CANVAS_MAX_HEIGHT) return undefined;
+
+  return videoSizeAtHeight(width, height, CANVAS_MAX_HEIGHT);
 }
 
 async function runFfmpeg(args: string[]): Promise<void> {
@@ -832,6 +860,42 @@ async function processVideo(
     }
   }
 
+  const canvasSize = canvasTargetSize(
+    probe.width,
+    probe.height,
+    mp4Size.height,
+  );
+  let canvasBuffer: Buffer | undefined;
+  if (canvasSize) {
+    const canvasPath = path.join(workDir, "canvas.mp4");
+    await runFfmpeg([
+      "-i",
+      job.file,
+      "-vf",
+      scaleFilter(canvasSize),
+      "-c:v",
+      "libx264",
+      "-crf",
+      "24",
+      "-maxrate",
+      CANVAS_MAXRATE,
+      "-bufsize",
+      CANVAS_BUFSIZE,
+      "-preset",
+      "slow",
+      "-pix_fmt",
+      "yuv420p",
+      "-an",
+      "-movflags",
+      "+faststart",
+      canvasPath,
+    ]);
+    canvasBuffer = await readFile(canvasPath);
+    console.log(
+      `  info     canvas ${canvasSize.width}x${canvasSize.height} · ${formatBytes(canvasBuffer.byteLength)}`,
+    );
+  }
+
   let hls: HlsOutput | undefined;
   if (useHls) {
     hls = await encodeHls(job, probe, rungs, workDir, options.audio);
@@ -938,6 +1002,19 @@ async function processVideo(
       ),
       bytes: mp4.byteLength,
     },
+    ...(canvasBuffer
+      ? {
+          canvas: {
+            url: await publish(
+              `media/${job.id}/canvas.mp4`,
+              canvasBuffer,
+              "video/mp4",
+              options.dryRun,
+            ),
+            bytes: canvasBuffer.byteLength,
+          },
+        }
+      : {}),
     ...(webm ? { webm } : {}),
     ...(hls && hlsUrl
       ? { hls: { url: hlsUrl, bytes: hls.bytes, levels: hls.levels } }

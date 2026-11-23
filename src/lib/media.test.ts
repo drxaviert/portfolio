@@ -230,6 +230,41 @@ describe("validateManifest", () => {
       /hls\.levels\[0\]\.bandwidth must be a positive number/,
     );
   });
+
+  it("accepts an optional canvas rendition", () => {
+    const manifest = {
+      ...video(),
+      canvas: {
+        url: "https://example.public.blob.vercel-storage.com/test/canvas.mp4",
+        bytes: 800_000,
+      },
+    };
+
+    const parsed = validateManifest("test-0000000000", manifest);
+
+    expect(parsed.kind).toBe("video");
+    if (parsed.kind !== "video") return;
+    expect(parsed.canvas?.url).toMatch(/canvas\.mp4$/);
+    expect(parsed.canvas?.bytes).toBe(800_000);
+  });
+
+  it("rejects a canvas rendition with a bad url or bytes", () => {
+    const badUrl = {
+      ...video(),
+      canvas: { url: "http://x/canvas.mp4", bytes: 1 },
+    };
+    expect(() => validateManifest("test-0000000000", badUrl)).toThrow(
+      /canvas\.url must be an https URL/,
+    );
+
+    const badBytes = {
+      ...video(),
+      canvas: { url: "https://x/canvas.mp4", bytes: 0 },
+    };
+    expect(() => validateManifest("test-0000000000", badBytes)).toThrow(
+      /canvas\.bytes must be a positive integer/,
+    );
+  });
 });
 
 describe("sourceSet", () => {

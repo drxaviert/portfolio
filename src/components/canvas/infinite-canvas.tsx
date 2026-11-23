@@ -589,7 +589,7 @@ export const InfiniteCanvas = forwardRef<
       element.playsInline = true;
       element.crossOrigin = "anonymous";
       element.preload = "auto";
-      element.src = media.mp4.url;
+      element.src = (media.canvas ?? media.mp4).url;
       element.setAttribute("aria-hidden", "true");
       element.setAttribute("playsinline", "");
       videoHost.appendChild(element);
@@ -686,8 +686,8 @@ export const InfiniteCanvas = forwardRef<
         entry.playing = false;
       });
 
-      // Every video manifest has an MP4; for an HLS clip it is the lowest-rung
-      // progressive fallback, which is the right canvas rendition.
+      // The canvas uses the small rendition when the pipeline made one; it is
+      // still a progressive MP4 with the same aspect as the manifest.
       void element.play().catch(() => {
         entry.failed = true;
         entry.playing = false;

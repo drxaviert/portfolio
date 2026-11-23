@@ -192,6 +192,10 @@ export function validateManifest(id: string, raw: unknown): MediaManifest {
   const mp4 = readVideoFile(id, "mp4", raw.mp4);
   const webm =
     raw.webm === undefined ? undefined : readVideoFile(id, "webm", raw.webm);
+  const canvas =
+    raw.canvas === undefined
+      ? undefined
+      : readVideoFile(id, "canvas", raw.canvas);
   const hls = raw.hls === undefined ? undefined : readHls(id, raw.hls);
 
   if (!isRecord(raw.poster)) invalid(id, "poster must be an object");
@@ -213,6 +217,7 @@ export function validateManifest(id: string, raw: unknown): MediaManifest {
     kind: "video",
     mp4,
     ...(webm ? { webm } : {}),
+    ...(canvas ? { canvas } : {}),
     ...(hls ? { hls } : {}),
     poster: { avif: raw.poster.avif, jpg: raw.poster.jpg },
     duration: raw.duration,
