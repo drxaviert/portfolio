@@ -63,73 +63,29 @@ function layoutBox(element: HTMLElement): Box {
   return box;
 }
 
-function visibleArea(rect: DOMRect, width: number, height: number): number {
-  const overlapWidth = Math.min(rect.right, width) - Math.max(rect.left, 0);
-  const overlapHeight = Math.min(rect.bottom, height) - Math.max(rect.top, 0);
-
-  return overlapWidth > 0 && overlapHeight > 0
-    ? overlapWidth * overlapHeight
-    : 0;
-}
-
-/**
- * The on-screen copy of `index` to fly back to. The clicked copy wins while it
- * is still the same item (so a close lands where the reader opened it); after
- * ←/→ it finds whichever copy of the new item is most visible.
- */
-function tileFor(
-  index: number,
-  preferred: HTMLElement | null,
-): HTMLElement | null {
-  const nodes = Array.from(
-    document.querySelectorAll<HTMLElement>(
-      `[data-canvas-tile][data-tile-index="${index}"]`,
-    ),
-  );
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-
-  if (
-    preferred &&
-    nodes.includes(preferred) &&
-    visibleArea(preferred.getBoundingClientRect(), width, height) > 0
-  ) {
-    return preferred;
-  }
-
-  let best: HTMLElement | null = null;
-  let bestArea = 0;
-
-  for (const node of nodes) {
-    const area = visibleArea(node.getBoundingClientRect(), width, height);
-    if (area > bestArea) {
-      best = node;
-      bestArea = area;
-    }
-  }
-
-  return best;
-}
-
 /**
  * Full-screen media viewer.
  *
- * Opening FLIPs the frame out of the clicked tile onto its fit-to-viewport
- * box; closing flies it back to the current tile. Only transform and opacity
- * animate. ←/→ move through the canvas's content order with a crossfade
- * instead of another FLIP, and the dialog traps focus, closes on Esc/backdrop,
- * and hands focus back to a tile (or the canvas surface) when it leaves.
+ * Opening FLIPs the frame out of the clicked WebGL plane's projected rect onto
+ * its fit-to-viewport box; closing flies it back to the current plane. Only
+ * transform and opacity animate. ←/→ move through the canvas's content order
+ * with a crossfade instead of another FLIP, and the dialog traps focus, closes
+ * on Esc/backdrop, and hands focus back to the canvas surface when it leaves.
  */
 export function FocusViewer({
   items,
   initialIndex,
-  origin,
+  originRect,
+  getTargetRect,
   onClosing,
   onClosed,
 }: {
   items: CanvasItem[];
   initialIndex: number;
-  origin: HTMLElement;
+  /** The clicked plane's screen rect, captured before it is hidden. */
+  originRect: Box;
+  /** The current plane rect for a close after ←/→ stepping. */
+  getTargetRect: (index: number) => Box | null;
   /** The reverse flight has started; the shell can stop dimming the canvas. */
   onClosing?: () => void;
   onClosed: () => void;
@@ -146,7 +102,6 @@ export function FocusViewer({
 
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
-  const originRef = useRef(origin);
   const indexRef = useRef(index);
   const flightRef = useRef<ReturnType<typeof animate> | null>(null);
   const closingRef = useRef(false);
@@ -174,8 +129,9 @@ export function FocusViewer({
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Opening flight: tile -> the frame's resting box. The frame is laid out at
-  // its final size from the first paint, so only a transform ever moves.
+  // Opening flight: projected plane -> the frame's resting box. The frame is
+  // laid out at its final size from the first paint, so only a transform ever
+  // moves.
   useLayoutEffect(() => {
     if (openedRef.current) return;
     openedRef.current = true;
@@ -184,44 +140,44 @@ export function FocusViewer({
     if (!frame) return;
 
     const frameBox = layoutBox(frame);
+    const from = originRect;
     flightRef.current?.stop();
     releaseElement(frame);
 
-    if (!reduce) {
-      const originElement = originRef.current;
-      const from = originElement
-        ? toBox(originElement.getBoundingClientRect())
-        : null;
+    if (
+      !reduce &&
+      from.width > 0 &&
+      from.height > 0 &&
+      Number.isFinite(from.left) &&
+      Number.isFinite(from.top)
+    ) {
+      const pose = flipFrom(from, frameBox);
 
-      if (from && from.width > 0 && from.height > 0) {
-        const pose = flipFrom(from, frameBox);
+      frame.style.transformOrigin = "left top";
+      frame.style.transform = `translate3d(${pose.x}px, ${pose.y}px, 0) scale(${pose.scaleX}, ${pose.scaleY})`;
 
-        frame.style.transformOrigin = "left top";
-        frame.style.transform = `translate3d(${pose.x}px, ${pose.y}px, 0) scale(${pose.scaleX}, ${pose.scaleY})`;
+      const animation = animate(
+        frame,
+        { x: 0, y: 0, scaleX: 1, scaleY: 1 },
+        { duration: OPEN_S, ease: MORPH_EASE },
+      );
 
-        const animation = animate(
-          frame,
-          { x: 0, y: 0, scaleX: 1, scaleY: 1 },
-          { duration: OPEN_S, ease: MORPH_EASE },
-        );
+      flightRef.current = animation;
+      void animation.finished.then(
+        () => {
+          if (flightRef.current !== animation) return;
 
-        flightRef.current = animation;
-        void animation.finished.then(
-          () => {
-            if (flightRef.current !== animation) return;
-
-            flightRef.current = null;
-            releaseElement(frame);
-            frame.style.removeProperty("transform");
-            frame.style.removeProperty("transform-origin");
-          },
-          () => undefined,
-        );
-        return;
-      }
+          flightRef.current = null;
+          releaseElement(frame);
+          frame.style.removeProperty("transform");
+          frame.style.removeProperty("transform-origin");
+        },
+        () => undefined,
+      );
+      return;
     }
 
-    // No measured tile (or reduced motion): a fade is the gentle equivalent.
+    // No measurable plane (or reduced motion): a fade is the gentle equivalent.
     frame.style.opacity = "0";
     const animation = animate(
       frame,
@@ -236,7 +192,7 @@ export function FocusViewer({
       },
       () => undefined,
     );
-  }, [reduce]);
+  }, [originRect, reduce]);
 
   // MediaVideo's short-loop contract is a silent ambient loop with no controls;
   // in the viewer the clip is the subject, so give it the native transport. HLS
@@ -264,7 +220,7 @@ export function FocusViewer({
 
     const layout = layoutBox(frame);
     const visual = toBox(frame.getBoundingClientRect());
-    const target = reduce ? null : tileFor(indexRef.current, originRef.current);
+    const target = reduce ? null : getTargetRect(indexRef.current);
 
     flightRef.current?.stop();
     releaseElement(frame);
@@ -281,11 +237,9 @@ export function FocusViewer({
     }
 
     if (target) {
-      const targetBox = toBox(target.getBoundingClientRect());
-
-      if (targetBox.width > 0 && targetBox.height > 0) {
+      if (target.width > 0 && target.height > 0) {
         const start = flipFrom(visual, layout);
-        const end = flipFrom(targetBox, layout);
+        const end = flipFrom(target, layout);
 
         // Set the visual start explicitly: the open flight may still have been
         // running, and its stopped state is not something to rely on.
@@ -320,7 +274,7 @@ export function FocusViewer({
     );
     flightRef.current = animation;
     void animation.finished.then(onClosed, onClosed);
-  }, [onClosed, onClosing, reduce]);
+  }, [getTargetRect, onClosed, onClosing, reduce]);
 
   const step = useCallback(
     (direction: number) => {
@@ -409,18 +363,14 @@ export function FocusViewer({
 
   // Focus returns after the close commit, once the canvas is no longer inert.
   useEffect(() => {
-    const preferred = originRef.current;
-
     return () => {
       requestAnimationFrame(() => {
         // A new viewer opened before this frame; it owns focus now.
         if (document.querySelector(".cv-viewer")) return;
 
-        const tile = tileFor(indexRef.current, preferred);
-        const target =
-          tile ?? document.querySelector<HTMLElement>("[data-canvas-surface]");
-
-        target?.focus({ preventScroll: true });
+        document
+          .querySelector<HTMLElement>("[data-canvas-surface]")
+          ?.focus({ preventScroll: true });
       });
     };
   }, []);

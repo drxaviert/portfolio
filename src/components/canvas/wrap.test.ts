@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { gridLayout, masonryLayout, scatterLayout } from "./layouts";
 import type { CanvasLayout, LayoutItem, LayoutRect } from "./layouts";
-import { mod, tileKey, visibleTiles } from "./wrap";
-import type { WrapWorld } from "./wrap";
+import { mod, nearestPeriodic, planePosition, wrapCoordinate } from "./wrap";
 
 const ITEMS: LayoutItem[] = Array.from({ length: 12 }, (_, index) => ({
   id: `tile-${index}`,
@@ -49,116 +48,60 @@ describe("mod", () => {
   });
 });
 
-describe("visibleTiles", () => {
-  const world: WrapWorld = { worldW: 1000, worldH: 800 };
+describe("per-plane wrap", () => {
+  const halfPeriod = 1458;
 
-  it("keeps a tile continuous as it crosses the world seam", () => {
-    const rects = [{ x: 0, y: 0, w: 100, h: 100 }];
-    const viewport = { width: 300, height: 300 };
-    const before = visibleTiles(
-      rects,
-      world,
-      { x: 1000 - 0.001, y: 0 },
-      viewport,
+  it("folds a coordinate into the centred range", () => {
+    expect(wrapCoordinate(0, halfPeriod)).toBe(0);
+    expect(wrapCoordinate(halfPeriod - 0.001, halfPeriod)).toBeCloseTo(
+      halfPeriod - 0.001,
+      6,
     );
-    const after = visibleTiles(
-      rects,
-      world,
-      { x: 1000 + 0.001, y: 0 },
-      viewport,
+    expect(wrapCoordinate(halfPeriod + 0.001, halfPeriod)).toBeCloseTo(
+      -halfPeriod + 0.001,
+      6,
     );
-
-    // The tile leaves through the left edge as copy 1 and arrives from the
-    // right edge as copy 1; there is no second jump when the index changes.
-    expect(before).toHaveLength(1);
-    expect(after).toHaveLength(1);
-    expect(before[0].copyX).toBe(1);
-    expect(after[0].copyX).toBe(1);
-    expect(before[0].screenX).toBeCloseTo(0.001, 6);
-    expect(after[0].screenX).toBeCloseTo(-0.001, 6);
-    expect(Math.abs(after[0].screenX - before[0].screenX)).toBeLessThan(0.003);
+    expect(wrapCoordinate(-halfPeriod, halfPeriod)).toBe(-halfPeriod);
   });
 
-  it("shows the copies on both sides of the world at the edges", () => {
-    const rects = [
-      { x: 0, y: 0, w: 100, h: 100 },
-      { x: 900, y: 0, w: 100, h: 100 },
-    ];
-    const tiles = visibleTiles(
-      rects,
-      world,
-      { x: 850, y: 0 },
-      { width: 400, height: 300 },
-    );
+  it("jumps exactly one period at the seam", () => {
+    const before = wrapCoordinate(halfPeriod - 0.001, halfPeriod);
+    const after = wrapCoordinate(halfPeriod + 0.001, halfPeriod);
 
-    expect(tiles.map((tile) => tile.rectIndex).sort()).toEqual([0, 1]);
-    expect(tiles.find((tile) => tile.rectIndex === 0)?.screenX).toBe(150);
-    expect(tiles.find((tile) => tile.rectIndex === 1)?.screenX).toBe(50);
+    expect(after - before).toBeCloseTo(-halfPeriod * 2 + 0.002, 6);
   });
 
-  it("replicates a world smaller than the viewport in both axes", () => {
-    const tiles = visibleTiles(
-      [{ x: 0, y: 0, w: 50, h: 50 }],
-      { worldW: 100, worldH: 100 },
-      { x: 0, y: 0 },
-      { width: 350, height: 350 },
-    );
+  it("never pops inside the viewport at the seam", () => {
+    // 1440x900 viewport, 300x300 plane, the real grid's half-period.
+    const viewportHalf = 720;
+    const planeHalf = 150;
 
-    expect(tiles).toHaveLength(16);
-    expect(new Set(tiles.map((tile) => tile.screenX))).toEqual(
-      new Set([0, 100, 200, 300]),
-    );
-    expect(new Set(tiles.map((tile) => tile.screenY))).toEqual(
-      new Set([0, 100, 200, 300]),
-    );
-    expect(new Set(tiles.map(tileKey)).size).toBe(16);
+    for (const seam of [-halfPeriod, halfPeriod]) {
+      const centre = wrapCoordinate(seam, halfPeriod);
+
+      expect(Math.abs(centre) - planeHalf).toBeGreaterThan(viewportHalf);
+    }
+
+    // Just before the seam the plane is already entirely off screen too, so
+    // the fold is invisible, not a pop.
+    const before = planePosition(0, halfPeriod - 0.5, halfPeriod);
+
+    expect(Math.abs(before) - planeHalf).toBeGreaterThan(viewportHalf);
   });
 
-  it("mounts a tile through the margin before it is on screen", () => {
-    const rects = [
-      { x: 0, y: 0, w: 100, h: 100 },
-      { x: 500, y: 0, w: 100, h: 100 },
-    ];
-    const withoutMargin = visibleTiles(
-      rects,
-      { worldW: 1000, worldH: 1000 },
-      { x: 0, y: 0 },
-      { width: 400, height: 400 },
-    );
-    const withMargin = visibleTiles(
-      rects,
-      { worldW: 1000, worldH: 1000 },
-      { x: 0, y: 0 },
-      { width: 400, height: 400 },
-      200,
-    );
-
-    expect(withoutMargin).toHaveLength(1);
-    expect(withMargin).toHaveLength(2);
-    expect(withMargin.find((tile) => tile.rectIndex === 1)?.screenX).toBe(500);
+  it("adds the scroll offset until the fold", () => {
+    expect(planePosition(100, 200, halfPeriod)).toBe(300);
+    expect(planePosition(100, -250, halfPeriod)).toBe(-150);
   });
 
-  it("returns nothing for a collapsed world or viewport", () => {
-    expect(
-      visibleTiles(
-        [{ x: 0, y: 0, w: 10, h: 10 }],
-        { worldW: 0, worldH: 10 },
-        { x: 0, y: 0 },
-        { width: 100, height: 100 },
-      ),
-    ).toEqual([]);
-    expect(
-      visibleTiles(
-        [{ x: 0, y: 0, w: 10, h: 10 }],
-        { worldW: 100, worldH: 100 },
-        { x: 0, y: 0 },
-        { width: 0, height: 100 },
-      ),
-    ).toEqual([]);
+  it("picks the nearest period when centring a plane", () => {
+    expect(nearestPeriodic(100, 1500, 2916)).toBe(100);
+    expect(nearestPeriodic(100, 2800, 2916)).toBe(3016);
+    expect(nearestPeriodic(-100, -2800, 2916)).toBe(-3016);
   });
 });
 
-describe("layouts", () => {
+describe("legacy layouts", () => {
   it("creates a uniform 280px grid with a 24px seam gap", () => {
     const layout = gridLayout(ITEMS);
 

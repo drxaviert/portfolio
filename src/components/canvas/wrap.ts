@@ -1,52 +1,15 @@
 /**
- * The repeating-world arithmetic behind the drag canvas.
+ * Per-plane wrapping for the WebGL canvas.
  *
- * Pan is the world coordinate at the viewport's top-left. A tile at world
- * `(x, y)` exists again at `(x + kx*worldW, y + ky*worldH)` for every integer
- * pair, so the visible set is found by walking only the copies that can touch
- * the viewport. This is also why the world can be smaller than the viewport: the
- * copies are the replication, not a special case.
+ * The grid is centred on the origin and spans `2 * halfPeriod` in each axis.
+ * A plane position is `base + scroll`, folded into the centred range, so the
+ * copy that leaves one edge arrives at the other one period away. If the grid
+ * is larger than the viewport, that jump happens outside the visible area.
  */
-
-export type WrapRect = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-};
-
-export type WrapWorld = {
-  worldW: number;
-  worldH: number;
-};
-
-export type WrapPan = {
-  x: number;
-  y: number;
-};
-
-export type WrapViewport = {
-  width: number;
-  height: number;
-};
-
-export type VisibleTile = {
-  /** Index into the rects array passed to `visibleTiles`. */
-  rectIndex: number;
-  /** Position relative to the viewport. */
-  screenX: number;
-  screenY: number;
-  /** World-space top-left of this copy. Stable while panning. */
-  worldX: number;
-  worldY: number;
-  /** Which copy this is, relative to the first world. */
-  copyX: number;
-  copyY: number;
-};
 
 /**
  * Positive modulo. `%` keeps the sign of the dividend, which turns a negative
- * pan into a negative remainder and makes the wrap jump.
+ * value into a negative remainder and makes the fold jump.
  */
 export function mod(value: number, length: number): number {
   if (!Number.isFinite(value) || !Number.isFinite(length) || length === 0) {
@@ -56,69 +19,33 @@ export function mod(value: number, length: number): number {
   return ((value % length) + length) % length;
 }
 
-/** A stable React key for a visible copy. */
-export function tileKey(
-  tile: Pick<VisibleTile, "rectIndex" | "copyX" | "copyY">,
-): string {
-  return `${tile.rectIndex}:${tile.copyX}:${tile.copyY}`;
+/** Fold a coordinate into `[-halfPeriod, halfPeriod)`. */
+export function wrapCoordinate(value: number, halfPeriod: number): number {
+  if (!Number.isFinite(halfPeriod) || halfPeriod <= 0) return value;
+
+  return mod(value + halfPeriod, halfPeriod * 2) - halfPeriod;
+}
+
+/** A plane centre on screen: its base position plus the shared scroll offset. */
+export function planePosition(
+  base: number,
+  scroll: number,
+  halfPeriod: number,
+): number {
+  return wrapCoordinate(base + scroll, halfPeriod);
 }
 
 /**
- * Every rect copy that intersects the viewport, plus `margin` px of slack on
- * every side so a fast fling has a frame or two of mounted tiles to land on.
+ * The equivalent of `target` nearest to `current`, one or more periods away.
+ * Arrow navigation uses this so centring a neighbouring plane never sends the
+ * scroll offset the long way round the torus.
  */
-export function visibleTiles(
-  rects: readonly WrapRect[],
-  world: WrapWorld,
-  pan: WrapPan,
-  viewport: WrapViewport,
-  margin = 0,
-): VisibleTile[] {
-  if (
-    world.worldW <= 0 ||
-    world.worldH <= 0 ||
-    viewport.width <= 0 ||
-    viewport.height <= 0
-  ) {
-    return [];
-  }
+export function nearestPeriodic(
+  target: number,
+  current: number,
+  period: number,
+): number {
+  if (!Number.isFinite(period) || period <= 0) return target;
 
-  const left = pan.x - margin;
-  const top = pan.y - margin;
-  const right = pan.x + viewport.width + margin;
-  const bottom = pan.y + viewport.height + margin;
-  const visible: VisibleTile[] = [];
-
-  rects.forEach((rect, rectIndex) => {
-    if (rect.w <= 0 || rect.h <= 0) return;
-
-    const copyXStart = Math.ceil((left - (rect.x + rect.w)) / world.worldW);
-    const copyXEnd = Math.floor((right - rect.x) / world.worldW);
-    const copyYStart = Math.ceil((top - (rect.y + rect.h)) / world.worldH);
-    const copyYEnd = Math.floor((bottom - rect.y) / world.worldH);
-
-    for (let copyX = copyXStart; copyX <= copyXEnd; copyX += 1) {
-      const worldX = rect.x + copyX * world.worldW;
-
-      if (worldX + rect.w <= left || worldX >= right) continue;
-
-      for (let copyY = copyYStart; copyY <= copyYEnd; copyY += 1) {
-        const worldY = rect.y + copyY * world.worldH;
-
-        if (worldY + rect.h <= top || worldY >= bottom) continue;
-
-        visible.push({
-          rectIndex,
-          screenX: worldX - pan.x,
-          screenY: worldY - pan.y,
-          worldX,
-          worldY,
-          copyX,
-          copyY,
-        });
-      }
-    }
-  });
-
-  return visible;
+  return target + Math.round((current - target) / period) * period;
 }
