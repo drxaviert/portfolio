@@ -120,6 +120,26 @@ describe("orb satellite control", () => {
     ).toBeInTheDocument();
   });
 
+  it("suppresses hover after a mouse resume until the pointer leaves", async () => {
+    mocks.pathname = "/work";
+    const harness = makeHarness();
+
+    await harness.playThrough();
+
+    const { container } = renderOrb(harness.store);
+    const button = screen.getByRole("button", { name: "Pause Get Lucky" });
+
+    fireEvent.click(button, { detail: 1 });
+    expect(button).toHaveAttribute("data-paused", "true");
+
+    fireEvent.click(button, { detail: 1 });
+    expect(harness.store.getSnapshot().status).toBe("playing");
+    expect(button).toHaveAttribute("data-suppress-hover", "true");
+
+    fireEvent.pointerLeave(container.querySelector(".orb-shell")!);
+    expect(button).not.toHaveAttribute("data-suppress-hover");
+  });
+
   it("keeps the satellite hidden on the home route", async () => {
     mocks.pathname = "/";
     const harness = makeHarness();
