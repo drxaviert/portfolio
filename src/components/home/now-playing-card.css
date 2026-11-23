@@ -34,6 +34,13 @@
   --now-playing-glyph: var(--palette-neutral-50);
   --now-playing-button-ring: rgb(0 0 0 / 0.08);
   --now-playing-track: color-mix(in oklab, var(--on-surface) 14%, transparent);
+  /* The img is rectangular and clipped by the rounded art box; its placeholder
+     must be the card fill, or the clip's antialiased bottom edge blends the dark
+     placeholder with the light card as a hairline. The image itself also stops
+     1px short of the bottom rounded edge so its dark pixels do not sit under
+     the timebar's antialiased clip. */
+  --now-playing-art-bg: var(--surface-container-low);
+  --now-playing-art-radius: clamp(5px, 3.1873cqw, 8px);
 
   padding: 7px;
 }
@@ -43,6 +50,7 @@
    surfaces. */
 .now-playing-card[data-surface="pulled"] {
   --now-playing-well: rgb(255 255 255 / 0.75);
+  --now-playing-art-bg: var(--surface);
 }
 
 .now-playing-card[data-surface="pulled"] .ring-surface {
@@ -98,12 +106,19 @@
   min-height: 0;
   margin-bottom: 3.1873cqw; /* 8 / 251 */
   overflow: hidden;
-  border-radius: clamp(5px, 3.1873cqw, 8px);
-  background-color: var(--palette-neutral-650);
+  border-radius: var(--now-playing-art-radius);
+  background-color: var(--now-playing-art-bg);
 }
 
 .now-playing-art-image {
   object-fit: cover;
+  /* Keep the photo off the antialiased bottom edge; the timebar's opaque base
+     hides the 1px inset. */
+  clip-path: inset(
+    0 0 1px 0
+      round 0 0 calc(var(--now-playing-art-radius) + 2px)
+      calc(var(--now-playing-art-radius) + 2px)
+  );
 }
 
 .now-playing-timebar {
