@@ -299,7 +299,11 @@
 .now-playing-icon svg {
   display: block;
   width: auto;
-  height: 25%; /* 12 / 48 */
+  height: 41.667%; /* 20 / 48, scales with the control row */
+}
+
+.now-playing-spinner svg {
+  height: 25%;
 }
 
 .now-playing-spinner[data-visible="true"] svg {
