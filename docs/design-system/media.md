@@ -139,6 +139,7 @@ H.264, no audio, at most 480px tall, `-crf 24 -maxrate 650k -bufsize 1300k`, `+f
 as `media/<id>/canvas.mp4` and recorded as `canvas: { url, bytes }` next to `mp4`.
 
 - The canvas uses `canvas ?? mp4` (`src/components/canvas/infinite-canvas.tsx`).
+- The live `/work/motion-and-stills` study uses the same list as the dev prototype. An HLS piece has no `canvas` rendition, so its grid plane uses the progressive MP4 while the full-screen viewer uses the ladder.
 - Clips already at or below 480p skip the extra encode, so the field is optional and absent for
   them; `validateManifest` accepts both shapes.
 - The 16 existing clips over 480p were backfilled from `media/archive/<id>.webm`; only the new

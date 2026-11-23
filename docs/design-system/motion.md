@@ -823,3 +823,88 @@ visible. Below the gate the shipped cursor thumbnail is used unchanged.
 - `src/components/work/work-list.tsx` — `PANEL_*`, `measurePanel`, `placePanel`, the fixed clip layer's panel
 - `src/components/work/work-list.css` — the panel box, enter/exit, 1s crossfade and reduced-motion branch
 
+## Drag canvas - Motion & Stills (2026-11-23)
+
+The live `/work/motion-and-stills` study is the approved canvas prototype inside the WorkDrawer, with the dev panel removed and the locked defaults fixed in `canvas-reader.tsx`. Source: `src/components/canvas/*` and `src/components/work/canvas-reader.tsx`.
+
+### Physics
+
+| Value | Setting |
+| --- | --- |
+| Momentum decay | `0.95` per 60fps frame; `minVelocity = 0.01` px/frame |
+| Pointer to velocity | mouse `0.1`, touch `0.3`; release adds `2×` the last pointer delta |
+| Wheel | `0.05` per normalised pixel |
+| Click / pan lock | tap within `5px` and `300ms`; clicks blocked for `100ms` after a drag |
+| Held keys | acceleration `3.4` px/frame per 60fps frame; cruise `25` px/frame; reduced step `120px` |
+| Camera | `CAMERA_Z = 500`; drag zoom to `475`, easing at `0.975` per 60fps frame |
+| Parallax | limit `0.025`; easing at `0.82` per 60fps frame |
+| Plane crop | texture zoom `1.06` (cover), `1.0` at the viewer focus |
+| Video budget | 12 playing on desktop, 6 on mobile; visible check every `80ms`; `160px` margin; starts freeze above `3` px/frame, resume below `0.4` after `220ms` |
+
+### Intro timeline
+
+Times are from the first frame with posters ready. The eases are the power curves in `intro.ts`.
+
+| Beat | Delay | Duration | Ease | Value |
+| --- | --- | --- | --- | --- |
+| Camera push | 1300ms | 2000ms | power4.inOut | z `700 -> 500` |
+| Grid spread | 1500ms | 2000ms | power4.inOut | gap `8 ->` measured pitch |
+| Plane opacity | 500-1250ms stagger | 2000ms | power3.out | 0 -> 1 |
+| Gray out | 2250ms | 2000ms | power3.out | 1 -> 0 |
+| Texture zoom | 1250ms | 2250ms | power3.inOut | `1.3 -> 1` |
+| Intro end | - | 4250ms | - | - |
+| Videos join | 3250ms | - | - | - |
+| Reduced motion | - | 200ms | - | opacity only |
+
+### Open and close
+
+Open: the canvas glides the clicked plane to the centre for **1000ms power3.inOut** while the other planes fade for **900ms power3.inOut**. The grow starts **150ms before the glide ends** (**600ms power3.out**); the plane crop goes from `1.06` to `1.0`. At the handoff the persistent canvas clip and the DOM viewer cross-fade for **200ms**; the caption waits **200ms**. The viewer waits for a decoded frame at the canvas time (or `700ms`), then fades in.
+
+Close mirrors it: caption and controls out over **150ms**; the viewer pauses and the canvas clip is seeked to its frame (waiting for `seeked` plus two rendered frames); the viewer cross-fades out over **200ms** with the canvas already at the focus rect and contain crop; then the plane shrinks focus to tile for **600ms power3.inOut** while `uZoom` goes `1 -> 1.06`; the other planes fade in over **900ms power3.inOut**, starting **450ms** after the cross-fade begins. Input unlocks at **1550ms**. Reduced motion uses the 200ms opacity path.
+
+### Breathing
+
+| Value | Setting |
+| --- | --- |
+| Amplitude | **±6%** of the plane's resting size (default `0.06`) |
+| Period | **5s**, shared by every tile |
+| Wave | `0.6` radians of phase per `col + row` grid step, so the ripple runs diagonally; the phase uses the grid index, not the wrapped screen position |
+| Curve | `1 + amplitude × sin(2π·t/period - (col + row)·wave)`; the phase is absolute `performance.now` time |
+| Idle delay | **1s** after the canvas settles |
+| Fade in | **1.2s** smoothstep amplitude envelope |
+| Fade out | **300ms** exponential amplitude ease when a drag, wheel or key glide starts |
+| Settle threshold | `0.1` px/frame |
+| Render cadence | every rAF; the phase is sampled at native refresh, no frame skipping. Stops when the document or route is hidden |
+
+The amplitude is 0 during the intro, open/close transitions, the viewer and reduced motion. Only the amplitude is enveloped; the phase never resets. The scale is the whole mesh multiplied by the breathing scale, then by the hover scale; the texture crop (`uZoom`) is not touched. Plane edges use analytic 1px coverage (`fwidth`) on top of the render target's 4x MSAA where the target is at or below 10M pixels; the lens pass samples the target linearly.
+
+### Hover
+
+| Value | Setting |
+| --- | --- |
+| Lift | **1.08×** (slider 1.00-1.20), multiplied on top of the breath |
+| In | **280ms**, power3.out |
+| Out | **400ms**, power3.inOut |
+| Retarget | each plane's tween restarts from the value it had reached, so fast passes and interruptions never jump |
+| Pick | one inverse-lens raycast per frame at the last pointer position, idle only (not intro, drag/glide, transition or viewer) |
+| Cursor | pointer over a tile, grab in the gaps, grabbing while dragging; no hover on touch |
+| Order | the hovered/tweening plane raises `renderOrder` to 1 |
+| Reduced motion | cursor change only, no scale |
+
+### Globe lens
+
+Full-screen post-pass: the scene renders into a **1.6×** render target (30% source margin each side) at the canvas DPR capped at 2, and one quad samples it through the aspect-corrected barrel map `t = q × (1/1.6) × (1 + k·r²)`. The centre stays 1:1 with the flat view; the 30% margin keeps edge samples inside the target. One sRGB encode happens in the post pass; the scene target stays linear premultiplied. MSAA is 4x up to 10M target pixels; larger targets use the analytic plane-edge AA. The lens sample is LinearFilter.
+
+| Value | Setting |
+| --- | --- |
+| Default mode | **globe** |
+| Strength | **0.23** (max 0.50) |
+| Drag boost | **+0.30** at a fast drag, on top of the base (max 0.30); speed threshold `8` px/frame |
+| Vignette | **0.25** (max 0.25), smoothstep rim fade |
+| Easing | `0.08` per 60fps frame |
+| Flat comparison | `?lens=flat` on the dev route |
+
+### Runtime and performance
+
+The live study pauses the canvas when the route is not active, which stops the rAF and pauses every canvas video; the InfiniteCanvas effect disposes its renderer, render target, textures and video elements on unmount. The capability probe is cached and its context released, so the three open/close cycle test returns to the same context baseline (no leaked canvas contexts). Production idle + hover at 1440×900 with 12 videos measured **p95 8.1ms, max 8.9ms**, 0 frames over 17ms and 0 long tasks; GPU WebGL work was ~75ms per 10s with videos and ~23ms per 10s breathing + hover only.
+
