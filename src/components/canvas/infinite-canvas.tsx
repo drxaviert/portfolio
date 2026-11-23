@@ -22,6 +22,7 @@ import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
 import type { MediaManifest } from "@/lib/media-types";
 import type { Box } from "@/components/work/morph";
+import { gridMetrics } from "./grid";
 import { usePan } from "./use-pan";
 import { planePosition } from "./wrap";
 
@@ -44,14 +45,6 @@ export type InfiniteCanvasProps = {
   onOpen: (index: number, rect: Box) => void;
 };
 
-/** One cell's desktop width and the gap between cells, in world px at z=0. */
-const PLANE_WIDTH = 300;
-const GAP = 24;
-const SMALL_GAP = 16;
-const MAX_HEIGHT_RATIO = 0.75;
-/** Extra cells past the viewport so the wrap seam stays off screen. */
-const EXTRA_COLS = 4;
-const EXTRA_ROWS = 4;
 const CAMERA_Z = 500;
 const CAMERA_DRAG_Z = 475;
 const FRAME_MS = 1000 / 60;
@@ -123,6 +116,9 @@ type CanvasDebug = {
   planes: number;
   drawCalls: number;
   textures: number;
+  texturesLoaded: number;
+  texturesTotal: number;
+  textureLoadMs: number | null;
   cameraZ: number;
   scroll: { x: number; y: number };
   dragging: boolean;
@@ -317,12 +313,14 @@ export const InfiniteCanvas = forwardRef<
     const projected = new THREE.Vector3();
     const textures = new Map<string, TextureEntry>();
     const planeByMesh = new Map<THREE.Object3D, Plane>();
+    const textureStartedAt = performance.now();
+    let textureLoadMs: number | null = null;
 
     let planes: Plane[] = [];
     let cols = 0;
     let rows = 0;
-    let pitchX = PLANE_WIDTH + GAP;
-    let pitchY = PLANE_WIDTH * MAX_HEIGHT_RATIO + GAP;
+    let pitchX = 0;
+    let pitchY = 0;
     let halfX = 0;
     let halfY = 0;
     let width = 1;
@@ -343,6 +341,9 @@ export const InfiniteCanvas = forwardRef<
             planes: 0,
             drawCalls: 0,
             textures: 0,
+            texturesLoaded: 0,
+            texturesTotal: 0,
+            textureLoadMs: null,
             cameraZ: CAMERA_Z,
             scroll: { x: 0, y: 0 },
             dragging: false,
@@ -377,6 +378,18 @@ export const InfiniteCanvas = forwardRef<
 
           if (entry) entry.loaded = true;
           markLoaded(url);
+
+          if (textureLoadMs === null) {
+            let loaded = 0;
+            for (const texture of textures.values()) {
+              if (texture.loaded) loaded += 1;
+            }
+
+            if (loaded === textures.size) {
+              textureLoadMs = performance.now() - textureStartedAt;
+            }
+          }
+
           wake();
         },
         undefined,
@@ -414,19 +427,15 @@ export const InfiniteCanvas = forwardRef<
     function buildPlanes(): void {
       disposePlanes();
 
-      // Keep the reference's desktop scale, but let a phone show a few
-      // columns instead of one oversized plane.
-      const baseWidth =
-        width < 520 ? Math.max(150, Math.round(width * 0.42)) : PLANE_WIDTH;
-      const gap = width < 520 ? SMALL_GAP : GAP;
-      const cellHeight = baseWidth * MAX_HEIGHT_RATIO;
+      const grid = gridMetrics(width, height);
+      const { baseWidth, cellHeight } = grid;
 
-      pitchX = baseWidth + gap;
-      pitchY = cellHeight + gap;
-      cols = Math.ceil(width / pitchX) + EXTRA_COLS;
-      rows = Math.ceil(height / pitchY) + EXTRA_ROWS;
-      halfX = (cols * pitchX) / 2;
-      halfY = (rows * pitchY) / 2;
+      pitchX = grid.pitchX;
+      pitchY = grid.pitchY;
+      cols = grid.cols;
+      rows = grid.rows;
+      halfX = grid.halfX;
+      halfY = grid.halfY;
 
       const urls = items.map((item) => textureUrl(item.media));
 
@@ -493,9 +502,17 @@ export const InfiniteCanvas = forwardRef<
     function updateDebug(): void {
       if (!debug) return;
 
+      let loadedTextures = 0;
+      for (const texture of textures.values()) {
+        if (texture.loaded) loadedTextures += 1;
+      }
+
       debug.planes = planes.length;
       debug.drawCalls = renderer.info.render.calls;
       debug.textures = renderer.info.memory.textures;
+      debug.texturesLoaded = loadedTextures;
+      debug.texturesTotal = textures.size;
+      debug.textureLoadMs = textureLoadMs;
       debug.cameraZ = camera.position.z;
       debug.scroll.x = scrollRef.current.x;
       debug.scroll.y = scrollRef.current.y;

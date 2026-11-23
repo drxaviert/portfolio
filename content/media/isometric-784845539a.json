@@ -1,0 +1,20 @@
+{
+  "id": "isometric-784845539a",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Shapes In Motion motion piece",
+  "caption": "Shapes In Motion",
+  "createdAt": "2026-11-23T15:24:27.217Z",
+  "original": "Isometric.webm",
+  "mp4": {
+    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/isometric-784845539a/video.mp4",
+    "bytes": 714570
+  },
+  "poster": {
+    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/isometric-784845539a/poster.avif",
+    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/isometric-784845539a/poster.jpg"
+  },
+  "duration": 14.73,
+  "hasAudio": false
+}

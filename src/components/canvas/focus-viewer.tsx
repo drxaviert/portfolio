@@ -408,6 +408,8 @@ export function FocusViewer({
               <motion.div
                 key={item.key}
                 className="cv-viewer__slide"
+                data-media-id={media.id}
+                data-media-kind={media.kind}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
