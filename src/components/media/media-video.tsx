@@ -26,10 +26,18 @@ export function MediaVideo({
   media,
   alt,
   className = "",
+  viewerOwned = false,
 }: {
   media: VideoMedia;
   alt: string;
   className?: string;
+  /**
+   * The focus viewer owns playback. It disables the IntersectionObserver
+   * autoplay and, for an HLS piece, keeps the progressive MP4 fallback out of
+   * the element until hls.js has attached, so the viewer never starts the MP4
+   * and then gets an emptied source when the ladder arrives.
+   */
+  viewerOwned?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const reduce = useReducedMotion();
@@ -39,7 +47,7 @@ export function MediaVideo({
   const streaming = Boolean(hlsUrl);
 
   useEffect(() => {
-    if (streaming) return;
+    if (streaming || viewerOwned) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -80,7 +88,7 @@ export function MediaVideo({
       observer.disconnect();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [reduce, streaming]);
+  }, [reduce, streaming, viewerOwned]);
 
   useEffect(() => {
     if (!hlsUrl) return;
@@ -130,6 +138,7 @@ export function MediaVideo({
 
       // Older iOS: the element plays HLS itself. Everything else keeps the mp4.
       if (nativeHls) video.src = hlsUrl;
+      else if (viewerOwned) video.src = media.mp4.url;
     };
 
     const observer = new IntersectionObserver(
@@ -148,7 +157,7 @@ export function MediaVideo({
       observer.disconnect();
       hls?.destroy();
     };
-  }, [hlsUrl]);
+  }, [hlsUrl, media.mp4.url, viewerOwned]);
 
   function toggle() {
     const video = videoRef.current;
@@ -186,8 +195,14 @@ export function MediaVideo({
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
       >
-        {media.webm ? <source src={media.webm.url} type="video/webm" /> : null}
-        <source src={media.mp4.url} type="video/mp4" />
+        {!streaming || !viewerOwned ? (
+          <>
+            {media.webm ? (
+              <source src={media.webm.url} type="video/webm" />
+            ) : null}
+            <source src={media.mp4.url} type="video/mp4" />
+          </>
+        ) : null}
       </video>
 
       {reduce && !streaming ? (

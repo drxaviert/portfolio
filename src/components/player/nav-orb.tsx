@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { usePlayerStatus } from "./player-hooks";
 import { playerStore } from "./player-store";
 import type { PlayerStore } from "./player-store";
-import { OrbHead } from "./orb-head";
+import { GazeOrb } from "@/components/home/gaze-orb";
 import { OrbSatelliteControl } from "./orb-satellite-control";
 import "./orb-player.css";
 
@@ -32,7 +32,7 @@ export function NavOrb({ store = playerStore }: { store?: PlayerStore }) {
         aria-label="Home"
         className="nav-logo orb-focus-ring relative flex size-9 shrink-0 items-center justify-center rounded-full no-underline"
       >
-        <OrbHead />
+        <GazeOrb />
         <span
           aria-hidden="true"
           className="nav-tooltip pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface"

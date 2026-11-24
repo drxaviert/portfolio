@@ -11,8 +11,9 @@ import "./ring-hover.css";
  * Home nav from the Figma 1440 frame (121:2253).
  *
  * The head is the orb mark: a 36px ball painted with the phase blob gradient
- * (bottom-left → top-right) and two matte eyes, so it recolours with the theme
- * like the rest.
+ * (bottom-left → top-right) and two matte eyes that look at a fine pointer, so
+ * it recolours with the theme like the rest. Reduced motion and coarse
+ * pointers leave the eyes still (see gaze-orb.tsx).
  *
  * The three labels and the design-system glyph are one run with a single
  * capsule: hovering slides it to the pointer with the theme toggle's stretch &

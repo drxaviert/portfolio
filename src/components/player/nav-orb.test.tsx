@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   YouTubeCallbacks,
   YouTubeHandle,
@@ -16,8 +16,25 @@ vi.mock("next/navigation", () => ({
 
 const cleanups: (() => void)[] = [];
 
+beforeEach(() => {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+});
+
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
+  vi.unstubAllGlobals();
 });
 
 function makeHarness() {

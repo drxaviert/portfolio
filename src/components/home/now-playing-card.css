@@ -6,9 +6,9 @@
  * well.
  *
  * The play button, progress fill and scrubber thumb use the nav orb gradient
- * (globals.css --orb-gradient, painted by home-nav.tsx OrbHead). The fill is a
- * full-width gradient revealed by clip-path so the colours never stretch as
- * the playhead moves. The white glyph is Dat's choice; the button itself has no
+ * (globals.css --orb-gradient, painted by GazeOrb in home-nav.tsx). The fill
+ * is a full-width gradient revealed by clip-path so the colours never stretch
+ * as the playhead moves. The white glyph is Dat's choice; the button itself has no
  * shadow or halo (the shared .player-orb-button carries the gradient, glyph,
  * press and focus states).
  *

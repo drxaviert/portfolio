@@ -1,4 +1,4 @@
-# Components — key dimensions and tokens (2026-11-18)
+# Components — key dimensions and tokens (2026-11-22)
 
 The shipped geometry of the nav, the theme toggle, the home cards and tracker, and the work drawer and
 carousel, plus the stacking order they share. Values are the ones in the source; the detailed tables
@@ -12,17 +12,18 @@ The same `HomeNav` is the home bar and the reader's top row; one dock in the roo
 
 | Item | Value | Source | Tokens |
 | --- | --- | --- | --- |
-| Bar height | `64px` (`h-16`) | `src/components/home/home-nav.tsx:50` | `--wd-nav-height: 4rem` (`src/app/globals.css:210`) |
-| Bar inline padding | `16px` (`px-4`) | `home-nav.tsx:50` | — |
-| Bar radius | `12px` (`rounded-lg`) | `home-nav.tsx:50` | `--radius-lg` |
-| Bar fill | `surface-container-low` | `home-nav.tsx:55` | `--surface-container-low` |
+| Bar height | `64px` (`h-16`) | `src/components/home/home-nav.tsx:42` | `--wd-nav-height: 4rem` (`src/app/globals.css:210`) |
+| Bar inline padding | `16px` (`px-4`) | `home-nav.tsx:42` | — |
+| Bar radius | `12px` (`rounded-lg`) | `home-nav.tsx:42` | `--radius-lg` |
+| Bar fill | `surface-container-low` | `home-nav.tsx:47` | `--surface-container-low` |
 | Bar edge and shadow | 1px `frame-line` ring + `shadow-card` on the host | `src/components/home/ring-hover.css:35`, `:46`, `:62-67` | `--frame-line`, `--shadow-card` |
-| Gap, item run → toggle | `12px` (`gap-3`) | `home-nav.tsx:65` | — |
+| Gap, item run → toggle | `12px` (`gap-3`) | `home-nav.tsx:63` | — |
 | Nav slot on the home page | `64px` (`h-16`) | `src/components/home/home-layout.tsx:216` | — |
-| Orb | `36px` (`size-9`), `50%` radius | `home-nav.tsx:32` | `--orb-gradient` |
-| Orb eyes | `8 × 3.4px`, top `10.5px`, left `13.5px` / `20.6px`, white | `home-nav.tsx:35-36` | — |
-| Orb link | `/`, `aria-label="Home"`, `scroll` default; hover fill = the nav's `--nav-hover-fill` at `0.55` in a round capsule; press `scale(0.96)` | `home-nav.tsx:60-72`, `nav-items.css` | `--nav-hover-fill`, `--duration-short-3` |
-| Orb tooltip | `Home`, `aria-hidden`, above the orb on `/` and below it in the drawer; 150ms fade after the group's 300ms delay | `home-nav.tsx:66-71`, `nav-items.css` | `--duration-short-3`, `--duration-medium-5` |
+| Orb | `36px`, `50%` radius | `src/components/home/gaze-orb.tsx:258-267` | `--orb-gradient` |
+| Orb eyes | `8 × 3.4px`, top `10.5px`, left `13.5px` / `20.6px`, white | `gaze-orb.tsx:27-30`, `:251-278` | — |
+| Orb gaze | Eye pair travel `4.5 × 2.8px` at 36px; full look at `60px`; closed-form spring `ω²=566.7`, `ζ=0.91` (`glide-spring`, no Motion in first load); fine pointer only; rests under reduced motion; ignores the theme crossfade's synthetic leave | `gaze-orb.tsx:32-46`, `:88-150`, `:168-228` | — |
+| Orb link | `/`, `aria-label="Home"`, `scroll` default; hover fill = the nav's `--nav-hover-fill` at `0.55` in a round capsule; press `scale(0.96)` | `home-nav.tsx:49-61`, `nav-items.css` | `--nav-hover-fill`, `--duration-short-3` |
+| Orb tooltip | `Home`, `aria-hidden`, above the orb on `/` and below it in the drawer; 150ms fade after the group's 300ms delay | `home-nav.tsx:55-60`, `nav-items.css` | `--duration-short-3`, `--duration-medium-5` |
 | Item | `32px` high (`h-8`), `8px` inline padding (`px-2`), `8px` radius (`rounded-md`) | `src/components/home/nav-items.tsx:25` | `--radius-md` |
 | Item type | `16px` / `20px` (`leading-5`) / `500` | `nav-items.tsx:26` | `--text-base` |
 | Glyph | `32 × 32px` (`size-8`), `8px` radius | `nav-items.tsx:37` | `--radius-md` |

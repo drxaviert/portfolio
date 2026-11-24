@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -48,6 +54,54 @@ describe("HomeNav", () => {
       "href",
       "/",
     );
+  });
+
+  it("lets the orb's eyes follow a fine pointer", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: query === "(hover: hover) and (pointer: fine)",
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    );
+
+    renderNav();
+
+    const logo = screen.getByRole("link", { name: "Home" });
+    const orb = logo.firstElementChild as HTMLElement;
+
+    orb.getBoundingClientRect = () =>
+      ({
+        left: 100,
+        top: 100,
+        width: 36,
+        height: 36,
+        right: 136,
+        bottom: 136,
+        x: 100,
+        y: 100,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    // 42px right of the 36px head's centre, with the default 60px reach and
+    // full strength: the eyes travel 70% of their 4.5px range.
+    fireEvent.pointerMove(window, {
+      clientX: 160,
+      clientY: 118,
+      pointerType: "mouse",
+    });
+
+    const eyes = orb.firstElementChild as HTMLElement;
+
+    await waitFor(() => {
+      expect(eyes.style.transform).toMatch(/translate3d\(3\.1[0-9]*px/);
+    });
   });
 
   it("gives the orb a Home tooltip outside the accessibility tree", () => {
