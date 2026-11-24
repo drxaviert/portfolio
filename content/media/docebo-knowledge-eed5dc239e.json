@@ -8,12 +8,12 @@
   "createdAt": "2026-11-23T15:20:46.082Z",
   "original": "Docebo Knowledge.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/docebo-knowledge-eed5dc239e/video.mp4",
-    "bytes": 4983419
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/docebo-knowledge-eed5dc239e/video.mp4",
+    "bytes": 4979042
   },
   "hls": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/docebo-knowledge-eed5dc239e/hls/master.m3u8",
-    "bytes": 30276302,
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/docebo-knowledge-eed5dc239e/hls/master.m3u8",
+    "bytes": 30270320,
     "levels": [
       {
         "height": 1080,
@@ -30,8 +30,8 @@
     ]
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/docebo-knowledge-eed5dc239e/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/docebo-knowledge-eed5dc239e/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/docebo-knowledge-eed5dc239e/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/docebo-knowledge-eed5dc239e/poster.jpg"
   },
   "duration": 89.54,
   "hasAudio": false

@@ -8,12 +8,12 @@
   "createdAt": "2026-11-23T15:24:02.313Z",
   "original": "11242024_Ordinary_GrowthFactors_16x9.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/11242024-ordinary-growthfactors-16x9-53a4a9db88/video.mp4",
-    "bytes": 5151158
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/11242024-ordinary-growthfactors-16x9-53a4a9db88/video.mp4",
+    "bytes": 5149015
   },
   "hls": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/11242024-ordinary-growthfactors-16x9-53a4a9db88/hls/master.m3u8",
-    "bytes": 37219067,
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/11242024-ordinary-growthfactors-16x9-53a4a9db88/hls/master.m3u8",
+    "bytes": 37185103,
     "levels": [
       {
         "height": 1080,
@@ -30,8 +30,8 @@
     ]
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/11242024-ordinary-growthfactors-16x9-53a4a9db88/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/11242024-ordinary-growthfactors-16x9-53a4a9db88/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/11242024-ordinary-growthfactors-16x9-53a4a9db88/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/11242024-ordinary-growthfactors-16x9-53a4a9db88/poster.jpg"
   },
   "duration": 37.51,
   "hasAudio": false

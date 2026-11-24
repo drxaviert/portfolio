@@ -8,16 +8,16 @@
   "createdAt": "2026-11-23T15:21:45.558Z",
   "original": "PUB_EROXON_15s_HERO.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/pub-eroxon-15s-hero-2ba3427fdb/video.mp4",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/pub-eroxon-15s-hero-2ba3427fdb/video.mp4",
     "bytes": 4491007
   },
   "canvas": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/pub-eroxon-15s-hero-2ba3427fdb/canvas.mp4",
-    "bytes": 864913
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/pub-eroxon-15s-hero-2ba3427fdb/canvas.mp4",
+    "bytes": 862696
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/pub-eroxon-15s-hero-2ba3427fdb/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/pub-eroxon-15s-hero-2ba3427fdb/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/pub-eroxon-15s-hero-2ba3427fdb/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/pub-eroxon-15s-hero-2ba3427fdb/poster.jpg"
   },
   "duration": 15.05,
   "hasAudio": false

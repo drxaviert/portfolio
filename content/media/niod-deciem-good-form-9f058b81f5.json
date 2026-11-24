@@ -8,12 +8,12 @@
   "createdAt": "2026-11-23T15:23:24.134Z",
   "original": "NIOD Deciem Good Form.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/niod-deciem-good-form-9f058b81f5/video.mp4",
-    "bytes": 2470459
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-deciem-good-form-9f058b81f5/video.mp4",
+    "bytes": 2468867
   },
   "hls": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/niod-deciem-good-form-9f058b81f5/hls/master.m3u8",
-    "bytes": 15862729,
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-deciem-good-form-9f058b81f5/hls/master.m3u8",
+    "bytes": 15887867,
     "levels": [
       {
         "height": 1080,
@@ -30,8 +30,8 @@
     ]
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/niod-deciem-good-form-9f058b81f5/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/niod-deciem-good-form-9f058b81f5/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-deciem-good-form-9f058b81f5/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-deciem-good-form-9f058b81f5/poster.jpg"
   },
   "duration": 30.09,
   "hasAudio": false

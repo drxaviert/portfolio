@@ -8,16 +8,16 @@
   "createdAt": "2026-11-23T15:23:41.385Z",
   "original": "NIOD_Cell03_Anim_v03_FINAL.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/niod-cell03-anim-v03-final-f3e1d32763/video.mp4",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell03-anim-v03-final-f3e1d32763/video.mp4",
     "bytes": 9997056
   },
   "canvas": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/niod-cell03-anim-v03-final-f3e1d32763/canvas.mp4",
-    "bytes": 821628
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell03-anim-v03-final-f3e1d32763/canvas.mp4",
+    "bytes": 819644
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/niod-cell03-anim-v03-final-f3e1d32763/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/niod-cell03-anim-v03-final-f3e1d32763/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell03-anim-v03-final-f3e1d32763/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell03-anim-v03-final-f3e1d32763/poster.jpg"
   },
   "duration": 10.04,
   "hasAudio": false

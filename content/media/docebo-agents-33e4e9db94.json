@@ -8,12 +8,12 @@
   "createdAt": "2026-11-23T15:20:22.246Z",
   "original": "Docebo Agents.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/docebo-agents-33e4e9db94/video.mp4",
-    "bytes": 5177160
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/docebo-agents-33e4e9db94/video.mp4",
+    "bytes": 5175643
   },
   "hls": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/docebo-agents-33e4e9db94/hls/master.m3u8",
-    "bytes": 33713530,
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/docebo-agents-33e4e9db94/hls/master.m3u8",
+    "bytes": 33711052,
     "levels": [
       {
         "height": 1080,
@@ -30,8 +30,8 @@
     ]
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/docebo-agents-33e4e9db94/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/docebo-agents-33e4e9db94/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/docebo-agents-33e4e9db94/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/docebo-agents-33e4e9db94/poster.jpg"
   },
   "duration": 83.38,
   "hasAudio": false

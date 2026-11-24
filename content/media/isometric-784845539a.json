@@ -8,16 +8,16 @@
   "createdAt": "2026-11-23T15:24:27.217Z",
   "original": "Isometric.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/isometric-784845539a/video.mp4",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/isometric-784845539a/video.mp4",
     "bytes": 714570
   },
   "canvas": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/isometric-784845539a/canvas.mp4",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/isometric-784845539a/canvas.mp4",
     "bytes": 147026
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/isometric-784845539a/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/isometric-784845539a/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/isometric-784845539a/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/isometric-784845539a/poster.jpg"
   },
   "duration": 14.73,
   "hasAudio": false
