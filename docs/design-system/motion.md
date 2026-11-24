@@ -228,6 +228,30 @@ A frame writes one property: the capsule keeps the run's width and carries the p
 - `src/components/home/nav-items.css:165` — reduced-motion capsule hide
 - `src/components/home/nav-items.css:170-178` — reduced-motion hover fill crossfade
 
+## Nav orb gaze
+
+The orb's two matte eyes look toward a fine pointer. The pair moves as one so the face keeps its spacing; each bar is still the 3.4 × 8 the Figma head ships. The eye container's `transform` is the home's own closed-form `glide-spring` oscillator, not Motion: the nav lives in the root layout, and PR #41 keeps Motion out of every route's first-load JS. The approved Motion tuning (k=340, c=26, m=0.6) converts to the unit-mass spring `ω² = 340/0.6`, `ζ = 26/(2√(340·0.6)) ≈ 0.91`, slightly underdamped, so a retarget keeps its velocity and the face never snaps. Travel is capped at 4.5 × 2.8px at the 36px size and scales with the head; the offset is the pointer direction times `min(distance / 60px, 1)`, so the eyes rest when the pointer is on the head and reach a full look at the tuned 60px reach. The dev harness at `/dev/proto/orb-eyes` exposes strength and reach; its 4× head uses the same component.
+
+| Trigger | Property | Timing | Easing | From → to |
+| --- | --- | --- | --- | --- |
+| Fine pointer moves | eye-pair `transform` | closed-form spring `ω²=566.7`, `ζ=0.91` | spring | current offset → direction × `min(distance / 60, 1)` × 4.5 / 2.8px |
+| Pointer on the head | same | same spring | spring | current → 0, 0 |
+| Real pointer leave or window blur | same | same spring | spring | current → 0, 0 |
+| Theme crossfade's synthetic leave | — | held | — | aim stays |
+| Reduced motion or coarse pointer | — | no listener | — | held at 0, 0 |
+
+The eyes are decorative (`aria-hidden`); the Home link keeps its name and 44px target. The effect is gated to `(hover: hover) and (pointer: fine)` and `prefers-reduced-motion: no-preference`, and both queries are watched live. A theme crossfade disables hit tests for its length and reports a `pointerleave`; `isPhaseSwitching()` distinguishes it from a real leave, the same guard `NavItems` uses for its hover state. Scroll and resize re-aim at the last pointer so the gaze stays attached when the head moves.
+
+- `src/components/home/gaze-orb.tsx:32-46` — travel, 60px reach, converted spring
+- `src/components/home/gaze-orb.tsx:88-150` — closed-form eye-pair spring and aim
+- `src/components/home/gaze-orb.tsx:168-177` — theme-crossfade leave guard
+- `src/components/home/gaze-orb.tsx:207-228` — fine-pointer / reduced-motion gates
+- `src/components/home/gaze-orb.tsx:258-280` — the head and the moving eye pair
+- `src/components/home/glide-spring.ts:82-140` — the shared closed-form spring step
+- `src/components/home/home-nav.tsx:54` — the shipped nav mounts the gaze orb
+- `src/components/home/gaze-orb.test.tsx` — aim, crossfade guard, reduced motion, coarse pointer, no Motion import
+- `src/components/home/home-nav.test.tsx` — the fine-pointer integration test
+
 ## Home card hover ring
 
 Every ring host (the home cards, the tracker widget, the carousel columns, the nav bar) is one surface: a frame, the glow inside it, and the fill. Growth animates the layers' layout `inset`, not a `clip-path` or a `transform`. At rest the fill is the Figma card box and the frame is one pixel larger and transparent. On hover or focus the fill grows to (grow − 1px) and the frame to grow, so the 1px edge keeps its width while the fill grows 2.5px x / 5px y into the gutters (`--ring-grow-x` 3.5px, `--ring-grow-y` 6px for the frame edge).
@@ -798,4 +822,120 @@ visible. Below the gate the shipped cursor thumbnail is used unchanged.
 
 - `src/components/work/work-list.tsx` — `PANEL_*`, `measurePanel`, `placePanel`, the fixed clip layer's panel
 - `src/components/work/work-list.css` — the panel box, enter/exit, 1s crossfade and reduced-motion branch
+
+## Now-playing card & satellite
+
+The persistent player has two surfaces: the top-left card on `/`, and the satellite dot on the nav orb off-home. Both read the same store. The card shell (art, title, button) subscribes with `usePlayerStatus`; only `NowPlayingTimebar` uses `usePlayer`, so the 4 Hz playhead and pointer preview re-render the timebar alone.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Card play/pause pressed | `transform` | 100ms (`--duration-short-1`) | 0 | — | `scale(1)` → `scale(0.95)` |
+| Card icon swap | `opacity`, `transform` | 150ms (`--duration-short-3`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) | `scale(0.9)` → `scale(1)` |
+| Slider track hover/focus/drag | `transform` (`scaleY`) | 150ms (`--duration-short-3`) | 0 | `ease-out` (`--ease-decelerate`) | 1 → 2 (2px → 4px at the 275px card) |
+| Slider fill follows the playhead | `clip-path` | 250ms (`--duration-medium-2`) | 0 | `linear` | current progress → next progress |
+| Slider thumb appears | `opacity`, `transform` | 150ms (`--duration-short-3`) | 0 | `ease-out` | `scale(0.8)` → `scale(1)`; position follows the value, no layout transition |
+| Satellite enter | `opacity` | 400ms (`--duration-long-1`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) | 0 → 1 |
+| Satellite exit | `opacity` | 100ms (`--duration-short-1`) | 0 | `ease-in` (`--ease-accelerate`) | 1 → 0 |
+| Satellite dot → button (hover/focus/paused) | `opacity`, `transform` | 400ms grow / 240ms shrink | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` / `ease-in` | 13px dot → 24px button (`scale(0.542)` → 1) |
+| Satellite playing | dot ring `scale`, `opacity` | 1600ms loop | 0 | `ease-out` (`--ease-decelerate`) | `scale(1)`/0.35 → `scale(1.6)`/0, only while visible and playing |
+| Satellite pressed | `transform` | 100ms (`--duration-short-1`) | 0 | — | `scale(1)` → `scale(0.96)` |
+| Reduced motion, card | icon `opacity` | 150ms (`--duration-short-3`) | 0 | `linear` | opacity only, no transform; spinner slows to 2.4s |
+| Reduced motion, satellite | `opacity` | 0ms on hide / 150ms (`--duration-short-3`) otherwise | 0 | `linear` | instant hide when leaving home; no grow, press scale or pulse |
+
+- **Hit areas.** The slider's visual bar stays 1.5–2px tall, but its `::before` target is 41px tall at the largest card. The satellite's `::before` target is 40px and grows only right and bottom, so it never adds target area over the Home orb. The card button already carries a 40px target.
+- **Pointers.** The satellite grow is gated to `(hover: hover) and (pointer: fine)`; `:focus-visible` grows it for keyboard. A mouse resume sets `data-suppress-hover` until the pointer leaves the orb shell, so the button collapses back to the dot even with the cursor still over it, and only regrows on the next pointer entry. The Home link comes before the satellite in DOM order, so Tab reaches the orb first and the satellite second.
+- **Exit trigger.** The dock sets `data-nav-leaving` on the same frame it starts the home flight, before the route change that lands after the 300ms close. The satellite reads that attribute, so its 100ms exit finishes inside both the 300ms drawer close and the 120ms browser-Back fade. A settled `data-nav-state="home"` also hides it, so a fresh load or a re-revealed Activity copy cannot flash it.
+- **Token match.** The satellite enter/grow uses the Day phase row's nav-overlay entrance: 400ms (`--duration-long-1`) on `--ease-emphasized-decelerate`; shrink stays 240ms (`--duration-medium-1`) on `--ease-accelerate`. The exit is shortened to 100ms (`--duration-short-1`, the next scale step down) so it finishes before the shortest nav return, the 120ms browser-Back fade.
+- **Reduced motion.** The card keeps the state change as an opacity fade, drops icon and press transforms, and slows the spinner. The satellite hide is instant when leaving home, and its grow, press scale and pulse are removed. The slider fill still tracks the playhead because it communicates progress; the track and thumb stop resizing and fading.
+- **Phases.** The satellite dot and the card button both paint `--orb-gradient`, so the four phase gradients (Day, Dawn, Dusk, Night) come from the same token as the nav orb.
+
+- `src/components/home/now-playing-card.tsx` — `NowPlayingCard` (status) and `NowPlayingTimebar` (playhead)
+- `src/components/home/now-playing-card.css` — card press, icon fade, slider track, fill and thumb, hit targets, reduced motion
+- `src/components/player/player.css` — shared orb-gradient button press 0.95
+- `src/components/player/orb-player.css` — satellite dot/grow, pulse, 40px target, fine-pointer gate, reduced motion
+
+## Drag canvas - Motion & Stills (2026-11-23)
+
+The live `/work/motion-and-stills` study is the approved canvas prototype inside the WorkDrawer, with the dev panel removed and the locked defaults fixed in `canvas-reader.tsx`. Source: `src/components/canvas/*` and `src/components/work/canvas-reader.tsx`.
+
+### Physics
+
+| Value | Setting |
+| --- | --- |
+| Momentum decay | `0.95` per 60fps frame; `minVelocity = 0.01` px/frame |
+| Pointer to velocity | mouse `0.1`, touch `0.3`; release adds `2×` the last pointer delta |
+| Wheel | `0.05` per normalised pixel |
+| Click / pan lock | tap within `5px` and `300ms`; clicks blocked for `100ms` after a drag |
+| Held keys | acceleration `3.4` px/frame per 60fps frame; cruise `25` px/frame; reduced step `120px` |
+| Camera | `CAMERA_Z = 500`; drag zoom to `475`, easing at `0.975` per 60fps frame |
+| Parallax | limit `0.025`; easing at `0.82` per 60fps frame |
+| Plane crop | texture zoom `1.06` (cover), `1.0` at the viewer focus |
+| Video budget | 12 playing on desktop, 6 on mobile; visible check every `80ms`; `160px` margin; starts freeze above `3` px/frame, resume below `0.4` after `220ms` |
+
+### Intro timeline
+
+Times are from the first frame with posters ready. The eases are the power curves in `intro.ts`.
+
+| Beat | Delay | Duration | Ease | Value |
+| --- | --- | --- | --- | --- |
+| Camera push | 1300ms | 2000ms | power4.inOut | z `700 -> 500` |
+| Grid spread | 1500ms | 2000ms | power4.inOut | gap `8 ->` measured pitch |
+| Plane opacity | 500-1250ms stagger | 2000ms | power3.out | 0 -> 1 |
+| Gray out | 2250ms | 2000ms | power3.out | 1 -> 0 |
+| Texture zoom | 1250ms | 2250ms | power3.inOut | `1.3 -> 1` |
+| Intro end | - | 4250ms | - | - |
+| Videos join | 3250ms | - | - | - |
+| Reduced motion | - | 200ms | - | opacity only |
+
+### Open and close
+
+Open: the canvas glides the clicked plane to the centre for **1000ms power3.inOut** while the other planes fade for **900ms power3.inOut**. The grow starts **150ms before the glide ends** (**600ms power3.out**); the plane crop goes from `1.06` to `1.0`. At the handoff the persistent canvas clip and the DOM viewer cross-fade for **200ms**; the caption waits **200ms**. The viewer waits for a decoded frame at the canvas time (or `700ms`), then fades in.
+
+Close mirrors it: caption and controls out over **150ms**; the viewer pauses and the canvas clip is seeked to its frame (waiting for `seeked` plus two rendered frames); the viewer cross-fades out over **200ms** with the canvas already at the focus rect and contain crop; then the plane shrinks focus to tile for **600ms power3.inOut** while `uZoom` goes `1 -> 1.06`; the other planes fade in over **900ms power3.inOut**, starting **450ms** after the cross-fade begins. Input unlocks at **1550ms**. Reduced motion uses the 200ms opacity path.
+
+### Breathing
+
+| Value | Setting |
+| --- | --- |
+| Amplitude | **±6%** of the plane's resting size (default `0.06`) |
+| Period | **5s**, shared by every tile |
+| Wave | `0.6` radians of phase per `col + row` grid step, so the ripple runs diagonally; the phase uses the grid index, not the wrapped screen position |
+| Curve | `1 + amplitude × sin(2π·t/period - (col + row)·wave)`; the phase is absolute `performance.now` time |
+| Idle delay | **1s** after the canvas settles |
+| Fade in | **1.2s** smoothstep amplitude envelope |
+| Fade out | **300ms** exponential amplitude ease when a drag, wheel or key glide starts |
+| Settle threshold | `0.1` px/frame |
+| Render cadence | every rAF; the phase is sampled at native refresh, no frame skipping. Stops when the document or route is hidden |
+
+The amplitude is 0 during the intro, open/close transitions, the viewer and reduced motion. Only the amplitude is enveloped; the phase never resets. The scale is the whole mesh multiplied by the breathing scale, then by the hover scale; the texture crop (`uZoom`) is not touched. Plane edges use analytic 1px coverage (`fwidth`) on top of the render target's 4x MSAA where the target is at or below 10M pixels; the lens pass samples the target linearly.
+
+### Hover
+
+| Value | Setting |
+| --- | --- |
+| Lift | **1.08×** (slider 1.00-1.20), multiplied on top of the breath |
+| In | **280ms**, power3.out |
+| Out | **400ms**, power3.inOut |
+| Retarget | each plane's tween restarts from the value it had reached, so fast passes and interruptions never jump |
+| Pick | one inverse-lens raycast per frame at the last pointer position, idle only (not intro, drag/glide, transition or viewer) |
+| Cursor | pointer over a tile, grab in the gaps, grabbing while dragging; no hover on touch |
+| Order | the hovered/tweening plane raises `renderOrder` to 1 |
+| Reduced motion | cursor change only, no scale |
+
+### Globe lens
+
+Full-screen post-pass: the scene renders into a **1.6×** render target (30% source margin each side) at the canvas DPR capped at 2, and one quad samples it through the aspect-corrected barrel map `t = q × (1/1.6) × (1 + k·r²)`. The centre stays 1:1 with the flat view; the 30% margin keeps edge samples inside the target. One sRGB encode happens in the post pass; the scene target stays linear premultiplied. MSAA is 4x up to 10M target pixels; larger targets use the analytic plane-edge AA. The lens sample is LinearFilter.
+
+| Value | Setting |
+| --- | --- |
+| Default mode | **globe** |
+| Strength | **0.23** (max 0.50) |
+| Drag boost | **+0.30** at a fast drag, on top of the base (max 0.30); speed threshold `8` px/frame |
+| Vignette | **0.25** (max 0.25), smoothstep rim fade |
+| Easing | `0.08` per 60fps frame |
+| Flat comparison | `?lens=flat` on the dev route |
+
+### Runtime and performance
+
+The live study pauses the canvas when the route is not active, which stops the rAF and pauses every canvas video; the InfiniteCanvas effect disposes its renderer, render target, textures and video elements on unmount. The capability probe is cached and its context released, so the three open/close cycle test returns to the same context baseline (no leaked canvas contexts). Production idle + hover at 1440×900 with 12 videos measured **p95 8.1ms, max 8.9ms**, 0 frames over 17ms and 0 long tasks; GPU WebGL work was ~75ms per 10s with videos and ~23ms per 10s breathing + hover only.
 

@@ -55,7 +55,7 @@ describe("Cover", () => {
   it("draws a media cover from the picture the server resolved", () => {
     const { container } = render(
       <Cover
-        scene="media:pipeline-test-still-4a9b86e544"
+        scene="media:f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097"
         coverImage={{
           avif: "https://x/w1280.avif",
           fallback: "https://x/w1280.webp",

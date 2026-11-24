@@ -1,0 +1,24 @@
+{
+  "id": "niod-cell01-anim-v03-final-rev-8fa4277f23",
+  "kind": "video",
+  "width": 1080,
+  "height": 1080,
+  "alt": "NIOD motion piece",
+  "caption": "NIOD",
+  "createdAt": "2026-11-23T15:23:33.669Z",
+  "original": "NIOD_Cell01_Anim_v03_FINAL_REV.webm",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell01-anim-v03-final-rev-8fa4277f23/video.mp4",
+    "bytes": 10337865
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell01-anim-v03-final-rev-8fa4277f23/canvas.mp4",
+    "bytes": 762517
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell01-anim-v03-final-rev-8fa4277f23/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell01-anim-v03-final-rev-8fa4277f23/poster.jpg"
+  },
+  "duration": 10.04,
+  "hasAudio": false
+}

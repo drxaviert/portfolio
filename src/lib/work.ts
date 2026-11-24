@@ -9,6 +9,8 @@ export type CoverScene = "tiles" | "window" | "phone";
 /** A drawn scene, or a media id that resolves to a manifest picture. */
 export type Cover = CoverScene | `media:${string}`;
 
+export type WorkLayout = "reader" | "canvas";
+
 export { FEATURED_SLUG };
 
 /** Reading order for the list and for the wrap-around next-study link. */
@@ -16,6 +18,7 @@ const WORK_ORDER = [
   "systems-in-motion",
   "title-sequence",
   "type-in-motion",
+  "motion-and-stills",
   "human-contact",
 ] as const;
 
@@ -29,6 +32,8 @@ export type WorkMeta = {
   role: string;
   summary: string;
   cover: Cover;
+  /** How the study renders; omitted means the Margin reader. */
+  layout?: WorkLayout;
   /** Set when `cover` is a media id: the picture the cover slots draw. */
   coverImage?: CoverImage;
 };
@@ -68,13 +73,23 @@ export function parseFrontmatter(source: string): Record<string, string> {
     fields[key] = line.slice(colon + 1).trim();
   }
 
+  const layout = fields.layout ?? "reader";
+
+  if (layout !== "reader" && layout !== "canvas") {
+    throw new Error(
+      `Unknown layout "${layout}" in frontmatter; expected reader or canvas`,
+    );
+  }
+
+  fields.layout = layout;
+
   return fields;
 }
 
 function readWork(slug: WorkSlug): WorkMeta {
   const file = path.join(CONTENT_DIR, `${slug}.mdx`);
   const fields = parseFrontmatter(fs.readFileSync(file, "utf8"));
-  const { title, subtitle, year, role, summary, cover } = fields;
+  const { title, subtitle, year, role, summary, cover, layout } = fields;
   const missing = [
     ["title", title],
     ["subtitle", subtitle],
@@ -105,6 +120,7 @@ function readWork(slug: WorkSlug): WorkMeta {
     role,
     summary,
     cover,
+    layout: layout === "canvas" ? "canvas" : "reader",
     ...(cover.startsWith("media:")
       ? { coverImage: coverImageFor(cover.slice("media:".length)) }
       : {}),

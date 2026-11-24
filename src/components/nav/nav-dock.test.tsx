@@ -124,6 +124,37 @@ describe("NavDock", () => {
     expect(mocks.animate).not.toHaveBeenCalled();
   });
 
+  it("marks the nav as leaving before the home flight and clears it after", async () => {
+    mocks.pathname = "/work";
+    renderDock();
+
+    let resolveFlight!: () => void;
+    const finished = new Promise<void>((resolve) => {
+      resolveFlight = resolve;
+    });
+
+    mocks.animate.mockImplementationOnce(() => ({
+      finished,
+      stop: vi.fn(),
+      complete: vi.fn(),
+    }));
+
+    let move!: Promise<void>;
+
+    act(() => {
+      move = moveNav("home", "flip");
+    });
+
+    expect(dock()).toHaveAttribute("data-nav-leaving", "true");
+
+    await act(async () => {
+      resolveFlight();
+      await move;
+    });
+
+    expect(dock()).not.toHaveAttribute("data-nav-leaving");
+  });
+
   it("takes its new place with no flight when no reader has lent motion", async () => {
     // Home-only documents never load the reader, so motion is never there.
     // There is also no drawer to fly into: the dock just takes the position.

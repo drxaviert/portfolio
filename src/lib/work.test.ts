@@ -7,8 +7,6 @@ import {
   parseFrontmatter,
 } from "./work";
 
-const COVERS = ["tiles", "window", "phone"];
-
 describe("parseFrontmatter", () => {
   const BODY = "---\ntitle: A study\nrole: Design\n---\n\n# Body\n";
 
@@ -16,7 +14,17 @@ describe("parseFrontmatter", () => {
     expect(parseFrontmatter(BODY)).toEqual({
       title: "A study",
       role: "Design",
+      layout: "reader",
     });
+  });
+
+  it("reads the canvas layout and rejects an unknown one", () => {
+    const CANVAS = BODY.replace("---\n\n# Body", "layout: canvas\n---\n\n# Body");
+
+    expect(parseFrontmatter(CANVAS).layout).toBe("canvas");
+    expect(() =>
+      parseFrontmatter(BODY.replace("---\n\n# Body", "layout: sheet\n---\n\n# Body")),
+    ).toThrow(/Unknown layout/);
   });
 
   it("reads a file saved with a UTF-8 BOM", () => {
@@ -35,13 +43,15 @@ describe("parseFrontmatter", () => {
 });
 
 describe("listWork", () => {
-  it("returns the four case studies", () => {
-    expect(listWork()).toHaveLength(4);
+  it("returns the five case studies", () => {
+    expect(listWork()).toHaveLength(5);
   });
 
   it("gives every study a known cover", () => {
     for (const work of listWork()) {
-      expect(COVERS).toContain(work.cover);
+      expect(work.cover).toMatch(
+        /^(tiles|window|phone|media:[a-z0-9][a-z0-9-]*)$/,
+      );
     }
   });
 
@@ -50,6 +60,7 @@ describe("listWork", () => {
       "systems-in-motion",
       "title-sequence",
       "type-in-motion",
+      "motion-and-stills",
       "human-contact",
     ]);
   });
@@ -58,6 +69,15 @@ describe("listWork", () => {
 describe("getWork", () => {
   it("reads the featured study and its tiles cover", () => {
     expect(getWork(FEATURED_SLUG)?.cover).toBe("tiles");
+    expect(getWork(FEATURED_SLUG)?.layout).toBe("reader");
+  });
+
+  it("reads Motion & Stills as the canvas study", () => {
+    const work = getWork("motion-and-stills");
+
+    expect(work?.layout).toBe("canvas");
+    expect(work?.cover).toBe("media:good-form-reel-4c969cc977");
+    expect(work?.coverImage?.width).toBeGreaterThan(0);
   });
 
   it("returns null for an unknown slug", () => {
@@ -70,8 +90,12 @@ describe("nextWork", () => {
     expect(nextWork("systems-in-motion").slug).toBe("title-sequence");
   });
 
-  it("steps from the third study to the newest one", () => {
-    expect(nextWork("type-in-motion").slug).toBe("human-contact");
+  it("steps from the third study to the canvas study", () => {
+    expect(nextWork("type-in-motion").slug).toBe("motion-and-stills");
+  });
+
+  it("steps from the canvas study to Human Contact", () => {
+    expect(nextWork("motion-and-stills").slug).toBe("human-contact");
   });
 
   it("wraps from the last study back to the first", () => {

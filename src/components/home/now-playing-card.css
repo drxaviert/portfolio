@@ -1,0 +1,348 @@
+/*
+ * Static player card — Paper "Static player" board.
+ *
+ * The card is Paper's row 1 "Current" flat surface: surface-container-low
+ * fill, --shadow-card, no inset rim, and a surface-container title/artist
+ * well.
+ *
+ * The play button, progress fill and scrubber thumb use the nav orb gradient
+ * (globals.css --orb-gradient, painted by GazeOrb in home-nav.tsx). The fill
+ * is a full-width gradient revealed by clip-path so the colours never stretch
+ * as the playhead moves. The white glyph is Dat's choice; the button itself has no
+ * shadow or halo (the shared .player-orb-button carries the gradient, glyph,
+ * press and focus states).
+ *
+ * The Paper card is 275×276 with 12px padding. The body is 251×252; the art
+ * takes the height left by the 16px timebar row, the scaled control row and
+ * two 8px gaps. Container units are used on the body's children, never on the
+ * body's own gap, because a container cannot query itself. All card text is DS
+ * classes (text-xs / xl:text-sm, normal or semibold, tabular-nums); no free cqw
+ * or px type sizes.
+ */
+
+.now-playing-card {
+  --now-playing-well: var(--surface-container);
+  --now-playing-track: color-mix(in oklab, var(--on-surface) 14%, transparent);
+  /* The img is rectangular and clipped by the rounded art box; its placeholder
+     must be the card fill, or the clip's antialiased bottom edge blends the dark
+     placeholder with the light card as a hairline. */
+  --now-playing-art-bg: var(--surface-container-low);
+  --now-playing-art-radius: clamp(5px, 3.1873cqw, 8px);
+
+  padding: 7px;
+}
+
+@media (min-width: 768px) {
+  .now-playing-card {
+    padding: 9.6px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .now-playing-card {
+    padding: 12px;
+  }
+}
+
+[data-phase="night"] .now-playing-card {
+  --now-playing-well: var(--surface-container);
+  --now-playing-track: color-mix(in oklab, var(--on-surface) 20%, transparent);
+}
+
+.now-playing-body {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  container-type: size;
+}
+
+.now-playing-art {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border-radius: var(--now-playing-art-radius);
+  background-color: var(--now-playing-art-bg);
+}
+
+.now-playing-art-image {
+  object-fit: cover;
+}
+
+.now-playing-timebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.now-playing-elapsed,
+.now-playing-total {
+  white-space: nowrap;
+  color: var(--on-surface-variant);
+  font-weight: 400;
+}
+
+.now-playing-scrub {
+  --now-playing-progress: 0;
+  --now-playing-thumb: clamp(10px, 4.7809cqw, 12px);
+
+  position: relative;
+  width: auto;
+  min-width: 0;
+  flex: 1 1 auto;
+  height: clamp(1.5px, 0.7968cqw, 2px);
+  border-radius: 999px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+/* The visual bar stays thin; the target is 40px tall and centred on it. */
+.now-playing-scrub::before {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: 40px;
+  border-radius: 6px;
+  content: "";
+  transform: translateY(-50%);
+}
+
+.now-playing-scrub:focus-visible {
+  outline: none;
+}
+
+.now-playing-scrub:focus-visible::before {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.now-playing-progress {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: var(--now-playing-track);
+  transform: scaleY(1);
+  transform-origin: 50% 50%;
+  transition: transform var(--duration-short-3) var(--ease-decelerate);
+}
+
+.now-playing-progress-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background-image: var(--orb-gradient);
+  clip-path: inset(0 calc((1 - var(--now-playing-progress)) * 100%) 0 0);
+  transition: clip-path var(--duration-medium-2) linear;
+}
+
+.now-playing-progress-thumb {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--now-playing-progress) * 100%);
+  width: var(--now-playing-thumb);
+  height: var(--now-playing-thumb);
+  border-radius: 50%;
+  background-image: var(--orb-gradient);
+  /* The ring is the card surface showing through, not a white stroke. */
+  box-shadow:
+    0 0 0 1px var(--surface-container-low),
+    0 1px 2px color-mix(in oklab, var(--palette-neutral-800) 25%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.8);
+  transition:
+    opacity var(--duration-short-3) var(--ease-decelerate),
+    transform var(--duration-short-3) var(--ease-decelerate);
+}
+
+.now-playing-scrub:focus-visible .now-playing-progress,
+.now-playing-scrub[data-dragging] .now-playing-progress {
+  transform: scaleY(2);
+}
+
+.now-playing-scrub:focus-visible .now-playing-progress-thumb,
+.now-playing-scrub[data-dragging] .now-playing-progress-thumb {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.now-playing-scrub[data-dragging] .now-playing-progress-fill {
+  transition: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .now-playing-scrub:hover .now-playing-progress {
+    transform: scaleY(2);
+  }
+
+  .now-playing-scrub:hover .now-playing-progress-thumb {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* No hover: the playhead is always visible. */
+@media (hover: none) {
+  .now-playing-progress-thumb {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.now-playing-row {
+  display: flex;
+  flex: none;
+  min-height: 0;
+  /* The row scales from Paper's 48px; 2rem keeps two 12px/16px lines readable
+     at 160 without changing the 220/275 sizes. */
+  height: max(19.1235cqw, 2rem);
+  gap: 3.1873cqw;
+}
+
+.now-playing-meta {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  padding-inline: 4.7809cqw; /* 12 / 251 */
+  border-radius: clamp(5px, 3.1873cqw, 8px);
+  background-color: var(--now-playing-well);
+}
+
+.now-playing-title {
+  overflow: hidden;
+  margin: 0;
+  color: var(--on-surface);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.now-playing-artist,
+.now-playing-link {
+  overflow: hidden;
+  color: var(--on-surface-variant);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.now-playing-artist {
+  margin: 0;
+}
+
+.now-playing-link {
+  color: var(--on-surface);
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--on-surface) 35%,
+    transparent
+  );
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.now-playing-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .now-playing-link:hover {
+    text-decoration-color: currentColor;
+  }
+}
+
+.now-playing-button {
+  position: relative;
+  flex: none;
+  width: auto;
+  height: 100%;
+  aspect-ratio: 1;
+}
+
+/* The visible circle is 28–48px; keep the target at 40px or more. */
+.now-playing-button::after {
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  content: "";
+}
+
+.now-playing-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  opacity: 0;
+  transform: scale(0.9);
+  transition:
+    opacity var(--duration-short-3) var(--ease-emphasized-decelerate),
+    transform var(--duration-short-3) var(--ease-emphasized-decelerate);
+  place-items: center;
+}
+
+.now-playing-icon[data-visible="true"] {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.now-playing-icon svg {
+  display: block;
+  width: auto;
+  height: 41.667%; /* 20 / 48, scales with the control row */
+}
+
+.now-playing-spinner svg {
+  height: 25%;
+}
+
+.now-playing-spinner[data-visible="true"] svg {
+  animation: now-playing-spinner-rotate 900ms linear infinite;
+  transform-origin: 50% 50%;
+}
+
+/* At 160 the error link (12px) cannot share the row with the retry button. */
+@media (max-width: 767px) {
+  .now-playing-card[data-phase="error"] .now-playing-button {
+    display: none;
+  }
+}
+
+@keyframes now-playing-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .now-playing-button,
+  .now-playing-button:active {
+    transform: none;
+    transition: none;
+  }
+
+  .now-playing-icon,
+  .now-playing-icon[data-visible="true"] {
+    transform: none;
+    transition: opacity var(--duration-short-3) var(--ease-linear);
+  }
+
+  .now-playing-progress,
+  .now-playing-progress-thumb {
+    transition: none;
+  }
+
+  .now-playing-spinner[data-visible="true"] svg {
+    animation-duration: 2.4s;
+  }
+}

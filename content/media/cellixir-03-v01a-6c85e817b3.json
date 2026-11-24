@@ -1,0 +1,63 @@
+{
+  "id": "cellixir-03-v01a-6c85e817b3",
+  "kind": "image",
+  "width": 3840,
+  "height": 2160,
+  "alt": "Celixir still",
+  "caption": "Celixir",
+  "createdAt": "2026-11-23T15:19:51.921Z",
+  "original": "Cellixir_03_v01a.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-03-v01a-6c85e817b3/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-03-v01a-6c85e817b3/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-03-v01a-6c85e817b3/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-03-v01a-6c85e817b3/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-03-v01a-6c85e817b3/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-03-v01a-6c85e817b3/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2560,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-03-v01a-6c85e817b3/w2560.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2560,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-03-v01a-6c85e817b3/w2560.webp"
+    },
+    {
+      "format": "avif",
+      "width": 3840,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-03-v01a-6c85e817b3/w3840.avif"
+    },
+    {
+      "format": "webp",
+      "width": 3840,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-03-v01a-6c85e817b3/w3840.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAADQAQCdASoQAAkAAsBMJQBOgCPyqwd0KADOJwRiUFBt0mufY6pc+H+IyKrnzCerVUSjF7rXSRih7u+SpfZnxnH8+7yEHnOyf97pCb6QGEYolwAA"
+}

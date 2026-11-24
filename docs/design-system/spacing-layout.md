@@ -15,9 +15,9 @@ do not sit on a single scale.
 | `gap-0.5` | 2 | theme menu rows (`src/components/theme/theme-toggle.tsx:1569`) |
 | `p-1` | 4 | theme menu padding (`:1569`) |
 | `gap-2` | 8 | theme menu icon → label (`:1589`) |
-| `gap-3` | 12 | home column, nav item group, tracker bands horizontally (`src/components/home/home-layout.tsx:129`, `src/components/home/home-nav.tsx:65`) |
+| `gap-3` | 12 | home column, nav item group, tracker bands horizontally (`src/components/home/home-layout.tsx:129`, `src/components/home/home-nav.tsx:63`) |
 | `p-3` / `px-3` | 12 | theme menu row inline padding (`src/components/theme/theme-toggle.tsx:1589`) |
-| `p-4` / `px-4` / `inset-4` | 16 | nav bar, home frame, dev panels (`src/components/home/home-nav.tsx:50`) |
+| `p-4` / `px-4` / `inset-4` | 16 | nav bar, home frame, dev panels (`src/components/home/home-nav.tsx:42`) |
 | `p-5` | 20 | featured card at 375 (`src/components/home/home-cards.tsx:65`) |
 | `mx-6` | 24 | nav divider (`src/components/home/nav-items.tsx:539`) |
 | `p-8` / `inset-8` | 32 | featured card at `md`+, card-fade box (`src/components/home/home-cards.tsx:65`, `:90`) |
@@ -49,7 +49,7 @@ The comment at `home-layout.tsx:17-22` records the nominal frame as 780px conten
 | Width | `min(1136px, 100% - var(--wd-frame-pad) * 2)` | `nav-dock.css:25` |
 | z-index | `60` | `nav-dock.css:28` |
 | Reader position | `position: fixed; top: calc(var(--wd-panel-inset) + var(--wd-nav-inset))` | `nav-dock.css:59-62` |
-| Nav box | `h-16`, `px-4`, `rounded-lg` | `src/components/home/home-nav.tsx:50` |
+| Nav box | `h-16`, `px-4`, `rounded-lg` | `src/components/home/home-nav.tsx:42` |
 
 The comment at `nav-dock.css:9-12` spells out the offset as tracker + 12px gap + card band + 12px gap.
 Those terms give 804 at `md` (220 + 12 + 560 + 12), 604 at `lg` (220 + 12 + 360 + 12) and 716 at `xl`
@@ -99,8 +99,8 @@ the top band, and an open study's panel covers both bands rather than stacking u
 | Featured card padding | `20px` (`p-5`) | `32px` (`md:p-8`) | same | same | `src/components/home/home-cards.tsx:65` |
 | Card-fade inset | `32px` (`inset-8`) | same | same | same | `home-cards.tsx:90` |
 | Play card (home) | `849×276` at 1440 | same | same | same | the home `PlayCard` is `flex-1` (`src/components/home/home-cards.tsx:193`; cell `min-w-0 flex-1` at `src/components/home/home-layout.tsx:156-162`), so its width is `1136 − 275 − 12 = 849` at 1440 and the height `276` follows the tracker card (`src/components/home/tracker-widget.tsx:77`); `/play` has its own fixed 849×276 at `src/components/play/play-card.tsx:30` |
-| Nav orb | `36px` (`size-9`) | same | same | same | `src/components/home/home-nav.tsx:32` |
-| Orb eyes | `8×3.4px` at `top: 10.5px`, `left: 13.5px` / `20.6px` | same | same | same | `home-nav.tsx:35-36` |
+| Nav orb | `36px` | same | same | same | `src/components/home/gaze-orb.tsx:258` |
+| Orb eyes | `8×3.4px` at `top: 10.5px`, `left: 13.5px` / `20.6px` | same | same | same | `gaze-orb.tsx:27-30`, `:251-278` |
 | Nav item | `h-8` (32px), `px-2` | same | same | same | `src/components/home/nav-items.tsx:25` |
 | Nav divider | `mx-6` (24px), `h-5` (20px), `w-px` | visible | visible | visible | `nav-items.tsx:539` |
 | Nav glyph | `size-8` (32px) | visible | visible | visible | `nav-items.tsx:37` |

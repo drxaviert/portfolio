@@ -92,6 +92,15 @@ export function NavDock() {
       if (!el) return;
       if (stateRef.current === to && !flyingRef.current) return;
 
+      // The satellite reads this attribute, so its exit starts on the same
+      // frame as the nav's return instead of waiting for the route change that
+      // lands after the flight.
+      if (to === "reader") {
+        delete el.dataset.navLeaving;
+      } else {
+        el.dataset.navLeaving = "true";
+      }
+
       // Nothing has loaded the reader in this document, so there is no motion to
       // fly with and no drawer to fly into: take the new place at once.
       const animate = getDockAnimate();
@@ -102,6 +111,7 @@ export function NavDock() {
         el.dataset.navState = to;
         stateRef.current = to;
         if (to === "home") alignHomeRef.current?.();
+        delete el.dataset.navLeaving;
         return;
       }
 
@@ -133,6 +143,7 @@ export function NavDock() {
 
         if (flyingRef.current !== fadeIn) return;
         flyingRef.current = null;
+        delete el.dataset.navLeaving;
         if (to === "home") alignHomeRef.current?.();
         return;
       }
@@ -179,6 +190,7 @@ export function NavDock() {
       flyingRef.current = null;
       endNavBlur();
       el.style.removeProperty("transform");
+      delete el.dataset.navLeaving;
       if (to === "home") alignHomeRef.current?.();
 
       // Motion writes the final keyframe as an inline style on the frame after
