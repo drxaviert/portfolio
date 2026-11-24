@@ -31,7 +31,7 @@ export const TRANSITION = {
   /** 200ms cross-fade + 450ms delay + 900ms fade. */
   closeTotalMs: 1550,
   /** Wait for the viewer's decoded frame before starting the open handoff. */
-  mediaReadyTimeoutMs: 700,
+  mediaReadyTimeoutMs: 250,
   reducedFadeMs: 200,
 } as const;
 

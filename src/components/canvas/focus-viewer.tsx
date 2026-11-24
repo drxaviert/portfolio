@@ -11,12 +11,11 @@ import {
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
 import { MediaVideo } from "@/components/media/media-video";
-import type { CanvasItem } from "./infinite-canvas";
+import type { Box } from "@/components/work/morph";
+import type { CanvasItem, CloseTarget } from "./infinite-canvas";
+import { projectLabel } from "./items";
 import { TRANSITION, fitBox } from "./transition";
-import { ownViewerVideo } from "./viewer-playback";
 import "./focus-viewer.css";
-
-const FADE_S = 0.12;
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), video[controls], [tabindex]:not([tabindex="-1"])';
@@ -36,27 +35,41 @@ function videoInSlide(
 /**
  * Full-screen media viewer.
  *
- * Opening and closing are cross-fades at the same full-size box the WebGL
- * plane grows to. The canvas keeps a persistent texture/plane underneath; the
- * viewer waits for a decoded frame before fading in and hands the paused video
- * time to the canvas before fading out, so nothing reloads or changes crop.
+ * The open is a FLIP of the viewer's exact full-res layer from the clicked
+ * tile's rect to the focus box, so the low-res canvas never grows and nothing
+ * is swapped mid-zoom. The canvas keeps the pressed tile until the viewer has
+ * decoded its source, then hands over. On close the full-res layer shrinks
+ * back to the clicked tile immediately; the canvas prepares the tile in
+ * parallel and only reveals it on the landing frame.
  */
 export function FocusViewer({
   items,
   initialIndex,
   startAt,
+  openRect,
   onReady,
   onClosing,
+  onCloseLanded,
+  onReopen,
+  onReopenLanded,
   onClosed,
 }: {
   items: CanvasItem[];
   initialIndex: number;
   /** The canvas clip's time at the handoff, so the full source starts in sync. */
   startAt?: number;
-  /** The viewer has a decoded frame and is starting its fade-in. */
+  /** The clicked tile's visible rect; the full-res layer FLIPs from here. */
+  openRect?: Box;
+  /** The viewer has decoded its exact source and is starting the full-res zoom. */
   onReady?: () => void;
-  /** The canvas should sync/prepare the exit; resolve when it is ready. */
-  onClosing?: (index: number, time?: number) => void | Promise<void>;
+  /** Start the close; returns the landing rect and the canvas prep promise. */
+  onClosing?: (index: number, time?: number) => CloseTarget | null;
+  /** The viewer landed; reveal the prepared canvas tile before unmounting. */
+  onCloseLanded?: () => void;
+  /** The close was interrupted; hand the hidden plane back to the canvas. */
+  onReopen?: () => void;
+  /** The reopen reached the focus box; the canvas cover can be dropped. */
+  onReopenLanded?: () => void;
   onClosed: () => void;
 }) {
   const [index, setIndex] = useState(() =>
@@ -69,13 +82,31 @@ export function FocusViewer({
   const [closing, setClosing] = useState(false);
   const reduce = useReducedMotion();
   const [ready, setReady] = useState(reduce);
+  const [zooming, setZooming] = useState(false);
 
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const indexRef = useRef(index);
   const closingRef = useRef(false);
   const openedRef = useRef(false);
+  const readyRef = useRef(reduce);
+  const landedRef = useRef(false);
+  const closeTokenRef = useRef(0);
   const flightRef = useRef<ReturnType<typeof animate> | null>(null);
+  const frameFlightRef = useRef<Animation | null>(null);
+  const captionRef = useRef<HTMLParagraphElement | null>(null);
+
+  const placeChip = useCallback(() => {
+    const frame = frameRef.current;
+    const chip = captionRef.current;
+    if (!frame || !chip) return;
+
+    const rect = frame.getBoundingClientRect();
+    // Vertically centred in the gap below the opened content, and it tracks
+    // the frame's animated rect during the open/close zoom.
+    chip.style.top = `${(rect.bottom + window.innerHeight) / 2}px`;
+    chip.style.left = "50%";
+  }, []);
 
   const item = items[index];
   const media = item?.media;
@@ -83,6 +114,14 @@ export function FocusViewer({
   useEffect(() => {
     indexRef.current = index;
   }, [index]);
+
+  useEffect(() => {
+    readyRef.current = ready;
+  }, [ready]);
+
+  useLayoutEffect(() => {
+    placeChip();
+  }, [media, placeChip, ready, viewport]);
 
   useEffect(() => {
     const onResize = () => {
@@ -97,9 +136,10 @@ export function FocusViewer({
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Wait for the initial source to have a frame before fading the DOM over
-  // the WebGL plane. A slow source keeps the plane visible instead of cutting
-  // to a blank or a poster.
+  // The canvas hands over the clicked tile's rect. The viewer starts there,
+  // waits for its exact decoded image/video, then zooms the full-res layer to
+  // the focus box. The low-res canvas plane is hidden by onReady; there is no
+  // low-res -> high-res swap during the zoom.
   useLayoutEffect(() => {
     if (openedRef.current) return;
     openedRef.current = true;
@@ -107,25 +147,24 @@ export function FocusViewer({
     const frame = frameRef.current;
     if (!frame) return;
 
-    frame.style.transform = "none";
-    frame.style.opacity = "0";
+    let initial: { x: number; y: number; sx: number; sy: number } | null = null;
 
-    if (reduce) {
-      onReady?.();
-      const animation = animate(
-        frame,
-        { opacity: 1 },
-        { duration: FADE_S, ease: "easeOut" },
-      );
-      flightRef.current = animation;
-      void animation.finished.then(
-        () => {
-          if (flightRef.current === animation) flightRef.current = null;
-        },
-        () => undefined,
-      );
-      return;
+    if (openRect && !reduce) {
+      const rect = frame.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        initial = {
+          x: openRect.left + openRect.width / 2 - (rect.left + rect.width / 2),
+          y: openRect.top + openRect.height / 2 - (rect.top + rect.height / 2),
+          sx: openRect.width / rect.width,
+          sy: openRect.height / rect.height,
+        };
+        frame.style.transformOrigin = "center";
+        frame.style.transform = `translate(${initial.x}px, ${initial.y}px) scale(${initial.sx}, ${initial.sy})`;
+      }
     }
+
+    frame.style.opacity = "0";
+    setZooming(Boolean(initial));
 
     let finished = false;
     let timer = 0;
@@ -134,25 +173,50 @@ export function FocusViewer({
       if (finished) return;
       finished = true;
       window.clearTimeout(timer);
+      readyRef.current = true;
       setReady(true);
       onReady?.();
-      frame.style.opacity = "0";
+      frame.style.opacity = "1";
+
+      if (!initial || reduce) {
+        frame.style.transform = "none";
+        setZooming(false);
+        placeChip();
+        return;
+      }
+
       const animation = animate(
         frame,
-        { opacity: 1 },
-        { duration: TRANSITION.handoffMs / 1000, ease: "easeOut" },
+        {
+          x: [initial.x, 0],
+          y: [initial.y, 0],
+          scaleX: [initial.sx, 1],
+          scaleY: [initial.sy, 1],
+        },
+        {
+          duration: TRANSITION.growMs / 1000,
+          ease: "easeOut",
+          onUpdate: placeChip,
+          onComplete: () => {
+            setZooming(false);
+            frame.style.transform = "none";
+            placeChip();
+          },
+        },
       );
       flightRef.current = animation;
       void animation.finished.then(
         () => {
           if (flightRef.current === animation) flightRef.current = null;
-          frame.style.opacity = "1";
+          placeChip();
         },
         () => undefined,
       );
     };
 
-    timer = window.setTimeout(finish, TRANSITION.mediaReadyTimeoutMs);
+    // Long enough for a throttled full-res asset; the tile stays visible with
+    // its press state until this fires.
+    timer = window.setTimeout(finish, 8000);
 
     if (media?.kind === "video") {
       const video = videoInSlide(frame, media.id);
@@ -199,7 +263,8 @@ export function FocusViewer({
       };
 
       if (video.readyState >= 1) seekAndWait();
-      else video.addEventListener("loadedmetadata", seekAndWait, { once: true });
+      else
+        video.addEventListener("loadedmetadata", seekAndWait, { once: true });
 
       // The canvas may have started playing while this effect mounted; a seek
       // that lands later is still the frame to wait for.
@@ -207,35 +272,35 @@ export function FocusViewer({
         video.addEventListener("seeked", waitFrame, { once: true });
       }
 
-      timer = window.setTimeout(finish, TRANSITION.mediaReadyTimeoutMs);
       return;
     }
 
     const image = frame.querySelector("img");
     if (image) {
-      void image
-        .decode()
-        .then(finish)
-        .catch(finish);
+      void image.decode().then(finish).catch(finish);
     } else {
       finish();
     }
     return;
-  }, [media, onReady, reduce, startAt]);
+  }, [media, onReady, openRect, placeChip, reduce, startAt]);
 
-  // Viewer controls and playback. The viewer is the only owner: MediaVideo's
-  // observer is off for this instance, the readiness effect above makes the
-  // one handoff seek, and this starts the piece once. After the first playing
-  // frame it stands back, so the native controls (and the user) own play/pause.
-  useEffect(() => {
+  /** A rect in viewport space -> the frame's translate/scale FLIP values. */
+  const flipToRect = useCallback((rect: Box) => {
     const frame = frameRef.current;
-    if (!frame || media?.kind !== "video") return;
+    if (!frame) return null;
 
-    const video = videoInSlide(frame, media.id);
-    if (!video) return;
+    const width = frame.offsetWidth || 1;
+    const height = frame.offsetHeight || 1;
+    const centreX = frame.offsetLeft + width / 2;
+    const centreY = frame.offsetTop + height / 2;
 
-    return ownViewerVideo(video);
-  }, [index, media]);
+    return {
+      x: rect.left + rect.width / 2 - centreX,
+      y: rect.top + rect.height / 2 - centreY,
+      scaleX: rect.width / width,
+      scaleY: rect.height / height,
+    };
+  }, []);
 
   const close = useCallback(() => {
     if (closingRef.current) return;
@@ -251,27 +316,145 @@ export function FocusViewer({
     const video =
       media?.kind === "video" ? videoInSlide(frame, media.id) : null;
     const mediaTime = video ? video.currentTime : undefined;
-    // Freeze the full-quality frame while the canvas seeks its persistent
-    // clip to the same time; the viewer stays visible until that is ready.
+    // Freeze the viewer frame while the canvas seeks its persistent clip.
     video?.pause();
 
-    const prepared = onClosing?.(indexRef.current, mediaTime);
+    const target = onClosing?.(indexRef.current, mediaTime) ?? null;
 
-    void Promise.resolve(prepared)
-      .catch(() => undefined)
-      .then(() => {
-        const animation = animate(
-          frame,
-          { opacity: 0 },
-          {
-            duration: reduce ? FADE_S : TRANSITION.closeCrossFadeMs / 1000,
-            ease: "easeOut",
-          },
-        );
-        flightRef.current = animation;
-        void animation.finished.then(onClosed, onClosed);
-      });
-  }, [media, onClosed, onClosing, reduce]);
+    if (!target || !target.rect) {
+      // Closing mid-open, before the viewer was revealed. The canvas has
+      // already restored the grid; there is nothing to shrink.
+      onClosed();
+      return;
+    }
+
+    const token = ++closeTokenRef.current;
+    const landing = () => {
+      if (token !== closeTokenRef.current) return;
+      landedRef.current = true;
+      onCloseLanded?.();
+      onClosed();
+    };
+
+    if (reduce) {
+      void target.prepared.catch(() => undefined).then(landing);
+      return;
+    }
+
+    // Stop the open zoom at its current transform, then reverse it to the
+    // resting tile rect. Transform only, on the compositor; no layout reads
+    // and no state updates per frame. The canvas prep runs in parallel.
+    const computedTransform = getComputedStyle(frame).transform;
+    flightRef.current?.stop();
+    flightRef.current = null;
+    frameFlightRef.current?.cancel();
+    frameFlightRef.current = null;
+
+    frame.style.transformOrigin = "center";
+    frame.style.transform =
+      computedTransform === "none" ? "none" : computedTransform;
+    frame.style.opacity = "1";
+
+    const end = flipToRect(target.rect);
+    if (!end) {
+      landing();
+      return;
+    }
+
+    setZooming(true);
+    const animation = frame.animate(
+      [
+        {
+          transform:
+            computedTransform === "none"
+              ? "translate(0px, 0px) scale(1, 1)"
+              : computedTransform,
+        },
+        {
+          transform: `translate(${end.x}px, ${end.y}px) scale(${end.scaleX}, ${end.scaleY})`,
+        },
+      ],
+      {
+        duration: TRANSITION.closeShrinkMs,
+        easing: "cubic-bezier(0, 0, 0.58, 1)",
+        fill: "forwards",
+      },
+    );
+    frameFlightRef.current = animation;
+
+    void Promise.all([
+      animation.finished.catch(() => undefined),
+      target.prepared.catch(() => undefined),
+    ]).then(landing);
+  }, [flipToRect, media, onCloseLanded, onClosed, onClosing, reduce]);
+
+  const reopen = useCallback(() => {
+    if (!closingRef.current || landedRef.current) return;
+
+    // A click on the shrinking frame reverses the close from its current
+    // transform. The canvas keeps the opened plane hidden until the next
+    // close starts again.
+    closeTokenRef.current += 1;
+    closingRef.current = false;
+    setClosing(false);
+
+    const frame = frameRef.current;
+    const currentTransform = frame ? getComputedStyle(frame).transform : "none";
+
+    frameFlightRef.current?.cancel();
+    frameFlightRef.current = null;
+    onReopen?.();
+
+    if (!frame) return;
+
+    const video =
+      media?.kind === "video" ? videoInSlide(frame, media.id) : null;
+    if (video) void video.play().catch(() => undefined);
+
+    if (reduce) {
+      frame.style.transform = "none";
+      setZooming(false);
+      placeChip();
+      onReopenLanded?.();
+      return;
+    }
+
+    frame.style.transformOrigin = "center";
+    frame.style.transform =
+      currentTransform === "none" ? "none" : currentTransform;
+    frame.style.opacity = "1";
+    setZooming(true);
+
+    const token = closeTokenRef.current;
+    const animation = frame.animate(
+      [
+        {
+          transform:
+            currentTransform === "none"
+              ? "translate(0px, 0px) scale(1, 1)"
+              : currentTransform,
+        },
+        { transform: "translate(0px, 0px) scale(1, 1)" },
+      ],
+      {
+        duration: 260,
+        easing: "cubic-bezier(0, 0, 0.58, 1)",
+        fill: "forwards",
+      },
+    );
+    frameFlightRef.current = animation;
+
+    void animation.finished.then(
+      () => {
+        if (token !== closeTokenRef.current) return;
+        frame.style.transform = "none";
+        setZooming(false);
+        placeChip();
+        onReopenLanded?.();
+      },
+      () => undefined,
+    );
+  }, [media, onReopen, onReopenLanded, placeChip, reduce]);
 
   const step = useCallback(
     (direction: number) => {
@@ -287,6 +470,14 @@ export function FocusViewer({
 
   useEffect(() => {
     overlayRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      closeTokenRef.current += 1;
+      frameFlightRef.current?.cancel();
+      flightRef.current?.stop();
+    };
   }, []);
 
   useEffect(() => {
@@ -383,6 +574,7 @@ export function FocusViewer({
       className="cv-viewer"
       data-closing={closing || undefined}
       data-ready={chromeVisible || undefined}
+      data-zooming={zooming || undefined}
       data-start-at={startAt !== undefined ? startAt.toFixed(2) : "none"}
       role="dialog"
       aria-modal="true"
@@ -397,6 +589,7 @@ export function FocusViewer({
             ref={frameRef}
             className="cv-viewer__frame"
             style={{ width: size.width, height: size.height }}
+            onClick={closing ? reopen : undefined}
           >
             <div className="cv-viewer__content">
               <AnimatePresence initial={false}>
@@ -418,6 +611,7 @@ export function FocusViewer({
                       media={media}
                       alt={media.alt}
                       priority
+                      fullRes
                       sizes={`${size.width}px`}
                       className="cv-viewer__media"
                     />
@@ -427,6 +621,7 @@ export function FocusViewer({
                       alt={media.alt}
                       className="cv-viewer__media"
                       viewerOwned
+                      loopMuted
                     />
                   )}
                 </motion.div>
@@ -435,26 +630,25 @@ export function FocusViewer({
           </div>
         </div>
 
-        {media.caption ? (
-          <motion.p
-            key={`${item.key}-caption`}
-            className="cv-viewer__caption"
-            initial={false}
-            animate={{
-              opacity: closing ? 0 : chromeVisible ? 1 : 0,
-            }}
-            transition={{
-              duration: closing ? 0.15 : reduce ? 0 : 0.18,
-              delay:
-                closing || !chromeVisible || reduce
-                  ? 0
-                  : TRANSITION.captionDelayMs / 1000,
-              ease: "easeOut",
-            }}
-          >
-            {media.caption}
-          </motion.p>
-        ) : null}
+        <motion.p
+          ref={captionRef}
+          key={`${item.key}-project`}
+          className="cv-viewer__caption"
+          initial={false}
+          animate={{
+            opacity: closing ? 0 : chromeVisible ? 1 : 0,
+          }}
+          transition={{
+            duration: closing ? 0.15 : reduce ? 0 : 0.18,
+            delay:
+              closing || !chromeVisible || reduce
+                ? 0
+                : TRANSITION.captionDelayMs / 1000,
+            ease: "easeOut",
+          }}
+        >
+          {projectLabel(item.project)}
+        </motion.p>
       </div>
 
       <button
