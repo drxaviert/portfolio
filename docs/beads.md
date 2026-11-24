@@ -3,6 +3,8 @@
 Beads (`bd` 1.3.4) is the repo's agent issue database. Open work lives in
 beads issues; `docs/handoffs/*.md` is legacy input for the migration, not the
 source of truth.
+Do not create new handoffs: update the issue (notes + status). `bd show <id>`
+is the handoff; `bd ready` is the starting point.
 
 ## Install (Windows)
 
