@@ -52,3 +52,13 @@ next-env.d.ts
 media/inbox/*
 !media/inbox/.gitkeep
 media/archive/
+
+# beads / Dolt runtime data (bd doctor recommended).
+# The shared beads workspace lives in the main checkout; keep any local copy out of git.
+.beads/
+.beads.gate.lock
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*
