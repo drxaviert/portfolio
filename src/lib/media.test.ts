@@ -10,8 +10,8 @@ import {
 } from "./media";
 import { sourceSet } from "@/components/media/source-set";
 
-const IMAGE_ID = "pipeline-test-still-4a9b86e544";
-const VIDEO_ID = "pipeline-test-loop-c0fe9c23ef";
+const IMAGE_ID = "f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097";
+const VIDEO_ID = "isometric-784845539a";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -22,23 +22,23 @@ describe("getMedia", () => {
     const media = getMedia(IMAGE_ID);
 
     expect(media.kind).toBe("image");
-    expect(media.width).toBe(1600);
+    expect(media.width).toBe(2048);
     if (media.kind !== "image") return;
 
     expect(media.sources.map((source) => source.width)).toEqual([
-      640, 640, 1280, 1280, 1600, 1600,
+      640, 640, 1280, 1280, 1920, 1920, 2048, 2048,
     ]);
     expect(media.lqip.startsWith("data:image/webp;base64,")).toBe(true);
   });
 
-  it("reads a video manifest and its optional WebM", () => {
+  it("reads a video manifest and its posters", () => {
     const media = getMedia(VIDEO_ID);
 
     expect(media.kind).toBe("video");
     if (media.kind !== "video") return;
 
     expect(media.mp4.url).toMatch(/\.mp4$/);
-    expect(media.webm?.url).toMatch(/\.webm$/);
+    expect(media.webm).toBeUndefined();
     expect(media.poster.avif).toMatch(/\.avif$/);
     expect(media.poster.jpg).toMatch(/\.jpg$/);
   });
@@ -69,13 +69,13 @@ describe("MEDIA_ORIGIN=local", () => {
     expect(media.lqip.startsWith("data:image/webp;base64,")).toBe(true);
   });
 
-  it("rewrites a video's mp4, webm, hls and posters", () => {
+  it("rewrites a video's mp4 and posters", () => {
     vi.stubEnv("MEDIA_ORIGIN", "local");
     const media = getMedia(VIDEO_ID);
     if (media.kind !== "video") throw new Error("expected video");
 
     expect(media.mp4.url).toBe(`/media/local/media/${VIDEO_ID}/video.mp4`);
-    expect(media.webm?.url).toBe(`/media/local/media/${VIDEO_ID}/video.webm`);
+    expect(media.webm).toBeUndefined();
     expect(media.poster.avif).toBe(
       `/media/local/media/${VIDEO_ID}/poster.avif`,
     );
@@ -143,7 +143,7 @@ describe("coverImageFor", () => {
     expect(cover.avif).toMatch(/w1280\.avif$/);
     expect(cover.fallback).toMatch(/w1280\.webp$/);
     expect(cover.fallbackType).toBe("image/webp");
-    expect(cover.width).toBe(1600);
+    expect(cover.width).toBe(2048);
     expect(cover.lqip).toMatch(/^data:image\//);
   });
 

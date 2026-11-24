@@ -28,7 +28,7 @@ route 404s in a production build.
 3. Commit `content/media/<id>.json` once the run prints `ok` for every file.
 
 For each file in the inbox the script derives an id from the filename and a sha256 prefix, for
-example `pipeline-test-loop-c0fe9c23ef`, then:
+example `f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097`, then:
 
 - **Image:** AVIF and WebP at 640 / 1280 / 1920 / 2560 that fall below the source width, plus the
   source width itself; never upscaled. EXIF orientation is applied. A 16px WebP becomes the inline
@@ -69,14 +69,14 @@ are skipped. A failure exits `1`, a usage error `2`.
 ### Reference an id from content
 
 ```mdx
-<Figure media="pipeline-test-still-4a9b86e544" caption="The wall at the end of week two." />
+<Figure media="f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097" caption="The wall at the end of week two." />
 ```
 
 `<Media id="…" />` works anywhere in a study, and `StepFigure` and `ContactSheet` take the same
 `media` id. For the study hero and the featured card, set the frontmatter:
 
 ```yaml
-cover: "media:pipeline-test-loop-c0fe9c23ef"
+cover: "media:isometric-784845539a"
 ```
 
 An unknown id, or a manifest that does not validate, fails the build — see
@@ -98,9 +98,9 @@ at `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`, region `auto`.
 
 `pnpm media:migrate-r2 --archive <dir> [--archive <dir> ...]` re-encodes every
 local original, keeps the ids and keys, HEAD-skips objects already in R2 and
-rewrites the manifests. Add `--dry-run` to print the plan with no network.
-The two `pipeline-test-*` manifests have no local original; they are listed and
-skipped, never deleted. Never download from the paused Blob store.
+rewrites the manifests. Add `--dry-run` to print the plan with no network. A
+manifest with no local original is listed as missing and skipped. Never download
+from the paused Blob store.
 
 ### Storage, tests and local media
 
