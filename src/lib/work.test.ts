@@ -19,11 +19,16 @@ describe("parseFrontmatter", () => {
   });
 
   it("reads the canvas layout and rejects an unknown one", () => {
-    const CANVAS = BODY.replace("---\n\n# Body", "layout: canvas\n---\n\n# Body");
+    const CANVAS = BODY.replace(
+      "---\n\n# Body",
+      "layout: canvas\n---\n\n# Body",
+    );
 
     expect(parseFrontmatter(CANVAS).layout).toBe("canvas");
     expect(() =>
-      parseFrontmatter(BODY.replace("---\n\n# Body", "layout: sheet\n---\n\n# Body")),
+      parseFrontmatter(
+        BODY.replace("---\n\n# Body", "layout: sheet\n---\n\n# Body"),
+      ),
     ).toThrow(/Unknown layout/);
   });
 
@@ -50,7 +55,7 @@ describe("listWork", () => {
   it("gives every study a known cover", () => {
     for (const work of listWork()) {
       expect(work.cover).toMatch(
-        /^(tiles|window|phone|media:[a-z0-9][a-z0-9-]*)$/,
+        /^(tiles|window|phone|human-contact|media:[a-z0-9][a-z0-9-]*)$/,
       );
     }
   });
@@ -70,6 +75,10 @@ describe("getWork", () => {
   it("reads the featured study and its tiles cover", () => {
     expect(getWork(FEATURED_SLUG)?.cover).toBe("tiles");
     expect(getWork(FEATURED_SLUG)?.layout).toBe("reader");
+  });
+
+  it("reads Human Contact's live cover", () => {
+    expect(getWork("human-contact")?.cover).toBe("human-contact");
   });
 
   it("reads Motion & Stills as the canvas study", () => {

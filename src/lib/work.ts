@@ -4,7 +4,7 @@ import { coverImageFor } from "./media";
 import type { CoverImage } from "./media";
 import { FEATURED_SLUG } from "./work-order";
 
-export type CoverScene = "tiles" | "window" | "phone";
+export type CoverScene = "tiles" | "window" | "phone" | "human-contact";
 
 /** A drawn scene, or a media id that resolves to a manifest picture. */
 export type Cover = CoverScene | `media:${string}`;
@@ -39,7 +39,7 @@ export type WorkMeta = {
 };
 
 const WORK_SLUGS: readonly string[] = WORK_ORDER;
-const COVERS: readonly string[] = ["tiles", "window", "phone"];
+const COVERS: readonly string[] = ["tiles", "window", "phone", "human-contact"];
 const MEDIA_COVER = /^media:([a-z0-9][a-z0-9-]*)$/;
 
 const CONTENT_DIR = path.join(process.cwd(), "content", "work");
@@ -108,7 +108,7 @@ function readWork(slug: WorkSlug): WorkMeta {
 
   if (!isCover(cover)) {
     throw new Error(
-      `content/work/${slug}.mdx has cover "${cover ?? ""}"; expected tiles, window, phone or media:<id>`,
+      `content/work/${slug}.mdx has cover "${cover ?? ""}"; expected tiles, window, phone, human-contact or media:<id>`,
     );
   }
 

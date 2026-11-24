@@ -10,6 +10,7 @@ import {
 import type { Mode } from "@/components/faux-ui/scenes";
 import type { SceneFit } from "@/components/faux-ui/use-scene-fit";
 import { useScenePause } from "@/components/faux-ui/use-scene-pause";
+import { HumanContactCover } from "@/components/human-contact/human-contact-cover";
 import type { CoverImage } from "@/lib/media";
 import type { WorkMeta } from "@/lib/work";
 import "@/components/faux-ui/faux-ui.css";
@@ -33,17 +34,24 @@ const SCENES: Record<string, ComponentType<{ mode: Mode }> | undefined> = {
  *
  * `fit` is the slot's contract: the hero contains the whole 753:416 canvas;
  * the featured card covers its own box and crops the overflow.
+ *
+ * `human-contact` is the one live cover: its still is the first paint and the
+ * scene loads itself when the slot is near the viewport. `still` keeps that
+ * slot on the still alone; the /work hover thumbnail uses it while idle, then
+ * lets the live scene mount with the thumbnail.
  */
 export function Cover({
   scene,
   fit = "contain",
   coverImage,
   alt = "",
+  still = false,
 }: {
   scene: WorkMeta["cover"];
   fit?: SceneFit;
   coverImage?: CoverImage;
   alt?: string;
+  still?: boolean;
 }) {
   const shotRef = useRef<HTMLDivElement | null>(null);
 
@@ -86,6 +94,10 @@ export function Cover({
         </picture>
       </div>
     );
+  }
+
+  if (scene === "human-contact") {
+    return <HumanContactCover live={!still} />;
   }
 
   const Scene = SCENES[scene];

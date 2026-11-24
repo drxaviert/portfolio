@@ -64,6 +64,9 @@ import {
 } from "@/components/work/overlay-exit";
 import { announceStep } from "../step-events";
 import { useReducedMotion } from "../use-reduced-motion";
+import { HumanContactCover } from "@/components/human-contact/human-contact-cover";
+import { HumanContactStill } from "@/components/human-contact/human-contact-still";
+import type { WorkMeta } from "@/lib/work";
 import "./home-carousel.css";
 
 export type CarouselItem =
@@ -71,6 +74,11 @@ export type CarouselItem =
       kind: "work";
       slug: string;
       title: string;
+      /**
+       * The one cover a home card draws. The cards are otherwise empty by
+       * design (41f388b); only Human Contact carries its live scene.
+       */
+      cover?: WorkMeta["cover"];
     }
   | { kind: "placeholder"; title: string };
 
@@ -262,6 +270,7 @@ function Slide({
   const first = slot === 0 && !ghost;
   const offscreen = slot >= VISIBLE_SLOTS;
   const key = peek ? "peekL" : `${ghost ? "g" : "m"}${index}`;
+  const liveCover = item.kind === "work" && item.cover === "human-contact";
   // The featured slot carries `.ring-card` as a marker only; every ring host
   // grows its ring by `inset` (ring-hover.css).
   const hostClass = `car-host ring-host rounded-lg${first ? " ring-card" : ""}`;
@@ -278,7 +287,8 @@ function Slide({
 
   // The blurred face an edge-blur layer masks (the filter is on this copy, the
   // mask on its wrapper: Chromium paints neither if one element has both). The
-  // cards are empty, so the card's own surface is all there is to melt.
+  // cards are empty, so the card's own surface is all there is to melt; the one
+  // live cover gets its still here, so the blur matches the card.
   const blurCopy = (
     <span className="car-peek-blur-copy">
       <span className="car-content">
@@ -286,6 +296,7 @@ function Slide({
           data-peek-surface=""
           className="bg-surface-container-low absolute inset-0"
         />
+        {liveCover ? <HumanContactStill /> : null}
       </span>
     </span>
   );
@@ -294,7 +305,13 @@ function Slide({
     <>
       <RingLayers fill="bg-surface-container-low" />
       <div className="car-clip rounded-lg">
-        <div className="car-content" />
+        <div className="car-content">
+          {/* The off-row card is clipped by the row, so it keeps the still:
+              only a card in a visible slot may hold the scene. */}
+          {liveCover ? (
+            <HumanContactCover live={!ghost && !peek && !offscreen} />
+          ) : null}
+        </div>
         {edgeBlur ? (
           <span
             aria-hidden="true"

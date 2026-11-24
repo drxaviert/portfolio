@@ -680,6 +680,9 @@ export function WorkList({
             scene={work.cover ?? "tiles"}
             coverImage={work.coverImage}
             fit="cover"
+            // The live scene is only worth its context while the thumbnail is
+            // showing; the still carries the idle state and the crossfade.
+            still={work.cover === "human-contact" && !thumbActive}
           />
         ) : null}
       </div>

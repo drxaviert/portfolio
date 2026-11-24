@@ -1,9 +1,14 @@
 import { render } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { WorkMeta } from "@/lib/work";
 import { Cover } from "./cover";
+
+vi.mock("@/components/human-contact/environment", () => ({
+  hasWebGLSupport: () => false,
+  isSafari: () => false,
+}));
 
 describe("Cover", () => {
   it('renders the Tiles scene for scene="tiles"', () => {
@@ -84,6 +89,25 @@ describe("Cover", () => {
     expect(
       container.querySelector('[data-cover="neutral"]'),
     ).toBeInTheDocument();
+  });
+
+  it("renders the Human Contact still when the live scene cannot start", () => {
+    const { container } = render(<Cover scene="human-contact" />);
+    const still = container.querySelector<HTMLImageElement>("img.hc-still");
+
+    expect(still).toHaveAttribute(
+      "src",
+      "/human-contact/human-contact-still.webp",
+    );
+    expect(container.querySelector("canvas")).toBeNull();
+    expect(container.querySelector("[data-human-contact-canvas]")).toBeNull();
+  });
+
+  it("keeps the /work hover thumbnail on the still alone", () => {
+    const { container } = render(<Cover scene="human-contact" still />);
+
+    expect(container.querySelector("img.hc-still")).toBeInTheDocument();
+    expect(container.querySelector(".hc-cover-scene")).toBeNull();
   });
 
   it("renders the neutral surface for a scene it cannot resolve", () => {

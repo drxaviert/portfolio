@@ -16,6 +16,10 @@ import { Spring } from "./springs";
 type HumanContactSceneProps = {
   /** The browser could not keep a live context; the still behind it takes over. */
   onFallback?: () => void;
+  /** The first frame is on the canvas; the cover can crossfade to it. */
+  onReady?: () => void;
+  /** The effect is gone (unmount or a hidden Activity copy): show the still. */
+  onTeardown?: () => void;
 };
 
 const FOV = 28;
@@ -79,7 +83,11 @@ function hash(index: number, salt: number): number {
   return value - Math.floor(value);
 }
 
-export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
+export function HumanContactScene({
+  onFallback,
+  onReady,
+  onTeardown,
+}: HumanContactSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<{
     setReduced: (next: boolean) => void;
@@ -87,10 +95,14 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
   const reduced = useReducedMotion();
   const reducedRef = useRef(reduced);
   const fallbackRef = useRef(onFallback);
+  const readyRef = useRef(onReady);
+  const teardownRef = useRef(onTeardown);
 
   useEffect(() => {
     fallbackRef.current = onFallback;
-  }, [onFallback]);
+    readyRef.current = onReady;
+    teardownRef.current = onTeardown;
+  }, [onFallback, onReady, onTeardown]);
 
   useEffect(() => {
     reducedRef.current = reduced;
@@ -118,6 +130,7 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
     } catch {
       // The wrapper's still stays visible; the overlay still reads.
       host.dataset.scene = "unavailable";
+      fallbackRef.current?.();
 
       return;
     }
@@ -161,11 +174,7 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
         return light;
       }
 
-      return new THREE.HemisphereLight(
-        spec.sky,
-        spec.ground,
-        spec.intensity,
-      );
+      return new THREE.HemisphereLight(spec.sky, spec.ground, spec.intensity);
     }
 
     for (const spec of FILM_LIGHTING.lights) {
@@ -210,6 +219,7 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
 
       if (host.dataset.scene !== "ready") {
         host.dataset.scene = "ready";
+        readyRef.current?.();
       }
     }
 
@@ -421,9 +431,11 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
     }
 
     function resize(): void {
-      const rect = host.getBoundingClientRect();
-      const width = Math.max(1, rect.width);
-      const height = Math.max(1, rect.height);
+      // The layout box, not the transformed one: the reader panel scales during
+      // the expand morph, and rebuilding the grid every frame of it would be
+      // wasted work. The canvas is scaled with the panel anyway.
+      const width = Math.max(1, host.offsetWidth);
+      const height = Math.max(1, host.offsetHeight);
 
       if (
         Math.abs(width - lastWidth) < 1 &&
@@ -661,6 +673,7 @@ export function HumanContactScene({ onFallback }: HumanContactSceneProps) {
       renderer.domElement.remove();
       delete host.dataset.scene;
       delete host.dataset.active;
+      teardownRef.current?.();
 
       if (process.env.NODE_ENV !== "production") {
         delete debugWindow.__humanContactDebug;

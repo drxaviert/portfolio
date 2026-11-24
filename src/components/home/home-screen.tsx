@@ -31,6 +31,7 @@ export function HomeScreen() {
       kind: "work" as const,
       slug: work.slug,
       title: work.title,
+      cover: work.cover,
     })),
     ...(works.length > 0
       ? [{ kind: "placeholder" as const, title: EMPTY_WORK_LABEL }]
