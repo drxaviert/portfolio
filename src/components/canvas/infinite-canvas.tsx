@@ -155,6 +155,11 @@ const VIDEO_TUNING = {
   startFreezeSettleMs: 220,
 } as const;
 
+/** Hovering across the grid must not start 88 downloads. */
+const MAX_PRELOADS = 6;
+/** The click waits this long for the first full-res byte/frame, then opens. */
+const PRELOAD_OPEN_WAIT_MS = 250;
+
 const VERTEX_SHADER = /* glsl */ `
   varying vec2 vUv;
 
@@ -465,10 +470,7 @@ function StaticFallback({ items }: { items: CanvasItem[] }) {
 export const InfiniteCanvas = forwardRef<
   InfiniteCanvasHandle,
   InfiniteCanvasProps
->(function InfiniteCanvas(
-  { items, paused, lens, breath, hover, onOpen },
-  ref,
-) {
+>(function InfiniteCanvas({ items, paused, lens, breath, hover, onOpen }, ref) {
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const [introReady, setIntroReady] = useState(false);
@@ -657,7 +659,10 @@ export const InfiniteCanvas = forwardRef<
     const videoEntries = new Map<number, VideoEntry>();
     const preloaded = new Map<
       string,
-      HTMLVideoElement | HTMLImageElement
+      {
+        elements: (HTMLVideoElement | HTMLImageElement)[];
+        ready: Promise<boolean>;
+      }
     >();
     const videoHost = document.createElement("div");
     videoHost.style.cssText =
@@ -1079,10 +1084,7 @@ export const InfiniteCanvas = forwardRef<
       if (transition.phase === "opening") {
         if (now - transition.startedAt >= TRANSITION.fadeOutMs) {
           for (const [itemIndex, entry] of videoEntries) {
-            if (
-              itemIndex !== transition.index &&
-              !entry.element.paused
-            ) {
+            if (itemIndex !== transition.index && !entry.element.paused) {
               entry.element.pause();
             }
           }
@@ -1168,10 +1170,7 @@ export const InfiniteCanvas = forwardRef<
           startsSettledAt = 0;
         } else if (startsSettledAt === 0) {
           startsSettledAt = now;
-        } else if (
-          now - startsSettledAt >=
-          VIDEO_TUNING.startFreezeSettleMs
-        ) {
+        } else if (now - startsSettledAt >= VIDEO_TUNING.startFreezeSettleMs) {
           startsFrozen = false;
         }
       }
@@ -1359,12 +1358,8 @@ export const InfiniteCanvas = forwardRef<
       debug.prepared = transition.prepared;
 
       const target = transition.target ?? transition.plane;
-      debug.targetWidth = target
-        ? Number(target.mesh.scale.x.toFixed(1))
-        : 0;
-      debug.targetHeight = target
-        ? Number(target.mesh.scale.y.toFixed(1))
-        : 0;
+      debug.targetWidth = target ? Number(target.mesh.scale.x.toFixed(1)) : 0;
+      debug.targetHeight = target ? Number(target.mesh.scale.y.toFixed(1)) : 0;
       debug.targetOpacity = target ? Number(target.opacity.toFixed(3)) : 0;
       debug.targetZoom = target
         ? Number(target.material.uniforms.uZoom.value.toFixed(3))
@@ -1481,54 +1476,137 @@ export const InfiniteCanvas = forwardRef<
       wake();
     }
 
-    function preloadItem(itemIndex: number): void {
+    function cancelPreload(entry: {
+      elements: (HTMLVideoElement | HTMLImageElement)[];
+    }): void {
+      for (const element of entry.elements) {
+        if (element instanceof HTMLVideoElement) {
+          element.pause();
+          element.removeAttribute("src");
+          element.load();
+          element.remove();
+        } else {
+          element.src = "";
+        }
+      }
+    }
+
+    function trimPreloads(keepKey: string): void {
+      while (preloaded.size > MAX_PRELOADS) {
+        let removed = false;
+        for (const [key, entry] of preloaded) {
+          if (key === keepKey) continue;
+          preloaded.delete(key);
+          cancelPreload(entry);
+          removed = true;
+          break;
+        }
+        if (!removed) break;
+      }
+    }
+
+    function preloadItem(itemIndex: number): Promise<boolean> {
       const media = items[itemIndex]?.media;
-      if (!media) return;
+      if (!media) return Promise.resolve(false);
 
       if (media.kind === "video") {
         const key = `video:${media.id}`;
-        if (preloaded.has(key)) return;
+        const existing = preloaded.get(key);
+        if (existing) return existing.ready;
 
         const video = document.createElement("video");
         video.muted = true;
+        video.loop = true;
         video.playsInline = true;
         video.crossOrigin = "anonymous";
         video.preload = "auto";
         video.src = media.mp4.url;
         video.setAttribute("aria-hidden", "true");
         videoHost.appendChild(video);
-        preloaded.set(key, video);
-        return;
+
+        const ready = new Promise<boolean>((resolve) => {
+          let done = false;
+          let timer = 0;
+          const finish = (ok: boolean) => {
+            if (done) return;
+            done = true;
+            window.clearTimeout(timer);
+            video.removeEventListener("loadeddata", onReady);
+            video.removeEventListener("canplay", onReady);
+            video.removeEventListener("error", onError);
+            resolve(ok);
+          };
+          const onReady = () => finish(true);
+          const onError = () => finish(false);
+          timer = window.setTimeout(() => finish(video.readyState >= 2), 2500);
+
+          video.addEventListener("loadeddata", onReady);
+          video.addEventListener("canplay", onReady);
+          video.addEventListener("error", onError);
+        });
+
+        preloaded.set(key, { elements: [video], ready });
+        trimPreloads(key);
+        return ready;
       }
 
-      for (const format of ["avif", "webp"] as const) {
-        const source = media.sources
-          .filter((candidate) => candidate.format === format)
+      const largest = (format: "avif" | "webp") =>
+        media.sources
+          .filter((source) => source.format === format)
           .sort((a, b) => b.width - a.width)[0];
-        if (!source) continue;
+      const sources = [largest("avif"), largest("webp")].filter(
+        (source): source is NonNullable<typeof source> => Boolean(source),
+      );
+      if (sources.length === 0) return Promise.resolve(false);
 
-        const key = `image:${source.url}`;
-        if (preloaded.has(key)) continue;
+      const key = `image:${media.id}`;
+      const existing = preloaded.get(key);
+      if (existing) return existing.ready;
 
+      const images = sources.map((source) => {
         const image = new Image();
         image.decoding = "async";
         image.src = source.url;
-        preloaded.set(key, image);
-        void image.decode().catch(() => {
-          // The viewer falls back to its own decode.
-        });
-      }
+        return image;
+      });
+
+      // Both formats are warmed; the viewer picks AVIF where it is supported.
+      const ready = Promise.all(
+        images.map((image) =>
+          image.decode().then(
+            () => true,
+            () => false,
+          ),
+        ),
+      ).then((results) => results.some(Boolean));
+
+      preloaded.set(key, { elements: images, ready });
+      trimPreloads(key);
+      return ready;
     }
 
-    function openPlane(plane: Plane): void {
+    async function openPlane(plane: Plane): Promise<void> {
       if (!introEndedFlag || pausedRef.current) return;
       if (!canOpen(transition.phase)) return;
 
       const media = items[plane.itemIndex]?.media;
       if (!media) return;
 
+      // Hover, pointerdown and focus start this early. A click still waits for
+      // the first full-res bytes/frame, but only for a short beat; past that
+      // the transition opens and the viewer cross-fades when it is ready.
+      await Promise.race([
+        preloadItem(plane.itemIndex),
+        new Promise<boolean>((resolve) => {
+          window.setTimeout(() => resolve(false), PRELOAD_OPEN_WAIT_MS);
+        }),
+      ]);
+
+      if (!introEndedFlag || pausedRef.current || !canOpen(transition.phase)) {
+        return;
+      }
+
       panHalt();
-      preloadItem(plane.itemIndex);
 
       const focus = fitBox(media.width, media.height, width, height);
       const fromScrollX = scrollRef.current.x;
@@ -1599,7 +1677,7 @@ export const InfiniteCanvas = forwardRef<
 
     function pick(x: number, y: number): void {
       const plane = planeAt(x, y);
-      if (plane) openPlane(plane);
+      if (plane) void openPlane(plane);
     }
 
     function centrePlane(): Plane | null {
@@ -1625,7 +1703,7 @@ export const InfiniteCanvas = forwardRef<
 
     function openCentred(): void {
       const plane = centrePlane();
-      if (plane) openPlane(plane);
+      if (plane) void openPlane(plane);
     }
 
     function placePlanes(): void {
@@ -1829,9 +1907,7 @@ export const InfiniteCanvas = forwardRef<
 
       if (transition.phase === "closing") {
         const target = transition.target;
-        const elapsed = transition.prepared
-          ? now - transition.startedAt
-          : 0;
+        const elapsed = transition.prepared ? now - transition.startedAt : 0;
         const shrink = reduced ? 0 : closeShrinkProgress(elapsed);
         const fade = transition.prepared
           ? reduced
@@ -1870,13 +1946,14 @@ export const InfiniteCanvas = forwardRef<
       const introRunning = introElapsed >= 0 && !introEndedFlag;
 
       for (const plane of planes) {
-        const alpha = introElapsed < 0
-          ? 0
-          : introRunning
-            ? reduced
-              ? reducedOpacity(introElapsed)
-              : introPlaneOpacity(introElapsed, plane.opacityDelay)
-            : 1;
+        const alpha =
+          introElapsed < 0
+            ? 0
+            : introRunning
+              ? reduced
+                ? reducedOpacity(introElapsed)
+                : introPlaneOpacity(introElapsed, plane.opacityDelay)
+              : 1;
         const target = plane.loaded && plane.mesh.visible ? alpha : 0;
 
         if (introRunning || introElapsed < 0) {
@@ -1912,9 +1989,7 @@ export const InfiniteCanvas = forwardRef<
       dtMs: number,
     ): boolean {
       const idle =
-        introEndedFlag &&
-        transition.phase === "idle" &&
-        !pausedRef.current;
+        introEndedFlag && transition.phase === "idle" && !pausedRef.current;
 
       if (!idle) {
         breathLevel = 0;
@@ -1960,8 +2035,7 @@ export const InfiniteCanvas = forwardRef<
       for (const plane of planes) {
         const scale =
           1 +
-          amplitude *
-            Math.sin(breathPhase(now, plane.col, plane.row, config));
+          amplitude * Math.sin(breathPhase(now, plane.col, plane.row, config));
         const hover = 1 + (hoverScale - 1) * plane.hoverLevel;
 
         plane.mesh.scale.set(
@@ -2024,7 +2098,10 @@ export const InfiniteCanvas = forwardRef<
 
           hoveredPlane = next;
 
-          if (next) next.hover = retargetHover(next.hover, 1, now);
+          if (next) {
+            next.hover = retargetHover(next.hover, 1, now);
+            void preloadItem(next.itemIndex);
+          }
 
           setHoverCursor(Boolean(next));
         }
@@ -2089,12 +2166,9 @@ export const InfiniteCanvas = forwardRef<
 
       if (t.phase === "opening") {
         const p = glideProgress(elapsed);
-        scrollRef.current.x =
-          t.fromScrollX + (t.toScrollX - t.fromScrollX) * p;
-        scrollRef.current.y =
-          t.fromScrollY + (t.toScrollY - t.fromScrollY) * p;
-        camera.position.z =
-          t.fromCameraZ + (CAMERA_Z - t.fromCameraZ) * p;
+        scrollRef.current.x = t.fromScrollX + (t.toScrollX - t.fromScrollX) * p;
+        scrollRef.current.y = t.fromScrollY + (t.toScrollY - t.fromScrollY) * p;
+        camera.position.z = t.fromCameraZ + (CAMERA_Z - t.fromCameraZ) * p;
 
         if (
           elapsed >= TRANSITION.growDelayMs + TRANSITION.growMs &&
@@ -2112,10 +2186,7 @@ export const InfiniteCanvas = forwardRef<
       if (t.phase === "open") {
         if (t.waitingForViewer) return true;
 
-        if (
-          t.handoffAt >= 0 &&
-          now - t.handoffAt >= TRANSITION.handoffMs
-        ) {
+        if (t.handoffAt >= 0 && now - t.handoffAt >= TRANSITION.handoffMs) {
           if (t.plane) hidePlane(t.plane);
           t.handoffAt = -1;
           return false;
@@ -2140,8 +2211,7 @@ export const InfiniteCanvas = forwardRef<
           t.handoffAt = -1;
 
           for (const plane of planes) {
-            const opacity =
-              plane.loaded && plane.mesh.visible ? 1 : 0;
+            const opacity = plane.loaded && plane.mesh.visible ? 1 : 0;
             plane.opacity = opacity;
             plane.material.uniforms.uOpacity.value = opacity;
           }
@@ -2185,15 +2255,13 @@ export const InfiniteCanvas = forwardRef<
       }
     }
 
-    async function seekVideo(
-      entry: VideoEntry,
-      time: number,
-    ): Promise<void> {
+    async function seekVideo(entry: VideoEntry, time: number): Promise<void> {
       const video = entry.element;
 
       if (!(video.duration > 0)) return;
 
-      const target = ((time % video.duration) + video.duration) % video.duration;
+      const target =
+        ((time % video.duration) + video.duration) % video.duration;
 
       if (Math.abs(video.currentTime - target) < 0.04) return;
 
@@ -2402,8 +2470,7 @@ export const InfiniteCanvas = forwardRef<
       const fading = updatePlanes(dt, now);
       const videosActive = syncVideos(now);
       const lensActive = updateLens(dt, now);
-      const breathMoving =
-        panIsDragging() || panSpeed() > BREATH.settleSpeed;
+      const breathMoving = panIsDragging() || panSpeed() > BREATH.settleSpeed;
       const hovering = updateHover(now, breathMoving);
       const breathing = updateBreathing(now, breathMoving, dtMs);
 
@@ -2545,11 +2612,20 @@ export const InfiniteCanvas = forwardRef<
       if (!canOpen(transition.phase)) return;
 
       const plane = planeAt(event.clientX, event.clientY);
-      if (plane) preloadItem(plane.itemIndex);
+      if (plane) void preloadItem(plane.itemIndex);
     };
     surface?.addEventListener("pointerdown", onPreloadPointerDown, {
       passive: true,
     });
+
+    // Keyboard open: the surface is the focus target, so warm whatever is
+    // centred (or hovered) before Enter can open it.
+    const onPreloadFocus = () => {
+      if (pausedRef.current || !introEndedFlag) return;
+      const plane = hoveredPlane ?? centrePlane();
+      if (plane) void preloadItem(plane.itemIndex);
+    };
+    surface?.addEventListener("focus", onPreloadFocus);
 
     const onHoverPointerMove = (event: PointerEvent) => {
       if (event.pointerType !== "mouse") return;
@@ -2594,6 +2670,7 @@ export const InfiniteCanvas = forwardRef<
       document.removeEventListener("visibilitychange", onVisibilityChange);
       motionQuery.removeEventListener("change", onMotionChange);
       surface?.removeEventListener("pointerdown", onPreloadPointerDown);
+      surface?.removeEventListener("focus", onPreloadFocus);
       surface?.removeEventListener("pointermove", onHoverPointerMove);
       surface?.removeEventListener("pointerleave", onHoverPointerLeave);
 
@@ -2614,14 +2691,7 @@ export const InfiniteCanvas = forwardRef<
         disposeVideoEntry(itemIndex);
       }
 
-      for (const element of preloaded.values()) {
-        if (element instanceof HTMLVideoElement) {
-          element.pause();
-          element.removeAttribute("src");
-          element.load();
-          element.remove();
-        }
-      }
+      for (const entry of preloaded.values()) cancelPreload(entry);
       preloaded.clear();
 
       videoHost.remove();
@@ -2639,7 +2709,15 @@ export const InfiniteCanvas = forwardRef<
       renderer.forceContextLoss();
       renderer.domElement.remove();
     };
-  }, [items, panHalt, panIsDragging, panSpeed, panTick, scrollRef, containerRef]);
+  }, [
+    items,
+    panHalt,
+    panIsDragging,
+    panSpeed,
+    panTick,
+    scrollRef,
+    containerRef,
+  ]);
 
   return (
     <div

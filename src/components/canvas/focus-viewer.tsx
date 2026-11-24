@@ -13,7 +13,6 @@ import { MediaImage } from "@/components/media/media-image";
 import { MediaVideo } from "@/components/media/media-video";
 import type { CanvasItem } from "./infinite-canvas";
 import { TRANSITION, fitBox } from "./transition";
-import { ownViewerVideo } from "./viewer-playback";
 import "./focus-viewer.css";
 
 const FADE_S = 0.12;
@@ -199,7 +198,8 @@ export function FocusViewer({
       };
 
       if (video.readyState >= 1) seekAndWait();
-      else video.addEventListener("loadedmetadata", seekAndWait, { once: true });
+      else
+        video.addEventListener("loadedmetadata", seekAndWait, { once: true });
 
       // The canvas may have started playing while this effect mounted; a seek
       // that lands later is still the frame to wait for.
@@ -213,30 +213,16 @@ export function FocusViewer({
 
     const image = frame.querySelector("img");
     if (image) {
-      void image
-        .decode()
-        .then(finish)
-        .catch(finish);
+      void image.decode().then(finish).catch(finish);
     } else {
       finish();
     }
     return;
   }, [media, onReady, reduce, startAt]);
 
-  // Viewer controls and playback. The viewer is the only owner: MediaVideo's
-  // observer is off for this instance, the readiness effect above makes the
-  // one handoff seek, and this starts the piece once. After the first playing
-  // frame it stands back, so the native controls (and the user) own play/pause.
-  useEffect(() => {
-    const frame = frameRef.current;
-    if (!frame || media?.kind !== "video") return;
-
-    const video = videoInSlide(frame, media.id);
-    if (!video) return;
-
-    return ownViewerVideo(video);
-  }, [index, media]);
-
+  // Viewer controls and playback. The canvas viewer is a silent loop owned by
+  // MediaVideo's loopMuted mode; the ready effect above still waits for the
+  // first frame before the cross-fade.
   const close = useCallback(() => {
     if (closingRef.current) return;
     closingRef.current = true;
@@ -260,11 +246,28 @@ export function FocusViewer({
     void Promise.resolve(prepared)
       .catch(() => undefined)
       .then(() => {
+        if (reduce) {
+          const animation = animate(
+            frame,
+            { opacity: 0 },
+            { duration: FADE_S, ease: "easeOut" },
+          );
+          flightRef.current = animation;
+          void animation.finished.then(onClosed, onClosed);
+          return;
+        }
+
+        // Keep the full-res layer over the low-res tile until the canvas
+        // shrink has landed (cross-fade 200ms + shrink 600ms), then fade to
+        // the tile that is already sitting at its final size.
+        const holdMs = TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs;
+        const fadeMs = TRANSITION.closeCrossFadeMs;
         const animation = animate(
           frame,
-          { opacity: 0 },
+          { opacity: [1, 1, 0] },
           {
-            duration: reduce ? FADE_S : TRANSITION.closeCrossFadeMs / 1000,
+            duration: (holdMs + fadeMs) / 1000,
+            times: [0, holdMs / (holdMs + fadeMs), 1],
             ease: "easeOut",
           },
         );
@@ -418,6 +421,7 @@ export function FocusViewer({
                       media={media}
                       alt={media.alt}
                       priority
+                      fullRes
                       sizes={`${size.width}px`}
                       className="cv-viewer__media"
                     />
@@ -427,6 +431,7 @@ export function FocusViewer({
                       alt={media.alt}
                       className="cv-viewer__media"
                       viewerOwned
+                      loopMuted
                     />
                   )}
                 </motion.div>
