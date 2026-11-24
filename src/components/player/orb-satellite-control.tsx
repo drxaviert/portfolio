@@ -2,14 +2,15 @@
 
 import { useEffect, useRef } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { PauseIcon, PlayIcon } from "./player-icons";
+import { PauseIcon, PlayIcon, SatellitePauseIcon } from "./player-icons";
 import type { PlayerStore } from "./player-store";
 import "./orb-player.css";
 
 /**
  * Concept 05: a 13px satellite dot at the orb's 4 o'clock edge while a track is
- * loaded. Hovering or keyboard-focusing it grows it to a 24px play/pause
- * button. The orb itself always goes home.
+ * loaded. The dot carries the transport state as a 7px play/pause glyph;
+ * hovering or keyboard-focusing it grows it to a 24px play/pause button. The
+ * orb itself always goes home.
  *
  * A mouse resume must collapse the satellite without waiting for the pointer to
  * leave, so the click sets data-suppress-hover until the pointer leaves the
@@ -27,7 +28,9 @@ export function OrbSatelliteControl({
   track: { title: string; artist: string };
   store: PlayerStore;
 }) {
-  const label = playing ? `Pause ${track.title}` : `Play ${track.title}`;
+  const label = playing
+    ? `Pause music: ${track.title}`
+    : `Play music: ${track.title}`;
   const buttonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -36,7 +39,8 @@ export function OrbSatelliteControl({
 
     if (!button || !shell) return;
 
-    const clearSuppression = () => button.removeAttribute("data-suppress-hover");
+    const clearSuppression = () =>
+      button.removeAttribute("data-suppress-hover");
 
     shell.addEventListener("pointerleave", clearSuppression);
 
@@ -71,9 +75,24 @@ export function OrbSatelliteControl({
         className="orb-sat-dot"
         data-playing={playing ? "true" : "false"}
         aria-hidden="true"
-      />
-      <span className="orb-sat-grown" aria-hidden="true">
-        {playing ? <PauseIcon size={10} /> : <PlayIcon size={10} />}
+      >
+        <span className="orb-sat-glyph" aria-hidden="true">
+          <span
+            className="orb-sat-icon orb-sat-icon-pause"
+            data-active={playing ? "true" : "false"}
+          >
+            <SatellitePauseIcon size={7} />
+          </span>
+          <span
+            className="orb-sat-icon orb-sat-icon-play"
+            data-active={playing ? "false" : "true"}
+          >
+            <PlayIcon size={7} />
+          </span>
+        </span>
+        <span className="orb-sat-glyph orb-sat-glyph-large" aria-hidden="true">
+          {playing ? <PauseIcon size={10} /> : <PlayIcon size={10} />}
+        </span>
       </span>
     </button>
   );

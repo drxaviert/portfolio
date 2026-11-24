@@ -30,6 +30,33 @@ export function PauseIcon({ size = 12 }: { size?: number }) {
   );
 }
 
+/**
+ * The 13px satellite dot needs chunkier bars than the 12px transport viewBox:
+ * at 7px its 1.46px bars and 0.58px gap antialias into one blob on 1x screens.
+ */
+export function SatellitePauseIcon({ size = 7 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 7 7" aria-hidden="true">
+      <rect
+        x="1.1"
+        y="0.9"
+        width="1.5"
+        height="5.2"
+        rx="0.4"
+        fill="currentColor"
+      />
+      <rect
+        x="4.4"
+        y="0.9"
+        width="1.5"
+        height="5.2"
+        rx="0.4"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export function SpinnerIcon({ size = 12 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 12 12" aria-hidden="true">
