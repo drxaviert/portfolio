@@ -823,6 +823,37 @@ visible. Below the gate the shipped cursor thumbnail is used unchanged.
 - `src/components/work/work-list.tsx` — `PANEL_*`, `measurePanel`, `placePanel`, the fixed clip layer's panel
 - `src/components/work/work-list.css` — the panel box, enter/exit, 1s crossfade and reduced-motion branch
 
+## Now-playing card & satellite
+
+The persistent player has two surfaces: the top-left card on `/`, and the satellite dot on the nav orb off-home. Both read the same store. The card shell (art, title, button) subscribes with `usePlayerStatus`; only `NowPlayingTimebar` uses `usePlayer`, so the 4 Hz playhead and pointer preview re-render the timebar alone.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Card play/pause pressed | `transform` | 100ms (`--duration-short-1`) | 0 | — | `scale(1)` → `scale(0.95)` |
+| Card icon swap | `opacity`, `transform` | 150ms (`--duration-short-3`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) | `scale(0.9)` → `scale(1)` |
+| Slider track hover/focus/drag | `transform` (`scaleY`) | 150ms (`--duration-short-3`) | 0 | `ease-out` (`--ease-decelerate`) | 1 → 2 (2px → 4px at the 275px card) |
+| Slider fill follows the playhead | `clip-path` | 250ms (`--duration-medium-2`) | 0 | `linear` | current progress → next progress |
+| Slider thumb appears | `opacity`, `transform` | 150ms (`--duration-short-3`) | 0 | `ease-out` | `scale(0.8)` → `scale(1)`; position follows the value, no layout transition |
+| Satellite enter | `opacity` | 400ms (`--duration-long-1`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) | 0 → 1 |
+| Satellite exit | `opacity` | 100ms (`--duration-short-1`) | 0 | `ease-in` (`--ease-accelerate`) | 1 → 0 |
+| Satellite dot → button (hover/focus/paused) | `opacity`, `transform` | 400ms grow / 240ms shrink | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` / `ease-in` | 13px dot → 24px button (`scale(0.542)` → 1) |
+| Satellite playing | dot ring `scale`, `opacity` | 1600ms loop | 0 | `ease-out` (`--ease-decelerate`) | `scale(1)`/0.35 → `scale(1.6)`/0, only while visible and playing |
+| Satellite pressed | `transform` | 100ms (`--duration-short-1`) | 0 | — | `scale(1)` → `scale(0.96)` |
+| Reduced motion, card | icon `opacity` | 150ms (`--duration-short-3`) | 0 | `linear` | opacity only, no transform; spinner slows to 2.4s |
+| Reduced motion, satellite | `opacity` | 0ms on hide / 150ms (`--duration-short-3`) otherwise | 0 | `linear` | instant hide when leaving home; no grow, press scale or pulse |
+
+- **Hit areas.** The slider's visual bar stays 1.5–2px tall, but its `::before` target is 41px tall at the largest card. The satellite's `::before` target is 40px and grows only right and bottom, so it never adds target area over the Home orb. The card button already carries a 40px target.
+- **Pointers.** The satellite grow is gated to `(hover: hover) and (pointer: fine)`; `:focus-visible` grows it for keyboard. A mouse resume sets `data-suppress-hover` until the pointer leaves the orb shell, so the button collapses back to the dot even with the cursor still over it, and only regrows on the next pointer entry. The Home link comes before the satellite in DOM order, so Tab reaches the orb first and the satellite second.
+- **Exit trigger.** The dock sets `data-nav-leaving` on the same frame it starts the home flight, before the route change that lands after the 300ms close. The satellite reads that attribute, so its 100ms exit finishes inside both the 300ms drawer close and the 120ms browser-Back fade. A settled `data-nav-state="home"` also hides it, so a fresh load or a re-revealed Activity copy cannot flash it.
+- **Token match.** The satellite enter/grow uses the Day phase row's nav-overlay entrance: 400ms (`--duration-long-1`) on `--ease-emphasized-decelerate`; shrink stays 240ms (`--duration-medium-1`) on `--ease-accelerate`. The exit is shortened to 100ms (`--duration-short-1`, the next scale step down) so it finishes before the shortest nav return, the 120ms browser-Back fade.
+- **Reduced motion.** The card keeps the state change as an opacity fade, drops icon and press transforms, and slows the spinner. The satellite hide is instant when leaving home, and its grow, press scale and pulse are removed. The slider fill still tracks the playhead because it communicates progress; the track and thumb stop resizing and fading.
+- **Phases.** The satellite dot and the card button both paint `--orb-gradient`, so the four phase gradients (Day, Dawn, Dusk, Night) come from the same token as the nav orb.
+
+- `src/components/home/now-playing-card.tsx` — `NowPlayingCard` (status) and `NowPlayingTimebar` (playhead)
+- `src/components/home/now-playing-card.css` — card press, icon fade, slider track, fill and thumb, hit targets, reduced motion
+- `src/components/player/player.css` — shared orb-gradient button press 0.95
+- `src/components/player/orb-player.css` — satellite dot/grow, pulse, 40px target, fine-pointer gate, reduced motion
+
 ## Drag canvas - Motion & Stills (2026-11-23)
 
 The live `/work/motion-and-stills` study is the approved canvas prototype inside the WorkDrawer, with the dev panel removed and the locked defaults fixed in `canvas-reader.tsx`. Source: `src/components/canvas/*` and `src/components/work/canvas-reader.tsx`.

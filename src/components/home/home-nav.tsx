@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { NavOrb } from "@/components/player/nav-orb";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { useTooltipWarm } from "@/components/nav/use-tooltip-warm";
-import { GazeOrb } from "./gaze-orb";
 import { NavItems } from "./nav-items";
 import { RingLayers } from "./ring-hover";
 import "./ring-hover.css";
@@ -30,9 +29,6 @@ import "./ring-hover.css";
  * The bar is one hover host: its own fill moves to the ring surface, and
  * keyboard focus inside it (the theme toggle, the links) opens the ring.
  */
-const FOCUS_RING =
-  "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
-
 export function HomeNav() {
   const tooltips = useTooltipWarm();
 
@@ -46,19 +42,7 @@ export function HomeNav() {
     >
       <RingLayers fill="bg-surface-container-low" />
 
-      <Link
-        href="/"
-        aria-label="Home"
-        className={`nav-logo relative shrink-0 rounded-full no-underline ${FOCUS_RING}`}
-      >
-        <GazeOrb />
-        <span
-          aria-hidden="true"
-          className="nav-tooltip pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 rounded-md bg-on-surface px-2 py-1 text-xs whitespace-nowrap text-surface"
-        >
-          Home
-        </span>
-      </Link>
+      <NavOrb />
 
       <div className="flex min-w-0 items-center gap-3">
         <NavItems />

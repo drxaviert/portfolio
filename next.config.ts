@@ -49,7 +49,15 @@ const nextConfig: NextConfig = {
     // Media is encoded ahead of time by `pnpm post` and drawn with `<picture>`,
     // so no request goes through Next's optimiser; this pattern is the
     // allow-list for any future next/image that points at the same store.
-    remotePatterns: mediaRemotePatterns(),
+    remotePatterns: [
+      ...mediaRemotePatterns(),
+      {
+        // The music card's sleeve artwork is the video's own thumbnail.
+        protocol: "https",
+        hostname: "i.ytimg.com",
+        pathname: "/vi/**",
+      },
+    ],
   },
   // Lets Dat test dev servers from a laptop on the LAN (Next 16 blocks
   // cross-origin dev requests, so the page never hydrates without this).
