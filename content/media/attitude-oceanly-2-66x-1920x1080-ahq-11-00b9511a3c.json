@@ -8,16 +8,16 @@
   "createdAt": "2026-11-23T15:19:28.813Z",
   "original": "Attitude Oceanly_2.66x_1920x1080_ahq-11.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/attitude-oceanly-2-66x-1920x1080-ahq-11-00b9511a3c/video.mp4",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/attitude-oceanly-2-66x-1920x1080-ahq-11-00b9511a3c/video.mp4",
     "bytes": 7089857
   },
   "canvas": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/attitude-oceanly-2-66x-1920x1080-ahq-11-00b9511a3c/canvas.mp4",
-    "bytes": 1095293
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/attitude-oceanly-2-66x-1920x1080-ahq-11-00b9511a3c/canvas.mp4",
+    "bytes": 1093740
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/attitude-oceanly-2-66x-1920x1080-ahq-11-00b9511a3c/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/attitude-oceanly-2-66x-1920x1080-ahq-11-00b9511a3c/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/attitude-oceanly-2-66x-1920x1080-ahq-11-00b9511a3c/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/attitude-oceanly-2-66x-1920x1080-ahq-11-00b9511a3c/poster.jpg"
   },
   "duration": 15.01,
   "hasAudio": false

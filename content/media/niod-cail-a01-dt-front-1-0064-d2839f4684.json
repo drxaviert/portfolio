@@ -8,12 +8,12 @@
   "createdAt": "2026-11-23T15:26:43.671Z",
   "original": "NIOD_CAIL_a01_DT_Front_1_0064.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/niod-cail-a01-dt-front-1-0064-d2839f4684/video.mp4",
-    "bytes": 1477201
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cail-a01-dt-front-1-0064-d2839f4684/video.mp4",
+    "bytes": 1478109
   },
   "hls": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/niod-cail-a01-dt-front-1-0064-d2839f4684/hls/master.m3u8",
-    "bytes": 11420738,
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cail-a01-dt-front-1-0064-d2839f4684/hls/master.m3u8",
+    "bytes": 11465579,
     "levels": [
       {
         "height": 1080,
@@ -30,8 +30,8 @@
     ]
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/niod-cail-a01-dt-front-1-0064-d2839f4684/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/niod-cail-a01-dt-front-1-0064-d2839f4684/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cail-a01-dt-front-1-0064-d2839f4684/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cail-a01-dt-front-1-0064-d2839f4684/poster.jpg"
   },
   "duration": 10,
   "hasAudio": false

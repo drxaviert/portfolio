@@ -36,6 +36,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+!.env.r2.example
+# R2 credentials: never commit these.
+.env.r2
 
 # vercel
 .vercel
@@ -52,3 +55,5 @@ next-env.d.ts
 media/inbox/*
 !media/inbox/.gitkeep
 media/archive/
+# Local renditions for MEDIA_ORIGIN=local; regenerate with `pnpm post --local`.
+media/local/

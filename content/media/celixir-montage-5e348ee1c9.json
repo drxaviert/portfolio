@@ -8,16 +8,16 @@
   "createdAt": "2026-11-23T15:19:40.356Z",
   "original": "Celixir_Montage_.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/celixir-montage-5e348ee1c9/video.mp4",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/celixir-montage-5e348ee1c9/video.mp4",
     "bytes": 1002844
   },
   "canvas": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/celixir-montage-5e348ee1c9/canvas.mp4",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/celixir-montage-5e348ee1c9/canvas.mp4",
     "bytes": 158130
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/celixir-montage-5e348ee1c9/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/celixir-montage-5e348ee1c9/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/celixir-montage-5e348ee1c9/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/celixir-montage-5e348ee1c9/poster.jpg"
   },
   "duration": 6,
   "hasAudio": false

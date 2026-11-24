@@ -43,11 +43,11 @@ describe("parseFrontmatter", () => {
 });
 
 describe("listWork", () => {
-  it("returns the three visible case studies", () => {
-    expect(listWork()).toHaveLength(3);
+  it("returns the four case studies", () => {
+    expect(listWork()).toHaveLength(4);
   });
 
-  it("gives every visible study a known cover", () => {
+  it("gives every study a known cover", () => {
     for (const work of listWork()) {
       expect(work.cover).toMatch(
         /^(tiles|window|phone|media:[a-z0-9][a-z0-9-]*)$/,
@@ -55,11 +55,12 @@ describe("listWork", () => {
     }
   });
 
-  it("keeps the visible reading order stable", () => {
+  it("keeps the reading order stable", () => {
     expect(listWork().map((work) => work.slug)).toEqual([
       "systems-in-motion",
       "title-sequence",
       "type-in-motion",
+      "motion-and-stills",
     ]);
   });
 });
@@ -70,11 +71,12 @@ describe("getWork", () => {
     expect(getWork(FEATURED_SLUG)?.layout).toBe("reader");
   });
 
-  it("hides Motion & Stills while its content stays in the repo", () => {
-    expect(getWork("motion-and-stills")).toBeNull();
-    expect(listWork().map((work) => work.slug)).not.toContain(
-      "motion-and-stills",
-    );
+  it("reads Motion & Stills as the canvas study", () => {
+    const work = getWork("motion-and-stills");
+
+    expect(work?.layout).toBe("canvas");
+    expect(work?.cover).toBe("media:good-form-reel-4c969cc977");
+    expect(work?.coverImage?.width).toBeGreaterThan(0);
   });
 
   it("returns null for an unknown slug", () => {
@@ -87,8 +89,9 @@ describe("nextWork", () => {
     expect(nextWork("systems-in-motion").slug).toBe("title-sequence");
   });
 
-  it("wraps from the last visible study back to the first", () => {
-    expect(nextWork("type-in-motion").slug).toBe("systems-in-motion");
+  it("wraps from the last study back to the first", () => {
+    expect(nextWork("motion-and-stills").slug).toBe("systems-in-motion");
+    expect(nextWork("type-in-motion").slug).toBe("motion-and-stills");
   });
 });
 

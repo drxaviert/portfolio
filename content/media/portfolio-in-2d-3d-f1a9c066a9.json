@@ -8,11 +8,11 @@
   "createdAt": "2026-11-23T15:19:33.883Z",
   "original": "Portfolio_in 2D-3D.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/portfolio-in-2d-3d-f1a9c066a9/video.mp4",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/portfolio-in-2d-3d-f1a9c066a9/video.mp4",
     "bytes": 271957
   },
   "hls": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/portfolio-in-2d-3d-f1a9c066a9/hls/master.m3u8",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/portfolio-in-2d-3d-f1a9c066a9/hls/master.m3u8",
     "bytes": 1923647,
     "levels": [
       {
@@ -30,8 +30,8 @@
     ]
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/portfolio-in-2d-3d-f1a9c066a9/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/portfolio-in-2d-3d-f1a9c066a9/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/portfolio-in-2d-3d-f1a9c066a9/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/portfolio-in-2d-3d-f1a9c066a9/poster.jpg"
   },
   "duration": 24,
   "hasAudio": false

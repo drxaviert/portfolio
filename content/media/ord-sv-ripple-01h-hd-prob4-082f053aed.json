@@ -8,12 +8,12 @@
   "createdAt": "2026-11-23T15:24:23.825Z",
   "original": "ORD_SV_Ripple_01h_HD_prob4.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/ord-sv-ripple-01h-hd-prob4-082f053aed/video.mp4",
-    "bytes": 3898619
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ord-sv-ripple-01h-hd-prob4-082f053aed/video.mp4",
+    "bytes": 3899892
   },
   "hls": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/ord-sv-ripple-01h-hd-prob4-082f053aed/hls/master.m3u8",
-    "bytes": 28436933,
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ord-sv-ripple-01h-hd-prob4-082f053aed/hls/master.m3u8",
+    "bytes": 28464087,
     "levels": [
       {
         "height": 1080,
@@ -30,8 +30,8 @@
     ]
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/ord-sv-ripple-01h-hd-prob4-082f053aed/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/ord-sv-ripple-01h-hd-prob4-082f053aed/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ord-sv-ripple-01h-hd-prob4-082f053aed/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ord-sv-ripple-01h-hd-prob4-082f053aed/poster.jpg"
   },
   "duration": 60.05,
   "hasAudio": false

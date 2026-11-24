@@ -8,16 +8,16 @@
   "createdAt": "2026-11-23T15:22:48.631Z",
   "original": "Klaris_Main.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-main-0c804c5e5d/video.mp4",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-main-0c804c5e5d/video.mp4",
     "bytes": 1152515
   },
   "canvas": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-main-0c804c5e5d/canvas.mp4",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-main-0c804c5e5d/canvas.mp4",
     "bytes": 238818
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-main-0c804c5e5d/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-main-0c804c5e5d/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-main-0c804c5e5d/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-main-0c804c5e5d/poster.jpg"
   },
   "duration": 12,
   "hasAudio": false

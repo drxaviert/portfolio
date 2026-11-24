@@ -8,11 +8,11 @@
   "createdAt": "2026-11-23T15:22:57.559Z",
   "original": "Klaris_Side_Shot_03_v01a.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-side-shot-03-v01a-0ce80af849/video.mp4",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-03-v01a-0ce80af849/video.mp4",
     "bytes": 332986
   },
   "hls": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-side-shot-03-v01a-0ce80af849/hls/master.m3u8",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-03-v01a-0ce80af849/hls/master.m3u8",
     "bytes": 2335907,
     "levels": [
       {
@@ -30,8 +30,8 @@
     ]
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-side-shot-03-v01a-0ce80af849/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-side-shot-03-v01a-0ce80af849/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-03-v01a-0ce80af849/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-03-v01a-0ce80af849/poster.jpg"
   },
   "duration": 20.04,
   "hasAudio": false

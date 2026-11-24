@@ -1,11 +1,21 @@
 import fs from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
-import { coverImageFor, getMedia, listMedia, validateManifest } from "./media";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  coverImageFor,
+  getMedia,
+  listMedia,
+  rewriteMediaUrls,
+  validateManifest,
+} from "./media";
 import { sourceSet } from "@/components/media/source-set";
 
 const IMAGE_ID = "pipeline-test-still-4a9b86e544";
 const VIDEO_ID = "pipeline-test-loop-c0fe9c23ef";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("getMedia", () => {
   it("reads and sorts an image manifest", () => {
@@ -27,9 +37,7 @@ describe("getMedia", () => {
     expect(media.kind).toBe("video");
     if (media.kind !== "video") return;
 
-    expect(media.mp4.url).toMatch(
-      /^https:\/\/.+\.public\.blob\.vercel-storage\.com\//,
-    );
+    expect(media.mp4.url).toMatch(/\.mp4$/);
     expect(media.webm?.url).toMatch(/\.webm$/);
     expect(media.poster.avif).toMatch(/\.avif$/);
     expect(media.poster.jpg).toMatch(/\.jpg$/);
@@ -43,6 +51,61 @@ describe("getMedia", () => {
     expect(() => getMedia("../work/systems-in-motion")).toThrow(
       /not a media id/,
     );
+  });
+});
+
+describe("MEDIA_ORIGIN=local", () => {
+  it("rewrites every image variant to the local route", () => {
+    vi.stubEnv("MEDIA_ORIGIN", "local");
+    const media = getMedia(IMAGE_ID);
+    if (media.kind !== "image") throw new Error("expected image");
+
+    expect(media.sources.map((source) => source.url)).toEqual(
+      media.sources.map(
+        (source) =>
+          `/media/local/media/${IMAGE_ID}/${source.url.split("/").at(-1)}`,
+      ),
+    );
+    expect(media.lqip.startsWith("data:image/webp;base64,")).toBe(true);
+  });
+
+  it("rewrites a video's mp4, webm, hls and posters", () => {
+    vi.stubEnv("MEDIA_ORIGIN", "local");
+    const media = getMedia(VIDEO_ID);
+    if (media.kind !== "video") throw new Error("expected video");
+
+    expect(media.mp4.url).toBe(`/media/local/media/${VIDEO_ID}/video.mp4`);
+    expect(media.webm?.url).toBe(`/media/local/media/${VIDEO_ID}/video.webm`);
+    expect(media.poster.avif).toBe(
+      `/media/local/media/${VIDEO_ID}/poster.avif`,
+    );
+    expect(media.poster.jpg).toBe(`/media/local/media/${VIDEO_ID}/poster.jpg`);
+  });
+
+  it("keeps production URLs when the env is unset", () => {
+    vi.stubEnv("MEDIA_ORIGIN", "");
+    const media = getMedia(VIDEO_ID);
+    if (media.kind !== "video") throw new Error("expected video");
+
+    expect(media.mp4.url).toMatch(/^https:\/\//);
+  });
+
+  it("leaves non-editorial strings such as captions alone", () => {
+    vi.stubEnv("MEDIA_ORIGIN", "local");
+    const media = getMedia(VIDEO_ID);
+
+    expect(media.caption).not.toMatch(/^\/media\/local/);
+  });
+
+  it("rewrites a manifest without mutating the input", () => {
+    vi.stubEnv("MEDIA_ORIGIN", "");
+    const media = getMedia(VIDEO_ID);
+    const copy = structuredClone(media);
+    const rewritten = rewriteMediaUrls(copy);
+
+    expect(copy).toEqual(media);
+    if (rewritten.kind !== "video") throw new Error("expected video");
+    expect(rewritten.mp4.url).toMatch(/^\/media\/local\//);
   });
 });
 
@@ -107,7 +170,7 @@ describe("validateManifest", () => {
       {
         format: "avif",
         width: 640,
-        url: "https://example.public.blob.vercel-storage.com/test/w640.avif",
+        url: "https://media.example.com/test/w640.avif",
       },
     ],
     lqip: "data:image/webp;base64,AAAA",
@@ -152,7 +215,7 @@ describe("validateManifest", () => {
     ...image(),
     kind: "video",
     mp4: {
-      url: "https://example.public.blob.vercel-storage.com/test/video.mp4",
+      url: "https://media.example.com/test/video.mp4",
       bytes: 1200,
     },
     poster: { avif: "https://x/y.avif", jpg: "https://x/y.jpg" },
@@ -164,7 +227,7 @@ describe("validateManifest", () => {
     const manifest = {
       ...video(),
       hls: {
-        url: "https://example.public.blob.vercel-storage.com/test/hls/master.m3u8",
+        url: "https://media.example.com/test/hls/master.m3u8",
         bytes: 24_000_000,
         levels: [
           { height: 1080, bandwidth: 5_000_000 },
@@ -235,7 +298,7 @@ describe("validateManifest", () => {
     const manifest = {
       ...video(),
       canvas: {
-        url: "https://example.public.blob.vercel-storage.com/test/canvas.mp4",
+        url: "https://media.example.com/test/canvas.mp4",
         bytes: 800_000,
       },
     };

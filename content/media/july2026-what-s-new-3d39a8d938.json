@@ -8,12 +8,12 @@
   "createdAt": "2026-11-23T15:21:09.128Z",
   "original": "July2026_What's New.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/july2026-what-s-new-3d39a8d938/video.mp4",
-    "bytes": 5160457
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/july2026-what-s-new-3d39a8d938/video.mp4",
+    "bytes": 5165475
   },
   "hls": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/july2026-what-s-new-3d39a8d938/hls/master.m3u8",
-    "bytes": 36615006,
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/july2026-what-s-new-3d39a8d938/hls/master.m3u8",
+    "bytes": 36632383,
     "levels": [
       {
         "height": 1080,
@@ -30,8 +30,8 @@
     ]
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/july2026-what-s-new-3d39a8d938/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/july2026-what-s-new-3d39a8d938/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/july2026-what-s-new-3d39a8d938/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/july2026-what-s-new-3d39a8d938/poster.jpg"
   },
   "duration": 82.55,
   "hasAudio": false

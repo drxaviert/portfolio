@@ -8,12 +8,12 @@
   "createdAt": "2026-11-23T15:21:41.594Z",
   "original": "Platform Explainer_2026_v05c_wMusic.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/platform-explainer-2026-v05c-w-music-32981d3544/video.mp4",
-    "bytes": 7628897
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/platform-explainer-2026-v05c-w-music-32981d3544/video.mp4",
+    "bytes": 7627331
   },
   "hls": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/platform-explainer-2026-v05c-w-music-32981d3544/hls/master.m3u8",
-    "bytes": 48167303,
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/platform-explainer-2026-v05c-w-music-32981d3544/hls/master.m3u8",
+    "bytes": 48183123,
     "levels": [
       {
         "height": 1080,
@@ -30,8 +30,8 @@
     ]
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/platform-explainer-2026-v05c-w-music-32981d3544/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/platform-explainer-2026-v05c-w-music-32981d3544/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/platform-explainer-2026-v05c-w-music-32981d3544/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/platform-explainer-2026-v05c-w-music-32981d3544/poster.jpg"
   },
   "duration": 101.68,
   "hasAudio": false

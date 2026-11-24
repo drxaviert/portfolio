@@ -5,15 +5,15 @@
  * For every file dropped in `media/inbox/` this:
  *   1. derives a content-addressed id (`slug-sha256[:10]`),
  *   2. encodes web variants with sharp (images) or ffmpeg (video),
- *   3. uploads them to Vercel Blob under `media/<id>/`,
+ *   3. uploads them to Cloudflare R2 under `media/<id>/`,
  *   4. writes `content/media/<id>.json`, and
  *   5. moves the original to `media/archive/` (never deletes it).
  *
  * Re-running is a no-op for anything that already has a manifest. Encoding happens in a
- * throwaway directory under `os.tmpdir()`; uploads are skipped with `--dry-run`.
+ * throwaway directory under `os.tmpdir()`; uploads are skipped with `--dry-run`, and
+ * `--local` writes the same objects to `media/local/` instead of R2.
  */
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
   mkdir,
@@ -29,11 +29,6 @@ import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-import {
-  BlobAccessError,
-  BlobClientTokenExpiredError,
-  put,
-} from "@vercel/blob";
 import sharp from "sharp";
 import type {
   ImageMedia,
@@ -42,7 +37,15 @@ import type {
   VideoMedia,
 } from "../src/lib/media-types";
 import { WORK_BODIES } from "../src/lib/work-bodies.ts";
-import { refreshBlobEnv } from "./lib/blob-env.ts";
+import { HLS_MIN_DURATION } from "./lib/media-encoding.ts";
+import { mediaIdFor, slugify } from "./lib/media-id.ts";
+import {
+  createDryRunStore,
+  createLocalStore,
+  createR2Store,
+  type MediaStore,
+} from "./lib/media-store.ts";
+import { loadR2Env } from "./lib/r2-env.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -76,7 +79,7 @@ const CANVAS_MAXRATE = "650k";
 const CANVAS_BUFSIZE = "1300k";
 
 /** Above this many seconds a clip is worth an adaptive ladder instead of one MP4. */
-export const HLS_MIN_DURATION = 20;
+export { HLS_MIN_DURATION };
 const HLS_WARN_BYTES = 60 * 1024 * 1024;
 const HLS_MAX_BYTES = 150 * 1024 * 1024;
 
@@ -108,6 +111,16 @@ interface CliOptions {
   noHls: boolean;
   posterAt: number;
   dryRun: boolean;
+  /** Re-encode even when a manifest already exists (the R2 migration uses it). */
+  force: boolean;
+  /** HEAD each object first and leave an existing one alone. */
+  skipExisting: boolean;
+  /** Write encoded objects to media/local/ instead of R2. */
+  local: boolean;
+  /** Upload to R2 and also mirror the objects into media/local/. */
+  mirrorLocal: boolean;
+  /** Leave the inbox original in place instead of renaming it into media/archive/. */
+  noArchive: boolean;
   help: boolean;
 }
 
@@ -155,6 +168,11 @@ function parseArgs(argv: string[]): CliOptions {
     noHls: false,
     posterAt: 0,
     dryRun: false,
+    force: false,
+    skipExisting: false,
+    local: false,
+    mirrorLocal: false,
+    noArchive: false,
     help: false,
   };
 
@@ -210,6 +228,21 @@ function parseArgs(argv: string[]): CliOptions {
       case "--dry-run":
         options.dryRun = true;
         break;
+      case "--force":
+        options.force = true;
+        break;
+      case "--skip-existing":
+        options.skipExisting = true;
+        break;
+      case "--local":
+        options.local = true;
+        break;
+      case "--mirror-local":
+        options.mirrorLocal = true;
+        break;
+      case "--no-archive":
+        options.noArchive = true;
+        break;
       case "--help":
       case "-h":
         options.help = true;
@@ -237,7 +270,7 @@ function parseArgs(argv: string[]): CliOptions {
 }
 
 function printHelp(): void {
-  console.log(`pnpm post — encode media/inbox/ and publish it to Vercel Blob
+  console.log(`pnpm post — encode media/inbox/ and publish it to Cloudflare R2
 
 Usage
   pnpm post [options]
@@ -261,6 +294,12 @@ Options
   --no-hls              Keep a single progressive MP4 even past 20 s.
   --poster-at <sec>     Poster frame timestamp in seconds. Default: 0.
   --dry-run             Encode and report, but do not upload or write anything.
+  --force               Re-encode even when content/media/<id>.json exists.
+  --skip-existing       HEAD each object and leave an existing one untouched.
+  --local               Write encoded objects to media/local/ instead of R2.
+  --mirror-local        Upload to R2 and also copy every object to media/local/.
+  --no-archive          Leave the inbox original in place (the R2 migration
+                        cleans up its own staging copy).
   --help, -h            Show this help.
 
 Video
@@ -272,11 +311,10 @@ Video
   WebGL grid.
 
 Environment
-  Blob auth comes from .env.blob (BLOB_STORE_ID + VERCEL_OIDC_TOKEN). A missing
-  token, or one within 15 minutes of expiry, is refreshed automatically with
-  \`pnpm blob:env\` (vercel env pull). BLOB_READ_WRITE_TOKEN in .env.local or the
-  environment also works and is never refreshed. Not needed with --dry-run.
-  ffmpeg and ffprobe must be on PATH.
+  R2 credentials come from .env.r2: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
+  R2_SECRET_ACCESS_KEY, R2_BUCKET and R2_PUBLIC_BASE_URL. Missing keys are
+  named in the error; values are never printed. --dry-run needs no credentials,
+  and --local needs no credentials either. ffmpeg and ffprobe must be on PATH.
 `);
 }
 
@@ -290,46 +328,11 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function slugify(input: string, maxLength = 60): string {
-  return input
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, maxLength)
-    .replace(/-+$/g, "");
-}
-
 function loadEnv(): void {
-  // `.env.blob` first: the freshly pulled OIDC token must win over a stale copy in
-  // `.env.local`, and process.loadEnvFile never overwrites an already-set variable.
-  for (const file of [".env.blob", ".env.local"]) {
-    const envPath = path.join(ROOT, file);
-    if (existsSync(envPath)) process.loadEnvFile(envPath);
-  }
-}
-
-const AUTH_HINT =
-  "Blob auth expired or missing: run  vercel env pull .env.blob --environment=production --yes";
-
-function hasBlobAuth(): boolean {
-  if (process.env.BLOB_READ_WRITE_TOKEN) return true;
-  return Boolean(process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN);
-}
-
-function isAuthError(error: unknown): boolean {
-  if (
-    error instanceof BlobAccessError ||
-    error instanceof BlobClientTokenExpiredError
-  ) {
-    return true;
-  }
-  const status = (error as { statusCode?: number }).statusCode;
-  if (status === 401 || status === 403) return true;
-  return /oidc|missing credentials|unauthorized|forbidden|\b(401|403)\b|token.*expired|expired.*token/i.test(
-    errorMessage(error),
-  );
+  // `.env.local` may hold a shell-style override; `.env.r2` is read by
+  // `loadR2Env`, which gives a real environment variable precedence over it.
+  const envPath = path.join(ROOT, ".env.local");
+  if (existsSync(envPath)) process.loadEnvFile(envPath);
 }
 
 function errorMessage(error: unknown): string {
@@ -338,44 +341,30 @@ function errorMessage(error: unknown): string {
 }
 
 async function mediaId(file: string, name: string): Promise<string> {
-  const hash = createHash("sha256")
-    .update(await readFile(file))
-    .digest("hex")
-    .slice(0, 10);
-  const base = path.parse(name).name;
-  const slug = slugify(base, 40) || "media";
-  return `${slug}-${hash}`;
+  return mediaIdFor(name, await readFile(file));
 }
 
-async function publish(
-  pathname: string,
-  body: Buffer,
-  contentType: string,
-  dryRun: boolean,
-): Promise<string> {
-  if (dryRun) {
-    console.log(
-      `  dry-run  would upload ${pathname} (${contentType}, ${formatBytes(body.byteLength)})`,
-    );
-    return `https://dry-run.invalid/${pathname}`;
+/**
+ * The one place the pipeline chooses where bytes go. A dry run never reads
+ * `.env.r2` and never constructs an S3 client; `--local` still needs the public
+ * base URL because the committed manifest records production URLs.
+ */
+function createStore(options: CliOptions): MediaStore {
+  if (options.dryRun) return createDryRunStore();
+
+  const env = loadR2Env(ROOT, {
+    requireCredentials: !options.local,
+  });
+  if (options.local) {
+    return createLocalStore({ root: ROOT, publicBaseUrl: env.publicBaseUrl });
   }
 
-  try {
-    const blob = await put(pathname, body, {
-      access: "public",
-      addRandomSuffix: false,
-      cacheControlMaxAge: 31536000,
-      contentType,
-    });
-    console.log(`  upload   ${pathname} (${formatBytes(body.byteLength)})`);
-    return blob.url;
-  } catch (error) {
-    if (isAuthError(error)) {
-      console.error(`\n${AUTH_HINT}\n  cause: ${errorMessage(error)}\n`);
-      throw new Error("blob upload was rejected (auth)");
-    }
-    throw error;
-  }
+  return createR2Store(env, {
+    skipExisting: options.skipExisting,
+    ...(options.mirrorLocal
+      ? { mirrorRoot: path.join(ROOT, "media", "local") }
+      : {}),
+  });
 }
 
 const UPLOAD_CONCURRENCY = 6;
@@ -387,8 +376,8 @@ const UPLOAD_CONCURRENCY = 6;
  */
 async function publishAll(
   id: string,
-  files: { relative: string; body: Buffer; contentType: string }[],
-  dryRun: boolean,
+  files: { relative: string; body: Buffer }[],
+  store: MediaStore,
 ): Promise<Map<string, string>> {
   const bytes = files.reduce((total, file) => total + file.body.byteLength, 0);
   console.log(`  info     hls ${files.length} files · ${formatBytes(bytes)}`);
@@ -399,12 +388,10 @@ async function publishAll(
   const worker = async (): Promise<void> => {
     while (next < files.length) {
       const file = files[next++];
-      const url = await publish(
-        `media/${id}/hls/${file.relative}`,
-        file.body,
-        file.contentType,
-        dryRun,
-      );
+      const { url } = await store.put({
+        key: `media/${id}/hls/${file.relative}`,
+        body: file.body,
+      });
       urls.set(file.relative, url);
     }
   };
@@ -432,7 +419,7 @@ async function processImage(
   job: Job,
   alt: string,
   caption: string,
-  dryRun: boolean,
+  store: MediaStore,
 ): Promise<ImageMedia> {
   const metadata = await sharp(job.file).metadata();
   if (!metadata.width || !metadata.height) {
@@ -462,22 +449,22 @@ async function processImage(
     sources.push({
       format: "avif",
       width: targetWidth,
-      url: await publish(
-        `media/${job.id}/${avifName}`,
-        avif,
-        "image/avif",
-        dryRun,
-      ),
+      url: (
+        await store.put({
+          key: `media/${job.id}/${avifName}`,
+          body: avif,
+        })
+      ).url,
     });
     sources.push({
       format: "webp",
       width: targetWidth,
-      url: await publish(
-        `media/${job.id}/${webpName}`,
-        webp,
-        "image/webp",
-        dryRun,
-      ),
+      url: (
+        await store.put({
+          key: `media/${job.id}/${webpName}`,
+          body: webp,
+        })
+      ).url,
     });
   }
 
@@ -651,11 +638,6 @@ async function listFilesRecursive(dir: string, base = dir): Promise<string[]> {
   return files.sort((a, b) => a.localeCompare(b));
 }
 
-function contentTypeFor(file: string): string {
-  if (file.endsWith(".m3u8")) return "application/vnd.apple.mpegurl";
-  return "video/mp4";
-}
-
 /** `BANDWIDTH` and `RESOLUTION` from the master playlist, tallest first. */
 function readMasterLevels(
   master: string,
@@ -671,8 +653,8 @@ function readMasterLevels(
 }
 
 interface HlsOutput {
-  /** Paths relative to `<id>/hls/`, body and content type ready to upload. */
-  files: { relative: string; body: Buffer; contentType: string }[];
+  /** Paths relative to `<id>/hls/`, body ready to upload. */
+  files: { relative: string; body: Buffer }[];
   bytes: number;
   levels: { height: number; bandwidth: number }[];
 }
@@ -772,7 +754,7 @@ async function encodeHls(
   const files = await Promise.all(
     relatives.map(async (relative) => {
       const body = await readFile(path.join(hlsDir, relative));
-      return { relative, body, contentType: contentTypeFor(relative) };
+      return { relative, body };
     }),
   );
   const master = await readFile(path.join(hlsDir, "master.m3u8"), "utf8");
@@ -790,6 +772,7 @@ async function processVideo(
   caption: string,
   options: CliOptions,
   workDir: string,
+  store: MediaStore,
 ): Promise<VideoMedia> {
   const probe = await probeVideo(job.file);
   const useHls = shouldUseHls(probe.duration, options);
@@ -964,22 +947,22 @@ async function processVideo(
   ]);
 
   // Every HLS file lands under `media/<id>/hls/`, so the master's relative
-  // variant URIs keep working straight from Blob.
+  // variant URIs keep working straight from R2.
   let hlsUrl: string | undefined;
   if (hls) {
-    const urls = await publishAll(job.id, hls.files, options.dryRun);
+    const urls = await publishAll(job.id, hls.files, store);
     hlsUrl = urls.get("master.m3u8");
   }
 
   let webm: { url: string; bytes: number } | undefined;
   if (webmBuffer) {
     webm = {
-      url: await publish(
-        `media/${job.id}/video.webm`,
-        webmBuffer,
-        "video/webm",
-        options.dryRun,
-      ),
+      url: (
+        await store.put({
+          key: `media/${job.id}/video.webm`,
+          body: webmBuffer,
+        })
+      ).url,
       bytes: webmBuffer.byteLength,
     };
   }
@@ -994,23 +977,23 @@ async function processVideo(
     createdAt: new Date().toISOString(),
     original: job.name,
     mp4: {
-      url: await publish(
-        `media/${job.id}/video.mp4`,
-        mp4,
-        "video/mp4",
-        options.dryRun,
-      ),
+      url: (
+        await store.put({
+          key: `media/${job.id}/video.mp4`,
+          body: mp4,
+        })
+      ).url,
       bytes: mp4.byteLength,
     },
     ...(canvasBuffer
       ? {
           canvas: {
-            url: await publish(
-              `media/${job.id}/canvas.mp4`,
-              canvasBuffer,
-              "video/mp4",
-              options.dryRun,
-            ),
+            url: (
+              await store.put({
+                key: `media/${job.id}/canvas.mp4`,
+                body: canvasBuffer,
+              })
+            ).url,
             bytes: canvasBuffer.byteLength,
           },
         }
@@ -1020,18 +1003,18 @@ async function processVideo(
       ? { hls: { url: hlsUrl, bytes: hls.bytes, levels: hls.levels } }
       : {}),
     poster: {
-      avif: await publish(
-        `media/${job.id}/poster.avif`,
-        posterAvif,
-        "image/avif",
-        options.dryRun,
-      ),
-      jpg: await publish(
-        `media/${job.id}/poster.jpg`,
-        posterJpg,
-        "image/jpeg",
-        options.dryRun,
-      ),
+      avif: (
+        await store.put({
+          key: `media/${job.id}/poster.avif`,
+          body: posterAvif,
+        })
+      ).url,
+      jpg: (
+        await store.put({
+          key: `media/${job.id}/poster.jpg`,
+          body: posterJpg,
+        })
+      ).url,
     },
     duration: Number(probe.duration.toFixed(2)),
     // The manifest describes the encode, not the source: without --audio the MP4 has
@@ -1123,24 +1106,11 @@ async function run(): Promise<number> {
 
   loadEnv();
 
-  // OIDC tokens expire ~12 h after `vercel env pull`, so refresh a stale .env.blob
-  // before encoding starts rather than failing mid-upload. A BLOB_READ_WRITE_TOKEN
-  // needs no refresh, and --dry-run never uploads.
-  if (!options.dryRun && !process.env.BLOB_READ_WRITE_TOKEN) {
-    try {
-      await refreshBlobEnv(ROOT);
-    } catch (error) {
-      console.error(`fail     ${errorMessage(error)}`);
-      return 1;
-    }
-  }
-
-  if (!options.dryRun && !hasBlobAuth()) {
-    console.error(
-      "fail     no Blob credentials: expected BLOB_STORE_ID + VERCEL_OIDC_TOKEN in .env.blob, or BLOB_READ_WRITE_TOKEN.\n" +
-        `         ${AUTH_HINT}\n` +
-        "         (--dry-run works without credentials.)",
-    );
+  let store: MediaStore;
+  try {
+    store = createStore(options);
+  } catch (error) {
+    console.error(`fail     ${errorMessage(error)}`);
     return 1;
   }
 
@@ -1169,7 +1139,7 @@ async function run(): Promise<number> {
     const file = path.join(INBOX_DIR, name);
     const id = await mediaId(file, name);
 
-    if (existsSync(path.join(MANIFEST_DIR, `${id}.json`))) {
+    if (!options.force && existsSync(path.join(MANIFEST_DIR, `${id}.json`))) {
       console.log(`skip     ${name} — content/media/${id}.json already exists`);
       continue;
     }
@@ -1201,8 +1171,8 @@ async function run(): Promise<number> {
 
         const manifest =
           job.kind === "image"
-            ? await processImage(job, alt, caption, options.dryRun)
-            : await processVideo(job, alt, caption, options, workDir);
+            ? await processImage(job, alt, caption, store)
+            : await processVideo(job, alt, caption, options, workDir, store);
 
         const manifestPath = path.join(MANIFEST_DIR, `${job.id}.json`);
 
@@ -1214,11 +1184,17 @@ async function run(): Promise<number> {
             `${JSON.stringify(manifest, null, 2)}\n`,
             "utf8",
           );
-          const archivePath = path.join(ARCHIVE_DIR, `${job.id}.${job.ext}`);
-          await rename(job.file, archivePath);
-          console.log(
-            `ok       ${job.name} → ${job.id} (archived as media/archive/${job.id}.${job.ext})`,
-          );
+          if (options.noArchive) {
+            console.log(
+              `ok       ${job.name} → ${job.id} (original left in media/inbox)`,
+            );
+          } else {
+            const archivePath = path.join(ARCHIVE_DIR, `${job.id}.${job.ext}`);
+            await rename(job.file, archivePath);
+            console.log(
+              `ok       ${job.name} → ${job.id} (archived as media/archive/${job.id}.${job.ext})`,
+            );
+          }
         }
 
         written.push(manifest);

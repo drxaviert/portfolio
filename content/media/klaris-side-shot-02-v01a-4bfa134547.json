@@ -8,16 +8,16 @@
   "createdAt": "2026-11-23T15:22:52.359Z",
   "original": "Klaris_Side_Shot_02_v01a.webm",
   "mp4": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-side-shot-02-v01a-4bfa134547/video.mp4",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-02-v01a-4bfa134547/video.mp4",
     "bytes": 552522
   },
   "canvas": {
-    "url": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-side-shot-02-v01a-4bfa134547/canvas.mp4",
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-02-v01a-4bfa134547/canvas.mp4",
     "bytes": 128995
   },
   "poster": {
-    "avif": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-side-shot-02-v01a-4bfa134547/poster.avif",
-    "jpg": "https://gqmuctnovmepq87p.public.blob.vercel-storage.com/media/klaris-side-shot-02-v01a-4bfa134547/poster.jpg"
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-02-v01a-4bfa134547/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-02-v01a-4bfa134547/poster.jpg"
   },
   "duration": 6.21,
   "hasAudio": false
