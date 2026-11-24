@@ -79,7 +79,9 @@ export function MobileGate() {
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  if (pathname.startsWith("/dev")) return null;
+  // The live pieces are full-screen and own their touch interaction; a gate in
+  // front of them would hide the work the route exists to show.
+  if (pathname.startsWith("/dev") || pathname.startsWith("/live")) return null;
 
   function viewDesktop() {
     try {

@@ -1,0 +1,103 @@
+/*
+ * The live canvas study. It fills the drawer panel, so the panel's own inset,
+ * radius, shadow and morph stay in charge around it.
+ */
+
+.cv-reader {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--on-surface);
+}
+
+.cv-reader__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.cv-reader__stage {
+  position: absolute;
+  inset: 0;
+  transition: opacity var(--duration-medium-5) var(--ease-decelerate);
+}
+
+.cv-reader[data-viewing] .cv-reader__stage {
+  opacity: 0.4;
+}
+
+/* One bottom chip: the shared breadcrumb, a hairline divider and the hint.
+   The chip keeps the hint pill's surface: no stroke, card shadow, pill radius. */
+.cv-reader__pill {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: var(--shadow-card);
+}
+
+.cv-reader__bottom-bar {
+  position: absolute;
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 24px);
+  left: max(16px, env(safe-area-inset-left));
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  pointer-events: auto;
+  white-space: nowrap;
+}
+
+.cv-reader__bottom-bar .wd-breadcrumb {
+  margin: 0;
+}
+
+.cv-reader__bottom-divider {
+  width: 1px;
+  height: 12px;
+  flex: 0 0 1px;
+  background: var(--outline-variant);
+}
+
+.cv-reader__bottom-hint {
+  color: var(--on-surface-variant);
+}
+
+@media (min-width: 768px) {
+  .cv-reader__bottom-bar {
+    left: 32px;
+  }
+}
+
+/*
+ * The crumb trail already fills the chip at phone width. Drop the hint and its
+ * divider instead of wrapping the trail or pushing the chip past the edge.
+ */
+@media (max-width: 560px) {
+  .cv-reader__bottom-bar {
+    gap: 0;
+  }
+
+  .cv-reader__bottom-hint,
+  .cv-reader__bottom-divider {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-reader__stage {
+    transition: none;
+  }
+}

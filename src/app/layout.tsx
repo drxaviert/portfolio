@@ -3,6 +3,7 @@ import { Work_Sans } from "next/font/google";
 import type { ReactNode } from "react";
 import { SharedHorizon } from "@/components/horizon/shared-horizon";
 import { NavDock } from "@/components/nav/nav-dock";
+import { PersistentPlayerProvider } from "@/components/player/persistent-player-provider";
 import { MobileGate } from "@/components/system/mobile-gate";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
@@ -70,13 +71,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <ThemeProvider>
-          <SharedHorizon />
-          {children}
-          {/* One nav for the whole site, after the page so the overlay's focus
-              trap can cycle from the panel into it. The homepage's edge blur is
-              mounted by `/` itself (app/page.tsx), not here. */}
-          <NavDock />
-          <MobileGate />
+          <PersistentPlayerProvider>
+            <SharedHorizon />
+            {children}
+            {/* One nav for the whole site, after the page so the overlay's focus
+                trap can cycle from the panel into it. The homepage's edge blur is
+                mounted by `/` itself (app/page.tsx), not here. */}
+            <NavDock />
+            <MobileGate />
+          </PersistentPlayerProvider>
         </ThemeProvider>
       </body>
     </html>

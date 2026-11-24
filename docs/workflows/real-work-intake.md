@@ -28,7 +28,7 @@ route 404s in a production build.
 3. Commit `content/media/<id>.json` once the run prints `ok` for every file.
 
 For each file in the inbox the script derives an id from the filename and a sha256 prefix, for
-example `pipeline-test-loop-c0fe9c23ef`, then:
+example `f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097`, then:
 
 - **Image:** AVIF and WebP at 640 / 1280 / 1920 / 2560 that fall below the source width, plus the
   source width itself; never upscaled. EXIF orientation is applied. A 16px WebP becomes the inline
@@ -36,7 +36,8 @@ example `pipeline-test-loop-c0fe9c23ef`, then:
 - **Video:** H.264 MP4 at CRF 20, preset `slow`, `-movflags +faststart`, height capped at 1080;
   audio stripped unless `--audio`. AVIF and JPG posters from `--poster-at` (default 0). `--webm`
   adds a VP9 file.
-- Uploads to `media/<id>/` on Vercel Blob, public and cached for a year.
+- Uploads to `media/<id>/` on Cloudflare R2, with the mapped content type and a one-year
+  immutable cache.
 - Writes `content/media/<id>.json` and moves the original to `media/archive/<id>.<ext>`. The script
   never deletes an archived original.
 
@@ -56,6 +57,10 @@ file is skipped and an edited file becomes a new id.
 | `--poster-at <sec>` | Poster frame timestamp, default `0`. It must be inside the clip's duration. |
 | `--post "<caption>"` | Also write `content/posts/<yyyy-mm-dd>-<slug>.mdx`, frontmatter only (`date`, `caption`, `media: [ids]`). |
 | `--study <slug>` | Validate the slug against the studies the site can open, then print `Paste into content/work/<slug>.mdx:` above a `<Figure><Media /></Figure>` snippet for each id ingested in the run; the slug does not filter. An unknown slug is a usage error before any encode or upload. |
+| `--force` | Re-encode even when `content/media/<id>.json` already exists. The R2 migration uses it. |
+| `--skip-existing` | HEAD each R2 object and leave an existing key untouched. |
+| `--local` | Write the encoded objects to `media/local/` instead of R2; the manifest still records the R2 URL. Use this before R2 credentials exist, or to build a local test set. |
+| `--mirror-local` | Upload to R2 and also copy every object to `media/local/`. The migration's `--local` uses this. |
 | `--help`, `-h` | Print the flags and the environment notes. |
 
 The script takes flags only; there are no positional arguments. Hidden files and unknown extensions
@@ -64,54 +69,59 @@ are skipped. A failure exits `1`, a usage error `2`.
 ### Reference an id from content
 
 ```mdx
-<Figure media="pipeline-test-still-4a9b86e544" caption="The wall at the end of week two." />
+<Figure media="f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097" caption="The wall at the end of week two." />
 ```
 
 `<Media id="…" />` works anywhere in a study, and `StepFigure` and `ContactSheet` take the same
 `media` id. For the study hero and the featured card, set the frontmatter:
 
 ```yaml
-cover: "media:pipeline-test-loop-c0fe9c23ef"
+cover: "media:isometric-784845539a"
 ```
 
 An unknown id, or a manifest that does not validate, fails the build — see
 [media.md](../design-system/media.md).
 
-### Blob auth
+### R2 credentials
 
-Auth lives in `.env.blob` at the repo root as `BLOB_STORE_ID` + `VERCEL_OIDC_TOKEN`; the `.env*`
-gitignore rule covers it. Pull it with `pnpm blob:env`, which runs
-`vercel env pull .env.blob --environment=production --yes`. The Vercel project must be linked first;
-that creates `.vercel/` (gitignored).
+Credentials live in `.env.r2` at the repo root (gitignored):
+`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`,
+`R2_PUBLIC_BASE_URL`. Copy `.env.r2.example` and fill it from the bucket's S3
+API token. `pnpm post` fails before encoding when a key is missing; the error
+names the key and never prints a value. `--dry-run` and `--local` need no
+credentials.
 
-The OIDC token lasts about 12 hours. `pnpm post` decodes its `exp` and re-pulls before encoding when
-the token is missing, undecodable, or within 15 minutes of expiry. `--dry-run` never needs it.
-`BLOB_READ_WRITE_TOKEN` in `.env.local` or the environment also works and is never refreshed.
+The bucket must be public through `R2_PUBLIC_BASE_URL`; uploads use the S3 API
+at `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`, region `auto`.
 
-The store must be **public**: uploads ask for `access: "public"`, and a store's access mode cannot
-be changed after creation.
+### Migration from Blob
 
-### Hobby limits
+`pnpm media:migrate-r2 --archive <dir> [--archive <dir> ...]` re-encodes every
+local original, keeps the ids and keys, HEAD-skips objects already in R2 and
+rewrites the manifests. Add `--dry-run` to print the plan with no network. A
+manifest with no local original is listed as missing and skipped. Never download
+from the paused Blob store.
 
-- 1 GB storage and 10 GB transfer per month; going over blocks Blob for about 30 days. Hobby is
-  never billed.
+### Storage, tests and local media
+
 - Target 2–6 MB per video loop. The script warns over 6 MB and fails over 10 MB.
-- Images avoid Vercel's optimiser: widths are generated ahead of time and picked by the browser
-  through `<picture>`/`srcset`, so the Hobby allowance of 5K transformations a month is not used.
-  `next.config.ts` lists the Blob host in `images.remotePatterns` only as the allow-list for a
-  future `next/image`.
+- Images avoid Next's optimiser: widths are generated ahead of time and picked by the browser
+  through `<picture>`/`srcset`. `next.config.ts` hard-codes the R2 public host, so no R2 env var is
+  needed at build or runtime.
+- Browser, playback and performance tests must use `MEDIA_ORIGIN=local` and files in `media/local/`
+  (`pnpm post --local`). Never run them against production R2 or Blob.
 
 ### Troubleshooting
 
 | Symptom | Cause and fix |
 | --- | --- |
-| `blob upload was rejected (auth)` | Token expired or unreadable. Run `pnpm blob:env`. If the pull cannot find the project, run `vercel link` first and pull again. |
-| Upload rejected on a working token | The store is private. Create a public store, connect it to the project, re-pull `.env.blob`. |
+| `Missing R2 configuration in .env.r2: …` | Fill the named key in `.env.r2` (or the environment). Values are never printed. |
+| `403` or `AccessDenied` from R2 | The token is wrong or lacks object read/write on the bucket. Recreate it and update `.env.r2`. |
 | `ffmpeg failed` / `spawn ffmpeg ENOENT` / `spawn ffprobe ENOENT` | `ffmpeg` and `ffprobe` are not on `PATH`. |
 | `--poster-at … is past the … duration` | Pick a timestamp inside the clip. It is checked before encoding and before any upload. |
 | `over the 10 MB cap` | Shorten the clip or re-encode the source at a higher CRF; the script has no CRF flag. |
-| Safari playback or seeking | Blob answers Range requests with `206` and `Accept-Ranges: bytes` (verified 2026-11-19), so MP4 on Blob is fine. |
-| Every file says `skip` | Each already has a manifest; a changed source file produces a new id, so the skip only means a safe re-run. |
+| Safari playback or seeking on R2 | R2 answers Range requests with `206` and `Accept-Ranges: bytes`; the local route does the same. |
+| Every file says `skip` | Each already has a manifest; a changed source file produces a new id, so the skip only means a safe re-run. `--force` overrides it. |
 
 ## 2. Intake
 

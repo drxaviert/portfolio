@@ -31,7 +31,7 @@ const ACTIVE_STAGES: JobStage[] = ["queued", "encoding", "uploading"];
 const STAGE_TEXT: Record<JobStage, string> = {
   queued: "Waiting for the encoder",
   encoding: "Encoding",
-  uploading: "Uploading to Blob",
+  uploading: "Uploading to R2",
   done: "Done. It is in the grid below.",
   failed: "Upload failed",
 };

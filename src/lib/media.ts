@@ -43,11 +43,12 @@ const MEDIA_ID = /^[a-z0-9][a-z0-9-]*$/;
 const COVER_TARGET_WIDTH = 1280;
 
 /**
- * One read per id per process. The manifests are committed files that only
- * change when `pnpm post` runs, so a process-lifetime map is the same contract
- * as `work.ts`'s synchronous reads: revalidate by restarting the build/server.
+ * One read per id per process and per origin. The production manifest is cached
+ * once; `MEDIA_ORIGIN=local` keeps a second, rewritten copy so `getMedia`
+ * returns a stable object in both modes.
  */
 const cache = new Map<string, MediaManifest>();
+const localCache = new Map<string, MediaManifest>();
 
 function invalid(id: string, reason: string): never {
   throw new Error(`content/media/${id}.json is invalid: ${reason}`);
@@ -192,6 +193,10 @@ export function validateManifest(id: string, raw: unknown): MediaManifest {
   const mp4 = readVideoFile(id, "mp4", raw.mp4);
   const webm =
     raw.webm === undefined ? undefined : readVideoFile(id, "webm", raw.webm);
+  const canvas =
+    raw.canvas === undefined
+      ? undefined
+      : readVideoFile(id, "canvas", raw.canvas);
   const hls = raw.hls === undefined ? undefined : readHls(id, raw.hls);
 
   if (!isRecord(raw.poster)) invalid(id, "poster must be an object");
@@ -213,6 +218,7 @@ export function validateManifest(id: string, raw: unknown): MediaManifest {
     kind: "video",
     mp4,
     ...(webm ? { webm } : {}),
+    ...(canvas ? { canvas } : {}),
     ...(hls ? { hls } : {}),
     poster: { avif: raw.poster.avif, jpg: raw.poster.jpg },
     duration: raw.duration,
@@ -220,8 +226,68 @@ export function validateManifest(id: string, raw: unknown): MediaManifest {
   };
 }
 
+/**
+ * `MEDIA_ORIGIN=local` rewrites every manifest URL to the dev route
+ * `/media/local/<key>`. The route serves `media/local/`, populated by
+ * `pnpm post --local` or the migration's `--local` flag. This is dev/test only:
+ * production builds leave the env unset and keep the R2 URLs in the manifest.
+ */
+export function localMediaEnabled(): boolean {
+  return process.env.MEDIA_ORIGIN === "local";
+}
+
+/** `https://host[/prefix]/media/<id>/file` → `/media/local/media/<id>/file`. */
+function localMediaUrl(url: string): string {
+  if (url.startsWith("/media/local/")) return url;
+  const { pathname } = new URL(url);
+  const keyAt = pathname.indexOf("/media/");
+  const key = keyAt >= 0 ? pathname.slice(keyAt) : pathname;
+  return `/media/local${key.startsWith("/") ? key : `/${key}`}`;
+}
+
+/**
+ * A copy of `manifest` with every public URL pointed at the local route. The
+ * input is the validated production manifest, so `new URL` cannot fail here.
+ */
+export function rewriteMediaUrls(manifest: MediaManifest): MediaManifest {
+  if (manifest.kind === "image") {
+    return {
+      ...manifest,
+      sources: manifest.sources.map((source) => ({
+        ...source,
+        url: localMediaUrl(source.url),
+      })),
+    };
+  }
+
+  return {
+    ...manifest,
+    mp4: { ...manifest.mp4, url: localMediaUrl(manifest.mp4.url) },
+    ...(manifest.webm
+      ? { webm: { ...manifest.webm, url: localMediaUrl(manifest.webm.url) } }
+      : {}),
+    ...(manifest.canvas
+      ? {
+          canvas: {
+            ...manifest.canvas,
+            url: localMediaUrl(manifest.canvas.url),
+          },
+        }
+      : {}),
+    ...(manifest.hls
+      ? { hls: { ...manifest.hls, url: localMediaUrl(manifest.hls.url) } }
+      : {}),
+    poster: {
+      avif: localMediaUrl(manifest.poster.avif),
+      jpg: localMediaUrl(manifest.poster.jpg),
+    },
+  };
+}
+
 export function getMedia(id: string): MediaManifest {
-  const cached = cache.get(id);
+  const local = localMediaEnabled();
+  const originCache = local ? localCache : cache;
+  const cached = originCache.get(id);
   if (cached) return cached;
 
   if (!MEDIA_ID.test(id)) {
@@ -249,7 +315,11 @@ export function getMedia(id: string): MediaManifest {
 
   const manifest = validateManifest(id, parsed);
   cache.set(id, manifest);
-  return manifest;
+  if (!local) return manifest;
+
+  const rewritten = rewriteMediaUrls(manifest);
+  localCache.set(id, rewritten);
+  return rewritten;
 }
 
 /**
