@@ -8,27 +8,21 @@ export const CANVAS_MEDIA_IDS = [
   "portfolio-in-2d-3d-f1a9c066a9",
   "cash-flow-4dfcb26e1d",
   "celixir-montage-5e348ee1c9",
-  "docebo-agents-33e4e9db94",
-  "pub-eroxon-15s-hero-2ba3427fdb",
   "good-form-reel-4c969cc977",
   "google-ai-agents-remake-2k-slowmo-992af5e059",
   "klaris-main-0c804c5e5d",
-  "metaview-f75404f877",
   "niod-deciem-good-form-9f058b81f5",
   "11242024-ordinary-growthfactors-16x9-53a4a9db88",
   "isometric-784845539a",
   "xylo-branding-good-form-6e2927470b",
   "cellixir-01-v01a-cf03dc7d17",
-  "docebo-knowledge-eed5dc239e",
   "klaris-side-shot-01-v01a-5dba662a2e",
   "niod-cail-a01-dt-front-1-0064-d2839f4684",
   "ord-sv-ripple-01h-hd-prob4-082f053aed",
   "cellixir-02-v01a-32d7fcbdc3",
-  "july2026-what-s-new-3d39a8d938",
   "klaris-side-shot-02-v01a-4bfa134547",
   "niod-cell01-anim-v03-final-rev-8fa4277f23",
   "cellixir-03-v01a-6c85e817b3",
-  "platform-explainer-2026-v05c-w-music-32981d3544",
   "klaris-side-shot-03-v01a-0ce80af849",
   "niod-cell02-anim-v03-final-234f282dde",
   "cellixir-04-v01b-00000-8fab808305",
@@ -38,4 +32,4 @@ export const CANVAS_MEDIA_IDS = [
   "niod-cell04-anim-v03-final-ee749abb4e",
 ] as const;
 
-export const CANVAS_MEDIA_COUNT = 32;
+export const CANVAS_MEDIA_COUNT = 26;

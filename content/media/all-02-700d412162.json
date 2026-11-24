@@ -1,0 +1,43 @@
+{
+  "id": "all-02-700d412162",
+  "kind": "image",
+  "width": 1800,
+  "height": 1800,
+  "alt": "Colorful 3D letters A to I on black",
+  "caption": "Alphabet, A–I",
+  "createdAt": "2026-11-24T16:45:35.395Z",
+  "original": "ALl-02.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/all-02-700d412162/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/all-02-700d412162/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/all-02-700d412162/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/all-02-700d412162/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1800,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/all-02-700d412162/w1800.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1800,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/all-02-700d412162/w1800.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRqwAAABXRUJQVlA4IKAAAAAwAgCdASoQABAAAsBMJbACsAYqhVVtVngjiAD+0rRnyJU62mhYY+u3T6V8ow/2nU7DQLMdqcaORL2dSS/l29t+HXnksZd18XCT77RDBEXS6ZBs8acHT6YBA/ONoOuPut5xZcfrjfeRfkQ9dJ5G/cCawQOYMke1MjQAXkRCd8hbIBj2Y7IwIKIxk4HQ755JLz1ez+uTH3TTFRA1N++hgDAA"
+}

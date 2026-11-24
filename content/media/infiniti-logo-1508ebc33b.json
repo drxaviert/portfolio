@@ -1,0 +1,24 @@
+{
+  "id": "infiniti-logo-1508ebc33b",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "INFINITI logo animation on a dark blue field",
+  "caption": "Infiniti logo",
+  "createdAt": "2026-11-24T16:39:38.767Z",
+  "original": "INFINITI Logo.webm",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/infiniti-logo-1508ebc33b/video.mp4",
+    "bytes": 519006
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/infiniti-logo-1508ebc33b/canvas.mp4",
+    "bytes": 129152
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/infiniti-logo-1508ebc33b/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/infiniti-logo-1508ebc33b/poster.jpg"
+  },
+  "duration": 14.02,
+  "hasAudio": true
+}

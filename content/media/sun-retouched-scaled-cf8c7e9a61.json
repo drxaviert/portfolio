@@ -1,0 +1,53 @@
+{
+  "id": "sun-retouched-scaled-cf8c7e9a61",
+  "kind": "image",
+  "width": 2560,
+  "height": 1071,
+  "alt": "Golden orb on a teal cushion against a blue sky",
+  "caption": "Sun study",
+  "createdAt": "2026-11-24T16:46:34.075Z",
+  "original": "Sun_Retouched-scaled.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sun-retouched-scaled-cf8c7e9a61/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sun-retouched-scaled-cf8c7e9a61/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sun-retouched-scaled-cf8c7e9a61/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sun-retouched-scaled-cf8c7e9a61/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sun-retouched-scaled-cf8c7e9a61/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sun-retouched-scaled-cf8c7e9a61/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2560,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sun-retouched-scaled-cf8c7e9a61/w2560.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2560,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sun-retouched-scaled-cf8c7e9a61/w2560.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAAAwAgCdASoQAAcAAsBMJbACdLoAAglU5oTgAAD+zX6h0pFi66Pi8961L+pZ0/YL2K5KtdKHsq9dAfrx8ecGNtkSNktfmZfgjmi16nIsPfAAAA=="
+}

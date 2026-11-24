@@ -1,0 +1,24 @@
+{
+  "id": "comestic-rnd-01c-scene-05-d05d2caa00",
+  "kind": "video",
+  "width": 864,
+  "height": 1080,
+  "alt": "Red cosmetic jar on a dark brown set",
+  "caption": "Cosmetic R&D motion, scene 05",
+  "createdAt": "2026-11-24T16:46:02.395Z",
+  "original": "Comestic_RnD_01c_Scene_05.webm",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01c-scene-05-d05d2caa00/video.mp4",
+    "bytes": 721799
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01c-scene-05-d05d2caa00/canvas.mp4",
+    "bytes": 123132
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01c-scene-05-d05d2caa00/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01c-scene-05-d05d2caa00/poster.jpg"
+  },
+  "duration": 6.67,
+  "hasAudio": false
+}

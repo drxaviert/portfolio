@@ -1,0 +1,43 @@
+{
+  "id": "01-k-h-phone-camera-01-81314bd062",
+  "kind": "image",
+  "width": 1920,
+  "height": 1920,
+  "alt": "Glass phone form with an orange ribbon of light inside",
+  "caption": "Phone light study",
+  "createdAt": "2026-11-24T16:44:43.601Z",
+  "original": "01_K&H_Phone_Camera_01.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/01-k-h-phone-camera-01-81314bd062/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/01-k-h-phone-camera-01-81314bd062/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/01-k-h-phone-camera-01-81314bd062/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/01-k-h-phone-camera-01-81314bd062/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/01-k-h-phone-camera-01-81314bd062/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/01-k-h-phone-camera-01-81314bd062/w1920.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRlgAAABXRUJQVlA4IEwAAADwAQCdASoQABAAAsBMJYwCdADdIQpdHgAA/vnI7wLHp8Uaffud+SCdYBnv9dWR/O2VDiO0B1z2nb8nth1EQpw1AuC/ZGZqKHZNgAAA"
+}

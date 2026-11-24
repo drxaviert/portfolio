@@ -14,6 +14,7 @@
     "start": "next start",
     "post": "node scripts/post.ts",
     "media:migrate-r2": "node scripts/migrate-r2.ts",
+    "media:delete-r2": "node scripts/delete-r2-prefixes.ts",
     "og:capture": "node scripts/capture-og.mjs",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

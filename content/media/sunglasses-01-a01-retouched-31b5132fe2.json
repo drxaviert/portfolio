@@ -1,0 +1,53 @@
+{
+  "id": "sunglasses-01-a01-retouched-31b5132fe2",
+  "kind": "image",
+  "width": 2160,
+  "height": 2700,
+  "alt": "Black sunglasses on a deep red surface",
+  "caption": "Sunglasses study",
+  "createdAt": "2026-11-24T16:46:38.819Z",
+  "original": "Sunglasses_01_a01_Retouched.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-01-a01-retouched-31b5132fe2/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-01-a01-retouched-31b5132fe2/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-01-a01-retouched-31b5132fe2/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-01-a01-retouched-31b5132fe2/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-01-a01-retouched-31b5132fe2/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-01-a01-retouched-31b5132fe2/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2160,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-01-a01-retouched-31b5132fe2/w2160.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2160,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-01-a01-retouched-31b5132fe2/w2160.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAADwAwCdASoQABQAPtFUpEuoJKOhsAgBABoJZgCdMoADTqOk3LddzCmIAP7yoxTN46NIlyVG0Hpn1HHyNVfWZpkt4FheuXljio/BZB9TJNYEtRK2IbpaKAAA"
+}
