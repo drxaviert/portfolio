@@ -15,4 +15,5 @@ export const WORK_BODIES: Record<WorkSlug, () => Promise<WorkBody>> = {
   "type-in-motion": () => import("../../content/work/type-in-motion.mdx"),
   "motion-and-stills": () =>
     import("../../content/work/motion-and-stills.mdx"),
+  "human-contact": () => import("../../content/work/human-contact.mdx"),
 };

@@ -19,6 +19,7 @@ const WORK_ORDER = [
   "title-sequence",
   "type-in-motion",
   "motion-and-stills",
+  "human-contact",
 ] as const;
 
 export type WorkSlug = (typeof WORK_ORDER)[number];

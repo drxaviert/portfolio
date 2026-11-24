@@ -1,0 +1,327 @@
+/*
+ * Human Contact — the shared overlay for the live route and the case-study
+ * embed.
+ *
+ * The still is the first paint and the no-WebGL/Safari floor; the experience
+ * sits over it and owns the canvas, cover and text. Nothing here animates
+ * layout: the only DOM motion is hover feedback on the links, kept to a colour
+ * change so the canvas keeps the frame budget.
+ */
+
+.hc-live {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #111;
+  color: #fff;
+  isolation: isolate;
+}
+
+.hc-still {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  pointer-events: none;
+}
+
+.hc-experience {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  color: #fff;
+}
+
+.hc-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  cursor: default;
+  /* A vertical swipe through the case-study embed still scrolls the article. */
+  touch-action: pan-y;
+}
+
+.hc-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hc-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+/*
+ * The film pass, now the only look. The vignette sits above the cover, below
+ * the text; the canvas and the still get the same small contrast/brightness
+ * curve. The grain is a static SVG tile, so there is nothing to pause under
+ * reduced motion and nothing to pay for per frame.
+ */
+.hc-film {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 44%,
+    transparent 30%,
+    rgba(0, 0, 0, 0.12) 58%,
+    rgba(0, 0, 0, 0.58) 100%
+  );
+}
+
+.hc-film::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  mix-blend-mode: soft-light;
+  opacity: 0.06;
+}
+
+.hc-canvas canvas,
+.hc-still {
+  filter: contrast(1.06) brightness(0.98);
+}
+
+.hc-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.hc-monogram {
+  position: absolute;
+  top: clamp(22px, 4.2vh, 48px);
+  left: clamp(18px, 1.3vw, 40px);
+  font-family: var(--font-work-sans), "Segoe UI", sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: #fff;
+}
+
+.hc-nav {
+  position: absolute;
+  top: clamp(22px, 4.2vh, 48px);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2vw, 38px);
+  transform: translateX(-50%);
+  font-family: var(--font-work-sans), "Segoe UI", sans-serif;
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  color: #fff;
+  pointer-events: auto;
+}
+
+.hc-nav span {
+  cursor: default;
+}
+
+.hc-nav span:last-child {
+  color: #c5c5c5;
+}
+
+.hc-wordmark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  transform: translate(calc(-50% + 0.16em), -50%);
+  font-family:
+    "Bodoni MT", Didot, "Didot LT STD", "Times New Roman", Times, serif;
+  font-size: clamp(24px, 3.12vw, 68px);
+  font-weight: 400;
+  letter-spacing: 0.32em;
+  line-height: 1;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.hc-back {
+  position: absolute;
+  top: calc(clamp(22px, 4.2vh, 48px) + 24px);
+  left: clamp(18px, 1.3vw, 40px);
+  font-family: var(--font-work-sans), "Segoe UI", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.62);
+  text-decoration: none;
+  pointer-events: auto;
+}
+
+.hc-back:hover {
+  color: #fff;
+}
+
+.hc-back:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+/* --------------------------------------------------------------- embed ---- */
+
+.hc-embed-figure {
+  position: relative;
+  margin: 28px 0 0;
+}
+
+@media (min-width: 768px) {
+  .hc-embed-figure-wide {
+    left: 50%;
+    width: min(880px, 100cqi - 96px);
+    translate: -50% 0;
+  }
+}
+
+.hc-embed-box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #111;
+  container-type: inline-size;
+}
+
+.hc-embed-caption {
+  margin: 8px 0 0;
+  color: var(--on-surface-variant);
+  font-size: var(--text-xs);
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
+.hc-embed-open {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.hc-embed-open:hover {
+  color: var(--on-surface);
+}
+
+.hc-embed-open:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* The contained artwork gets its own type scale; viewport units would make the
+   wordmark wider than the box. The nav is hidden when it cannot fit. */
+.hc-embed-box .hc-monogram {
+  top: 4.4cqw;
+  left: 4cqw;
+  font-size: clamp(9px, 1.5cqw, 16px);
+}
+
+.hc-embed-box .hc-nav {
+  top: 4.4cqw;
+  gap: clamp(8px, 2.2cqw, 32px);
+  font-size: clamp(10px, 1.7cqw, 18px);
+}
+
+.hc-embed-box .hc-wordmark {
+  font-size: clamp(14px, 5.4cqw, 58px);
+  letter-spacing: 0.3em;
+}
+
+@container (max-width: 620px) {
+  .hc-embed-box .hc-nav {
+    display: none;
+  }
+}
+
+/* -------------------------------------------------------------- credit ---- */
+
+.hc-credit-block {
+  margin: 32px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--outline-variant);
+  color: var(--on-surface-variant);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.hc-credit-block p {
+  margin: 0;
+}
+
+.hc-credit-block p + p {
+  margin-top: 4px;
+}
+
+.hc-credit-block a {
+  color: var(--on-surface);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.hc-credit-block a:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ----------------------------------------------------------- responsive ---- */
+
+@media (max-width: 900px) {
+  .hc-nav {
+    gap: 16px;
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 720px) {
+  .hc-monogram {
+    top: 20px;
+    left: 16px;
+    font-size: 14px;
+  }
+
+  .hc-nav {
+    top: 20px;
+    gap: 10px;
+    font-size: 11px;
+  }
+
+  .hc-back {
+    top: 44px;
+    left: 16px;
+  }
+}
+
+@media (max-width: 460px) {
+  .hc-nav {
+    gap: 7px;
+    font-size: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-embed-open,
+  .hc-back {
+    transition: none;
+  }
+}

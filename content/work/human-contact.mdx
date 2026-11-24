@@ -1,0 +1,41 @@
+---
+title: Human Contact
+subtitle: Rebuilding a 2022 agency landing page, one dark object at a time
+year: 2026
+role: Design engineer
+summary: A procedural three.js recreation of HUMANCONTACT's floating-object homepage, with a staggered idle wave and a hover interaction the original never had.
+cover: tiles
+---
+
+## The original
+
+The homepage I kept returning to is from a 31 January 2022 capture of humancontact.com. Seven dark objects — an open laptop, over-ear headphones, a notebook and pen, a clapperboard, two tin cans on a string, a filament bulb, a takeaway cup — float on a loose staggered grid. The field drifts on a loop; nothing in the background reacts to the pointer. The whole thing is quiet enough that the wordmark has room to be the loudest element.
+
+The archive is also a useful correction. The background is not a WebGL scene. It is a three-second, 1920×1080 MP4 that loops behind the page. That made the brief for a rebuild concrete: keep the composition and the mood, but make the objects real geometry so the field can be handled rather than played.
+
+<HumanContactEmbed wide />
+
+<Note n={1}>
+  Source: the Wayback Machine's 2022-01-31 snapshot. The original site is
+  credited to HUMANCONTACT INC.; this is an independent recreation.
+</Note>
+
+## The rebuild
+
+Seven props, built from boxes, cylinders, spheres and a few tori. No downloaded models. Each prototype is recentred on its bounding box and cloned across the grid, so forty-odd instances share the same geometry and material buffers. The camera is the one the original's Work screen used — 28° at (0, 5, 210), fog 20 to 500, background #111. A neutral key from the upper left and a barely cool rim carry the edges, so the shadows fall lower right.
+
+The shadows are blurred planes, not shadow maps. The reference's shadows are wide and soft, and a map that soft would cost more than the objects it describes. The field is fixed. Each prop bobs toward and away from the camera on a staggered sine wave, with its own phase and a slightly different period so the grid never pulses in unison, and turns a few degrees as it rises and falls. Its shadow widens, fades and slips lower-right with the lift, so the object reads as floating above the background. A film pass — a vignette, static grain and a small contrast lift — sits over the canvas without shifting the palette.
+
+## The addition
+
+The original homepage objects do not respond to the pointer. For this version I added one behaviour: hovering a prop scales it to 1.25× on a spring. Hovering does not pause the bob; the scale and the wave are independent, and the spring keeps its velocity when the pointer moves to another prop, so a fast pass across the grid bends the existing motion instead of restarting it. I built three treatments while deciding — scale in place, scale with a lift toward the camera, and scale with the neighbours making room — and kept the plain scale. It is the one that leaves the field as calm as the reference.
+
+The hover is my addition, not a recovered part of the site.
+
+## The details
+
+The scene stops when the region is off-screen or the tab is hidden. Device pixel ratio is capped at two. `prefers-reduced-motion` removes the bob and the turn, leaves every prop at its rest height, and makes the hover scale instant; the film grain is static in every mode. On touch, a tap pops the prop and lets it settle back. Safari, a browser without WebGL, and a lost context all fall back to a still rendered from the same scene, so the page never asks a visitor to look at a blank rectangle.
+
+The full-screen version is at [/live/human-contact](/live/human-contact). The grid above is the same scene in a contained frame.
+
+<HumanContactCredit />

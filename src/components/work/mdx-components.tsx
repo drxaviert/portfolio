@@ -1,4 +1,6 @@
 import type { MDXComponents } from "mdx/types";
+import { HumanContactCredit } from "@/components/human-contact/human-contact-credit";
+import { HumanContactEmbed } from "@/components/human-contact/human-contact-embed";
 import { Media } from "@/components/media/media";
 import { BriefQuote, DecisionTable, Note } from "./parts";
 import { ContactSheet, Figure, Hero, StepFigure } from "./media-parts";
@@ -33,4 +35,6 @@ export const mdxComponents: MDXComponents = {
   Media,
   Brief: BriefQuote,
   Steps: DecisionTable,
+  HumanContactEmbed,
+  HumanContactCredit,
 };

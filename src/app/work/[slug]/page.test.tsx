@@ -27,6 +27,10 @@ vi.mock("../../../../content/work/systems-in-motion.mdx", () => ({
   default: () => <p>Case-study body</p>,
 }));
 
+vi.mock("../../../../content/work/human-contact.mdx", () => ({
+  default: () => <p>Human Contact body</p>,
+}));
+
 // The live canvas branch is mocked here: the reader's WebGL lifecycle is
 // exercised in the browser, while this test only checks the layout switch.
 vi.mock("@/components/work/canvas-reader", () => ({
@@ -93,6 +97,18 @@ describe("work page", () => {
     expect(
       screen.getByRole("link", { name: "Next project: The title sequence" }),
     ).toHaveAttribute("href", "/work/title-sequence");
+  });
+
+  it("renders the newest study at the end of the reading order", async () => {
+    await renderStudy("human-contact");
+
+    expect(document.getElementById(READER_TITLE_ID)).toHaveTextContent(
+      "Human Contact",
+    );
+    expect(screen.getByText("Human Contact body")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Next project: Systems in motion" }),
+    ).toHaveAttribute("href", "/work/systems-in-motion");
   });
 
   it("calls notFound for an unknown slug", async () => {

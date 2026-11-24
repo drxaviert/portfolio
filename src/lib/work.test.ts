@@ -43,8 +43,8 @@ describe("parseFrontmatter", () => {
 });
 
 describe("listWork", () => {
-  it("returns the four case studies", () => {
-    expect(listWork()).toHaveLength(4);
+  it("returns the five case studies", () => {
+    expect(listWork()).toHaveLength(5);
   });
 
   it("gives every study a known cover", () => {
@@ -61,6 +61,7 @@ describe("listWork", () => {
       "title-sequence",
       "type-in-motion",
       "motion-and-stills",
+      "human-contact",
     ]);
   });
 });
@@ -89,9 +90,16 @@ describe("nextWork", () => {
     expect(nextWork("systems-in-motion").slug).toBe("title-sequence");
   });
 
-  it("wraps from the last study back to the first", () => {
-    expect(nextWork("motion-and-stills").slug).toBe("systems-in-motion");
+  it("steps from the third study to the canvas study", () => {
     expect(nextWork("type-in-motion").slug).toBe("motion-and-stills");
+  });
+
+  it("steps from the canvas study to Human Contact", () => {
+    expect(nextWork("motion-and-stills").slug).toBe("human-contact");
+  });
+
+  it("wraps from the last study back to the first", () => {
+    expect(nextWork("human-contact").slug).toBe("systems-in-motion");
   });
 });
 

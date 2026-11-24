@@ -45,6 +45,7 @@ describe("not-found page", () => {
       "/work/title-sequence",
       "/work/type-in-motion",
       "/work/motion-and-stills",
+      "/work/human-contact",
     ]);
   });
 

@@ -81,6 +81,13 @@ function dock() {
 }
 
 describe("NavDock", () => {
+  it("stays out of the full-screen live route", () => {
+    mocks.pathname = "/live/human-contact";
+    renderDock();
+
+    expect(document.querySelector("[data-nav-dock]")).toBeNull();
+  });
+
   it("renders the homepage nav exactly once, at rest over the home slot", () => {
     renderDock();
 
