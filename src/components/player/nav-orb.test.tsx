@@ -119,10 +119,22 @@ describe("orb satellite control", () => {
 
     const { container } = renderOrb(harness.store);
     const satellite = container.querySelector(".orb-satellite");
-    const button = screen.getByRole("button", { name: "Pause Door to the Cosmos" });
+    const dot = container.querySelector(".orb-sat-dot");
+    const pauseIcon = container.querySelector(".orb-sat-icon-pause");
+    const playIcon = container.querySelector(".orb-sat-icon-play");
+    const button = screen.getByRole("button", {
+      name: "Pause music: Door to the Cosmos",
+    });
 
     expect(satellite).toHaveAttribute("data-visible", "true");
     expect(satellite).toHaveAttribute("data-paused", "false");
+    expect(dot).toHaveAttribute("data-playing", "true");
+    expect(pauseIcon).toHaveAttribute("data-active", "true");
+    expect(playIcon).toHaveAttribute("data-active", "false");
+    expect(pauseIcon?.querySelector("svg")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
       "href",
       "/",
@@ -132,8 +144,13 @@ describe("orb satellite control", () => {
 
     expect(harness.store.getSnapshot().status).toBe("paused");
     expect(satellite).toHaveAttribute("data-paused", "true");
+    expect(dot).toHaveAttribute("data-playing", "false");
+    expect(pauseIcon).toHaveAttribute("data-active", "false");
+    expect(playIcon).toHaveAttribute("data-active", "true");
     expect(
-      screen.getByRole("button", { name: "Play Door to the Cosmos" }),
+      screen.getByRole("button", {
+        name: "Play music: Door to the Cosmos",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -144,7 +161,9 @@ describe("orb satellite control", () => {
     await harness.playThrough();
 
     const { container } = renderOrb(harness.store);
-    const button = screen.getByRole("button", { name: "Pause Door to the Cosmos" });
+    const button = screen.getByRole("button", {
+      name: "Pause music: Door to the Cosmos",
+    });
 
     fireEvent.click(button, { detail: 1 });
     expect(button).toHaveAttribute("data-paused", "true");

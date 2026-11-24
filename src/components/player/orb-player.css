@@ -138,8 +138,43 @@
   opacity: 0;
 }
 
-.orb-satellite[data-visible="true"]
-  .orb-sat-dot[data-playing="true"]::after {
+/*
+ * The resting dot carries the transport state. Both glyphs stay mounted so a
+ * play/pause flip crossfades in place; opacity and scale transitions keep the
+ * swap interruptible.
+ */
+.orb-sat-glyph {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  color: var(--palette-neutral-50);
+  pointer-events: none;
+}
+
+.orb-sat-icon {
+  grid-area: 1 / 1;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity var(--duration-short-3) var(--ease-decelerate),
+    transform var(--duration-short-3) var(--ease-decelerate);
+}
+
+/* A triangle reads light on its base side, so nudge it off the box centre. */
+.orb-sat-icon-play {
+  translate: 0.5px 0;
+}
+
+.orb-sat-icon[data-active="true"] {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.orb-satellite[data-visible="true"] .orb-sat-dot[data-playing="true"]::after {
   animation: orb-satellite-pulse 1600ms var(--ease-decelerate) infinite;
 }
 
@@ -257,9 +292,13 @@
   }
 
   .orb-sat-dot::after,
-  .orb-satellite[data-visible="true"]
-    .orb-sat-dot[data-playing="true"]::after {
+  .orb-satellite[data-visible="true"] .orb-sat-dot[data-playing="true"]::after {
     animation: none;
     opacity: 0;
+  }
+
+  .orb-sat-glyph .orb-sat-icon {
+    transform: none;
+    transition: none;
   }
 }
