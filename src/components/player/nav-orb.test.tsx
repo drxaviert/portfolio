@@ -128,6 +128,8 @@ describe("orb satellite control", () => {
 
     expect(satellite).toHaveAttribute("data-visible", "true");
     expect(satellite).toHaveAttribute("data-paused", "false");
+    expect(container.querySelector(".orb-sat-grown")).toBeNull();
+    expect(dot?.querySelector(".orb-sat-glyph-large")).toBeInTheDocument();
     expect(dot).toHaveAttribute("data-playing", "true");
     expect(pauseIcon).toHaveAttribute("data-active", "true");
     expect(playIcon).toHaveAttribute("data-active", "false");

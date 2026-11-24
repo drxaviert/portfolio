@@ -90,9 +90,9 @@ export function OrbSatelliteControl({
             <PlayIcon size={7} />
           </span>
         </span>
-      </span>
-      <span className="orb-sat-grown" aria-hidden="true">
-        {playing ? <PauseIcon size={10} /> : <PlayIcon size={10} />}
+        <span className="orb-sat-glyph orb-sat-glyph-large" aria-hidden="true">
+          {playing ? <PauseIcon size={10} /> : <PlayIcon size={10} />}
+        </span>
       </span>
     </button>
   );

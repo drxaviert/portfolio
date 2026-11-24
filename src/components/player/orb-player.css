@@ -113,6 +113,10 @@
   transition-duration: var(--duration-short-1);
 }
 
+/*
+ * One face owns the whole grow. Animating its size keeps the 2px ring at 2px;
+ * a transform scale would thin the edge as the face shrinks.
+ */
 .orb-sat-dot {
   position: absolute;
   top: 50%;
@@ -125,8 +129,8 @@
   box-shadow: 0 0 0 2px var(--surface-container-low);
   transform: translate(-50%, -50%);
   transition:
-    opacity var(--duration-medium-1) var(--ease-accelerate),
-    transform var(--duration-medium-1) var(--ease-accelerate);
+    width var(--duration-long-1) var(--ease-emphasized-decelerate),
+    height var(--duration-long-1) var(--ease-emphasized-decelerate);
 }
 
 .orb-sat-dot::after {
@@ -151,6 +155,12 @@
   place-items: center;
   color: var(--palette-neutral-50);
   pointer-events: none;
+  opacity: 1;
+  transition: opacity var(--duration-long-1) var(--ease-emphasized-decelerate);
+}
+
+.orb-sat-glyph-large {
+  opacity: 0;
 }
 
 .orb-sat-icon {
@@ -191,54 +201,53 @@
   }
 }
 
-.orb-sat-grown {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background-image: var(--orb-gradient);
-  box-shadow: 0 0 0 2px var(--surface-container-low);
-  color: var(--palette-neutral-50);
-  opacity: 0;
-  transform: scale(0.542);
-  transition:
-    opacity var(--duration-medium-1) var(--ease-accelerate),
-    transform var(--duration-medium-1) var(--ease-accelerate);
-}
-
-.orb-satellite:focus-visible .orb-sat-grown,
-.orb-satellite[data-paused="true"] .orb-sat-grown {
-  opacity: 1;
-  transform: scale(1);
-  transition:
-    opacity var(--duration-long-1) var(--ease-emphasized-decelerate),
-    transform var(--duration-long-1) var(--ease-emphasized-decelerate);
-}
-
 .orb-satellite:focus-visible .orb-sat-dot,
 .orb-satellite[data-paused="true"] .orb-sat-dot {
+  width: 24px;
+  height: 24px;
+}
+
+.orb-satellite:focus-visible .orb-sat-glyph,
+.orb-satellite[data-paused="true"] .orb-sat-glyph {
   opacity: 0;
-  transform: translate(-50%, -50%) scale(0.542);
+}
+
+.orb-satellite:focus-visible .orb-sat-glyph-large,
+.orb-satellite[data-paused="true"] .orb-sat-glyph-large {
+  opacity: 1;
+}
+
+/* The settled button has no dot to pulse; keep the ring only at rest. */
+.orb-satellite:focus-visible .orb-sat-dot[data-playing="true"]::after {
+  animation: none;
+  opacity: 0;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .orb-shell:hover
     .orb-satellite:not([data-suppress-hover="true"])
-    .orb-sat-grown {
-    opacity: 1;
-    transform: scale(1);
-    transition:
-      opacity var(--duration-long-1) var(--ease-emphasized-decelerate),
-      transform var(--duration-long-1) var(--ease-emphasized-decelerate);
+    .orb-sat-dot {
+    width: 24px;
+    height: 24px;
   }
 
   .orb-shell:hover
     .orb-satellite:not([data-suppress-hover="true"])
-    .orb-sat-dot {
+    .orb-sat-glyph {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.542);
+  }
+
+  .orb-shell:hover
+    .orb-satellite:not([data-suppress-hover="true"])
+    .orb-sat-glyph-large {
+    opacity: 1;
+  }
+
+  .orb-shell:hover
+    .orb-satellite:not([data-suppress-hover="true"])
+    .orb-sat-dot[data-playing="true"]::after {
+    animation: none;
+    opacity: 0;
   }
 }
 
@@ -251,44 +260,26 @@
   }
 
   .orb-satellite,
-  .orb-satellite[data-visible="true"],
-  .orb-sat-dot,
-  .orb-sat-grown,
-  .orb-satellite:focus-visible .orb-sat-grown,
-  .orb-satellite[data-paused="true"] .orb-sat-grown,
-  .orb-shell:hover
-    .orb-satellite:not([data-suppress-hover="true"])
-    .orb-sat-grown,
-  .orb-satellite:focus-visible .orb-sat-dot,
-  .orb-satellite[data-paused="true"] .orb-sat-dot,
-  .orb-shell:hover
-    .orb-satellite:not([data-suppress-hover="true"])
-    .orb-sat-dot {
+  .orb-satellite[data-visible="true"] {
     transition: opacity var(--duration-short-3) var(--ease-linear);
   }
 
+  .orb-sat-dot {
+    transition: none;
+  }
+
   .orb-satellite,
-  .orb-satellite:active,
-  .orb-sat-grown,
-  .orb-satellite:focus-visible .orb-sat-grown,
-  .orb-satellite[data-paused="true"] .orb-sat-grown {
+  .orb-satellite:active {
     transform: none;
   }
 
-  .orb-sat-dot,
-  .orb-satellite:focus-visible .orb-sat-dot,
-  .orb-satellite[data-paused="true"] .orb-sat-dot {
+  .orb-sat-dot {
     transform: translate(-50%, -50%);
   }
 
-  @media (hover: hover) and (pointer: fine) {
-    .orb-shell:hover .orb-sat-grown {
-      transform: none;
-    }
-
-    .orb-shell:hover .orb-sat-dot {
-      transform: translate(-50%, -50%);
-    }
+  .orb-sat-glyph,
+  .orb-sat-glyph-large {
+    transition: none;
   }
 
   .orb-sat-dot::after,
