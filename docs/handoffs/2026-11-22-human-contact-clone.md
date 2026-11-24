@@ -21,3 +21,7 @@
 - Waiting on Dat to pick hover variant A/B/C.
 - Dat picked variant A (Scale). Standalone route = /live/human-contact; study last in WORK_ORDER.
 - Phase 2 plan: docs/handoffs/2026-11-22-human-contact-phase2-plan.md. Sent to same worker as dispatch ctx_04bb3e050109 (task_a9d17b53ebfb). Worker commits locally; lead pushes/PRs.
+- Copy fix 67a4b42 done. 5 commits local, awaiting Dat approval to push/PR/merge. Dev :3001.
+- Z-wave motion b661d8b (Dat request: static field, per-object Z bob+turn). Awaiting Dat review.
+- Lighting A/B requested (3 presets on /dev ?light=1|2|3), dispatch follow-up of ctx_e4e8482f405c.
+- Lighting presets e2372b7 on /dev ?light=1|2|3; awaiting Dat pick.
