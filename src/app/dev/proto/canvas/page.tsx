@@ -10,7 +10,7 @@ import { HOVER } from "@/components/canvas/hover";
 import type { HoverSettings } from "@/components/canvas/hover";
 import { getMedia } from "@/lib/media";
 import { CanvasProto } from "./canvas-proto";
-import { CANVAS_MEDIA_IDS } from "@/components/canvas/items";
+import { CANVAS_MEDIA } from "@/components/canvas/items";
 
 /**
  * Throwaway prototype: an infinite, looping WebGL plane grid of real media.
@@ -83,11 +83,17 @@ export default async function CanvasPage({
     ),
   };
   const hover: HoverSettings = {
-    scale: between(query.hover, HOVER.defaultScale, HOVER.minScale, HOVER.maxScale),
+    scale: between(
+      query.hover,
+      HOVER.defaultScale,
+      HOVER.minScale,
+      HOVER.maxScale,
+    ),
   };
-  const items: CanvasItem[] = CANVAS_MEDIA_IDS.map((id, index) => ({
-    key: `${id}--${index}`,
-    media: getMedia(id),
+  const items: CanvasItem[] = CANVAS_MEDIA.map((entry, index) => ({
+    key: `${entry.id}--${index}`,
+    project: entry.project,
+    media: getMedia(entry.id),
   }));
 
   return (

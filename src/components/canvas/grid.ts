@@ -43,6 +43,50 @@ export function orientationRatio(aspect: number): number {
   return SQUARE_RATIO;
 }
 
+/**
+ * Cell indices ordered from the grid centre outward.
+ *
+ * The first items in `CANVAS_MEDIA` are the initial centre projects; this map
+ * puts them in the cells closest to the viewport centre, then fills outward in
+ * rings. The angle tie-break keeps the ring order deterministic.
+ */
+export function centreOutCellOrder(cols: number, rows: number): number[] {
+  const cx = (cols - 1) / 2;
+  const cy = (rows - 1) / 2;
+  const cells: {
+    cell: number;
+    distance: number;
+    angle: number;
+    row: number;
+    col: number;
+  }[] = [];
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      const dx = col - cx;
+      const dy = row - cy;
+
+      cells.push({
+        cell: row * cols + col,
+        distance: dx * dx + dy * dy,
+        angle: Math.atan2(dy, dx),
+        row,
+        col,
+      });
+    }
+  }
+
+  cells.sort(
+    (a, b) =>
+      a.distance - b.distance ||
+      a.angle - b.angle ||
+      a.row - b.row ||
+      a.col - b.col,
+  );
+
+  return cells.map((entry) => entry.cell);
+}
+
 export function gridMetrics(
   viewportWidth: number,
   viewportHeight: number,
@@ -60,13 +104,11 @@ export function gridMetrics(
   // final one.
   const introScale = INTRO.cameraFromZ / INTRO.cameraToZ;
   const cols =
-    Math.ceil(
-      (viewportWidth * introScale) / (baseWidth + INTRO_GAP),
-    ) + EXTRA_COLS;
+    Math.ceil((viewportWidth * introScale) / (baseWidth + INTRO_GAP)) +
+    EXTRA_COLS;
   const rows =
-    Math.ceil(
-      (viewportHeight * introScale) / (cellHeight + INTRO_GAP),
-    ) + EXTRA_ROWS;
+    Math.ceil((viewportHeight * introScale) / (cellHeight + INTRO_GAP)) +
+    EXTRA_ROWS;
 
   return {
     baseWidth,

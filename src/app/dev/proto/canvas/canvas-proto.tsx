@@ -14,12 +14,14 @@ import type {
   InfiniteCanvasHandle,
   LensSettings,
 } from "@/components/canvas/infinite-canvas";
+import type { Box } from "@/components/work/morph";
 import "@/components/media/media.css";
 import "./canvas.css";
 
 type ViewerState = {
   index: number;
   startAt?: number;
+  openRect?: Box;
 };
 
 /** The dev-only label; the slider stays a fraction of the shader strength. */
@@ -96,9 +98,9 @@ export function CanvasProto({
   const copyTimer = useRef(0);
 
   const openViewer = useCallback(
-    (index: number, startAt?: number) => {
+    (index: number, startAt?: number, openRect?: Box) => {
       setViewerClosing(false);
-      setViewer({ index, startAt });
+      setViewer({ index, startAt, openRect });
     },
     [],
   );
@@ -345,6 +347,7 @@ export function CanvasProto({
           items={items}
           initialIndex={viewer.index}
           startAt={viewer.startAt}
+          openRect={viewer.openRect}
           onReady={markViewerReady}
           onClosing={markViewerClosing}
           onClosed={closeViewer}

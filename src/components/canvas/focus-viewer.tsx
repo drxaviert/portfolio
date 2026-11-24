@@ -11,7 +11,9 @@ import {
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
 import { MediaVideo } from "@/components/media/media-video";
+import type { Box } from "@/components/work/morph";
 import type { CanvasItem } from "./infinite-canvas";
+import { projectLabel } from "./items";
 import { TRANSITION, fitBox } from "./transition";
 import "./focus-viewer.css";
 
@@ -35,15 +37,17 @@ function videoInSlide(
 /**
  * Full-screen media viewer.
  *
- * Opening and closing are cross-fades at the same full-size box the WebGL
- * plane grows to. The canvas keeps a persistent texture/plane underneath; the
- * viewer waits for a decoded frame before fading in and hands the paused video
- * time to the canvas before fading out, so nothing reloads or changes crop.
+ * The open is a FLIP of the viewer's exact full-res layer from the clicked
+ * tile's rect to the focus box, so the low-res canvas never grows and nothing
+ * is swapped mid-zoom. The canvas keeps the pressed tile until the viewer has
+ * decoded its source, then hands over. On close the canvas restores the tile
+ * underneath the full-res layer before the viewer fades out.
  */
 export function FocusViewer({
   items,
   initialIndex,
   startAt,
+  openRect,
   onReady,
   onClosing,
   onClosed,
@@ -52,7 +56,9 @@ export function FocusViewer({
   initialIndex: number;
   /** The canvas clip's time at the handoff, so the full source starts in sync. */
   startAt?: number;
-  /** The viewer has a decoded frame and is starting its fade-in. */
+  /** The clicked tile's visible rect; the full-res layer FLIPs from here. */
+  openRect?: Box;
+  /** The viewer has decoded its exact source and is starting the full-res zoom. */
   onReady?: () => void;
   /** The canvas should sync/prepare the exit; resolve when it is ready. */
   onClosing?: (index: number, time?: number) => void | Promise<void>;
@@ -68,6 +74,7 @@ export function FocusViewer({
   const [closing, setClosing] = useState(false);
   const reduce = useReducedMotion();
   const [ready, setReady] = useState(reduce);
+  const [zooming, setZooming] = useState(false);
 
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -75,6 +82,19 @@ export function FocusViewer({
   const closingRef = useRef(false);
   const openedRef = useRef(false);
   const flightRef = useRef<ReturnType<typeof animate> | null>(null);
+  const captionRef = useRef<HTMLParagraphElement | null>(null);
+
+  const placeChip = useCallback(() => {
+    const frame = frameRef.current;
+    const chip = captionRef.current;
+    if (!frame || !chip) return;
+
+    const rect = frame.getBoundingClientRect();
+    // Vertically centred in the gap below the opened content, and it tracks
+    // the frame's animated rect during the open/close zoom.
+    chip.style.top = `${(rect.bottom + window.innerHeight) / 2}px`;
+    chip.style.left = "50%";
+  }, []);
 
   const item = items[index];
   const media = item?.media;
@@ -82,6 +102,10 @@ export function FocusViewer({
   useEffect(() => {
     indexRef.current = index;
   }, [index]);
+
+  useLayoutEffect(() => {
+    placeChip();
+  }, [media, placeChip, ready, viewport]);
 
   useEffect(() => {
     const onResize = () => {
@@ -96,9 +120,10 @@ export function FocusViewer({
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Wait for the initial source to have a frame before fading the DOM over
-  // the WebGL plane. A slow source keeps the plane visible instead of cutting
-  // to a blank or a poster.
+  // The canvas hands over the clicked tile's rect. The viewer starts there,
+  // waits for its exact decoded image/video, then zooms the full-res layer to
+  // the focus box. The low-res canvas plane is hidden by onReady; there is no
+  // low-res -> high-res swap during the zoom.
   useLayoutEffect(() => {
     if (openedRef.current) return;
     openedRef.current = true;
@@ -106,25 +131,24 @@ export function FocusViewer({
     const frame = frameRef.current;
     if (!frame) return;
 
-    frame.style.transform = "none";
-    frame.style.opacity = "0";
+    let initial: { x: number; y: number; sx: number; sy: number } | null = null;
 
-    if (reduce) {
-      onReady?.();
-      const animation = animate(
-        frame,
-        { opacity: 1 },
-        { duration: FADE_S, ease: "easeOut" },
-      );
-      flightRef.current = animation;
-      void animation.finished.then(
-        () => {
-          if (flightRef.current === animation) flightRef.current = null;
-        },
-        () => undefined,
-      );
-      return;
+    if (openRect && !reduce) {
+      const rect = frame.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        initial = {
+          x: openRect.left + openRect.width / 2 - (rect.left + rect.width / 2),
+          y: openRect.top + openRect.height / 2 - (rect.top + rect.height / 2),
+          sx: openRect.width / rect.width,
+          sy: openRect.height / rect.height,
+        };
+        frame.style.transformOrigin = "center";
+        frame.style.transform = `translate(${initial.x}px, ${initial.y}px) scale(${initial.sx}, ${initial.sy})`;
+      }
     }
+
+    frame.style.opacity = "0";
+    setZooming(Boolean(initial));
 
     let finished = false;
     let timer = 0;
@@ -135,23 +159,47 @@ export function FocusViewer({
       window.clearTimeout(timer);
       setReady(true);
       onReady?.();
-      frame.style.opacity = "0";
+      frame.style.opacity = "1";
+
+      if (!initial || reduce) {
+        frame.style.transform = "none";
+        setZooming(false);
+        placeChip();
+        return;
+      }
+
       const animation = animate(
         frame,
-        { opacity: 1 },
-        { duration: TRANSITION.handoffMs / 1000, ease: "easeOut" },
+        {
+          x: [initial.x, 0],
+          y: [initial.y, 0],
+          scaleX: [initial.sx, 1],
+          scaleY: [initial.sy, 1],
+        },
+        {
+          duration: TRANSITION.growMs / 1000,
+          ease: "easeOut",
+          onUpdate: placeChip,
+          onComplete: () => {
+            setZooming(false);
+            frame.style.transform = "none";
+            placeChip();
+          },
+        },
       );
       flightRef.current = animation;
       void animation.finished.then(
         () => {
           if (flightRef.current === animation) flightRef.current = null;
-          frame.style.opacity = "1";
+          placeChip();
         },
         () => undefined,
       );
     };
 
-    timer = window.setTimeout(finish, TRANSITION.mediaReadyTimeoutMs);
+    // Long enough for a throttled full-res asset; the tile stays visible with
+    // its press state until this fires.
+    timer = window.setTimeout(finish, 8000);
 
     if (media?.kind === "video") {
       const video = videoInSlide(frame, media.id);
@@ -207,7 +255,6 @@ export function FocusViewer({
         video.addEventListener("seeked", waitFrame, { once: true });
       }
 
-      timer = window.setTimeout(finish, TRANSITION.mediaReadyTimeoutMs);
       return;
     }
 
@@ -218,7 +265,7 @@ export function FocusViewer({
       finish();
     }
     return;
-  }, [media, onReady, reduce, startAt]);
+  }, [media, onReady, openRect, placeChip, reduce, startAt]);
 
   // Viewer controls and playback. The canvas viewer is a silent loop owned by
   // MediaVideo's loopMuted mode; the ready effect above still waits for the
@@ -386,6 +433,7 @@ export function FocusViewer({
       className="cv-viewer"
       data-closing={closing || undefined}
       data-ready={chromeVisible || undefined}
+      data-zooming={zooming || undefined}
       data-start-at={startAt !== undefined ? startAt.toFixed(2) : "none"}
       role="dialog"
       aria-modal="true"
@@ -440,26 +488,25 @@ export function FocusViewer({
           </div>
         </div>
 
-        {media.caption ? (
-          <motion.p
-            key={`${item.key}-caption`}
-            className="cv-viewer__caption"
-            initial={false}
-            animate={{
-              opacity: closing ? 0 : chromeVisible ? 1 : 0,
-            }}
-            transition={{
-              duration: closing ? 0.15 : reduce ? 0 : 0.18,
-              delay:
-                closing || !chromeVisible || reduce
-                  ? 0
-                  : TRANSITION.captionDelayMs / 1000,
-              ease: "easeOut",
-            }}
-          >
-            {media.caption}
-          </motion.p>
-        ) : null}
+        <motion.p
+          ref={captionRef}
+          key={`${item.key}-project`}
+          className="cv-viewer__caption"
+          initial={false}
+          animate={{
+            opacity: closing ? 0 : chromeVisible ? 1 : 0,
+          }}
+          transition={{
+            duration: closing ? 0.15 : reduce ? 0 : 0.18,
+            delay:
+              closing || !chromeVisible || reduce
+                ? 0
+                : TRANSITION.captionDelayMs / 1000,
+            ease: "easeOut",
+          }}
+        >
+          {projectLabel(item.project)}
+        </motion.p>
       </div>
 
       <button

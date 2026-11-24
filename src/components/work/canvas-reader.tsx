@@ -11,6 +11,7 @@ import type {
   InfiniteCanvasHandle,
   LensSettings,
 } from "@/components/canvas/infinite-canvas";
+import type { Box } from "@/components/work/morph";
 import type { WorkMeta } from "@/lib/work";
 import { Breadcrumb } from "./breadcrumb";
 import { READER_TITLE_ID } from "./parts";
@@ -35,6 +36,7 @@ const LOCKED_HOVER: HoverSettings = {
 type ViewerState = {
   index: number;
   startAt?: number;
+  openRect?: Box;
 };
 
 /**
@@ -61,10 +63,13 @@ export function CanvasReader({
   const active = pathname === `/work/${meta.slug}`;
   const shownViewer = active ? viewer : null;
 
-  const openViewer = useCallback((index: number, startAt?: number) => {
-    setViewerClosing(false);
-    setViewer({ index, startAt });
-  }, []);
+  const openViewer = useCallback(
+    (index: number, startAt?: number, openRect?: Box) => {
+      setViewerClosing(false);
+      setViewer({ index, startAt, openRect });
+    },
+    [],
+  );
 
   const closeViewer = useCallback(() => {
     setViewer(null);
@@ -114,6 +119,7 @@ export function CanvasReader({
           items={items}
           initialIndex={shownViewer.index}
           startAt={shownViewer.startAt}
+          openRect={shownViewer.openRect}
           onReady={markViewerReady}
           onClosing={markViewerClosing}
           onClosed={closeViewer}
