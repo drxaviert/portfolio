@@ -34,79 +34,64 @@
   opacity: 0.4;
 }
 
-.cv-reader__back {
-  position: absolute;
-  top: calc(
-    var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
-  );
-  left: max(16px, env(safe-area-inset-left));
-  z-index: 4;
-  pointer-events: auto;
-}
-
-.cv-reader__back .wd-breadcrumb {
-  margin: 0;
-}
-
-.cv-reader__hint {
-  position: absolute;
-  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 24px);
-  left: max(16px, env(safe-area-inset-left));
-  z-index: 3;
-  max-width: min(560px, calc(100vw - 32px));
+/* One bottom chip: the shared breadcrumb, a hairline divider and the hint.
+   The chip keeps the hint pill's surface: no stroke, card shadow, pill radius. */
+.cv-reader__pill {
   padding: 8px 12px;
-  margin: 0;
   border-radius: 999px;
   background: var(--surface-container-low);
   color: var(--on-surface-variant);
   font-size: 12px;
   line-height: 1.4;
   box-shadow: var(--shadow-card);
-  pointer-events: none;
 }
 
-.cv-reader__credit {
+.cv-reader__bottom-bar {
   position: absolute;
-  bottom: max(8px, env(safe-area-inset-bottom));
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 24px);
   left: max(16px, env(safe-area-inset-left));
-  z-index: 3;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
   margin: 0;
-  color: var(--on-surface-variant);
-  font-size: 11px;
-  line-height: 1.4;
-  pointer-events: none;
-}
-
-.cv-reader__credit a {
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
   pointer-events: auto;
+  white-space: nowrap;
 }
 
-.cv-reader__credit a:hover {
-  color: var(--on-surface);
+.cv-reader__bottom-bar .wd-breadcrumb {
+  margin: 0;
 }
 
-.cv-reader__credit a:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+.cv-reader__bottom-divider {
+  width: 1px;
+  height: 12px;
+  flex: 0 0 1px;
+  background: var(--outline-variant);
+}
+
+.cv-reader__bottom-hint {
+  color: var(--on-surface-variant);
 }
 
 @media (min-width: 768px) {
-  .cv-reader__back {
-    left: 32px;
-  }
-
-  .cv-reader__hint,
-  .cv-reader__credit {
+  .cv-reader__bottom-bar {
     left: 32px;
   }
 }
 
-@media (max-width: 640px) {
-  .cv-reader__hint {
+/*
+ * The crumb trail already fills the chip at phone width. Drop the hint and its
+ * divider instead of wrapping the trail or pushing the chip past the edge.
+ */
+@media (max-width: 560px) {
+  .cv-reader__bottom-bar {
+    gap: 0;
+  }
+
+  .cv-reader__bottom-hint,
+  .cv-reader__bottom-divider {
     display: none;
   }
 }
