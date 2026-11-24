@@ -57,6 +57,32 @@
   inset: 0;
 }
 
+.cv-viewer__video {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.cv-viewer__video[data-visible] {
+  opacity: 1;
+}
+
+/* A decoded still at display resolution carries the open flight; the clip is
+   revealed on its first presented frame, so no playing video layer is
+   rastered mid-zoom. */
+.cv-viewer__poster {
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.cv-viewer:not([data-zooming]) .cv-viewer__poster {
+  background-size: contain;
+}
+
 .cv-viewer__media {
   position: absolute;
   inset: 0;

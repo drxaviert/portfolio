@@ -28,6 +28,7 @@ export function MediaVideo({
   className = "",
   viewerOwned = false,
   loopMuted = false,
+  deferPlayback = false,
 }: {
   media: VideoMedia;
   alt: string;
@@ -44,6 +45,12 @@ export function MediaVideo({
    * muted, hide controls and start it as soon as a frame is available.
    */
   loopMuted?: boolean;
+  /**
+   * Keep the canvas viewer's clip paused until the open flight has landed.
+   * A playing 1080p layer is re-rastered every frame while it is transformed,
+   * which stalls the opening frames; a paused first frame does not.
+   */
+  deferPlayback?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const reduce = useReducedMotion();
@@ -105,6 +112,11 @@ export function MediaVideo({
     const video = videoRef.current;
     if (!video) return;
 
+    if (deferPlayback) {
+      video.pause();
+      return;
+    }
+
     const start = () => {
       video.muted = true;
       video.loop = true;
@@ -122,7 +134,7 @@ export function MediaVideo({
       video.removeEventListener("loadeddata", start);
       video.pause();
     };
-  }, [loopMuted]);
+  }, [deferPlayback, loopMuted]);
 
   useEffect(() => {
     if (!hlsUrl || loopMuted) return;
@@ -219,12 +231,13 @@ export function MediaVideo({
         width={media.width}
         height={media.height}
         poster={media.poster.jpg}
+        crossOrigin={loopMuted ? "anonymous" : undefined}
         muted={loopMuted ? true : streaming ? !media.hasAudio : true}
         loop={loopMuted || !streaming}
         playsInline
         preload={loopMuted ? "auto" : "none"}
         controls={streaming && !loopMuted}
-        autoPlay={loopMuted}
+        autoPlay={loopMuted && !deferPlayback}
         aria-label={alt || undefined}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}

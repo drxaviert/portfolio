@@ -32,9 +32,14 @@ beforeEach(() => {
     addEventListener() {},
     removeEventListener() {},
   }));
+  vi.clearAllMocks();
   Object.defineProperty(HTMLMediaElement.prototype, "play", {
     configurable: true,
     value: vi.fn().mockResolvedValue(undefined),
+  });
+  Object.defineProperty(HTMLMediaElement.prototype, "pause", {
+    configurable: true,
+    value: vi.fn(),
   });
 });
 
@@ -62,5 +67,37 @@ describe("MediaVideo", () => {
 
     expect(video?.controls).toBe(true);
     expect(video?.loop).toBe(false);
+  });
+
+  it("holds the viewer clip paused until the open flight lands", () => {
+    const { container, rerender } = render(
+      <MediaVideo
+        media={media}
+        alt={media.alt}
+        loopMuted
+        viewerOwned
+        deferPlayback
+      />,
+    );
+    const video = container.querySelector("video");
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+
+    expect(video?.autoplay).toBe(false);
+    expect(play).not.toHaveBeenCalled();
+
+    video?.dispatchEvent(new Event("canplay"));
+    expect(play).not.toHaveBeenCalled();
+
+    rerender(
+      <MediaVideo
+        media={media}
+        alt={media.alt}
+        loopMuted
+        viewerOwned
+        deferPlayback={false}
+      />,
+    );
+
+    expect(play).toHaveBeenCalledTimes(1);
   });
 });

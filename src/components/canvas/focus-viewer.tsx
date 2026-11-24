@@ -35,12 +35,14 @@ function videoInSlide(
 /**
  * Full-screen media viewer.
  *
- * The open is a FLIP of the viewer's exact full-res layer from the clicked
- * tile's rect to the focus box, so the low-res canvas never grows and nothing
- * is swapped mid-zoom. The canvas keeps the pressed tile until the viewer has
- * decoded its source, then hands over. On close the full-res layer shrinks
- * back to the clicked tile immediately; the canvas prepares the tile in
- * parallel and only reveals it on the landing frame.
+ * The open is a FLIP from the clicked tile's rect to the focus box. For a
+ * clip, the layer that flies is a still captured from the paused full-res
+ * element at the tile's live time; the element itself starts playing only
+ * after the flight lands, so no playing 1080p layer is rastered mid-zoom.
+ * The canvas keeps the pressed tile until that still is ready, then hands
+ * over. On close the full-res layer shrinks back to the clicked tile
+ * immediately; the canvas prepares the tile in parallel and only reveals it
+ * on the landing frame.
  */
 export function FocusViewer({
   items,
@@ -83,6 +85,14 @@ export function FocusViewer({
   const reduce = useReducedMotion();
   const [ready, setReady] = useState(reduce);
   const [zooming, setZooming] = useState(false);
+  // The opened video starts only after the zoom lands, so a playing 1080p
+  // layer is never rastered while the frame is being transformed. A still
+  // layer carries the flight and hands over on the first presented frame.
+  const [playback, setPlayback] = useState(reduce);
+  const [videoVisible, setVideoVisible] = useState(reduce);
+  const [posterVisible, setPosterVisible] = useState(true);
+  /** The clip's exact live frame, so the still and playback start together. */
+  const [posterSrc, setPosterSrc] = useState<string | null>(null);
 
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -110,6 +120,8 @@ export function FocusViewer({
 
   const item = items[index];
   const media = item?.media;
+  /** The still belongs to the item the viewer opened, not a stepped-to one. */
+  const initialKey = items[initialIndex]?.key;
 
   useEffect(() => {
     indexRef.current = index;
@@ -181,37 +193,68 @@ export function FocusViewer({
       if (!initial || reduce) {
         frame.style.transform = "none";
         setZooming(false);
+        setVideoVisible(true);
+        setPlayback(true);
         placeChip();
         return;
       }
 
-      const animation = animate(
-        frame,
-        {
-          x: [initial.x, 0],
-          y: [initial.y, 0],
-          scaleX: [initial.sx, 1],
-          scaleY: [initial.sy, 1],
-        },
-        {
-          duration: TRANSITION.growMs / 1000,
-          ease: "easeOut",
-          onUpdate: placeChip,
-          onComplete: () => {
-            setZooming(false);
-            frame.style.transform = "none";
+      // Let the decoded still (or the paused clip's first frame) finish its
+      // one expensive raster before the transform starts. Wait for a frame
+      // that actually lands on time instead of guessing a delay: the cost is
+      // paid on the held tile, and the flight itself stays compositor-only.
+      let lastFrameAt = performance.now();
+      let attempts = 0;
+      let fastFrames = 0;
+
+      const startWhenPainted = () => {
+        if (closingRef.current) return;
+
+        const now = performance.now();
+        const frameMs = now - lastFrameAt;
+        lastFrameAt = now;
+        attempts += 1;
+        fastFrames = frameMs < 20 ? fastFrames + 1 : 0;
+
+        if (fastFrames < 2 && attempts < 12) {
+          requestAnimationFrame(startWhenPainted);
+          return;
+        }
+
+        const animation = animate(
+          frame,
+          {
+            x: [initial.x, 0],
+            y: [initial.y, 0],
+            scaleX: [initial.sx, 1],
+            scaleY: [initial.sy, 1],
+          },
+          {
+            duration: TRANSITION.growMs / 1000,
+            ease: "easeOut",
+            onUpdate: placeChip,
+            onComplete: () => {
+              setZooming(false);
+              frame.style.transform = "none";
+              // The still is at the clip's live time; start playback only
+              // once the frame has landed, so no playing layer is scaled.
+              setVideoVisible(true);
+              setPlayback(true);
+              placeChip();
+            },
+          },
+        );
+        flightRef.current = animation;
+        void animation.finished.then(
+          () => {
+            if (flightRef.current === animation) flightRef.current = null;
             placeChip();
           },
-        },
-      );
-      flightRef.current = animation;
-      void animation.finished.then(
-        () => {
-          if (flightRef.current === animation) flightRef.current = null;
-          placeChip();
-        },
-        () => undefined,
-      );
+          () => undefined,
+        );
+      };
+
+      requestAnimationFrame(startWhenPainted);
     };
 
     // Long enough for a throttled full-res asset; the tile stays visible with
@@ -226,51 +269,84 @@ export function FocusViewer({
       }
 
       let waited = false;
-      const waitFrame = () => {
-        if (waited) return;
+
+      // Capture the paused clip's exact live frame as the still the flight
+      // paints. Playback resumes from the same frame after the landing, so
+      // the full-res layer never changes content mid-zoom.
+      const capturePoster = () => {
+        if (waited || closingRef.current) return;
         waited = true;
 
-        if (typeof video.requestVideoFrameCallback === "function") {
-          video.requestVideoFrameCallback(() => finish());
-        } else {
-          requestAnimationFrame(() => finish());
-        }
+        requestAnimationFrame(() => {
+          if (closingRef.current) return;
+
+          try {
+            const sourceWidth = video.videoWidth || media.width;
+            const sourceHeight = video.videoHeight || media.height;
+            // The focus box is up to 88vw wide. Capture at least 1280px so a
+            // wide window stays sharp without encoding the full 4K source.
+            const targetWidth = Math.max(
+              1280,
+              Math.round(window.innerWidth * 0.88),
+            );
+            const scale = Math.min(1, targetWidth / sourceWidth);
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(sourceWidth * scale);
+            canvas.height = Math.round(sourceHeight * scale);
+            const context = canvas.getContext("2d");
+            if (!context) throw new Error("no 2d context");
+
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const src = canvas.toDataURL("image/jpeg", 0.92);
+            const image = new Image();
+            image.src = src;
+
+            void image.decode().catch(() => undefined).then(() => {
+              if (closingRef.current) return;
+              setPosterSrc(src);
+              // Let React swap the still, then paint it once before the FLIP.
+              requestAnimationFrame(() => {
+                requestAnimationFrame(finish);
+              });
+            });
+          } catch {
+            // Canvas capture is best-effort; the manifest poster is the
+            // fallback and the clip starts from the top to match it.
+            try {
+              video.currentTime = 0;
+            } catch {
+              // A seek that cannot land keeps the current frame.
+            }
+            finish();
+          }
+        });
       };
 
-      const seekAndWait = () => {
+      const seekAndCapture = () => {
         if (
           startAt === undefined ||
           !Number.isFinite(startAt) ||
           video.readyState < 1
         ) {
-          // No synced time: the first presented frame is enough.
-          if (video.readyState >= 2) waitFrame();
-          else video.addEventListener("canplay", waitFrame, { once: true });
+          capturePoster();
           return;
         }
 
         if (Math.abs(video.currentTime - startAt) < 0.05) {
-          waitFrame();
+          capturePoster();
           return;
         }
 
-        video.addEventListener("seeked", waitFrame, { once: true });
+        video.addEventListener("seeked", capturePoster, { once: true });
         try {
           video.currentTime = startAt;
         } catch {
-          waitFrame();
+          capturePoster();
         }
       };
 
-      if (video.readyState >= 1) seekAndWait();
-      else
-        video.addEventListener("loadedmetadata", seekAndWait, { once: true });
-
-      // The canvas may have started playing while this effect mounted; a seek
-      // that lands later is still the frame to wait for.
-      if (startAt !== undefined) {
-        video.addEventListener("seeked", waitFrame, { once: true });
-      }
+      if (video.readyState >= 2) seekAndCapture();
+      else video.addEventListener("loadeddata", seekAndCapture, { once: true });
 
       return;
     }
@@ -283,6 +359,34 @@ export function FocusViewer({
     }
     return;
   }, [media, onReady, openRect, placeChip, reduce, startAt]);
+
+  // The still stays on top until the clip has presented its first frame, so
+  // the first expensive video raster happens behind identical content.
+  useEffect(() => {
+    if (!videoVisible || !posterVisible || media?.kind !== "video") return;
+
+    const frame = frameRef.current;
+    const video = frame ? videoInSlide(frame, media.id) : null;
+    if (!video) {
+      setPosterVisible(false);
+      return;
+    }
+
+    if (typeof video.requestVideoFrameCallback !== "function") {
+      const timer = window.setTimeout(() => setPosterVisible(false), 180);
+      return () => window.clearTimeout(timer);
+    }
+
+    let cancelled = false;
+    const request = video.requestVideoFrameCallback(() => {
+      if (!cancelled) setPosterVisible(false);
+    });
+
+    return () => {
+      cancelled = true;
+      video.cancelVideoFrameCallback?.(request);
+    };
+  }, [media, posterVisible, videoVisible]);
 
   /** A rect in viewport space -> the frame's translate/scale FLIP values. */
   const flipToRect = useCallback((rect: Box) => {
@@ -616,13 +720,30 @@ export function FocusViewer({
                       className="cv-viewer__media"
                     />
                   ) : (
-                    <MediaVideo
-                      media={media}
-                      alt={media.alt}
-                      className="cv-viewer__media"
-                      viewerOwned
-                      loopMuted
-                    />
+                    <>
+                      <div
+                        className="cv-viewer__video"
+                        data-visible={videoVisible || undefined}
+                      >
+                        <MediaVideo
+                          media={media}
+                          alt={media.alt}
+                          className="cv-viewer__media"
+                          viewerOwned
+                          loopMuted
+                          deferPlayback={!playback}
+                        />
+                      </div>
+                      {posterVisible && item.key === initialKey ? (
+                        <div
+                          className="cv-viewer__poster"
+                          style={{
+                            backgroundImage: `url("${posterSrc ?? media.poster.jpg}")`,
+                          }}
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                    </>
                   )}
                 </motion.div>
               </AnimatePresence>
