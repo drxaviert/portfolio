@@ -11,8 +11,8 @@
  *   5. HEADs every object and skips ones already in R2, then
  *   6. rewrites the manifest URLs to `R2_PUBLIC_BASE_URL` and restores `createdAt`.
  *
- * The two `pipeline-test-*` manifests have no local original; they are listed
- * and skipped, never deleted. Blob is never read: the originals are local.
+ * A manifest with no local original is listed as missing and skipped. Blob is
+ * never read: the originals are local.
  */
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
@@ -28,12 +28,6 @@ const ROOT = process.cwd();
 const MANIFEST_DIR = path.join(ROOT, "content", "media");
 const INBOX_DIR = path.join(ROOT, "media", "inbox");
 const POST_SCRIPT = path.join(ROOT, "scripts", "post.ts");
-
-/** Fixtures with no local original; the owner decides whether to keep them. */
-export const EXCLUDED_IDS: ReadonlySet<string> = new Set([
-  "pipeline-test-loop-c0fe9c23ef",
-  "pipeline-test-still-4a9b86e544",
-]);
 
 class UsageError extends Error {}
 
@@ -53,7 +47,7 @@ export interface ArchiveFile {
   bytes: number;
 }
 
-export type PlanStatus = "migrate" | "excluded" | "missing";
+export type PlanStatus = "migrate" | "missing";
 
 export interface ManifestPlan {
   id: string;
@@ -77,7 +71,6 @@ export interface MigrationPlan {
     video: number;
     image: number;
     migrate: number;
-    excluded: number;
     missing: number;
     objects: number;
     recordedBytes: number;
@@ -261,15 +254,10 @@ function sumRecordedBytes(value: unknown, key = ""): number {
 export function planMigration(
   manifests: MediaManifest[],
   archives: ArchiveFile[],
-  excluded: ReadonlySet<string> = EXCLUDED_IDS,
 ): MigrationPlan {
   const planned = manifests.map<ManifestPlan>((manifest) => {
     const source = findOriginal(manifest, archives);
-    const status: PlanStatus = excluded.has(manifest.id)
-      ? "excluded"
-      : source
-        ? "migrate"
-        : "missing";
+    const status: PlanStatus = source ? "migrate" : "missing";
 
     return {
       id: manifest.id,
@@ -291,7 +279,6 @@ export function planMigration(
       video: planned.filter((item) => item.kind === "video").length,
       image: planned.filter((item) => item.kind === "image").length,
       migrate: planned.filter((item) => item.status === "migrate").length,
-      excluded: planned.filter((item) => item.status === "excluded").length,
       missing: planned.filter((item) => item.status === "missing").length,
       objects: planned.reduce((total, item) => total + item.objects, 0),
       recordedBytes: planned.reduce(
@@ -388,7 +375,7 @@ function printPlan(plan: MigrationPlan): void {
     `  manifests  ${plan.totals.manifests} (${plan.totals.video} video, ${plan.totals.image} image)`,
   );
   console.log(
-    `  migrate    ${plan.totals.migrate}  excluded ${plan.totals.excluded}  missing ${plan.totals.missing}`,
+    `  migrate    ${plan.totals.migrate}  missing ${plan.totals.missing}`,
   );
   console.log(
     `  objects    ${plan.totals.objects} manifest URLs (HLS counted by master playlist only)`,
@@ -398,12 +385,7 @@ function printPlan(plan: MigrationPlan): void {
   );
 
   for (const item of plan.manifests) {
-    const label =
-      item.status === "migrate"
-        ? "migrate "
-        : item.status === "excluded"
-          ? "exclude "
-          : "missing ";
+    const label = item.status === "migrate" ? "migrate " : "missing ";
     const source = item.source ? ` <- ${item.source.path}` : "";
     console.log(
       `  ${label} ${item.id}  ${item.kind}  ${item.objects} objects  ${formatBytes(item.recordedBytes)}${source}`,
@@ -567,11 +549,7 @@ async function run(): Promise<number> {
   let failures = 0;
   for (const item of plan.manifests) {
     if (item.status !== "migrate") {
-      const reason =
-        item.status === "excluded"
-          ? "excluded (owner decision: no local original)"
-          : "missing local original";
-      console.log(`  skip     ${item.id} — ${reason}`);
+      console.log(`  skip     ${item.id} - missing local original`);
       continue;
     }
 

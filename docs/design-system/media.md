@@ -163,21 +163,16 @@ A missing key is named in the error; values are never printed. See
 `.env.r2.example`. `next.config.ts` hard-codes the public r2.dev host, so
 production needs no `.env.r2` or R2 env var; `R2_PUBLIC_BASE_URL` remains an
 optional override for a custom domain. The Blob host is gone now that every
-rendered manifest points at R2.
-
-The two `pipeline-test-*` manifests still contain Blob URLs because they have
-no local original and were skipped. `systems-in-motion` now uses migrated R2
-media, so no rendered route requests Blob; the owner can delete or re-run those
-two fixtures separately.
+rendered manifest points at R2. The former test fixtures that had no local
+original were removed once they became the last Blob URLs.
 
 ### Migration
 
 `pnpm media:migrate-r2 --dry-run --archive media/archive --archive ...` prints
 the per-manifest plan without a network call. Drop `--dry-run` to re-encode the
 local originals, upload, HEAD-skip objects already in R2 and rewrite the
-manifests. `pipeline-test-loop-c0fe9c23ef` and
-`pipeline-test-still-4a9b86e544` have no local original; they are listed and
-skipped, never deleted. Blob is never read.
+manifests. A manifest with no local original is listed as missing and skipped.
+Blob is never read.
 
 ### Local media
 

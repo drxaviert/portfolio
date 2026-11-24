@@ -8,7 +8,6 @@ import type {
 import { createR2Store } from "./lib/media-store.ts";
 import type { R2Env } from "./lib/r2-env.ts";
 import {
-  EXCLUDED_IDS,
   findOriginal,
   planMigration,
   rewriteManifestUrls,
@@ -36,12 +35,12 @@ const image: ImageMedia = {
     {
       format: "avif",
       width: 640,
-      url: "https://old.public.blob.vercel-storage.com/media/cellixir-01-v01a-cf03dc7d17/w640.avif",
+      url: "https://old.example.com/media/cellixir-01-v01a-cf03dc7d17/w640.avif",
     },
     {
       format: "webp",
       width: 640,
-      url: "https://old.public.blob.vercel-storage.com/media/cellixir-01-v01a-cf03dc7d17/w640.webp",
+      url: "https://old.example.com/media/cellixir-01-v01a-cf03dc7d17/w640.webp",
     },
   ],
   lqip: "data:image/webp;base64,AAAA",
@@ -57,21 +56,21 @@ const video: VideoMedia = {
   createdAt: "2026-11-23T15:22:42.432Z",
   original: "Good Form-Reel.webm",
   mp4: {
-    url: "https://old.public.blob.vercel-storage.com/media/good-form-reel-4c969cc977/video.mp4",
+    url: "https://old.example.com/media/good-form-reel-4c969cc977/video.mp4",
     bytes: 1_000,
   },
   canvas: {
-    url: "https://old.public.blob.vercel-storage.com/media/good-form-reel-4c969cc977/canvas.mp4",
+    url: "https://old.example.com/media/good-form-reel-4c969cc977/canvas.mp4",
     bytes: 200,
   },
   hls: {
-    url: "https://old.public.blob.vercel-storage.com/media/good-form-reel-4c969cc977/hls/master.m3u8",
+    url: "https://old.example.com/media/good-form-reel-4c969cc977/hls/master.m3u8",
     bytes: 2_000,
     levels: [{ height: 1080, bandwidth: 5_000_000 }],
   },
   poster: {
-    avif: "https://old.public.blob.vercel-storage.com/media/good-form-reel-4c969cc977/poster.avif",
-    jpg: "https://old.public.blob.vercel-storage.com/media/good-form-reel-4c969cc977/poster.jpg",
+    avif: "https://old.example.com/media/good-form-reel-4c969cc977/poster.avif",
+    jpg: "https://old.example.com/media/good-form-reel-4c969cc977/poster.jpg",
   },
   duration: 61,
   hasAudio: false,
@@ -79,13 +78,13 @@ const video: VideoMedia = {
 
 const missing: ImageMedia = {
   ...image,
-  id: "pipeline-test-still-4a9b86e544",
-  original: "pipeline-test-still.png",
+  id: "missing-fixture-0000000000",
+  original: "missing-fixture.png",
   sources: image.sources.map((source) => ({
     ...source,
     url: source.url.replace(
       "cellixir-01-v01a-cf03dc7d17",
-      "pipeline-test-still-4a9b86e544",
+      "missing-fixture-0000000000",
     ),
   })),
 };
@@ -124,52 +123,31 @@ describe("findOriginal", () => {
 });
 
 describe("planMigration", () => {
-  it("separates migratable, excluded and missing manifests", () => {
-    const plan = planMigration(
-      manifests,
-      [
-        archive("cellixir-01-v01a-cf03dc7d17.webp", 300),
-        archive("good-form-reel-4c969cc977.webm", 4_000),
-      ],
-      new Set(["pipeline-test-still-4a9b86e544"]),
-    );
+  it("separates migratable and missing manifests", () => {
+    const plan = planMigration(manifests, [
+      archive("cellixir-01-v01a-cf03dc7d17.webp", 300),
+      archive("good-form-reel-4c969cc977.webm", 4_000),
+    ]);
 
     expect(plan.manifests.map((item) => item.status)).toEqual([
       "migrate",
       "migrate",
-      "excluded",
+      "missing",
     ]);
     expect(plan.totals).toMatchObject({
       manifests: 3,
       video: 1,
       image: 2,
       migrate: 2,
-      excluded: 1,
-      missing: 0,
+      missing: 1,
       objects: image.sources.length + 5 + missing.sources.length,
       recordedBytes: 3_200,
       sourceBytes: 4_300,
     });
   });
 
-  it("marks the two pipeline fixtures as excluded even when an original exists", () => {
-    const excludedVideo: VideoMedia = {
-      ...video,
-      id: "pipeline-test-loop-c0fe9c23ef",
-      original: "pipeline-test-loop.mp4",
-    };
-    const plan = planMigration(
-      [excludedVideo],
-      [archive("pipeline-test-loop-c0fe9c23ef.mp4")],
-      EXCLUDED_IDS,
-    );
-
-    expect(plan.manifests[0].status).toBe("excluded");
-    expect(plan.totals.migrate).toBe(0);
-  });
-
   it("counts every manifest URL but only the HLS master playlist", () => {
-    const plan = planMigration([video], [], new Set());
+    const plan = planMigration([video], []);
 
     expect(plan.manifests[0].objects).toBe(5);
     expect(plan.manifests[0].hlsBytes).toBe(2_000);
@@ -197,7 +175,6 @@ describe("migrated uploads with a mocked S3 client", () => {
     const plan = planMigration(
       [image],
       [archive("cellixir-01-v01a-cf03dc7d17.webp")],
-      new Set(),
     );
     const key = new URL(image.sources[0].url).pathname.slice(1);
 
