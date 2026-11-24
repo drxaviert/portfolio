@@ -72,7 +72,14 @@ describe("arrow direction", () => {
   it("combines held arrow keys into one diagonal direction", () => {
     const diagonal = arrowDirection(new Set(["ArrowUp", "ArrowRight"]));
 
-    expect(diagonal.x).toBeCloseTo(Math.SQRT1_2, 6);
-    expect(diagonal.y).toBeCloseTo(-Math.SQRT1_2, 6);
+    expect(diagonal.x).toBeCloseTo(-Math.SQRT1_2, 6);
+    expect(diagonal.y).toBeCloseTo(Math.SQRT1_2, 6);
+  });
+
+  it("reverses the arrow keys so they move the content with the key", () => {
+    expect(arrowDirection(new Set(["ArrowRight"]))).toEqual({ x: -1, y: 0 });
+    expect(arrowDirection(new Set(["ArrowDown"]))).toEqual({ x: 0, y: -1 });
+    expect(arrowDirection(new Set(["ArrowLeft"]))).toEqual({ x: 1, y: 0 });
+    expect(arrowDirection(new Set(["ArrowUp"]))).toEqual({ x: 0, y: 1 });
   });
 });

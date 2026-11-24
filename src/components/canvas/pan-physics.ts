@@ -61,15 +61,20 @@ export function normalizeDirection(x: number, y: number): Direction {
   return length > 0 ? { x: x / length, y: y / length } : { x: 0, y: 0 };
 }
 
-/** The combined arrow-key direction, normalized so diagonals are not faster. */
+/**
+ * The combined arrow-key direction, normalized so diagonals are not faster.
+ *
+ * Arrow keys nudge the content, not the camera, so the scroll input is the
+ * inverse of the key: ArrowRight moves the content right (scroll x decreases).
+ */
 export function arrowDirection(keys: ReadonlySet<string>): Direction {
   let x = 0;
   let y = 0;
 
-  if (keys.has("ArrowLeft")) x -= 1;
-  if (keys.has("ArrowRight")) x += 1;
-  if (keys.has("ArrowUp")) y -= 1;
-  if (keys.has("ArrowDown")) y += 1;
+  if (keys.has("ArrowLeft")) x += 1;
+  if (keys.has("ArrowRight")) x -= 1;
+  if (keys.has("ArrowUp")) y += 1;
+  if (keys.has("ArrowDown")) y -= 1;
 
   return normalizeDirection(x, y);
 }
