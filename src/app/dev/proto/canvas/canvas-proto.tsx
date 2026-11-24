@@ -112,9 +112,20 @@ export function CanvasProto({
 
   const markViewerClosing = useCallback((index: number, time?: number) => {
     setViewerClosing(true);
-    // Centre and reveal the current piece, sync its persistent clip to the
-    // viewer frame, and resolve when the canvas is ready to take over.
-    return canvasRef.current?.closeTo(index, time);
+    // Return the landing rect immediately; the tile prepares in parallel.
+    return canvasRef.current?.closeTo(index, time) ?? null;
+  }, []);
+
+  const markViewerLanded = useCallback(() => {
+    canvasRef.current?.landClose();
+  }, []);
+
+  const markViewerReopened = useCallback(() => {
+    canvasRef.current?.cancelClose();
+  }, []);
+
+  const markViewerReopenLanded = useCallback(() => {
+    setViewerClosing(false);
   }, []);
 
   const markViewerReady = useCallback(() => {
@@ -350,6 +361,9 @@ export function CanvasProto({
           openRect={viewer.openRect}
           onReady={markViewerReady}
           onClosing={markViewerClosing}
+          onCloseLanded={markViewerLanded}
+          onReopen={markViewerReopened}
+          onReopenLanded={markViewerReopenLanded}
           onClosed={closeViewer}
         />
       ) : null}

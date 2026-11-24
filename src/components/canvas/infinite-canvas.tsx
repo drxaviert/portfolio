@@ -78,6 +78,13 @@ export type CanvasItem = {
   media: MediaManifest;
 };
 
+export type CloseTarget = {
+  /** The resting tile rect the viewer should land on, or null to cancel. */
+  rect: Box | null;
+  /** The canvas tile (video frame included) is ready to be revealed. */
+  prepared: Promise<void>;
+};
+
 export type InfiniteCanvasHandle = {
   /** The current screen rect of an item's plane, for the focus viewer's FLIP. */
   rectForIndex: (index: number) => Box | null;
@@ -85,8 +92,16 @@ export type InfiniteCanvasHandle = {
   reveal: () => void;
   /** The viewer has a decoded frame; start the canvas handoff fade. */
   handoff: () => void;
-  /** Centre and prepare the current piece; resolve when the canvas owns it. */
-  closeTo: (index: number, time?: number) => Promise<void>;
+  /**
+   * Start a close immediately: return the target tile rect synchronously while
+   * the tile's texture/frame prepares in parallel. Null means the close was
+   * cancelled before anything was shown.
+   */
+  closeTo: (index: number, time?: number) => CloseTarget | null;
+  /** The viewer is shrinking again; put the hidden plane back in place. */
+  cancelClose: () => void;
+  /** The viewer landed; reveal the prepared tile and resume the grid. */
+  landClose: () => void;
 };
 
 export type LensSettings = {
@@ -493,7 +508,9 @@ export const InfiniteCanvas = forwardRef<
     rectForIndex: () => null,
     reveal: () => {},
     handoff: () => {},
-    closeTo: async () => {},
+    closeTo: () => null,
+    cancelClose: () => {},
+    landClose: () => {},
   });
   const wakeRef = useRef<() => void>(() => {});
   const pickRef = useRef<(x: number, y: number) => void>(() => {});
@@ -696,6 +713,8 @@ export const InfiniteCanvas = forwardRef<
     let hiddenPlane: Plane | null = null;
     /** The clicked tile stays visible (pressed) until the viewer is ready. */
     let loadingIndex: number | null = null;
+    /** Guards the async close prep against a reopen or a newer close. */
+    let closeRun = 0;
     let disposed = false;
     let raf = 0;
     let last = 0;
@@ -1838,8 +1857,12 @@ export const InfiniteCanvas = forwardRef<
       });
 
       // The DOM viewer starts at the clicked tile's lens-warped rect. Freeze
-      // the lens until it takes over, so the tile cannot drift underneath it.
-      if (transition.phase === "opening" && transition.viewerOwned) {
+      // the lens until it takes over, and keep it frozen through the reverse
+      // FLIP so the landing rect cannot drift underneath the viewer.
+      if (
+        (transition.phase === "opening" || transition.phase === "closing") &&
+        transition.viewerOwned
+      ) {
         return false;
       }
 
@@ -2004,6 +2027,10 @@ export const InfiniteCanvas = forwardRef<
       }
 
       if (transition.phase === "closing") {
+        // The viewer owns the reverse FLIP. Do not move or fade the WebGL
+        // grid underneath it; the canvas only paints the landed tile.
+        if (transition.viewerOwned) return false;
+
         const target = transition.target;
         const elapsed = transition.prepared ? now - transition.startedAt : 0;
         const shrink = reduced ? 0 : closeShrinkProgress(elapsed);
@@ -2330,6 +2357,8 @@ export const InfiniteCanvas = forwardRef<
       }
 
       if (t.phase === "closing") {
+        // The DOM viewer owns the shrink; the canvas waits for landClose.
+        if (t.viewerOwned) return false;
         if (!t.prepared) return true;
 
         const done = reduced
@@ -2418,144 +2447,190 @@ export const InfiniteCanvas = forwardRef<
       });
     }
 
-    async function closeTo(index: number, time?: number): Promise<void> {
+    /** Put a plane back at its resting tile size and texture crop. */
+    function resetPlaneToTile(plane: Plane): void {
+      plane.mesh.visible = true;
+      plane.mesh.scale.set(plane.tileWidth, plane.tileHeight, 1);
+      plane.material.uniforms.uPlaneSizes.value.set(
+        plane.tileWidth,
+        plane.tileHeight,
+      );
+      plane.material.uniforms.uZoom.value = TEXTURE_ZOOM;
+    }
+
+    function prepareCloseTarget(
+      index: number,
+      media: MediaManifest,
+      time: number | undefined,
+      run: number,
+    ): Promise<void> {
+      if (media.kind !== "video") return Promise.resolve();
+
+      // Let the viewer's first shrink frame get on screen before the seek and
+      // texture upload. This still runs in parallel with the FLIP.
+      return new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          void (async () => {
+            if (run !== closeRun) {
+              resolve();
+              return;
+            }
+
+            let entry: VideoEntry | null = videoEntries.get(index) ?? null;
+            if (!entry) entry = ensureVideoEntry(index);
+
+            if (entry) {
+              entry.element.pause();
+
+              if (!entry.texture) await waitForVideoEntry(entry, 500);
+              if (entry.texture) applyVideoTexture(index, entry);
+
+              if (entry.texture && time !== undefined) {
+                await seekVideo(entry, time);
+                entry.texture.needsUpdate = true;
+                entry.lastUpload = performance.now();
+                await waitFrames(2);
+              }
+            }
+
+            if (run === closeRun && transition.phase === "closing") {
+              transition.prepared = true;
+            }
+            resolve();
+          })();
+        });
+      });
+    }
+
+    function closeTo(index: number, time?: number): CloseTarget | null {
       // Closing while the viewer is still waiting for its first decoded
       // frame: cancel the open, restore the grid, and let the viewer unmount.
       if (transition.phase === "opening" && transition.viewerOwned) {
-        const plane = transition.plane;
+        closeRun += 1;
 
-        if (plane) {
-          plane.mesh.visible = true;
-          plane.mesh.scale.set(plane.tileWidth, plane.tileHeight, 1);
-          plane.material.uniforms.uPlaneSizes.value.set(
-            plane.tileWidth,
-            plane.tileHeight,
-          );
-        }
-
-        for (const item of planes) {
-          item.opacity = 1;
-          item.material.uniforms.uOpacity.value = 1;
+        for (const plane of planes) {
+          resetPlaneToTile(plane);
+          plane.opacity = 1;
+          plane.material.uniforms.uOpacity.value = 1;
         }
 
         loadingIndex = null;
         transition = idleTransition();
         setTransitioning(false);
+        renderScene();
+        updateDebug();
         wake();
-        return;
+        return { rect: null, prepared: Promise.resolve() };
       }
 
-      if (!canClose(transition.phase)) return;
+      if (!canClose(transition.phase)) return null;
 
       panHalt();
       const t = transition;
       const media = items[index]?.media;
-      if (!media) return;
+      if (!media) return null;
 
-      const focus = fitBox(media.width, media.height, width, height);
       const opened = t.plane;
-      let target: Plane | null = null;
+      const target =
+        opened && opened.itemIndex === index
+          ? opened
+          : (findPlane(index) ?? opened);
 
-      if (opened && opened.itemIndex === index) target = opened;
-      else target = findPlane(index) ?? opened;
+      if (!target) return null;
 
-      if (!target) return;
+      closeRun += 1;
+      const run = closeRun;
 
-      t.phase = nextPhase(t.phase, "close");
+      t.phase = "closing";
       t.index = index;
       t.target = target;
       t.handoffAt = -1;
       t.waitingForViewer = false;
       t.prepared = false;
-      t.viewerOwned = false;
-      t.focusWidth = focus.width;
-      t.focusHeight = focus.height;
+      t.viewerOwned = true;
+      t.startedAt = performance.now();
 
-      const aspect = media.width / Math.max(1, media.height);
-      t.tileWidth = baseWidth;
-      t.tileHeight = baseWidth * orientationRatio(aspect);
-
-      // Reposition under the viewer (the other planes are at zero opacity).
-      const px = planePosition(target.baseX, scrollRef.current.x, halfX);
-      const py = planePosition(target.baseY, scrollRef.current.y, halfY);
-      scrollRef.current.x -= px;
-      scrollRef.current.y -= py;
-      placePlanes();
-
-      // The opened copy may be a different item after stepping; put it back
-      // at its tile and let it join the fade-in.
-      if (opened && opened !== target) {
-        const openedMedia = items[opened.itemIndex]?.media;
-        const openedAspect = openedMedia
-          ? openedMedia.width / Math.max(1, openedMedia.height)
-          : 1;
-        const openedH = baseWidth * orientationRatio(openedAspect);
-
-        opened.mesh.scale.set(baseWidth, openedH, 1);
-        opened.material.uniforms.uPlaneSizes.value.set(baseWidth, openedH);
-        opened.material.uniforms.uZoom.value = TEXTURE_ZOOM;
-        opened.mesh.visible = true;
-        opened.opacity = 0;
-        opened.material.uniforms.uOpacity.value = 0;
-      }
-
-      hiddenPlane = null;
-
-      // The target sits exactly under the viewer, at the same contain crop.
-      target.mesh.visible = true;
-      if (!reduced) {
-        target.mesh.scale.set(focus.width, focus.height, 1);
-        target.material.uniforms.uPlaneSizes.value.set(
-          focus.width,
-          focus.height,
-        );
-        target.material.uniforms.uZoom.value = 1;
-      }
-      target.opacity = 1;
-      target.material.uniforms.uOpacity.value = 1;
-
+      // The viewer owns the shrink. Return every tile to its resting size and
+      // hide the grid while the DOM layer flies back to the clicked tile.
       for (const plane of planes) {
-        if (plane === target) continue;
-
-        // Normalize the others while they are hidden, so the first breath
-        // after the close cannot snap a leftover scale.
-        plane.mesh.scale.set(plane.tileWidth, plane.tileHeight, 1);
-        plane.material.uniforms.uPlaneSizes.value.set(
-          plane.tileWidth,
-          plane.tileHeight,
-        );
+        resetPlaneToTile(plane);
         plane.opacity = 0;
         plane.material.uniforms.uOpacity.value = 0;
       }
 
-      // Keep the target's persistent texture. A stepped-to video may not have
-      // an entry yet; load it while the viewer still covers the centre.
-      if (media.kind === "video") {
-        let entry: VideoEntry | null = videoEntries.get(index) ?? null;
-        if (!entry) entry = ensureVideoEntry(index);
+      target.mesh.visible = false;
+      target.opacity = 0;
+      target.material.uniforms.uOpacity.value = 0;
+      hiddenPlane = target;
 
-        if (entry) {
-          entry.element.pause();
-
-          if (entry.texture) {
-            applyVideoTexture(index, entry);
-          } else {
-            await waitForVideoEntry(entry, 500);
-            if (entry.texture) applyVideoTexture(index, entry);
-          }
-
-          if (entry.texture && time !== undefined) {
-            await seekVideo(entry, time);
-            entry.texture.needsUpdate = true;
-            entry.lastUpload = performance.now();
-            await waitFrames(2);
-          }
-        }
+      if (debug) {
+        debug.transition = "closing";
+        debug.hidden = true;
+        debug.targetWidth = Number(target.mesh.scale.x.toFixed(1));
+        debug.targetOpacity = 0;
       }
 
-      t.prepared = true;
-      t.startedAt = performance.now();
-      setTransitioning(true);
+      // Keep the grid where it was; the reverse FLIP lands on this rect.
+      const rect = viewportRectForPlane(target);
+      const prepared = prepareCloseTarget(index, media, time, run);
+
+      return { rect, prepared };
+    }
+
+    function cancelClose(): void {
+      const t = transition;
+      if (t.phase !== "closing" || !t.viewerOwned) return;
+
+      closeRun += 1;
+      const target = t.target;
+
+      for (const plane of planes) {
+        resetPlaneToTile(plane);
+        plane.opacity = 0;
+        plane.material.uniforms.uOpacity.value = 0;
+      }
+
+      if (target) {
+        target.mesh.visible = false;
+        target.opacity = 0;
+        target.material.uniforms.uOpacity.value = 0;
+      }
+
+      hiddenPlane = target;
+      transition = {
+        ...idleTransition(),
+        phase: "open",
+        index: t.index,
+        plane: target,
+        target,
+        viewerOwned: true,
+      };
+      setTransitioning(false);
+      updateDebug();
+      // The canvas stays paused behind the viewer; no render is needed.
+    }
+
+    function landClose(): void {
+      const t = transition;
+      if (t.phase !== "closing" || !t.viewerOwned) return;
+
+      closeRun += 1;
+      const target = t.target;
+
+      // The tile is already at its resting transform; show it before the DOM
+      // viewer unmounts so the hand-back has no blank frame.
+      for (const plane of planes) {
+        resetPlaneToTile(plane);
+        const opacity = plane === target || reduced ? 1 : 0;
+        plane.opacity = opacity;
+        plane.material.uniforms.uOpacity.value = opacity;
+      }
+
+      hiddenPlane = null;
+      transition = idleTransition();
+      setTransitioning(false);
+      renderScene();
+      updateDebug();
       wake();
     }
 
@@ -2611,7 +2686,7 @@ export const InfiniteCanvas = forwardRef<
 
       const transitionActive =
         transition.phase === "opening" ||
-        transition.phase === "closing" ||
+        (transition.phase === "closing" && !transition.viewerOwned) ||
         (transition.phase === "open" &&
           (transition.waitingForViewer || transition.handoffAt >= 0));
 
@@ -2669,7 +2744,7 @@ export const InfiniteCanvas = forwardRef<
 
       const transitionActive =
         transition.phase === "opening" ||
-        transition.phase === "closing" ||
+        (transition.phase === "closing" && !transition.viewerOwned) ||
         (transition.phase === "open" &&
           (transition.waitingForViewer || transition.handoffAt >= 0));
 
@@ -2818,6 +2893,8 @@ export const InfiniteCanvas = forwardRef<
     api.reveal = revealPlane;
     api.handoff = handoff;
     api.closeTo = closeTo;
+    api.cancelClose = cancelClose;
+    api.landClose = landClose;
 
     resize();
 
@@ -2844,7 +2921,9 @@ export const InfiniteCanvas = forwardRef<
       api.rectForIndex = () => null;
       api.reveal = () => {};
       api.handoff = () => {};
-      api.closeTo = async () => {};
+      api.closeTo = () => null;
+      api.cancelClose = () => {};
+      api.landClose = () => {};
 
       pauseAllVideos();
 

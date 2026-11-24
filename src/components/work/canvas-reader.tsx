@@ -78,7 +78,19 @@ export function CanvasReader({
 
   const markViewerClosing = useCallback((index: number, time?: number) => {
     setViewerClosing(true);
-    return canvasRef.current?.closeTo(index, time);
+    return canvasRef.current?.closeTo(index, time) ?? null;
+  }, []);
+
+  const markViewerLanded = useCallback(() => {
+    canvasRef.current?.landClose();
+  }, []);
+
+  const markViewerReopened = useCallback(() => {
+    canvasRef.current?.cancelClose();
+  }, []);
+
+  const markViewerReopenLanded = useCallback(() => {
+    setViewerClosing(false);
   }, []);
 
   const markViewerReady = useCallback(() => {
@@ -89,6 +101,7 @@ export function CanvasReader({
     <div
       className="cv-reader"
       data-viewing={shownViewer && !viewerClosing ? "" : undefined}
+      data-closing={viewerClosing || undefined}
     >
       <h1 id={READER_TITLE_ID} tabIndex={-1} className="cv-reader__title">
         {meta.title}
@@ -122,6 +135,9 @@ export function CanvasReader({
           openRect={shownViewer.openRect}
           onReady={markViewerReady}
           onClosing={markViewerClosing}
+          onCloseLanded={markViewerLanded}
+          onReopen={markViewerReopened}
+          onReopenLanded={markViewerReopenLanded}
           onClosed={closeViewer}
         />
       ) : null}
