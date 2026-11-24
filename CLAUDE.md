@@ -22,14 +22,17 @@ Next.js portfolio; design work runs in Orca worktrees.
 - Opus orchestrates. Delegate Figma, Mobbin, Paper, and browser/design work to a DeepSeek OpenCode worker when it can do it; otherwise Sonnet. Opus makes the final judgment.
 - One design pass per session. Start a fresh session for implementation after exploration.
 - Image budget: at most 10 new images or node exports per session. Prefer node data and text scans over screenshots. Summarize each image in one or two lines before the next tool call.
-- At ~100k tokens, update the active issue (notes + status) and start a fresh
-  session; do not wait for auto-compact.
+- At ~100k tokens, update the active issue (notes + status) and start a fresh session; task state lives in beads (see `docs/beads.md`).
 - Never paste screenshots into a session longer than ~50k tokens.
 
 ## Worktree hygiene
 
 - Keep the orchestrator chat separate from implementation chats.
 - Check for `package.json` before running `pnpm`; a design branch may not include one.
+
+## Specs
+
+- After a feature ships, add/update `specs/<feature>.md` (route, what's on it, actions, states; ≤30 lines).
 
 ## Media and browser tests
 
