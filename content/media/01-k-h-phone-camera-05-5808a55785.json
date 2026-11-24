@@ -1,0 +1,43 @@
+{
+  "id": "01-k-h-phone-camera-05-5808a55785",
+  "kind": "image",
+  "width": 1400,
+  "height": 2000,
+  "alt": "Gold iPhone floating against a gray backdrop",
+  "caption": "iPhone study",
+  "createdAt": "2026-11-24T16:44:47.900Z",
+  "original": "01_K&H_Phone_Camera_05.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/01-k-h-phone-camera-05-5808a55785/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/01-k-h-phone-camera-05-5808a55785/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/01-k-h-phone-camera-05-5808a55785/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/01-k-h-phone-camera-05-5808a55785/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1400,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/01-k-h-phone-camera-05-5808a55785/w1400.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1400,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/01-k-h-phone-camera-05-5808a55785/w1400.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRnYAAABXRUJQVlA4IGoAAACQAwCdASoQABcAPtFWo0uoJKMhsAgBABoJZQC3uA8+c53UKitIAP0NpYtcHJw4bRn6kbkeIlR0mv5GOZzh9Pwc8+vYKi1BgutIS/G7fvh3ufyjid7hgT4d0rr3xHYgFEGKimMUsxnPOdgA"
+}

@@ -1,0 +1,33 @@
+{
+  "id": "24-01-sh01-dt-a01-rs-camera-b4e3c42c5d",
+  "kind": "image",
+  "width": 1128,
+  "height": 1582,
+  "alt": "Faceted iridescent glass vase on black",
+  "caption": "Glass vase study",
+  "createdAt": "2026-11-24T16:45:16.649Z",
+  "original": "24-01_SH01_DT_a01_RS_Camera.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/24-01-sh01-dt-a01-rs-camera-b4e3c42c5d/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/24-01-sh01-dt-a01-rs-camera-b4e3c42c5d/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1128,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/24-01-sh01-dt-a01-rs-camera-b4e3c42c5d/w1128.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1128,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/24-01-sh01-dt-a01-rs-camera-b4e3c42c5d/w1128.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAACQAwCdASoQABYALplotFoiqCgoCACYSgC/OEO+oU8nIce1ccl4AP77bChN/nBuv9q6lb7u1LryX28qYqIDp69H8yIO+lt8VSekaprKkgom//bIEHy1WVEMmhBF5I0b/0z85xvKD2yncdVTkpAAAA=="
+}

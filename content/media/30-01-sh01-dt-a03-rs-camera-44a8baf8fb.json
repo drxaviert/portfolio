@@ -1,0 +1,53 @@
+{
+  "id": "30-01-sh01-dt-a03-rs-camera-44a8baf8fb",
+  "kind": "image",
+  "width": 2160,
+  "height": 2704,
+  "alt": "Iridescent glass shell on purple fabric",
+  "caption": "Shell study",
+  "createdAt": "2026-11-24T16:45:33.018Z",
+  "original": "30-01_SH01_DT_a03_RS_Camera.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/30-01-sh01-dt-a03-rs-camera-44a8baf8fb/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/30-01-sh01-dt-a03-rs-camera-44a8baf8fb/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/30-01-sh01-dt-a03-rs-camera-44a8baf8fb/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/30-01-sh01-dt-a03-rs-camera-44a8baf8fb/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/30-01-sh01-dt-a03-rs-camera-44a8baf8fb/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/30-01-sh01-dt-a03-rs-camera-44a8baf8fb/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2160,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/30-01-sh01-dt-a03-rs-camera-44a8baf8fb/w2160.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2160,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/30-01-sh01-dt-a03-rs-camera-44a8baf8fb/w2160.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRpAAAABXRUJQVlA4IIQAAABQBACdASoQABQAPtFUo0uoJKMhsAgBABoJaACw7YwcyRx5ejTmKDHeJHcAAP7w49y+DLxTLkcbkEN/TFrWqAJxvMuVD+s+G1TVzbd0fWIMqBde2oIPjbZxlbJy8hjblbjP2DsU/GNtgvWFJRxqhdcpliomZT9vy/FJnlEigjYc49p4AAA="
+}

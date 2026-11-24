@@ -10,7 +10,7 @@ import {
 } from "./media";
 import { sourceSet } from "@/components/media/source-set";
 
-const IMAGE_ID = "f874aa9e-71e7-4f6e-ac27-f084c7b7d08b-1-c-44e88e5097";
+const IMAGE_ID = "cellixir-01-v01a-cf03dc7d17";
 const VIDEO_ID = "isometric-784845539a";
 
 afterEach(() => {
@@ -22,11 +22,11 @@ describe("getMedia", () => {
     const media = getMedia(IMAGE_ID);
 
     expect(media.kind).toBe("image");
-    expect(media.width).toBe(2048);
+    expect(media.width).toBe(3840);
     if (media.kind !== "image") return;
 
     expect(media.sources.map((source) => source.width)).toEqual([
-      640, 640, 1280, 1280, 1920, 1920, 2048, 2048,
+      640, 640, 1280, 1280, 1920, 1920, 2560, 2560, 3840, 3840,
     ]);
     expect(media.lqip.startsWith("data:image/webp;base64,")).toBe(true);
   });
@@ -143,7 +143,7 @@ describe("coverImageFor", () => {
     expect(cover.avif).toMatch(/w1280\.avif$/);
     expect(cover.fallback).toMatch(/w1280\.webp$/);
     expect(cover.fallbackType).toBe("image/webp");
-    expect(cover.width).toBe(2048);
+    expect(cover.width).toBe(3840);
     expect(cover.lqip).toMatch(/^data:image\//);
   });
 
