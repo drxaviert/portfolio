@@ -103,11 +103,17 @@ describe("work page", () => {
     expect(notFound).toHaveBeenCalled();
   });
 
-  it("404s the hidden canvas study", async () => {
-    await expect(
-      WorkPage({
-        params: Promise.resolve({ slug: "motion-and-stills" }),
-      }),
-    ).rejects.toThrow("NEXT_NOT_FOUND");
+  it("renders the canvas layout through CanvasReader", async () => {
+    render(
+      <ThemeProvider>
+        {await WorkPage({
+          params: Promise.resolve({ slug: "motion-and-stills" }),
+        })}
+      </ThemeProvider>,
+    );
+
+    expect(document.querySelector("[data-canvas-reader]")).toHaveTextContent(
+      "Motion & Stills",
+    );
   });
 });

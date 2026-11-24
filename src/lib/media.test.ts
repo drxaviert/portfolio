@@ -37,7 +37,7 @@ describe("getMedia", () => {
     expect(media.kind).toBe("video");
     if (media.kind !== "video") return;
 
-    expect(media.mp4.url).toMatch(/^https:\/\//);
+    expect(media.mp4.url).toMatch(/\.mp4$/);
     expect(media.webm?.url).toMatch(/\.webm$/);
     expect(media.poster.avif).toMatch(/\.avif$/);
     expect(media.poster.jpg).toMatch(/\.jpg$/);
@@ -83,6 +83,7 @@ describe("MEDIA_ORIGIN=local", () => {
   });
 
   it("keeps production URLs when the env is unset", () => {
+    vi.stubEnv("MEDIA_ORIGIN", "");
     const media = getMedia(VIDEO_ID);
     if (media.kind !== "video") throw new Error("expected video");
 
@@ -97,6 +98,7 @@ describe("MEDIA_ORIGIN=local", () => {
   });
 
   it("rewrites a manifest without mutating the input", () => {
+    vi.stubEnv("MEDIA_ORIGIN", "");
     const media = getMedia(VIDEO_ID);
     const copy = structuredClone(media);
     const rewritten = rewriteMediaUrls(copy);

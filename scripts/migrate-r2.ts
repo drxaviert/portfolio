@@ -422,6 +422,7 @@ function postArgs(manifest: MediaManifest, options: CliOptions): string[] {
     manifest.original,
     "--force",
     "--skip-existing",
+    "--no-archive",
     `--alt=${manifest.alt}`,
     `--caption=${manifest.caption}`,
   ];

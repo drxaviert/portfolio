@@ -43,11 +43,12 @@ const MEDIA_ID = /^[a-z0-9][a-z0-9-]*$/;
 const COVER_TARGET_WIDTH = 1280;
 
 /**
- * One read per id per process. The manifests are committed files that only
- * change when `pnpm post` runs, so a process-lifetime map is the same contract
- * as `work.ts`'s synchronous reads: revalidate by restarting the build/server.
+ * One read per id per process and per origin. The production manifest is cached
+ * once; `MEDIA_ORIGIN=local` keeps a second, rewritten copy so `getMedia`
+ * returns a stable object in both modes.
  */
 const cache = new Map<string, MediaManifest>();
+const localCache = new Map<string, MediaManifest>();
 
 function invalid(id: string, reason: string): never {
   throw new Error(`content/media/${id}.json is invalid: ${reason}`);
@@ -237,6 +238,7 @@ export function localMediaEnabled(): boolean {
 
 /** `https://host[/prefix]/media/<id>/file` → `/media/local/media/<id>/file`. */
 function localMediaUrl(url: string): string {
+  if (url.startsWith("/media/local/")) return url;
   const { pathname } = new URL(url);
   const keyAt = pathname.indexOf("/media/");
   const key = keyAt >= 0 ? pathname.slice(keyAt) : pathname;
@@ -282,13 +284,11 @@ export function rewriteMediaUrls(manifest: MediaManifest): MediaManifest {
   };
 }
 
-function withMediaOrigin(manifest: MediaManifest): MediaManifest {
-  return localMediaEnabled() ? rewriteMediaUrls(manifest) : manifest;
-}
-
 export function getMedia(id: string): MediaManifest {
-  const cached = cache.get(id);
-  if (cached) return withMediaOrigin(cached);
+  const local = localMediaEnabled();
+  const originCache = local ? localCache : cache;
+  const cached = originCache.get(id);
+  if (cached) return cached;
 
   if (!MEDIA_ID.test(id)) {
     throw new Error(
@@ -315,7 +315,11 @@ export function getMedia(id: string): MediaManifest {
 
   const manifest = validateManifest(id, parsed);
   cache.set(id, manifest);
-  return withMediaOrigin(manifest);
+  if (!local) return manifest;
+
+  const rewritten = rewriteMediaUrls(manifest);
+  localCache.set(id, rewritten);
+  return rewritten;
 }
 
 /**

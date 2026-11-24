@@ -160,10 +160,15 @@ original writes the same keys, which is why the immutable cache is safe.
 Credentials live in `.env.r2` (gitignored): `R2_ACCOUNT_ID`,
 `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL`.
 A missing key is named in the error; values are never printed. See
-`.env.r2.example`. `next.config.ts` reads only the public base URL and adds its
-host to `images.remotePatterns`; the Blob host stays until the migration is
-finished. Set `R2_PUBLIC_BASE_URL` in Vercel too (the file itself is
-gitignored), otherwise the deployed config only allow-lists the Blob host.
+`.env.r2.example`. `next.config.ts` hard-codes the public r2.dev host, so
+production needs no `.env.r2` or R2 env var; `R2_PUBLIC_BASE_URL` remains an
+optional override for a custom domain. The Blob host is gone now that every
+rendered manifest points at R2.
+
+The two `pipeline-test-*` manifests still contain Blob URLs because they have
+no local original and were skipped. `systems-in-motion` now uses migrated R2
+media, so no rendered route requests Blob; the owner can delete or re-run those
+two fixtures separately.
 
 ### Migration
 

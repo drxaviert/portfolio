@@ -119,6 +119,8 @@ interface CliOptions {
   local: boolean;
   /** Upload to R2 and also mirror the objects into media/local/. */
   mirrorLocal: boolean;
+  /** Leave the inbox original in place instead of renaming it into media/archive/. */
+  noArchive: boolean;
   help: boolean;
 }
 
@@ -170,6 +172,7 @@ function parseArgs(argv: string[]): CliOptions {
     skipExisting: false,
     local: false,
     mirrorLocal: false,
+    noArchive: false,
     help: false,
   };
 
@@ -237,6 +240,9 @@ function parseArgs(argv: string[]): CliOptions {
       case "--mirror-local":
         options.mirrorLocal = true;
         break;
+      case "--no-archive":
+        options.noArchive = true;
+        break;
       case "--help":
       case "-h":
         options.help = true;
@@ -292,6 +298,8 @@ Options
   --skip-existing       HEAD each object and leave an existing one untouched.
   --local               Write encoded objects to media/local/ instead of R2.
   --mirror-local        Upload to R2 and also copy every object to media/local/.
+  --no-archive          Leave the inbox original in place (the R2 migration
+                        cleans up its own staging copy).
   --help, -h            Show this help.
 
 Video
@@ -1176,11 +1184,17 @@ async function run(): Promise<number> {
             `${JSON.stringify(manifest, null, 2)}\n`,
             "utf8",
           );
-          const archivePath = path.join(ARCHIVE_DIR, `${job.id}.${job.ext}`);
-          await rename(job.file, archivePath);
-          console.log(
-            `ok       ${job.name} → ${job.id} (archived as media/archive/${job.id}.${job.ext})`,
-          );
+          if (options.noArchive) {
+            console.log(
+              `ok       ${job.name} → ${job.id} (original left in media/inbox)`,
+            );
+          } else {
+            const archivePath = path.join(ARCHIVE_DIR, `${job.id}.${job.ext}`);
+            await rename(job.file, archivePath);
+            console.log(
+              `ok       ${job.name} → ${job.id} (archived as media/archive/${job.id}.${job.ext})`,
+            );
+          }
         }
 
         written.push(manifest);

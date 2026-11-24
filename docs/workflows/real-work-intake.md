@@ -106,8 +106,8 @@ skipped, never deleted. Never download from the paused Blob store.
 
 - Target 2–6 MB per video loop. The script warns over 6 MB and fails over 10 MB.
 - Images avoid Next's optimiser: widths are generated ahead of time and picked by the browser
-  through `<picture>`/`srcset`. `next.config.ts` allow-lists both the R2 public host and, until the
-  migration finishes, the Blob host.
+  through `<picture>`/`srcset`. `next.config.ts` hard-codes the R2 public host, so no R2 env var is
+  needed at build or runtime.
 - Browser, playback and performance tests must use `MEDIA_ORIGIN=local` and files in `media/local/`
   (`pnpm post --local`). Never run them against production R2 or Blob.
 

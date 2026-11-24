@@ -3,10 +3,12 @@ import createMDX from "@next/mdx";
 import { readR2PublicBaseUrl } from "./scripts/lib/r2-env.ts";
 
 /**
- * The R2 public host is read from `R2_PUBLIC_BASE_URL` or `.env.r2`; it is
- * absent until the owner creates the bucket, so the list stays valid either
- * way. The Blob host stays until the migration is complete.
+ * The R2 public host is a constant so production never needs `.env.r2` or an
+ * R2 env var. `R2_PUBLIC_BASE_URL` may still add an override host (for a custom
+ * domain). The Blob host is gone: every rendered manifest now points at R2.
  */
+const R2_PUBLIC_HOST = "pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev";
+
 function mediaRemotePatterns(): NonNullable<
   NonNullable<NextConfig["images"]>["remotePatterns"]
 > {
@@ -15,7 +17,7 @@ function mediaRemotePatterns(): NonNullable<
   > = [
     {
       protocol: "https",
-      hostname: "**.public.blob.vercel-storage.com",
+      hostname: R2_PUBLIC_HOST,
     },
   ];
 
@@ -23,7 +25,7 @@ function mediaRemotePatterns(): NonNullable<
   if (base) {
     try {
       const url = new URL(base);
-      if (url.protocol === "https:") {
+      if (url.protocol === "https:" && url.hostname !== R2_PUBLIC_HOST) {
         patterns.push({
           protocol: "https",
           hostname: url.hostname,
