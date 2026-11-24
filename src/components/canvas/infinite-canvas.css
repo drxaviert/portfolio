@@ -24,11 +24,6 @@
   cursor: pointer;
 }
 
-.cv-surface:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: -4px;
-}
-
 .cv-webgl-host {
   position: absolute;
   inset: 0;
