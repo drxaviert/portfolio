@@ -85,11 +85,7 @@ export function CanvasReader({
       className="cv-reader"
       data-viewing={shownViewer && !viewerClosing ? "" : undefined}
     >
-      <h1
-        id={READER_TITLE_ID}
-        tabIndex={-1}
-        className="cv-reader__title"
-      >
+      <h1 id={READER_TITLE_ID} tabIndex={-1} className="cv-reader__title">
         {meta.title}
       </h1>
 
@@ -105,24 +101,13 @@ export function CanvasReader({
         />
       </div>
 
-      <div className="cv-reader__back">
+      <div className="cv-reader__pill cv-reader__bottom-bar">
         <Breadcrumb title={meta.title} />
+        <span className="cv-reader__bottom-divider" aria-hidden="true" />
+        <span className="cv-reader__bottom-hint">
+          Drag or scroll <span aria-hidden="true">·</span> Click to open
+        </span>
       </div>
-
-      <p className="cv-reader__hint">
-        Drag or scroll <span aria-hidden="true">·</span> Click to open
-      </p>
-
-      <p className="cv-reader__credit">
-        Interaction after{" "}
-        <a
-          href="https://www.cathydolle.com/playground"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Cathy Dolle
-        </a>
-      </p>
 
       {shownViewer ? (
         <FocusViewer

@@ -104,13 +104,7 @@ describe("work page", () => {
   });
 
   it("renders the canvas layout through CanvasReader", async () => {
-    render(
-      <ThemeProvider>
-        {await WorkPage({
-          params: Promise.resolve({ slug: "motion-and-stills" }),
-        })}
-      </ThemeProvider>,
-    );
+    await renderStudy("motion-and-stills");
 
     expect(document.querySelector("[data-canvas-reader]")).toHaveTextContent(
       "Motion & Stills",
