@@ -105,6 +105,14 @@ export function FocusViewer({
   const flightRef = useRef<ReturnType<typeof animate> | null>(null);
   const frameFlightRef = useRef<Animation | null>(null);
   const captionRef = useRef<HTMLParagraphElement | null>(null);
+  const openGenerationRef = useRef(0);
+  const openRunRef = useRef({
+    cancelled: false,
+    timer: 0,
+    settle: 0,
+    capture: 0,
+    poster: 0,
+  });
 
   const placeChip = useCallback(() => {
     const frame = frameRef.current;
@@ -153,11 +161,34 @@ export function FocusViewer({
   // the focus box. The low-res canvas plane is hidden by onReady; there is no
   // low-res -> high-res swap during the zoom.
   useLayoutEffect(() => {
-    if (openedRef.current) return;
+    const generation = ++openGenerationRef.current;
+    const run = openRunRef.current;
+
+    const cleanup = () => {
+      // Strict Mode runs the effect, cleans it up and runs it again in the
+      // same commit. Defer the cancellation one microtask so the remount can
+      // claim the run; a real unmount (no later generation) still clears
+      // every timer and rAF.
+      queueMicrotask(() => {
+        if (openGenerationRef.current !== generation) return;
+        run.cancelled = true;
+        window.clearTimeout(run.timer);
+        cancelAnimationFrame(run.settle);
+        cancelAnimationFrame(run.capture);
+        cancelAnimationFrame(run.poster);
+      });
+    };
+
+    if (openedRef.current) return cleanup;
     openedRef.current = true;
+    run.cancelled = false;
+    run.timer = 0;
+    run.settle = 0;
+    run.capture = 0;
+    run.poster = 0;
 
     const frame = frameRef.current;
-    if (!frame) return;
+    if (!frame) return cleanup;
 
     let initial: { x: number; y: number; sx: number; sy: number } | null = null;
 
@@ -179,12 +210,11 @@ export function FocusViewer({
     setZooming(Boolean(initial));
 
     let finished = false;
-    let timer = 0;
 
     const finish = () => {
-      if (finished) return;
+      if (run.cancelled || finished) return;
       finished = true;
-      window.clearTimeout(timer);
+      window.clearTimeout(run.timer);
       readyRef.current = true;
       setReady(true);
       onReady?.();
@@ -199,16 +229,12 @@ export function FocusViewer({
         return;
       }
 
-      // Let the decoded still (or the paused clip's first frame) finish its
-      // one expensive raster before the transform starts. Wait for a frame
-      // that actually lands on time instead of guessing a delay: the cost is
-      // paid on the held tile, and the flight itself stays compositor-only.
       let lastFrameAt = performance.now();
       let attempts = 0;
       let fastFrames = 0;
 
       const startWhenPainted = () => {
-        if (closingRef.current) return;
+        if (run.cancelled || closingRef.current) return;
 
         const now = performance.now();
         const frameMs = now - lastFrameAt;
@@ -217,7 +243,7 @@ export function FocusViewer({
         fastFrames = frameMs < 20 ? fastFrames + 1 : 0;
 
         if (fastFrames < 2 && attempts < 12) {
-          requestAnimationFrame(startWhenPainted);
+          run.settle = requestAnimationFrame(startWhenPainted);
           return;
         }
 
@@ -254,18 +280,18 @@ export function FocusViewer({
         );
       };
 
-      requestAnimationFrame(startWhenPainted);
+      run.settle = requestAnimationFrame(startWhenPainted);
     };
 
     // Long enough for a throttled full-res asset; the tile stays visible with
     // its press state until this fires.
-    timer = window.setTimeout(finish, 8000);
+    run.timer = window.setTimeout(finish, 8000);
 
     if (media?.kind === "video") {
       const video = videoInSlide(frame, media.id);
       if (!video) {
         finish();
-        return;
+        return cleanup;
       }
 
       let waited = false;
@@ -274,11 +300,11 @@ export function FocusViewer({
       // paints. Playback resumes from the same frame after the landing, so
       // the full-res layer never changes content mid-zoom.
       const capturePoster = () => {
-        if (waited || closingRef.current) return;
+        if (run.cancelled || waited || closingRef.current) return;
         waited = true;
 
-        requestAnimationFrame(() => {
-          if (closingRef.current) return;
+        run.capture = requestAnimationFrame(() => {
+          if (run.cancelled || closingRef.current) return;
 
           try {
             const sourceWidth = video.videoWidth || media.width;
@@ -302,11 +328,11 @@ export function FocusViewer({
             image.src = src;
 
             void image.decode().catch(() => undefined).then(() => {
-              if (closingRef.current) return;
+              if (run.cancelled || closingRef.current) return;
               setPosterSrc(src);
               // Let React swap the still, then paint it once before the FLIP.
-              requestAnimationFrame(() => {
-                requestAnimationFrame(finish);
+              run.poster = requestAnimationFrame(() => {
+                run.poster = requestAnimationFrame(finish);
               });
             });
           } catch {
@@ -348,7 +374,7 @@ export function FocusViewer({
       if (video.readyState >= 2) seekAndCapture();
       else video.addEventListener("loadeddata", seekAndCapture, { once: true });
 
-      return;
+      return cleanup;
     }
 
     const image = frame.querySelector("img");
@@ -357,7 +383,7 @@ export function FocusViewer({
     } else {
       finish();
     }
-    return;
+    return cleanup;
   }, [media, onReady, openRect, placeChip, reduce, startAt]);
 
   // The still stays on top until the clip has presented its first frame, so

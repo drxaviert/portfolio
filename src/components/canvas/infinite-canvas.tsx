@@ -42,6 +42,7 @@ import {
 } from "./intro";
 import {
   TRANSITION,
+  boxInsideViewport,
   canClose,
   canOpen,
   closeComplete,
@@ -53,6 +54,7 @@ import {
   growProgress,
   handoffProgress,
   nextPhase,
+  viewerOpenNeedsFrames,
 } from "./transition";
 import type { TransitionPhase } from "./transition";
 import { LENS, lensProject, lensTargetStrength, lensUnproject } from "./lens";
@@ -1824,6 +1826,27 @@ export const InfiniteCanvas = forwardRef<
       return best;
     }
 
+    /** Prefer a copy of the item whose whole tile is already on screen. */
+    function fullyVisibleCopy(index: number): Plane | null {
+      let best: Plane | null = null;
+      let bestArea = 0;
+
+      for (const plane of planes) {
+        if (plane.itemIndex !== index) continue;
+
+        const rect = viewportRectForPlane(plane);
+        if (!boxInsideViewport(rect, width, height)) continue;
+
+        const area = clippedArea(rect, width, height);
+        if (area > bestArea) {
+          best = plane;
+          bestArea = area;
+        }
+      }
+
+      return best;
+    }
+
     function updateCamera(dt: number): boolean {
       if (!introEndedFlag) {
         camera.position.z = introCamera;
@@ -1831,7 +1854,9 @@ export const InfiniteCanvas = forwardRef<
       }
 
       if (transition.phase === "opening") {
-        return true;
+        // The viewer-owned open holds the camera still while the full-res
+        // source decodes; only the legacy glide/grow moves the camera.
+        return !transition.viewerOwned;
       }
 
       const targetZ = panIsDragging() && !reduced ? CAMERA_DRAG_Z : CAMERA_Z;
@@ -1957,8 +1982,9 @@ export const InfiniteCanvas = forwardRef<
       if (transition.phase === "opening") {
         if (transition.viewerOwned) {
           // The DOM viewer owns the zoom; updateTransition sets the tile press
-          // and the other planes' fade. Do not grow the WebGL plane.
-          return true;
+          // and the other planes' fade. Do not grow the WebGL plane, and let
+          // the loop idle once that fade has settled.
+          return viewerOpenNeedsFrames(elapsed);
         }
 
         const fade = 1 - fadeOutProgress(elapsed);
@@ -2323,7 +2349,7 @@ export const InfiniteCanvas = forwardRef<
             }
           }
 
-          return true;
+          return viewerOpenNeedsFrames(elapsed);
         }
 
         const p = glideProgress(elapsed);
@@ -2531,12 +2557,30 @@ export const InfiniteCanvas = forwardRef<
       if (!media) return null;
 
       const opened = t.plane;
+      const openedVisible =
+        opened &&
+        opened.itemIndex === index &&
+        boxInsideViewport(viewportRectForPlane(opened), width, height);
       const target =
-        opened && opened.itemIndex === index
-          ? opened
-          : (findPlane(index) ?? opened);
+        (openedVisible ? opened : null) ??
+        fullyVisibleCopy(index) ??
+        findPlane(index) ??
+        opened;
 
       if (!target) return null;
+
+      let rect = viewportRectForPlane(target);
+
+      if (!boxInsideViewport(rect, width, height)) {
+        // An Arrow step can land on a rank whose copies are all outside the
+        // viewport. The grid is hidden for the close, so centre the target
+        // now and fly to the tile the landing will actually reveal.
+        // planePosition is base + scroll, so the neutral scroll is -base.
+        scrollRef.current.x = -target.baseX;
+        scrollRef.current.y = -target.baseY;
+        placePlanes();
+        rect = viewportRectForPlane(target);
+      }
 
       closeRun += 1;
       const run = closeRun;
@@ -2570,8 +2614,7 @@ export const InfiniteCanvas = forwardRef<
         debug.targetOpacity = 0;
       }
 
-      // Keep the grid where it was; the reverse FLIP lands on this rect.
-      const rect = viewportRectForPlane(target);
+      // The reverse FLIP lands on the (possibly re-centred) target rect.
       const prepared = prepareCloseTarget(index, media, time, run);
 
       return { rect, prepared };
@@ -2684,6 +2727,12 @@ export const InfiniteCanvas = forwardRef<
         return;
       }
 
+      const viewerWaitSettled =
+        pausedRef.current &&
+        transition.phase === "opening" &&
+        transition.viewerOwned &&
+        !viewerOpenNeedsFrames(now - transition.startedAt);
+
       const transitionActive =
         transition.phase === "opening" ||
         (transition.phase === "closing" && !transition.viewerOwned) ||
@@ -2726,7 +2775,7 @@ export const InfiniteCanvas = forwardRef<
         transitionActive ||
         hovering;
 
-      if (otherActive || breathing) {
+      if (!viewerWaitSettled && (otherActive || breathing)) {
         raf = requestAnimationFrame(renderFrame);
       } else {
         last = 0;
@@ -2748,12 +2797,95 @@ export const InfiniteCanvas = forwardRef<
         (transition.phase === "open" &&
           (transition.waitingForViewer || transition.handoffAt >= 0));
 
-      if (pausedRef.current && !transitionActive) {
+      const viewerWaitSettled =
+        pausedRef.current &&
+        transition.phase === "opening" &&
+        transition.viewerOwned &&
+        !viewerOpenNeedsFrames(performance.now() - transition.startedAt);
+
+      if (pausedRef.current && (!transitionActive || viewerWaitSettled)) {
         return;
       }
 
       last = 0;
       raf = requestAnimationFrame(renderFrame);
+    }
+
+    /**
+     * A resize disposes and rebuilds every plane. Re-point an in-flight
+     * viewer transition at the fresh meshes (the old ones are removed), and
+     * re-apply the pose the viewer expects: the held tile while it decodes,
+     * or a hidden grid once it owns the screen.
+     */
+    function rebindTransitionAfterResize(
+      planeIndex: number | null,
+      targetIndex: number | null,
+    ): void {
+      const t = transition;
+      if (t.phase === "idle") return;
+
+      const index = planeIndex ?? (t.index >= 0 ? t.index : null);
+      const targetIndexResolved = targetIndex ?? index;
+      t.plane = index !== null ? findPlane(index) : null;
+      t.target =
+        targetIndexResolved !== null ? findPlane(targetIndexResolved) : null;
+
+      if (!t.plane) {
+        transition = idleTransition();
+        loadingIndex = null;
+        hiddenPlane = null;
+        return;
+      }
+
+      if (t.phase === "opening" && t.viewerOwned) {
+        const elapsed = performance.now() - t.startedAt;
+        const fade = 1 - fadeOutProgress(elapsed);
+        t.tileWidth = t.plane.tileWidth;
+        t.tileHeight = t.plane.tileHeight;
+        loadingIndex = index;
+
+        for (const plane of planes) {
+          resetPlaneToTile(plane);
+
+          if (plane === t.plane) {
+            const widthAtPress = t.tileWidth * OPEN_PRESS_SCALE;
+            const heightAtPress = t.tileHeight * OPEN_PRESS_SCALE;
+            plane.mesh.visible = true;
+            plane.mesh.scale.set(widthAtPress, heightAtPress, 1);
+            plane.material.uniforms.uPlaneSizes.value.set(
+              widthAtPress,
+              heightAtPress,
+            );
+            plane.opacity = 1;
+          } else {
+            plane.opacity = fade;
+          }
+
+          plane.material.uniforms.uOpacity.value = plane.opacity;
+        }
+
+        hiddenPlane = null;
+      } else {
+        // Open or closing: the viewer covers the canvas. Keep the fresh grid
+        // hidden and let landClose reveal the new target mesh.
+        loadingIndex = null;
+
+        for (const plane of planes) {
+          resetPlaneToTile(plane);
+          plane.opacity = 0;
+          plane.material.uniforms.uOpacity.value = 0;
+        }
+
+        hiddenPlane = t.target ?? t.plane;
+        if (hiddenPlane) {
+          hiddenPlane.mesh.visible = false;
+          hiddenPlane.opacity = 0;
+          hiddenPlane.material.uniforms.uOpacity.value = 0;
+        }
+      }
+
+      renderScene();
+      updateDebug();
     }
 
     function resize(): void {
@@ -2807,7 +2939,11 @@ export const InfiniteCanvas = forwardRef<
       renderTarget.setSize(rtWidth, rtHeight);
       postMaterial.uniforms.uAspect.value = width / height;
 
+      const transitionPlaneIndex = transition.plane?.itemIndex ?? null;
+      const transitionTargetIndex = transition.target?.itemIndex ?? null;
+
       buildPlanes();
+      rebindTransitionAfterResize(transitionPlaneIndex, transitionTargetIndex);
       wake();
     }
 
