@@ -37,8 +37,8 @@ export function planePosition(
 
 /**
  * The equivalent of `target` nearest to `current`, one or more periods away.
- * Arrow navigation uses this so centring a neighbouring plane never sends the
- * scroll offset the long way round the torus.
+ * Centring a plane uses this so a wrapped target never sends the scroll the
+ * long way round the torus.
  */
 export function nearestPeriodic(
   target: number,
@@ -48,4 +48,21 @@ export function nearestPeriodic(
   if (!Number.isFinite(period) || period <= 0) return target;
 
   return target + Math.round((current - target) / period) * period;
+}
+
+/**
+ * The scroll that centres a plane on the clicked copy, not the canonical one.
+ *
+ * Any `-base + k * 2 * halfPeriod` puts the plane at the viewport centre, so
+ * pick the periodic equivalent nearest the current scroll. Without this the
+ * open always targets the unwrapped home slot (`-base`), and a canvas panned
+ * by a period or more flies all the way back to the first-load offset before
+ * the clicked tile opens.
+ */
+export function centrePlaneScroll(
+  base: number,
+  scroll: number,
+  halfPeriod: number,
+): number {
+  return nearestPeriodic(-base, scroll, halfPeriod * 2);
 }

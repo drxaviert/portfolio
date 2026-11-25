@@ -20,6 +20,7 @@ import {
   viewerOpenNeedsFrames,
 } from "./transition";
 import type { TransitionPhase } from "./transition";
+import { planePosition } from "./wrap";
 
 describe("shortestWrappedDelta", () => {
   it("takes the direct route inside a period", () => {
@@ -194,6 +195,43 @@ describe("close return glide", () => {
       from: 40,
       to: 300,
     });
+  });
+
+  it("re-anchors the open focus when the resize changes the wrap period", () => {
+    // A panned open one old 4914px period from the canonical slot, resized
+    // from the 1440x900 grid (pitch 238) to 1280x800 (pitch 206).
+    const previousBase = 936;
+    const nextBase = 824;
+    const halfPeriod = 1957;
+    const oldTo = 3978;
+    const oldFrom = 3999.84;
+    const scale = 1248 / 1408;
+
+    const open = resizeOpenScroll(
+      oldTo,
+      oldFrom,
+      oldTo,
+      previousBase,
+      nextBase,
+      scale,
+      halfPeriod,
+    );
+
+    // The retargeted focus centres the plane under the new period.
+    expect(planePosition(nextBase, open.to, halfPeriod)).toBeCloseTo(0, 9);
+    // The home offset (the pre-open position relative to the focus) scales.
+    expect(open.from - open.to).toBeCloseTo((oldFrom - oldTo) * scale, 9);
+    // The plain translation would leave the opened plane 1000px off centre.
+    expect(
+      planePosition(
+        nextBase,
+        oldTo + previousBase - nextBase,
+        halfPeriod,
+      ),
+    ).toBeCloseTo(1000, 6);
+    // Mid-animation poses keep the plain shift; the caller recentres only the
+    // held open.
+    expect(open.scroll).toBe(oldTo + previousBase - nextBase);
   });
 });
 

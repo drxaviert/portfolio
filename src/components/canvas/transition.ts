@@ -7,6 +7,7 @@
  * last 150ms of the glide, and the close is faster (0.8x the fade).
  */
 import { clamp01, power3InOut, power3Out } from "./intro";
+import { nearestPeriodic } from "./wrap";
 
 export type TransitionPhase = "idle" | "opening" | "open" | "closing";
 export type TransitionEvent = "open" | "opened" | "close" | "closed";
@@ -192,7 +193,12 @@ export function closeScrollOffset(
  *   pixel offset that can fall off screen.
  *
  * The current scroll shifts with the focus so the resize itself does not move
- * the opened plane.
+ * the opened plane. The new pitch also changes the wrap period: a target that
+ * centred the plane under the old period can sit a whole period away from the
+ * new centre. Pass `halfPeriod` to re-anchor the path on the periodic copy
+ * nearest the pitch-shifted scroll. Without it the path keeps the plain
+ * translation, which is all a caller without a wrap period needs. A held
+ * open should then put its scroll on the returned `to`.
  */
 export function resizeOpenScroll(
   scroll: number,
@@ -201,13 +207,26 @@ export function resizeOpenScroll(
   previousBase: number,
   nextBase: number,
   scale: number,
+  halfPeriod = 0,
 ): { scroll: number; from: number; to: number } {
   const delta = previousBase - nextBase;
-  const nextTo = to + delta;
   const home = (from - to) * scale;
 
+  if (!Number.isFinite(halfPeriod) || halfPeriod <= 0) {
+    const nextTo = to + delta;
+
+    return {
+      scroll: scroll + delta,
+      from: nextTo + home,
+      to: nextTo,
+    };
+  }
+
+  const shifted = scroll + delta;
+  const nextTo = nearestPeriodic(-nextBase, shifted, halfPeriod * 2);
+
   return {
-    scroll: scroll + delta,
+    scroll: shifted,
     from: nextTo + home,
     to: nextTo,
   };
