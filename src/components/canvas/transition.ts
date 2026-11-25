@@ -80,18 +80,6 @@ export function fitBox(
 }
 
 /**
- * The caption is centred in the gap between the focused frame and the
- * viewport bottom. A canvas-owned open knows both sizes up front, so the
- * reveal can place the caption without reading layout.
- */
-export function captionTop(
-  viewportHeight: number,
-  frameHeight: number,
-): number {
-  return (viewportHeight * 3 + frameHeight) / 4;
-}
-
-/**
  * The signed distance from one wrapped position to another, always the short
  * way round the seam. An exact half-period stays positive because either way
  * is the same length.

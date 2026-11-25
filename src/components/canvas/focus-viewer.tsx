@@ -2,6 +2,7 @@
 
 import { AnimatePresence, animate, motion } from "motion/react";
 import {
+  type CSSProperties,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -12,11 +13,10 @@ import {
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
 import { MediaVideo } from "@/components/media/media-video";
-import { beginPerf, markPerf } from "@/components/canvas/perf";
 import type { Box } from "@/components/work/morph";
 import type { CanvasItem, CloseTarget } from "./infinite-canvas";
 import { projectLabel } from "./items";
-import { TRANSITION, captionTop, fitBox } from "./transition";
+import { TRANSITION, fitBox } from "./transition";
 import "./focus-viewer.css";
 
 const FOCUSABLE =
@@ -175,7 +175,6 @@ export function FocusViewer({
   const closeTokenRef = useRef(0);
   const flightRef = useRef<ReturnType<typeof animate> | null>(null);
   const frameFlightRef = useRef<Animation | null>(null);
-  const captionRef = useRef<HTMLParagraphElement | null>(null);
   const openGenerationRef = useRef(0);
   const openRunRef = useRef({
     cancelled: false,
@@ -184,18 +183,6 @@ export function FocusViewer({
     capture: 0,
     poster: 0,
   });
-
-  const placeChip = useCallback(() => {
-    const frame = frameRef.current;
-    const chip = captionRef.current;
-    if (!frame || !chip) return;
-
-    const rect = frame.getBoundingClientRect();
-    // Vertically centred in the gap below the opened content, and it tracks
-    // the frame's animated rect during the open/close zoom.
-    chip.style.top = `${(rect.bottom + window.innerHeight) / 2}px`;
-    chip.style.left = "50%";
-  }, []);
 
   const item = items[index];
   const media = item?.media;
@@ -209,26 +196,6 @@ export function FocusViewer({
   useEffect(() => {
     readyRef.current = ready;
   }, [ready]);
-
-  useLayoutEffect(() => {
-    // While the WebGL glide owns the screen there is no visible chip; placing
-    // it now would force a page layout inside the pointer-up handler.
-    if (!open || pending) return;
-
-    // The canvas-owned frame sits at the known focus box, and its caption is
-    // positioned from that size + the viewport in render. Revealing the chrome
-    // therefore never reads the animated frame rect.
-    if (canvasOwned && !domMedia) {
-      markPerf("place-chip", { canvasOwned: true, css: true });
-      return;
-    }
-
-    const endPlace = beginPerf("place-chip", {
-      canvasOwned: Boolean(canvasOwned),
-    });
-    placeChip();
-    endPlace();
-  }, [canvasOwned, domMedia, media, open, pending, placeChip, ready, viewport]);
 
   // Re-arm the one-shot open machinery when the viewer is shown again. The
   // component itself stays mounted (hidden) so the click never pays its mount.
@@ -322,7 +289,6 @@ export function FocusViewer({
         setZooming(false);
         setVideoVisible(true);
         setPlayback(true);
-        placeChip();
         return;
       }
 
@@ -355,7 +321,6 @@ export function FocusViewer({
           {
             duration: TRANSITION.growMs / 1000,
             ease: "easeOut",
-            onUpdate: placeChip,
             onComplete: () => {
               setZooming(false);
               frame.style.transform = "none";
@@ -363,7 +328,6 @@ export function FocusViewer({
               // once the frame has landed, so no playing layer is scaled.
               setVideoVisible(true);
               setPlayback(true);
-              placeChip();
             },
           },
         );
@@ -371,7 +335,6 @@ export function FocusViewer({
         void animation.finished.then(
           () => {
             if (flightRef.current === animation) flightRef.current = null;
-            placeChip();
           },
           () => undefined,
         );
@@ -487,7 +450,6 @@ export function FocusViewer({
     onReady,
     open,
     openRect,
-    placeChip,
     reduce,
     startAt,
   ]);
@@ -681,7 +643,6 @@ export function FocusViewer({
     if (reduce) {
       frame.style.transform = "none";
       setZooming(false);
-      placeChip();
       onReopenLanded?.();
       return;
     }
@@ -716,12 +677,11 @@ export function FocusViewer({
         if (token !== closeTokenRef.current) return;
         frame.style.transform = "none";
         setZooming(false);
-        placeChip();
         onReopenLanded?.();
       },
       () => undefined,
     );
-  }, [media, onReopen, onReopenLanded, placeChip, reduce]);
+  }, [media, onReopen, onReopenLanded, reduce]);
 
   const step = useCallback(
     (direction: number) => {
@@ -871,7 +831,14 @@ export function FocusViewer({
     >
       <div className="cv-viewer__backdrop" aria-hidden="true" onClick={close} />
 
-      <div className="cv-viewer__stage">
+      <div
+        className="cv-viewer__stage"
+        style={
+          {
+            "--cv-viewer-frame-width": `${size.width}px`,
+          } as CSSProperties
+        }
+      >
         <div className="cv-viewer__slot">
           <div
             ref={frameRef}
@@ -939,7 +906,6 @@ export function FocusViewer({
 
         {domMedia ? (
           <motion.p
-            ref={captionRef}
             key={`${item.key}-project`}
             className="cv-viewer__caption"
             initial={false}
@@ -959,10 +925,8 @@ export function FocusViewer({
           </motion.p>
         ) : (
           <p
-            ref={captionRef}
             className="cv-viewer__caption"
             style={{
-              top: `${captionTop(viewport.height, size.height)}px`,
               opacity: closing ? 0 : chromeVisible ? 1 : 0,
               transitionProperty: "opacity",
               transitionDuration: reduce ? "0ms" : `${closing ? 150 : 180}ms`,

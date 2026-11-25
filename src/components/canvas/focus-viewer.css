@@ -131,7 +131,7 @@
 
 .cv-viewer__caption {
   position: absolute;
-  top: 0;
+  bottom: max(16px, env(safe-area-inset-bottom));
   left: 50%;
   max-width: min(88vw, 720px);
   padding: 8px 12px;
@@ -145,7 +145,7 @@
   text-wrap: pretty;
   box-shadow: var(--shadow-card);
   pointer-events: auto;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
 }
 
 .cv-viewer__close {

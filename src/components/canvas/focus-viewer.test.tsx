@@ -105,6 +105,30 @@ describe("FocusViewer open wait", () => {
   });
 });
 
+describe("FocusViewer caption anchor", () => {
+  it("publishes the fit width for CSS and leaves the caption free of an inline top", () => {
+    const { container } = render(
+      <FocusViewer
+        items={[item]}
+        initialIndex={0}
+        canvasOwned
+        onClosed={() => undefined}
+      />,
+    );
+    const stage = container.querySelector(
+      ".cv-viewer__stage",
+    ) as HTMLElement | null;
+    const caption = container.querySelector(
+      ".cv-viewer__caption",
+    ) as HTMLElement | null;
+
+    expect(stage?.style.getPropertyValue("--cv-viewer-frame-width")).not.toBe(
+      "",
+    );
+    expect(caption?.style.top).toBe("");
+  });
+});
+
 describe("FocusViewer Arrow step", () => {
   it("reveals and plays the DOM fallback video after a canvas-owned open", () => {
     const onStep = vi.fn();

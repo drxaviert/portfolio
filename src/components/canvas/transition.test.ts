@@ -4,7 +4,6 @@ import {
   boxInsideViewport,
   canClose,
   canOpen,
-  captionTop,
   closeComplete,
   closeFadeProgress,
   closeShrinkProgress,
@@ -123,13 +122,6 @@ describe("fitBox", () => {
       width: 880,
       height: 440,
     });
-  });
-});
-
-describe("captionTop", () => {
-  it("centres the caption between the frame bottom and the viewport", () => {
-    expect(captionTop(1000, 600)).toBe(900);
-    expect(captionTop(900, 900)).toBe(900);
   });
 });
 
