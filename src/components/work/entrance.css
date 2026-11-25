@@ -63,7 +63,8 @@
 }
 
 .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
-  .wd-reader-scroll {
+  .wd-reader-scroll,
+.wd-expand-layer[data-reveal="settled"] .wd-reader-scroll {
   opacity: 1;
 }
 

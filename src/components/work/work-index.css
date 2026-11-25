@@ -42,8 +42,8 @@
   transition: none;
 }
 
-.wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
-  .wd-index-scroll {
+.wd-expand-layer[data-reveal="on"]:not([data-phase="closing"]) .wd-index-scroll,
+.wd-expand-layer[data-reveal="settled"] .wd-index-scroll {
   opacity: 1;
   transition: opacity var(--duration-medium-5) var(--ease-emphasized-decelerate);
 }

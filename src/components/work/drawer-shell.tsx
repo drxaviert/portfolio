@@ -16,6 +16,7 @@ import {
   registerReaderClose,
 } from "@/components/nav/nav-flight";
 import { DrawerActionsProvider, useEscToClose } from "./drawer-actions";
+import { DrawerRestoreContext } from "./drawer-restore-context";
 import { READER_TITLE_ID } from "./parts";
 import {
   capsuleElement,
@@ -57,9 +58,12 @@ const ESC_BURST_MS = 350;
 export function DrawerShell({
   children,
   resting = false,
+  restoreOnShow,
 }: {
   children: ReactNode;
   resting?: boolean;
+  /** A full-screen route is returning to a drawer that was already open. */
+  restoreOnShow?: () => boolean;
 }) {
   const pathname = usePathname();
   const slug = pathname.startsWith("/work/")
@@ -67,10 +71,13 @@ export function DrawerShell({
     : null;
   const onIndex = slug === null;
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const { phase, reveal, close, stepBack, originRef } = useDrawerMorph(
-    panelRef,
-    { slug, route: pathname, resting },
-  );
+  const { phase, reveal, close, stepBack, originRef, restoreToken } =
+    useDrawerMorph(panelRef, {
+      slug,
+      route: pathname,
+      resting,
+      restoreOnShow,
+    });
   const reduce = useReducedMotion() ?? false;
   const titleId = onIndex ? INDEX_TITLE_ID : READER_TITLE_ID;
 
@@ -338,7 +345,9 @@ export function DrawerShell({
                   setEnteringKey((key) => (key === view.key ? null : key));
                 }}
               >
-                {view.node}
+                <DrawerRestoreContext.Provider value={restoreToken}>
+                  {view.node}
+                </DrawerRestoreContext.Provider>
               </div>
             </div>
           </DrawerActionsProvider>

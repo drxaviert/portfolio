@@ -12,6 +12,13 @@ import { nearestPeriodic } from "./wrap";
 export type TransitionPhase = "idle" | "opening" | "open" | "closing";
 export type TransitionEvent = "open" | "opened" | "close" | "closed";
 
+/**
+ * `power3InOut` above as a cubic-bezier, for CSS and View Transitions. The
+ * canvas drives its timeline with the function; a route transition can only
+ * hand CSS the equivalent curve, so keep the two in this one module.
+ */
+export const POWER3_IN_OUT_EASE = "cubic-bezier(0.65, 0, 0.35, 1)";
+
 export const TRANSITION = {
   glideMs: 1000,
   fadeOutMs: 900,

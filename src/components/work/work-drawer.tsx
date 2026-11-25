@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { consumeDrawerRestore } from "./drawer-restore";
 import { DrawerShell } from "./drawer-shell";
 
 /**
@@ -22,5 +23,9 @@ export function WorkDrawer({ children }: { children: ReactNode }) {
       document.querySelector(".wd-expand-layer") !== null,
   );
 
-  return <DrawerShell resting={resting}>{children}</DrawerShell>;
+  return (
+    <DrawerShell resting={resting} restoreOnShow={consumeDrawerRestore}>
+      {children}
+    </DrawerShell>
+  );
 }

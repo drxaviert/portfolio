@@ -314,6 +314,12 @@
   transition-delay: var(--wd-ruler-enter-delay);
 }
 
+/* A restored drawer is already settled: show the ruler without a second beat. */
+.wd-expand-layer[data-reveal="settled"] .wd-ruler {
+  opacity: 1;
+  filter: none;
+}
+
 .wd-expand-layer[data-phase="closing"] .wd-ruler {
   transition:
     opacity var(--wd-ruler-out),

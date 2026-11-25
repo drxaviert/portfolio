@@ -1,10 +1,28 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HumanContactEmbed } from "./human-contact-embed";
 
 vi.mock("next/dynamic", () => ({
   default: () => () => <div data-experience="embed" />,
 }));
+
+// HumanContactTransition reads the preference for the route morph.
+beforeEach(() => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("HumanContactEmbed", () => {
   it("keeps a static still in the markup as the no-WebGL fallback", () => {

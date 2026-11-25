@@ -128,6 +128,146 @@
   }
 }
 
+/*
+ * Human Contact route transition (pf-9cv.9).
+ *
+ * The live page is the only named participant. On open its snapshot starts as
+ * the case-study embed's rect and grows to the viewport; on close it shrinks
+ * back. The timing is the Motion & Stills canvas tile's own: 1s power3.inOut
+ * open (the glide), 600ms shrink close, with the case study leaving on the
+ * open's 900ms sibling fade and returning with the shrink. Storing the rect
+ * instead of pairing with the embed keeps the motion working when the work
+ * page commits separately (Next does not prefetch in development).
+ *
+ * human-contact-motion.ts writes the durations and the tile geometry from
+ * src/components/canvas/transition.ts into the custom properties below.
+ */
+html[data-human-contact-transition]::view-transition {
+  background-color: #111;
+  pointer-events: none;
+}
+
+::view-transition-group(.human-contact-open),
+::view-transition-group(.human-contact-close) {
+  animation: none;
+}
+
+::view-transition-old(.human-contact-open),
+::view-transition-new(.human-contact-close) {
+  display: none;
+}
+
+/*
+ * Entering: the live page's snapshot is the tile. The first fifth crossfades
+ * it over the real embed, so the embed's own type scale does not pop against
+ * the scaled live page; the grow is the canvas power3.inOut curve over the
+ * whole second.
+ */
+::view-transition-new(.human-contact-open) {
+  transform-origin: 0 0;
+  animation: human-contact-open var(--human-contact-open-duration)
+    var(--human-contact-ease) both;
+}
+
+/*
+ * Leaving: the same tile in reverse. The last fifth fades the snapshot out
+ * over the real embed so the landing frame has no content pop; the movement
+ * and the case study's return end together at 600ms.
+ */
+::view-transition-old(.human-contact-close) {
+  transform-origin: 0 0;
+  animation: human-contact-close var(--human-contact-close-duration)
+    var(--human-contact-ease) both;
+}
+
+@keyframes human-contact-open {
+  0% {
+    opacity: 0;
+    transform: translate(
+        var(--human-contact-tile-x),
+        var(--human-contact-tile-y)
+      )
+      scale(var(--human-contact-tile-scale));
+    clip-path: inset(
+      var(--human-contact-tile-clip-y) var(--human-contact-tile-clip-x)
+        var(--human-contact-tile-clip-y) var(--human-contact-tile-clip-x)
+    );
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes human-contact-close {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+    clip-path: inset(0 0 0 0);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(
+        var(--human-contact-tile-x),
+        var(--human-contact-tile-y)
+      )
+      scale(var(--human-contact-tile-scale));
+    clip-path: inset(
+      var(--human-contact-tile-clip-y) var(--human-contact-tile-clip-x)
+        var(--human-contact-tile-clip-y) var(--human-contact-tile-clip-x)
+    );
+  }
+}
+
+html[data-human-contact-transition="open"]::view-transition-old(root) {
+  animation: human-contact-page-out var(--human-contact-page-fade-duration)
+    var(--human-contact-ease) both;
+}
+
+html[data-human-contact-transition="open"]::view-transition-new(root) {
+  animation: none;
+  opacity: 0;
+}
+
+html[data-human-contact-transition="close"]::view-transition-old(root) {
+  animation: none;
+  opacity: 0;
+}
+
+html[data-human-contact-transition="close"]::view-transition-new(root) {
+  animation: human-contact-page-in var(--human-contact-close-duration)
+    var(--human-contact-ease) both;
+}
+
+@keyframes human-contact-page-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes human-contact-page-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* If the preference flips between the two routes, still land directly. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-human-contact-transition]::view-transition-group(*),
+  html[data-human-contact-transition]::view-transition-old(*),
+  html[data-human-contact-transition]::view-transition-new(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
 :root {
   /*
    * Horizon glow geometry (Figma 1440 frame): phase-independent and tunable

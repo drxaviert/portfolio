@@ -20,8 +20,9 @@ describe("HumanContactExperience", () => {
     expect(overlay?.textContent).not.toContain("Original design");
     expect(overlay?.textContent).not.toContain("Hover interaction");
     expect(container.querySelector(".hc-credit")).toBeNull();
-    expect(
-      screen.getByRole("link", { name: /case study/i }),
-    ).toHaveAttribute("href", "/work/human-contact");
+    expect(screen.getByRole("link", { name: /case study/i })).toHaveAttribute(
+      "href",
+      "/work/human-contact",
+    );
   });
 });
