@@ -730,6 +730,11 @@ export function FocusViewer({
       // The first step leaves the canvas-owned media for the DOM viewer so
       // stepping keeps its existing slide behavior.
       onStep?.();
+      // A canvas-owned open never runs the DOM video finish path, so the DOM
+      // fallback's video layer is still hidden and deferred. The step hands
+      // the media to the DOM; reveal and play its video from here.
+      setVideoVisible(true);
+      setPlayback(true);
       setStepped(true);
       setIndex((current) => {
         const next = (current + direction) % items.length;

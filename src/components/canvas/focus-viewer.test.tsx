@@ -104,3 +104,39 @@ describe("FocusViewer open wait", () => {
     expect(onClosed).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("FocusViewer Arrow step", () => {
+  it("reveals and plays the DOM fallback video after a canvas-owned open", () => {
+    const onStep = vi.fn();
+    const onClosed = vi.fn();
+    const nextItem: CanvasItem = {
+      key: "test-1",
+      project: "Test",
+      media: { ...media, id: "test-video-1111111111" },
+    };
+
+    const { container } = render(
+      <FocusViewer
+        items={[item, nextItem]}
+        initialIndex={0}
+        canvasOwned
+        onStep={onStep}
+        onClosed={onClosed}
+      />,
+    );
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+
+    expect(onStep).toHaveBeenCalledTimes(1);
+    expect(container.querySelector(".cv-viewer")).not.toHaveAttribute(
+      "data-canvas-owned",
+    );
+    expect(container.querySelector(".cv-viewer__slide")).not.toBeNull();
+    const video = container.querySelector(".cv-viewer__video");
+    expect(video).not.toBeNull();
+    expect(video).toHaveAttribute("data-visible");
+    expect(
+      container.querySelector('[data-testid="viewer-video"]'),
+    ).not.toBeNull();
+  });
+});
