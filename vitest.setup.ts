@@ -19,6 +19,21 @@ globalThis.IntersectionObserver ??=
   ObserverStub as unknown as typeof IntersectionObserver;
 
 /**
+ * jsdom has no media query engine. Components that read a preference (reduced
+ * motion) get "no preference", which is the same default the server renders.
+ */
+window.matchMedia ??= ((query: string) => ({
+  matches: false,
+  media: query,
+  onchange: null,
+  addEventListener() {},
+  removeEventListener() {},
+  addListener() {},
+  removeListener() {},
+  dispatchEvent: () => false,
+})) as typeof window.matchMedia;
+
+/**
  * jsdom has no Web Animations. The study hand-off fades the outgoing column
  * before the route changes; tests only need the animation to exist and finish.
  */

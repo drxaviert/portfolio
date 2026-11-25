@@ -183,8 +183,11 @@
  * The project-card cover. The still is the first paint and the floor; the live
  * scene is a second layer that fades in only after its first frame, and fades
  * out again when a hidden route copy is torn down. Opacity only.
+ *
+ * Not `.hc-cover`: that is the live experience's dark overlay above the canvas
+ * (see the top of this file). The two boxes are unrelated.
  */
-.hc-cover {
+.hc-project-cover {
   position: relative;
   width: 100%;
   height: 100%;

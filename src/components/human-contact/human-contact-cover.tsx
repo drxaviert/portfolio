@@ -1,19 +1,17 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import type { ComponentType } from "react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { hasWebGLSupport, isSafari } from "./environment";
 import { HumanContactStill } from "./human-contact-still";
 import "./human-contact.css";
 
-const HumanContactScene = dynamic(
-  () =>
-    import("./human-contact-scene").then((module) => module.HumanContactScene),
-  {
-    ssr: false,
-    loading: () => null,
-  },
-);
+type HumanContactSceneComponent = ComponentType<{
+  onFallback?: () => void;
+  onReady?: () => void;
+  onTeardown?: () => void;
+}>;
 
 /** How close the card has to be before the scene chunk is asked for. */
 const NEAR_MARGIN = "240px 0px";
@@ -57,10 +55,14 @@ function getServerLiveCapability(): boolean {
  * until the row is hovered, then the scene mounts with the thumbnail.
  */
 export function HumanContactCover({ live = true }: { live?: boolean }) {
+  // Reduced motion keeps the still: no chunk, no context, no frame. The scene
+  // also holds a single frame when the preference flips after it started.
+  const reduced = useReducedMotion();
+
   return (
-    <div className="hc-cover" aria-hidden="true">
+    <div className="hc-project-cover" aria-hidden="true">
       <HumanContactStill />
-      {live ? <HumanContactLive /> : null}
+      {live && !reduced ? <HumanContactLive /> : null}
     </div>
   );
 }
@@ -68,6 +70,7 @@ export function HumanContactCover({ live = true }: { live?: boolean }) {
 function HumanContactLive() {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [Scene, setScene] = useState<HumanContactSceneComponent | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const capable = useSyncExternalStore(
@@ -93,7 +96,21 @@ function HumanContactLive() {
       idle = null;
       timer = null;
 
-      if (alive) setMounted(true);
+      if (!alive) return;
+
+      // A plain import in the idle callback, not `next/dynamic`: the router
+      // preloads every dynamic entry reachable from a client module, which put
+      // this chunk in every study's first load. The scene is only fetched when
+      // this cover is actually near the viewport.
+      import("./human-contact-scene")
+        .then((module) => {
+          if (alive) setScene(() => module.HumanContactScene);
+        })
+        .catch(() => {
+          if (alive) setFailed(true);
+        });
+
+      setMounted(true);
     };
 
     const schedule = () => {
@@ -129,7 +146,7 @@ function HumanContactLive() {
     };
   }, [capable]);
 
-  const showScene = capable && !failed && mounted;
+  const showScene = capable && !failed && mounted && Scene !== null;
 
   return (
     <div
@@ -138,7 +155,7 @@ function HumanContactLive() {
       data-live={ready ? "" : undefined}
     >
       {showScene ? (
-        <HumanContactScene
+        <Scene
           onReady={() => setReady(true)}
           onTeardown={() => setReady(false)}
           onFallback={() => setFailed(true)}
