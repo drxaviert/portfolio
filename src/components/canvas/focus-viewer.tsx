@@ -11,12 +11,11 @@ import {
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
 import { MediaVideo } from "@/components/media/media-video";
-import type { CanvasItem } from "./infinite-canvas";
+import type { Box } from "@/components/work/morph";
+import type { CanvasItem, CloseTarget } from "./infinite-canvas";
+import { projectLabel } from "./items";
 import { TRANSITION, fitBox } from "./transition";
-import { ownViewerVideo } from "./viewer-playback";
 import "./focus-viewer.css";
-
-const FADE_S = 0.12;
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), video[controls], [tabindex]:not([tabindex="-1"])';
@@ -36,27 +35,43 @@ function videoInSlide(
 /**
  * Full-screen media viewer.
  *
- * Opening and closing are cross-fades at the same full-size box the WebGL
- * plane grows to. The canvas keeps a persistent texture/plane underneath; the
- * viewer waits for a decoded frame before fading in and hands the paused video
- * time to the canvas before fading out, so nothing reloads or changes crop.
+ * The open is a FLIP from the clicked tile's rect to the focus box. For a
+ * clip, the layer that flies is a still captured from the paused full-res
+ * element at the tile's live time; the element itself starts playing only
+ * after the flight lands, so no playing 1080p layer is rastered mid-zoom.
+ * The canvas keeps the pressed tile until that still is ready, then hands
+ * over. On close the full-res layer shrinks back to the clicked tile
+ * immediately; the canvas prepares the tile in parallel and only reveals it
+ * on the landing frame.
  */
 export function FocusViewer({
   items,
   initialIndex,
   startAt,
+  openRect,
   onReady,
   onClosing,
+  onCloseLanded,
+  onReopen,
+  onReopenLanded,
   onClosed,
 }: {
   items: CanvasItem[];
   initialIndex: number;
   /** The canvas clip's time at the handoff, so the full source starts in sync. */
   startAt?: number;
-  /** The viewer has a decoded frame and is starting its fade-in. */
+  /** The clicked tile's visible rect; the full-res layer FLIPs from here. */
+  openRect?: Box;
+  /** The viewer has decoded its exact source and is starting the full-res zoom. */
   onReady?: () => void;
-  /** The canvas should sync/prepare the exit; resolve when it is ready. */
-  onClosing?: (index: number, time?: number) => void | Promise<void>;
+  /** Start the close; returns the landing rect and the canvas prep promise. */
+  onClosing?: (index: number, time?: number) => CloseTarget | null;
+  /** The viewer landed; reveal the prepared canvas tile before unmounting. */
+  onCloseLanded?: () => void;
+  /** The close was interrupted; hand the hidden plane back to the canvas. */
+  onReopen?: () => void;
+  /** The reopen reached the focus box; the canvas cover can be dropped. */
+  onReopenLanded?: () => void;
   onClosed: () => void;
 }) {
   const [index, setIndex] = useState(() =>
@@ -69,20 +84,64 @@ export function FocusViewer({
   const [closing, setClosing] = useState(false);
   const reduce = useReducedMotion();
   const [ready, setReady] = useState(reduce);
+  const [zooming, setZooming] = useState(false);
+  // The opened video starts only after the zoom lands, so a playing 1080p
+  // layer is never rastered while the frame is being transformed. A still
+  // layer carries the flight and hands over on the first presented frame.
+  const [playback, setPlayback] = useState(reduce);
+  const [videoVisible, setVideoVisible] = useState(reduce);
+  const [posterVisible, setPosterVisible] = useState(true);
+  /** The clip's exact live frame, so the still and playback start together. */
+  const [posterSrc, setPosterSrc] = useState<string | null>(null);
 
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const indexRef = useRef(index);
   const closingRef = useRef(false);
   const openedRef = useRef(false);
+  const readyRef = useRef(reduce);
+  const landedRef = useRef(false);
+  const closeTokenRef = useRef(0);
   const flightRef = useRef<ReturnType<typeof animate> | null>(null);
+  const frameFlightRef = useRef<Animation | null>(null);
+  const captionRef = useRef<HTMLParagraphElement | null>(null);
+  const openGenerationRef = useRef(0);
+  const openRunRef = useRef({
+    cancelled: false,
+    timer: 0,
+    settle: 0,
+    capture: 0,
+    poster: 0,
+  });
+
+  const placeChip = useCallback(() => {
+    const frame = frameRef.current;
+    const chip = captionRef.current;
+    if (!frame || !chip) return;
+
+    const rect = frame.getBoundingClientRect();
+    // Vertically centred in the gap below the opened content, and it tracks
+    // the frame's animated rect during the open/close zoom.
+    chip.style.top = `${(rect.bottom + window.innerHeight) / 2}px`;
+    chip.style.left = "50%";
+  }, []);
 
   const item = items[index];
   const media = item?.media;
+  /** The still belongs to the item the viewer opened, not a stepped-to one. */
+  const initialKey = items[initialIndex]?.key;
 
   useEffect(() => {
     indexRef.current = index;
   }, [index]);
+
+  useEffect(() => {
+    readyRef.current = ready;
+  }, [ready]);
+
+  useLayoutEffect(() => {
+    placeChip();
+  }, [media, placeChip, ready, viewport]);
 
   useEffect(() => {
     const onResize = () => {
@@ -97,145 +156,281 @@ export function FocusViewer({
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Wait for the initial source to have a frame before fading the DOM over
-  // the WebGL plane. A slow source keeps the plane visible instead of cutting
-  // to a blank or a poster.
+  // The canvas hands over the clicked tile's rect. The viewer starts there,
+  // waits for its exact decoded image/video, then zooms the full-res layer to
+  // the focus box. The low-res canvas plane is hidden by onReady; there is no
+  // low-res -> high-res swap during the zoom.
   useLayoutEffect(() => {
-    if (openedRef.current) return;
-    openedRef.current = true;
+    const generation = ++openGenerationRef.current;
+    const run = openRunRef.current;
 
-    const frame = frameRef.current;
-    if (!frame) return;
-
-    frame.style.transform = "none";
-    frame.style.opacity = "0";
-
-    if (reduce) {
-      onReady?.();
-      const animation = animate(
-        frame,
-        { opacity: 1 },
-        { duration: FADE_S, ease: "easeOut" },
-      );
-      flightRef.current = animation;
-      void animation.finished.then(
-        () => {
-          if (flightRef.current === animation) flightRef.current = null;
-        },
-        () => undefined,
-      );
-      return;
-    }
-
-    let finished = false;
-    let timer = 0;
-
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      window.clearTimeout(timer);
-      setReady(true);
-      onReady?.();
-      frame.style.opacity = "0";
-      const animation = animate(
-        frame,
-        { opacity: 1 },
-        { duration: TRANSITION.handoffMs / 1000, ease: "easeOut" },
-      );
-      flightRef.current = animation;
-      void animation.finished.then(
-        () => {
-          if (flightRef.current === animation) flightRef.current = null;
-          frame.style.opacity = "1";
-        },
-        () => undefined,
-      );
+    const cleanup = () => {
+      // Strict Mode runs the effect, cleans it up and runs it again in the
+      // same commit. Defer the cancellation one microtask so the remount can
+      // claim the run; a real unmount (no later generation) still clears
+      // every timer and rAF.
+      queueMicrotask(() => {
+        if (openGenerationRef.current !== generation) return;
+        run.cancelled = true;
+        window.clearTimeout(run.timer);
+        cancelAnimationFrame(run.settle);
+        cancelAnimationFrame(run.capture);
+        cancelAnimationFrame(run.poster);
+      });
     };
 
-    timer = window.setTimeout(finish, TRANSITION.mediaReadyTimeoutMs);
+    if (openedRef.current) return cleanup;
+    openedRef.current = true;
+    run.cancelled = false;
+    run.timer = 0;
+    run.settle = 0;
+    run.capture = 0;
+    run.poster = 0;
+
+    const frame = frameRef.current;
+    if (!frame) return cleanup;
+
+    let initial: { x: number; y: number; sx: number; sy: number } | null = null;
+
+    if (openRect && !reduce) {
+      const rect = frame.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        initial = {
+          x: openRect.left + openRect.width / 2 - (rect.left + rect.width / 2),
+          y: openRect.top + openRect.height / 2 - (rect.top + rect.height / 2),
+          sx: openRect.width / rect.width,
+          sy: openRect.height / rect.height,
+        };
+        frame.style.transformOrigin = "center";
+        frame.style.transform = `translate(${initial.x}px, ${initial.y}px) scale(${initial.sx}, ${initial.sy})`;
+      }
+    }
+
+    frame.style.opacity = "0";
+    setZooming(Boolean(initial));
+
+    let finished = false;
+
+    const finish = () => {
+      if (run.cancelled || finished) return;
+      finished = true;
+      window.clearTimeout(run.timer);
+      readyRef.current = true;
+      setReady(true);
+      onReady?.();
+      frame.style.opacity = "1";
+
+      if (!initial || reduce) {
+        frame.style.transform = "none";
+        setZooming(false);
+        setVideoVisible(true);
+        setPlayback(true);
+        placeChip();
+        return;
+      }
+
+      let lastFrameAt = performance.now();
+      let attempts = 0;
+      let fastFrames = 0;
+
+      const startWhenPainted = () => {
+        if (run.cancelled || closingRef.current) return;
+
+        const now = performance.now();
+        const frameMs = now - lastFrameAt;
+        lastFrameAt = now;
+        attempts += 1;
+        fastFrames = frameMs < 20 ? fastFrames + 1 : 0;
+
+        if (fastFrames < 2 && attempts < 12) {
+          run.settle = requestAnimationFrame(startWhenPainted);
+          return;
+        }
+
+        const animation = animate(
+          frame,
+          {
+            x: [initial.x, 0],
+            y: [initial.y, 0],
+            scaleX: [initial.sx, 1],
+            scaleY: [initial.sy, 1],
+          },
+          {
+            duration: TRANSITION.growMs / 1000,
+            ease: "easeOut",
+            onUpdate: placeChip,
+            onComplete: () => {
+              setZooming(false);
+              frame.style.transform = "none";
+              // The still is at the clip's live time; start playback only
+              // once the frame has landed, so no playing layer is scaled.
+              setVideoVisible(true);
+              setPlayback(true);
+              placeChip();
+            },
+          },
+        );
+        flightRef.current = animation;
+        void animation.finished.then(
+          () => {
+            if (flightRef.current === animation) flightRef.current = null;
+            placeChip();
+          },
+          () => undefined,
+        );
+      };
+
+      run.settle = requestAnimationFrame(startWhenPainted);
+    };
+
+    // Long enough for a throttled full-res asset; the tile stays visible with
+    // its press state until this fires.
+    run.timer = window.setTimeout(finish, 8000);
 
     if (media?.kind === "video") {
       const video = videoInSlide(frame, media.id);
       if (!video) {
         finish();
-        return;
+        return cleanup;
       }
 
       let waited = false;
-      const waitFrame = () => {
-        if (waited) return;
+
+      // Capture the paused clip's exact live frame as the still the flight
+      // paints. Playback resumes from the same frame after the landing, so
+      // the full-res layer never changes content mid-zoom.
+      const capturePoster = () => {
+        if (run.cancelled || waited || closingRef.current) return;
         waited = true;
 
-        if (typeof video.requestVideoFrameCallback === "function") {
-          video.requestVideoFrameCallback(() => finish());
-        } else {
-          requestAnimationFrame(() => finish());
-        }
+        run.capture = requestAnimationFrame(() => {
+          if (run.cancelled || closingRef.current) return;
+
+          try {
+            const sourceWidth = video.videoWidth || media.width;
+            const sourceHeight = video.videoHeight || media.height;
+            // The focus box is up to 88vw wide. Capture at least 1280px so a
+            // wide window stays sharp without encoding the full 4K source.
+            const targetWidth = Math.max(
+              1280,
+              Math.round(window.innerWidth * 0.88),
+            );
+            const scale = Math.min(1, targetWidth / sourceWidth);
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(sourceWidth * scale);
+            canvas.height = Math.round(sourceHeight * scale);
+            const context = canvas.getContext("2d");
+            if (!context) throw new Error("no 2d context");
+
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const src = canvas.toDataURL("image/jpeg", 0.92);
+            const image = new Image();
+            image.src = src;
+
+            void image.decode().catch(() => undefined).then(() => {
+              if (run.cancelled || closingRef.current) return;
+              setPosterSrc(src);
+              // Let React swap the still, then paint it once before the FLIP.
+              run.poster = requestAnimationFrame(() => {
+                run.poster = requestAnimationFrame(finish);
+              });
+            });
+          } catch {
+            // Canvas capture is best-effort; the manifest poster is the
+            // fallback and the clip starts from the top to match it.
+            try {
+              video.currentTime = 0;
+            } catch {
+              // A seek that cannot land keeps the current frame.
+            }
+            finish();
+          }
+        });
       };
 
-      const seekAndWait = () => {
+      const seekAndCapture = () => {
         if (
           startAt === undefined ||
           !Number.isFinite(startAt) ||
           video.readyState < 1
         ) {
-          // No synced time: the first presented frame is enough.
-          if (video.readyState >= 2) waitFrame();
-          else video.addEventListener("canplay", waitFrame, { once: true });
+          capturePoster();
           return;
         }
 
         if (Math.abs(video.currentTime - startAt) < 0.05) {
-          waitFrame();
+          capturePoster();
           return;
         }
 
-        video.addEventListener("seeked", waitFrame, { once: true });
+        video.addEventListener("seeked", capturePoster, { once: true });
         try {
           video.currentTime = startAt;
         } catch {
-          waitFrame();
+          capturePoster();
         }
       };
 
-      if (video.readyState >= 1) seekAndWait();
-      else video.addEventListener("loadedmetadata", seekAndWait, { once: true });
+      if (video.readyState >= 2) seekAndCapture();
+      else video.addEventListener("loadeddata", seekAndCapture, { once: true });
 
-      // The canvas may have started playing while this effect mounted; a seek
-      // that lands later is still the frame to wait for.
-      if (startAt !== undefined) {
-        video.addEventListener("seeked", waitFrame, { once: true });
-      }
-
-      timer = window.setTimeout(finish, TRANSITION.mediaReadyTimeoutMs);
-      return;
+      return cleanup;
     }
 
     const image = frame.querySelector("img");
     if (image) {
-      void image
-        .decode()
-        .then(finish)
-        .catch(finish);
+      void image.decode().then(finish).catch(finish);
     } else {
       finish();
     }
-    return;
-  }, [media, onReady, reduce, startAt]);
+    return cleanup;
+  }, [media, onReady, openRect, placeChip, reduce, startAt]);
 
-  // Viewer controls and playback. The viewer is the only owner: MediaVideo's
-  // observer is off for this instance, the readiness effect above makes the
-  // one handoff seek, and this starts the piece once. After the first playing
-  // frame it stands back, so the native controls (and the user) own play/pause.
+  // The still stays on top until the clip has presented its first frame, so
+  // the first expensive video raster happens behind identical content.
   useEffect(() => {
+    if (!videoVisible || !posterVisible || media?.kind !== "video") return;
+
     const frame = frameRef.current;
-    if (!frame || media?.kind !== "video") return;
+    const video = frame ? videoInSlide(frame, media.id) : null;
+    if (!video) {
+      setPosterVisible(false);
+      return;
+    }
 
-    const video = videoInSlide(frame, media.id);
-    if (!video) return;
+    if (typeof video.requestVideoFrameCallback !== "function") {
+      const timer = window.setTimeout(() => setPosterVisible(false), 180);
+      return () => window.clearTimeout(timer);
+    }
 
-    return ownViewerVideo(video);
-  }, [index, media]);
+    let cancelled = false;
+    const request = video.requestVideoFrameCallback(() => {
+      if (!cancelled) setPosterVisible(false);
+    });
+
+    return () => {
+      cancelled = true;
+      video.cancelVideoFrameCallback?.(request);
+    };
+  }, [media, posterVisible, videoVisible]);
+
+  /** A rect in viewport space -> the frame's translate/scale FLIP values. */
+  const flipToRect = useCallback((rect: Box) => {
+    const frame = frameRef.current;
+    if (!frame) return null;
+
+    const width = frame.offsetWidth || 1;
+    const height = frame.offsetHeight || 1;
+    const centreX = frame.offsetLeft + width / 2;
+    const centreY = frame.offsetTop + height / 2;
+
+    return {
+      x: rect.left + rect.width / 2 - centreX,
+      y: rect.top + rect.height / 2 - centreY,
+      scaleX: rect.width / width,
+      scaleY: rect.height / height,
+    };
+  }, []);
 
   const close = useCallback(() => {
     if (closingRef.current) return;
@@ -251,27 +446,145 @@ export function FocusViewer({
     const video =
       media?.kind === "video" ? videoInSlide(frame, media.id) : null;
     const mediaTime = video ? video.currentTime : undefined;
-    // Freeze the full-quality frame while the canvas seeks its persistent
-    // clip to the same time; the viewer stays visible until that is ready.
+    // Freeze the viewer frame while the canvas seeks its persistent clip.
     video?.pause();
 
-    const prepared = onClosing?.(indexRef.current, mediaTime);
+    const target = onClosing?.(indexRef.current, mediaTime) ?? null;
 
-    void Promise.resolve(prepared)
-      .catch(() => undefined)
-      .then(() => {
-        const animation = animate(
-          frame,
-          { opacity: 0 },
-          {
-            duration: reduce ? FADE_S : TRANSITION.closeCrossFadeMs / 1000,
-            ease: "easeOut",
-          },
-        );
-        flightRef.current = animation;
-        void animation.finished.then(onClosed, onClosed);
-      });
-  }, [media, onClosed, onClosing, reduce]);
+    if (!target || !target.rect) {
+      // Closing mid-open, before the viewer was revealed. The canvas has
+      // already restored the grid; there is nothing to shrink.
+      onClosed();
+      return;
+    }
+
+    const token = ++closeTokenRef.current;
+    const landing = () => {
+      if (token !== closeTokenRef.current) return;
+      landedRef.current = true;
+      onCloseLanded?.();
+      onClosed();
+    };
+
+    if (reduce) {
+      void target.prepared.catch(() => undefined).then(landing);
+      return;
+    }
+
+    // Stop the open zoom at its current transform, then reverse it to the
+    // resting tile rect. Transform only, on the compositor; no layout reads
+    // and no state updates per frame. The canvas prep runs in parallel.
+    const computedTransform = getComputedStyle(frame).transform;
+    flightRef.current?.stop();
+    flightRef.current = null;
+    frameFlightRef.current?.cancel();
+    frameFlightRef.current = null;
+
+    frame.style.transformOrigin = "center";
+    frame.style.transform =
+      computedTransform === "none" ? "none" : computedTransform;
+    frame.style.opacity = "1";
+
+    const end = flipToRect(target.rect);
+    if (!end) {
+      landing();
+      return;
+    }
+
+    setZooming(true);
+    const animation = frame.animate(
+      [
+        {
+          transform:
+            computedTransform === "none"
+              ? "translate(0px, 0px) scale(1, 1)"
+              : computedTransform,
+        },
+        {
+          transform: `translate(${end.x}px, ${end.y}px) scale(${end.scaleX}, ${end.scaleY})`,
+        },
+      ],
+      {
+        duration: TRANSITION.closeShrinkMs,
+        easing: "cubic-bezier(0, 0, 0.58, 1)",
+        fill: "forwards",
+      },
+    );
+    frameFlightRef.current = animation;
+
+    void Promise.all([
+      animation.finished.catch(() => undefined),
+      target.prepared.catch(() => undefined),
+    ]).then(landing);
+  }, [flipToRect, media, onCloseLanded, onClosed, onClosing, reduce]);
+
+  const reopen = useCallback(() => {
+    if (!closingRef.current || landedRef.current) return;
+
+    // A click on the shrinking frame reverses the close from its current
+    // transform. The canvas keeps the opened plane hidden until the next
+    // close starts again.
+    closeTokenRef.current += 1;
+    closingRef.current = false;
+    setClosing(false);
+
+    const frame = frameRef.current;
+    const currentTransform = frame ? getComputedStyle(frame).transform : "none";
+
+    frameFlightRef.current?.cancel();
+    frameFlightRef.current = null;
+    onReopen?.();
+
+    if (!frame) return;
+
+    const video =
+      media?.kind === "video" ? videoInSlide(frame, media.id) : null;
+    if (video) void video.play().catch(() => undefined);
+
+    if (reduce) {
+      frame.style.transform = "none";
+      setZooming(false);
+      placeChip();
+      onReopenLanded?.();
+      return;
+    }
+
+    frame.style.transformOrigin = "center";
+    frame.style.transform =
+      currentTransform === "none" ? "none" : currentTransform;
+    frame.style.opacity = "1";
+    setZooming(true);
+
+    const token = closeTokenRef.current;
+    const animation = frame.animate(
+      [
+        {
+          transform:
+            currentTransform === "none"
+              ? "translate(0px, 0px) scale(1, 1)"
+              : currentTransform,
+        },
+        { transform: "translate(0px, 0px) scale(1, 1)" },
+      ],
+      {
+        duration: 260,
+        easing: "cubic-bezier(0, 0, 0.58, 1)",
+        fill: "forwards",
+      },
+    );
+    frameFlightRef.current = animation;
+
+    void animation.finished.then(
+      () => {
+        if (token !== closeTokenRef.current) return;
+        frame.style.transform = "none";
+        setZooming(false);
+        placeChip();
+        onReopenLanded?.();
+      },
+      () => undefined,
+    );
+  }, [media, onReopen, onReopenLanded, placeChip, reduce]);
 
   const step = useCallback(
     (direction: number) => {
@@ -287,6 +600,14 @@ export function FocusViewer({
 
   useEffect(() => {
     overlayRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      closeTokenRef.current += 1;
+      frameFlightRef.current?.cancel();
+      flightRef.current?.stop();
+    };
   }, []);
 
   useEffect(() => {
@@ -383,6 +704,7 @@ export function FocusViewer({
       className="cv-viewer"
       data-closing={closing || undefined}
       data-ready={chromeVisible || undefined}
+      data-zooming={zooming || undefined}
       data-start-at={startAt !== undefined ? startAt.toFixed(2) : "none"}
       role="dialog"
       aria-modal="true"
@@ -397,6 +719,7 @@ export function FocusViewer({
             ref={frameRef}
             className="cv-viewer__frame"
             style={{ width: size.width, height: size.height }}
+            onClick={closing ? reopen : undefined}
           >
             <div className="cv-viewer__content">
               <AnimatePresence initial={false}>
@@ -418,16 +741,35 @@ export function FocusViewer({
                       media={media}
                       alt={media.alt}
                       priority
+                      fullRes
                       sizes={`${size.width}px`}
                       className="cv-viewer__media"
                     />
                   ) : (
-                    <MediaVideo
-                      media={media}
-                      alt={media.alt}
-                      className="cv-viewer__media"
-                      viewerOwned
-                    />
+                    <>
+                      <div
+                        className="cv-viewer__video"
+                        data-visible={videoVisible || undefined}
+                      >
+                        <MediaVideo
+                          media={media}
+                          alt={media.alt}
+                          className="cv-viewer__media"
+                          viewerOwned
+                          loopMuted
+                          deferPlayback={!playback}
+                        />
+                      </div>
+                      {posterVisible && item.key === initialKey ? (
+                        <div
+                          className="cv-viewer__poster"
+                          style={{
+                            backgroundImage: `url("${posterSrc ?? media.poster.jpg}")`,
+                          }}
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                    </>
                   )}
                 </motion.div>
               </AnimatePresence>
@@ -435,26 +777,25 @@ export function FocusViewer({
           </div>
         </div>
 
-        {media.caption ? (
-          <motion.p
-            key={`${item.key}-caption`}
-            className="cv-viewer__caption"
-            initial={false}
-            animate={{
-              opacity: closing ? 0 : chromeVisible ? 1 : 0,
-            }}
-            transition={{
-              duration: closing ? 0.15 : reduce ? 0 : 0.18,
-              delay:
-                closing || !chromeVisible || reduce
-                  ? 0
-                  : TRANSITION.captionDelayMs / 1000,
-              ease: "easeOut",
-            }}
-          >
-            {media.caption}
-          </motion.p>
-        ) : null}
+        <motion.p
+          ref={captionRef}
+          key={`${item.key}-project`}
+          className="cv-viewer__caption"
+          initial={false}
+          animate={{
+            opacity: closing ? 0 : chromeVisible ? 1 : 0,
+          }}
+          transition={{
+            duration: closing ? 0.15 : reduce ? 0 : 0.18,
+            delay:
+              closing || !chromeVisible || reduce
+                ? 0
+                : TRANSITION.captionDelayMs / 1000,
+            ease: "easeOut",
+          }}
+        >
+          {projectLabel(item.project)}
+        </motion.p>
       </div>
 
       <button

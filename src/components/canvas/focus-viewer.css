@@ -57,6 +57,32 @@
   inset: 0;
 }
 
+.cv-viewer__video {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.cv-viewer__video[data-visible] {
+  opacity: 1;
+}
+
+/* A decoded still at display resolution carries the open flight; the clip is
+   revealed on its first presented frame, so no playing video layer is
+   rastered mid-zoom. */
+.cv-viewer__poster {
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.cv-viewer:not([data-zooming]) .cv-viewer__poster {
+  background-size: contain;
+}
+
 .cv-viewer__media {
   position: absolute;
   inset: 0;
@@ -69,9 +95,15 @@
   object-fit: contain;
 }
 
+/* The FLIP starts at the tile's cropped box; cover keeps that crop until the
+   frame reaches the media's own aspect at the focus box. */
+.cv-viewer[data-zooming] .cv-viewer__media .media-asset {
+  object-fit: cover;
+}
+
 .cv-viewer__caption {
   position: absolute;
-  bottom: max(16px, env(safe-area-inset-bottom));
+  top: 0;
   left: 50%;
   max-width: min(88vw, 720px);
   padding: 8px 12px;
@@ -85,7 +117,7 @@
   text-wrap: pretty;
   box-shadow: var(--shadow-card);
   pointer-events: auto;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
 }
 
 .cv-viewer__close {

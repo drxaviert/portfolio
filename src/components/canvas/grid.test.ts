@@ -4,6 +4,7 @@ import {
   LANDSCAPE_RATIO,
   PORTRAIT_RATIO,
   SQUARE_RATIO,
+  centreOutCellOrder,
   gridMetrics,
   orientationRatio,
 } from "./grid";
@@ -85,5 +86,26 @@ describe("orientationRatio", () => {
     expect(orientationRatio(0.75)).toBe(PORTRAIT_RATIO);
     expect(orientationRatio(1)).toBe(SQUARE_RATIO);
     expect(orientationRatio(1.78)).toBe(LANDSCAPE_RATIO);
+  });
+});
+
+describe("centreOutCellOrder", () => {
+  it("starts at the grid centre and lists every cell once", () => {
+    const cols = 5;
+    const rows = 5;
+    const order = centreOutCellOrder(cols, rows);
+    const distances = order.map((cell) => {
+      const row = Math.floor(cell / cols);
+      const col = cell % cols;
+
+      return (col - (cols - 1) / 2) ** 2 + (row - (rows - 1) / 2) ** 2;
+    });
+
+    expect(order).toHaveLength(cols * rows);
+    expect(new Set(order).size).toBe(cols * rows);
+    expect(order[0]).toBe(12);
+    for (let index = 1; index < distances.length; index += 1) {
+      expect(distances[index]).toBeGreaterThanOrEqual(distances[index - 1]);
+    }
   });
 });

@@ -34,6 +34,23 @@
   opacity: 0.4;
 }
 
+/* The viewer owns the close shrink, so hide the stale WebGL frame with a
+   flat surface layer instead of re-rendering the grid. The layer is removed
+   on the landing frame together with the viewer. */
+.cv-reader[data-closing] .cv-reader__stage {
+  opacity: 1;
+  transition: none;
+}
+
+.cv-reader[data-closing] .cv-reader__stage::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  content: "";
+  background: var(--surface);
+  pointer-events: none;
+}
+
 /* One bottom chip: the shared breadcrumb, a hairline divider and the hint.
    The chip keeps the hint pill's surface: no stroke, card shadow, pill radius. */
 .cv-reader__pill {

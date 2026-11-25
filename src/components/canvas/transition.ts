@@ -30,10 +30,31 @@ export const TRANSITION = {
   closeFadeMs: 900,
   /** 200ms cross-fade + 450ms delay + 900ms fade. */
   closeTotalMs: 1550,
-  /** Wait for the viewer's decoded frame before starting the open handoff. */
-  mediaReadyTimeoutMs: 700,
   reducedFadeMs: 200,
 } as const;
+
+/** A tile can be the close target only when its whole rect is on screen. */
+export function boxInsideViewport(
+  box: { left: number; top: number; width: number; height: number },
+  width: number,
+  height: number,
+): boolean {
+  return (
+    box.left >= 0 &&
+    box.top >= 0 &&
+    box.left + box.width <= width &&
+    box.top + box.height <= height
+  );
+}
+
+/**
+ * The viewer-owned open only animates the other planes' fade. Once that fade
+ * has finished the scene is a held tile, so the rAF loop can idle until the
+ * viewer hands over or the user closes.
+ */
+export function viewerOpenNeedsFrames(elapsedMs: number): boolean {
+  return elapsedMs < TRANSITION.fadeOutMs;
+}
 
 export const FIT = {
   widthRatio: 0.88,

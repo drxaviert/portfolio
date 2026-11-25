@@ -14,6 +14,8 @@ import {
   nextPhase,
   openComplete,
   shortestWrappedDelta,
+  boxInsideViewport,
+  viewerOpenNeedsFrames,
 } from "./transition";
 import type { TransitionPhase } from "./transition";
 
@@ -120,5 +122,49 @@ describe("fitBox", () => {
       width: 880,
       height: 440,
     });
+  });
+});
+
+describe("boxInsideViewport", () => {
+  it("accepts a fully visible tile and rejects every clipped edge", () => {
+    const viewport = { width: 1440, height: 860 };
+    const box = { left: 100, top: 100, width: 108, height: 70 };
+
+    expect(boxInsideViewport(box, viewport.width, viewport.height)).toBe(true);
+    expect(
+      boxInsideViewport({ ...box, left: -1 }, viewport.width, viewport.height),
+    ).toBe(false);
+    expect(
+      boxInsideViewport({ ...box, top: -1 }, viewport.width, viewport.height),
+    ).toBe(false);
+    expect(
+      boxInsideViewport(
+        { ...box, left: 1333 },
+        viewport.width,
+        viewport.height,
+      ),
+    ).toBe(false);
+    expect(
+      boxInsideViewport({ ...box, top: 791 }, viewport.width, viewport.height),
+    ).toBe(false);
+  });
+
+  it("accepts a tile flush with the viewport edge", () => {
+    expect(
+      boxInsideViewport(
+        { left: 0, top: 0, width: 1440, height: 860 },
+        1440,
+        860,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("viewerOpenNeedsFrames", () => {
+  it("idles after the grid fade, before the viewer can be ready", () => {
+    expect(viewerOpenNeedsFrames(0)).toBe(true);
+    expect(viewerOpenNeedsFrames(TRANSITION.fadeOutMs - 1)).toBe(true);
+    expect(viewerOpenNeedsFrames(TRANSITION.fadeOutMs)).toBe(false);
+    expect(viewerOpenNeedsFrames(8000)).toBe(false);
   });
 });
