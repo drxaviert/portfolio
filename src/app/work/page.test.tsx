@@ -52,10 +52,12 @@ describe("work index page", () => {
       ),
     ];
 
-    expect(links).toHaveLength(5);
+    expect(links).toHaveLength(4);
     expect(links[0]).toHaveAttribute("href", "/work/systems-in-motion");
     expect(links[3]).toHaveAttribute("href", "/work/motion-and-stills");
-    expect(links[4]).toHaveAttribute("href", "/work/human-contact");
+    expect(
+      links.some((link) => link.getAttribute("href") === "/work/human-contact"),
+    ).toBe(false);
     // The drawer's panel is the layout's, so the page is only the content.
     expect(container.querySelector(".wd-expand-layer")).toBeNull();
     expect(container.querySelector("[data-work-card]")).toBeNull();

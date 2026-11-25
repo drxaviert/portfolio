@@ -37,14 +37,20 @@ describe("parseFrontmatter", () => {
     expect(parseFrontmatter(crlf).title).toBe("A study");
   });
 
+  it("reads the hidden switch", () => {
+    const HIDDEN = BODY.replace("---\n\n# Body", "hidden: true\n---\n\n# Body");
+
+    expect(parseFrontmatter(HIDDEN).hidden).toBe("true");
+  });
+
   it("returns nothing when there is no block", () => {
     expect(parseFrontmatter("# Body\n")).toEqual({});
   });
 });
 
 describe("listWork", () => {
-  it("returns the five case studies", () => {
-    expect(listWork()).toHaveLength(5);
+  it("returns the visible case studies", () => {
+    expect(listWork()).toHaveLength(4);
   });
 
   it("gives every study a known cover", () => {
@@ -61,8 +67,11 @@ describe("listWork", () => {
       "title-sequence",
       "type-in-motion",
       "motion-and-stills",
-      "human-contact",
     ]);
+  });
+
+  it("leaves the study behind the hidden switch out of the list", () => {
+    expect(listWork().map((work) => work.slug)).not.toContain("human-contact");
   });
 });
 
@@ -83,6 +92,10 @@ describe("getWork", () => {
   it("returns null for an unknown slug", () => {
     expect(getWork("nope")).toBeNull();
   });
+
+  it("returns null for a hidden study, so its routes 404", () => {
+    expect(getWork("human-contact")).toBeNull();
+  });
 });
 
 describe("nextWork", () => {
@@ -94,11 +107,11 @@ describe("nextWork", () => {
     expect(nextWork("type-in-motion").slug).toBe("motion-and-stills");
   });
 
-  it("steps from the canvas study to Human Contact", () => {
-    expect(nextWork("motion-and-stills").slug).toBe("human-contact");
+  it("skips the hidden study and wraps from the canvas study to the first", () => {
+    expect(nextWork("motion-and-stills").slug).toBe("systems-in-motion");
   });
 
-  it("wraps from the last study back to the first", () => {
+  it("treats a hidden slug as the end of the reading order", () => {
     expect(nextWork("human-contact").slug).toBe("systems-in-motion");
   });
 });

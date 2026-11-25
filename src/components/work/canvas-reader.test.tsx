@@ -91,6 +91,7 @@ const meta = {
   role: "",
   summary: "",
   cover: "media:good-form-reel-4c969cc977",
+  hidden: false,
 } as WorkMeta;
 
 const items: CanvasItem[] = [];

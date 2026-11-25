@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import Page from "@/app/page";
@@ -61,6 +61,35 @@ describe("home page", () => {
     expect(container.querySelectorAll(".wd-edge-blur")).toHaveLength(2);
     expect(container.querySelector(".wd-edge-blur--top")).not.toBeNull();
     expect(container.querySelector(".wd-edge-blur--bottom")).not.toBeNull();
+  });
+
+  it("leaves the hidden study out and still steps with the arrow keys", () => {
+    render(
+      <ThemeProvider>
+        <Page />
+      </ThemeProvider>,
+    );
+
+    expect(
+      screen.queryByRole("link", { name: "Human Contact" }),
+    ).not.toBeInTheDocument();
+
+    const carousel = screen.getByRole("region", { name: "Selected work" });
+    const slides = carousel.querySelectorAll(".car-slide:not([data-ghost])");
+    const front = () =>
+      carousel
+        .querySelector('[data-slot="0"] .car-host')
+        ?.getAttribute("aria-label");
+
+    // Four visible studies and the placeholder that closes the row.
+    expect(slides).toHaveLength(5);
+    expect(front()).toBe("Systems in motion");
+
+    fireEvent.keyDown(carousel, { key: "ArrowRight" });
+    expect(front()).toBe("The title sequence");
+
+    fireEvent.keyDown(carousel, { key: "ArrowLeft" });
+    expect(front()).toBe("Systems in motion");
   });
 
   it("does not render dev-only tools", () => {
