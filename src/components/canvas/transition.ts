@@ -7,6 +7,7 @@
  * last 150ms of the glide, and the close is faster (0.8x the fade).
  */
 import { clamp01, power3InOut, power3Out } from "./intro";
+import { nearestPeriodic } from "./wrap";
 
 export type TransitionPhase = "idle" | "opening" | "open" | "closing";
 export type TransitionEvent = "open" | "opened" | "close" | "closed";
@@ -25,11 +26,15 @@ export const TRANSITION = {
   closeCrossFadeMs: 200,
   /** The reverse grow: 600ms, same as the open. */
   closeShrinkMs: 600,
-  /** Other planes start fading in over the last 150ms of the shrink. */
-  closeFadeDelayMs: 450,
-  closeFadeMs: 900,
-  /** 200ms cross-fade + 450ms delay + 900ms fade. */
-  closeTotalMs: 1550,
+  /**
+   * The grid, lens and scroll come back with the shrink, not after it. Any
+   * delay here leaves the landed tile static before the idle handoff, which
+   * reads as a freeze followed by a snap.
+   */
+  closeFadeDelayMs: 0,
+  closeFadeMs: 600,
+  /** 200ms cross-fade + 600ms return; ends with the shrink. */
+  closeTotalMs: 800,
   reducedFadeMs: 200,
 } as const;
 
@@ -157,6 +162,74 @@ export function closeShrinkProgress(elapsedMs: number): number {
       (elapsedMs - TRANSITION.closeCrossFadeMs) / TRANSITION.closeShrinkMs,
     ),
   );
+}
+
+/**
+ * The reverse of the open's grid glide, on the plane shrink's timeline. The
+ * open moves the canvas scroll from the clicked slot to the focus; the close
+ * runs the same power3.inOut curve back to the pre-open scroll over the 600ms
+ * shrink (after the 200ms cross-fade). Without this the plane can only shrink
+ * in place while the grid reappears recentred, so the tile lands in a new slot
+ * instead of gliding home.
+ */
+export function closeScrollOffset(
+  fromScroll: number,
+  focusScroll: number,
+  elapsedMs: number,
+): number {
+  return (
+    focusScroll +
+    (fromScroll - focusScroll) * closeShrinkProgress(elapsedMs)
+  );
+}
+
+/**
+ * A resize rebuilds the grid, so the opened plane's base moves with the new
+ * pitch. Retarget the open's scroll, pre-open home and focus target:
+ *
+ * - the focus lands on the new base (`-nextBase`), so the media stays centred;
+ * - the pre-open offset (`from - to`) scales with the viewport, so the tile
+ *   still returns to the same relative spot in the new layout instead of a
+ *   pixel offset that can fall off screen.
+ *
+ * The current scroll shifts with the focus so the resize itself does not move
+ * the opened plane. The new pitch also changes the wrap period: a target that
+ * centred the plane under the old period can sit a whole period away from the
+ * new centre. Pass `halfPeriod` to re-anchor the path on the periodic copy
+ * nearest the pitch-shifted scroll. Without it the path keeps the plain
+ * translation, which is all a caller without a wrap period needs. A held
+ * open should then put its scroll on the returned `to`.
+ */
+export function resizeOpenScroll(
+  scroll: number,
+  from: number,
+  to: number,
+  previousBase: number,
+  nextBase: number,
+  scale: number,
+  halfPeriod = 0,
+): { scroll: number; from: number; to: number } {
+  const delta = previousBase - nextBase;
+  const home = (from - to) * scale;
+
+  if (!Number.isFinite(halfPeriod) || halfPeriod <= 0) {
+    const nextTo = to + delta;
+
+    return {
+      scroll: scroll + delta,
+      from: nextTo + home,
+      to: nextTo,
+    };
+  }
+
+  const shifted = scroll + delta;
+  const nextTo = nearestPeriodic(-nextBase, shifted, halfPeriod * 2);
+
+  return {
+    scroll: shifted,
+    from: nextTo + home,
+    to: nextTo,
+  };
 }
 
 export function openComplete(elapsedMs: number): boolean {

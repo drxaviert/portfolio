@@ -47,6 +47,7 @@ import {
   canOpen,
   closeComplete,
   closeFadeProgress,
+  closeScrollOffset,
   closeShrinkProgress,
   fadeOutProgress,
   fitBox,
@@ -54,6 +55,7 @@ import {
   growProgress,
   handoffProgress,
   nextPhase,
+  resizeOpenScroll,
   viewerOpenNeedsFrames,
 } from "./transition";
 import type { TransitionPhase } from "./transition";
@@ -69,7 +71,7 @@ import type { BreathSettings } from "./breathing";
 import { hoverValue, retargetHover } from "./hover";
 import type { HoverSettings, HoverTween } from "./hover";
 import { usePan } from "./use-pan";
-import { planePosition } from "./wrap";
+import { centrePlaneScroll, planePosition } from "./wrap";
 import {
   beginPerf,
   instrumentWebGL,
@@ -370,6 +372,9 @@ type CanvasTransition = {
   fromCameraZ: number;
   tileWidth: number;
   tileHeight: number;
+  /** The tile's resting size (no hover/breath), which the close lands on. */
+  restWidth: number;
+  restHeight: number;
   focusWidth: number;
   focusHeight: number;
   /** performance.now when the grow handed off to the viewer, or -1. */
@@ -458,11 +463,24 @@ type CanvasDebug = {
   transitionMs: number;
   waitingForViewer: boolean;
   prepared: boolean;
+  viewerOwned: boolean;
   targetWidth: number;
   targetHeight: number;
   targetOpacity: number;
   targetZoom: number;
   scroll: { x: number; y: number };
+  /** The in-flight transition's scroll path and plane base (dev tracing). */
+  openScroll: { x: number; y: number } | null;
+  openTarget: { x: number; y: number } | null;
+  openBase: { x: number; y: number } | null;
+  openRect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null;
+  /** Wrap half-periods, so a trace can compare equivalent scroll targets. */
+  half: { x: number; y: number };
   dragging: boolean;
   hidden: boolean;
   videosPlaying: number;
@@ -904,6 +922,8 @@ export const InfiniteCanvas = forwardRef<
       fromCameraZ: CAMERA_Z,
       tileWidth: 0,
       tileHeight: 0,
+      restWidth: 0,
+      restHeight: 0,
       focusWidth: 0,
       focusHeight: 0,
       handoffAt: -1,
@@ -949,11 +969,17 @@ export const InfiniteCanvas = forwardRef<
             transitionMs: 0,
             waitingForViewer: false,
             prepared: false,
+            viewerOwned: false,
             targetWidth: 0,
             targetHeight: 0,
             targetOpacity: 0,
             targetZoom: 1,
             scroll: { x: 0, y: 0 },
+            openScroll: null,
+            openTarget: null,
+            openBase: null,
+            openRect: null,
+            half: { x: 0, y: 0 },
             dragging: false,
             hidden: false,
             videosPlaying: 0,
@@ -2217,6 +2243,7 @@ export const InfiniteCanvas = forwardRef<
           : Math.round(performance.now() - transition.startedAt);
       debug.waitingForViewer = transition.waitingForViewer;
       debug.prepared = transition.prepared;
+      debug.viewerOwned = transition.viewerOwned;
 
       const target = transition.target ?? transition.plane;
       debug.targetWidth = target ? Number(target.mesh.scale.x.toFixed(1)) : 0;
@@ -2227,6 +2254,22 @@ export const InfiniteCanvas = forwardRef<
         : 1;
       debug.scroll.x = scrollRef.current.x;
       debug.scroll.y = scrollRef.current.y;
+      debug.half.x = halfX;
+      debug.half.y = halfY;
+
+      const opened = transition.phase === "idle" ? null : transition.plane;
+      debug.openScroll =
+        transition.phase === "idle"
+          ? null
+          : { x: transition.fromScrollX, y: transition.fromScrollY };
+      debug.openTarget =
+        transition.phase === "idle"
+          ? null
+          : { x: transition.toScrollX, y: transition.toScrollY };
+      debug.openBase = opened
+        ? { x: opened.baseX, y: opened.baseY }
+        : null;
+      debug.openRect = opened ? projectPlaneWarped(opened) : null;
       debug.dragging = panIsDragging();
       debug.hidden = hiddenPlane !== null;
       debug.videoEntries = videoEntries.size;
@@ -2577,6 +2620,19 @@ export const InfiniteCanvas = forwardRef<
       const now = performance.now();
       const fromScrollX = scrollRef.current.x;
       const fromScrollY = scrollRef.current.y;
+      // The grid wraps, so `-base + k * period` centres the same tile. Target
+      // the equivalent nearest the current scroll: the canonical `-base`
+      // would make a panned canvas fly back to the first-load offset before
+      // the clicked tile opened.
+      const toScrollX = centrePlaneScroll(plane.baseX, fromScrollX, halfX);
+      const toScrollY = centrePlaneScroll(plane.baseY, fromScrollY, halfY);
+      // The open starts from the lifted mesh (hover + breath) so the click
+      // does not snap the tile down. The close must land on the resting tile
+      // instead: the idle handoff clears hover and starts breath at 0, so a
+      // snapshot of the lifted mesh would leave the tile a few percent too
+      // big until the first idle frame, which is the close snap.
+      const restWidth = plane.tileWidth;
+      const restHeight = plane.tileHeight;
       const tileWidth = plane.mesh.scale.x;
       const tileHeight = plane.mesh.scale.y;
 
@@ -2637,6 +2693,8 @@ export const InfiniteCanvas = forwardRef<
           target: plane,
           tileWidth,
           tileHeight,
+          restWidth,
+          restHeight,
           focusWidth: focus.width,
           focusHeight: focus.height,
           viewerOwned: false,
@@ -2660,11 +2718,13 @@ export const InfiniteCanvas = forwardRef<
         target: plane,
         fromScrollX,
         fromScrollY,
-        toScrollX: -plane.baseX,
-        toScrollY: -plane.baseY,
+        toScrollX,
+        toScrollY,
         fromCameraZ: camera.position.z,
         tileWidth,
         tileHeight,
+        restWidth,
+        restHeight,
         focusWidth: focus.width,
         focusHeight: focus.height,
         handoffAt: -1,
@@ -3026,12 +3086,14 @@ export const InfiniteCanvas = forwardRef<
         for (const plane of planes) {
           if (plane === target && target) {
             if (!reduced) {
+              // Land on the resting tile, not the hover/breath snapshot the
+              // open started from; the idle handoff will have both at 0.
               const w =
                 transition.focusWidth +
-                (transition.tileWidth - transition.focusWidth) * shrink;
+                (transition.restWidth - transition.focusWidth) * shrink;
               const h =
                 transition.focusHeight +
-                (transition.tileHeight - transition.focusHeight) * shrink;
+                (transition.restHeight - transition.focusHeight) * shrink;
 
               plane.mesh.scale.set(w, h, 1);
               plane.material.uniforms.uPlaneSizes.value.set(w, h);
@@ -3306,6 +3368,28 @@ export const InfiniteCanvas = forwardRef<
       // openVideoIsLive() must go false or the paused loop keeps uploading the
       // old focus video behind the slides. Keep the phase open for the close.
       t.viewerOwned = true;
+
+      // The canvas-owned open flattened the lens to carry the focus box. The
+      // grid is invisible behind the DOM slide, so restore the resting warp
+      // now: the close freezes the lens and computes its landing rect from it,
+      // and restoring it on the landing frame instead snapped the tile.
+      if (!reduced) {
+        const strength = lensTargetStrength({
+          mode: lensRef.current.mode,
+          base: lensRef.current.strength,
+          boost: lensRef.current.boost,
+          speed: 0,
+          reduced,
+        });
+
+        lensBase = strength;
+        lensApplied = strength;
+        lensWanted = strength;
+        postMaterial.uniforms.uStrength.value = strength;
+        postMaterial.uniforms.uVignette.value =
+          lensRef.current.mode === "globe" ? lensRef.current.vignette : 0;
+      }
+
       renderScene();
       updateDebug();
     }
@@ -3391,6 +3475,26 @@ export const InfiniteCanvas = forwardRef<
         // The DOM viewer owns the shrink; the canvas waits for landClose.
         if (t.viewerOwned) return false;
         if (!t.prepared) return true;
+
+        // The canvas-owned close retraces the open: the plane shrinks while
+        // the grid glides back to the scroll it had before the click. Without
+        // this the plane can only shrink in place and the grid reappears
+        // recentred, so the tile looks like it jumped into a new slot.
+        if (reduced) {
+          scrollRef.current.x = t.fromScrollX;
+          scrollRef.current.y = t.fromScrollY;
+        } else {
+          scrollRef.current.x = closeScrollOffset(
+            t.fromScrollX,
+            t.toScrollX,
+            elapsed,
+          );
+          scrollRef.current.y = closeScrollOffset(
+            t.fromScrollY,
+            t.toScrollY,
+            elapsed,
+          );
+        }
 
         const done = reduced
           ? elapsed >= TRANSITION.reducedFadeMs
@@ -3579,12 +3683,19 @@ export const InfiniteCanvas = forwardRef<
       ) {
         // Escape during the WebGL glide: cancel the open and restore the grid.
         closeRun += 1;
+        const cancelled = transition;
 
         for (const plane of planes) {
           resetPlaneToTile(plane);
           plane.opacity = plane.loaded ? 1 : 0;
           plane.material.uniforms.uOpacity.value = plane.opacity;
         }
+
+        // The open had started from this scroll; cancelling mid-glide must put
+        // it back, or the grid stays shifted even though the media is gone.
+        scrollRef.current.x = cancelled.fromScrollX;
+        scrollRef.current.y = cancelled.fromScrollY;
+        placePlanes();
 
         loadingIndex = null;
         transition = idleTransition();
@@ -3766,6 +3877,14 @@ export const InfiniteCanvas = forwardRef<
       hiddenPlane = null;
       const closedIndex = t.index;
       transition = idleTransition();
+      // The canvas was paused behind the DOM viewer, so the idle clock still
+      // points at the frame before the open. Restart it here: otherwise the
+      // first unpaused idle frame sees seconds of "idle" time and jumps the
+      // grid to full breathing amplitude in one frame.
+      breathIdleSince = 0;
+      breathLevel = 0;
+      breathActive = false;
+      breathAmplitude = 0;
       if (closedIndex >= 0) {
         restoreGridTexture(closedIndex);
         disposeFocusTexture(closedIndex);
@@ -3927,12 +4046,16 @@ export const InfiniteCanvas = forwardRef<
     function rebindTransitionAfterResize(
       planeIndex: number | null,
       targetIndex: number | null,
+      previousWidth: number,
+      previousHeight: number,
     ): void {
       const t = transition;
       if (t.phase === "idle") return;
 
       const index = planeIndex ?? (t.index >= 0 ? t.index : null);
       const targetIndexResolved = targetIndex ?? index;
+      const previousPlane = t.plane;
+      const previousTarget = t.target;
       t.plane = index !== null ? findPlane(index) : null;
       t.target =
         targetIndexResolved !== null ? findPlane(targetIndexResolved) : null;
@@ -3944,6 +4067,48 @@ export const InfiniteCanvas = forwardRef<
         return;
       }
 
+      // A resize rebuilds the grid, so the opened plane's base moves with the
+      // new pitch. Retarget the open's scroll, pre-open home and focus target:
+      // keep the media centred on the new base, and scale the pre-open offset
+      // with the viewport so the close still lands in the same relative spot
+      // instead of an absolute px offset that can fall off screen.
+      if (!t.viewerOwned) {
+        const focusPlane = t.phase === "closing" ? t.target : t.plane;
+        const previousFocus =
+          t.phase === "closing" ? previousTarget : previousPlane;
+
+        if (focusPlane && previousFocus) {
+          const x = resizeOpenScroll(
+            scrollRef.current.x,
+            t.fromScrollX,
+            t.toScrollX,
+            previousFocus.baseX,
+            focusPlane.baseX,
+            width / previousWidth,
+            halfX,
+          );
+          const y = resizeOpenScroll(
+            scrollRef.current.y,
+            t.fromScrollY,
+            t.toScrollY,
+            previousFocus.baseY,
+            focusPlane.baseY,
+            height / previousHeight,
+            halfY,
+          );
+
+          // The held open sits on the focus, so a new wrap period must land
+          // the scroll on the retargeted focus; mid-glide/close keep their
+          // current pose and continue the retargeted path.
+          scrollRef.current.x = t.phase === "open" ? x.to : x.scroll;
+          scrollRef.current.y = t.phase === "open" ? y.to : y.scroll;
+          t.fromScrollX = x.from;
+          t.fromScrollY = y.from;
+          t.toScrollX = x.to;
+          t.toScrollY = y.to;
+        }
+      }
+
       const media = index !== null ? items[index]?.media : undefined;
       if (media) {
         const focus = fitBox(media.width, media.height, width, height);
@@ -3952,6 +4117,8 @@ export const InfiniteCanvas = forwardRef<
       }
       t.tileWidth = t.plane.tileWidth;
       t.tileHeight = t.plane.tileHeight;
+      t.restWidth = t.plane.tileWidth;
+      t.restHeight = t.plane.tileHeight;
 
       if (t.phase === "opening" && !t.viewerOwned) {
         const elapsed = performance.now() - t.startedAt;
@@ -4029,9 +4196,9 @@ export const InfiniteCanvas = forwardRef<
 
           if (plane === target) {
             const w =
-              t.focusWidth + (t.tileWidth - t.focusWidth) * shrink;
+              t.focusWidth + (t.restWidth - t.focusWidth) * shrink;
             const h =
-              t.focusHeight + (t.tileHeight - t.focusHeight) * shrink;
+              t.focusHeight + (t.restHeight - t.focusHeight) * shrink;
             plane.mesh.visible = true;
             plane.mesh.scale.set(w, h, 1);
             plane.material.uniforms.uPlaneSizes.value.set(w, h);
@@ -4091,6 +4258,11 @@ export const InfiniteCanvas = forwardRef<
         }
       }
 
+      // buildPlanes left the fresh meshes at their unwrapped base; apply the
+      // retargeted scroll before painting, or a paused open (image media does
+      // not wake the loop) would show the media off centre.
+      placePlanes();
+
       renderScene();
       updateDebug();
     }
@@ -4104,6 +4276,8 @@ export const InfiniteCanvas = forwardRef<
         return;
       }
 
+      const previousWidth = width;
+      const previousHeight = height;
       width = nextWidth;
       height = nextHeight;
 
@@ -4150,7 +4324,12 @@ export const InfiniteCanvas = forwardRef<
       const transitionTargetIndex = transition.target?.itemIndex ?? null;
 
       buildPlanes();
-      rebindTransitionAfterResize(transitionPlaneIndex, transitionTargetIndex);
+      rebindTransitionAfterResize(
+        transitionPlaneIndex,
+        transitionTargetIndex,
+        previousWidth,
+        previousHeight,
+      );
       wake();
     }
 

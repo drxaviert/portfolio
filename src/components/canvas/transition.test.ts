@@ -6,6 +6,7 @@ import {
   canOpen,
   closeComplete,
   closeFadeProgress,
+  closeScrollOffset,
   closeShrinkProgress,
   fadeOutProgress,
   fitBox,
@@ -14,10 +15,12 @@ import {
   handoffProgress,
   nextPhase,
   openComplete,
+  resizeOpenScroll,
   shortestWrappedDelta,
   viewerOpenNeedsFrames,
 } from "./transition";
 import type { TransitionPhase } from "./transition";
+import { planePosition } from "./wrap";
 
 describe("shortestWrappedDelta", () => {
   it("takes the direct route inside a period", () => {
@@ -95,7 +98,7 @@ describe("transition timeline", () => {
     expect(openComplete(TRANSITION.growDelayMs + TRANSITION.growMs)).toBe(true);
   });
 
-  it("cross-fades over 200ms and closes over 1.55s", () => {
+  it("cross-fades over 200ms and closes when the 600ms shrink lands", () => {
     expect(handoffProgress(0)).toBe(0);
     expect(handoffProgress(100)).toBeCloseTo(0.5, 6);
     expect(handoffProgress(TRANSITION.handoffMs)).toBe(1);
@@ -109,10 +112,126 @@ describe("transition timeline", () => {
         TRANSITION.closeCrossFadeMs + TRANSITION.closeFadeDelayMs,
       ),
     ).toBe(0);
-    expect(closeFadeProgress(1100)).toBeCloseTo(0.5, 6);
+    expect(closeFadeProgress(500)).toBeCloseTo(0.5, 6);
     expect(closeFadeProgress(TRANSITION.closeTotalMs)).toBe(1);
     expect(closeComplete(TRANSITION.closeTotalMs - 1)).toBe(false);
     expect(closeComplete(TRANSITION.closeTotalMs)).toBe(true);
+  });
+
+  it("ends the shrink, fade, scroll and close on the same frame", () => {
+    const landing =
+      TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs;
+
+    expect(TRANSITION.closeTotalMs).toBe(landing);
+    expect(
+      TRANSITION.closeCrossFadeMs +
+        TRANSITION.closeFadeDelayMs +
+        TRANSITION.closeFadeMs,
+    ).toBe(landing);
+    expect(closeShrinkProgress(landing)).toBe(1);
+    expect(closeFadeProgress(landing)).toBe(1);
+    expect(closeScrollOffset(120, 940, landing)).toBe(120);
+  });
+});
+
+describe("close return glide", () => {
+  it("starts on the focus slot, waits out the cross-fade, then lands home", () => {
+    const home = 120;
+    const focus = 940;
+
+    expect(closeScrollOffset(home, focus, 0)).toBe(focus);
+    expect(closeScrollOffset(home, focus, TRANSITION.closeCrossFadeMs)).toBe(
+      focus,
+    );
+    expect(
+      closeScrollOffset(
+        home,
+        focus,
+        TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs / 2,
+      ),
+    ).toBeCloseTo((home + focus) / 2, 6);
+    expect(
+      closeScrollOffset(
+        home,
+        focus,
+        TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs,
+      ),
+    ).toBe(home);
+    expect(closeScrollOffset(home, focus, TRANSITION.closeTotalMs)).toBe(home);
+  });
+
+  it("moves monotonically from the focus to the pre-open scroll", () => {
+    let previous = 940;
+
+    for (let elapsed = 0; elapsed <= TRANSITION.closeTotalMs; elapsed += 40) {
+      const value = closeScrollOffset(120, 940, elapsed);
+      expect(value).toBeLessThanOrEqual(previous + 1e-6);
+      expect(value).toBeGreaterThanOrEqual(120 - 1e-6);
+      previous = value;
+    }
+  });
+
+  it("keeps the close landing at the pre-open offset through a resize", () => {
+    const open = resizeOpenScroll(500, -120, 500, -180, -60, 1);
+
+    // Same focus screen point: base + scroll is unchanged.
+    expect(-60 + open.scroll).toBe(-180 + 500);
+    // Same home offset from the focus: the close lands on the same slot.
+    expect(open.from - open.to).toBe(-120 - 500);
+  });
+
+  it("scales the home offset with the viewport like the pre-open view", () => {
+    const open = resizeOpenScroll(500, -120, 500, 0, 0, 0.5);
+
+    // The focus stays put; the home offset halves with the viewport.
+    expect(open.to).toBe(500);
+    expect(open.scroll).toBe(500);
+    expect(open.from - open.to).toBe((-120 - 500) * 0.5);
+  });
+
+  it("is a no-op when the rebuilt grid keeps the same base", () => {
+    expect(resizeOpenScroll(300, 40, 300, 12, 12, 1)).toEqual({
+      scroll: 300,
+      from: 40,
+      to: 300,
+    });
+  });
+
+  it("re-anchors the open focus when the resize changes the wrap period", () => {
+    // A panned open one old 4914px period from the canonical slot, resized
+    // from the 1440x900 grid (pitch 238) to 1280x800 (pitch 206).
+    const previousBase = 936;
+    const nextBase = 824;
+    const halfPeriod = 1957;
+    const oldTo = 3978;
+    const oldFrom = 3999.84;
+    const scale = 1248 / 1408;
+
+    const open = resizeOpenScroll(
+      oldTo,
+      oldFrom,
+      oldTo,
+      previousBase,
+      nextBase,
+      scale,
+      halfPeriod,
+    );
+
+    // The retargeted focus centres the plane under the new period.
+    expect(planePosition(nextBase, open.to, halfPeriod)).toBeCloseTo(0, 9);
+    // The home offset (the pre-open position relative to the focus) scales.
+    expect(open.from - open.to).toBeCloseTo((oldFrom - oldTo) * scale, 9);
+    // The plain translation would leave the opened plane 1000px off centre.
+    expect(
+      planePosition(
+        nextBase,
+        oldTo + previousBase - nextBase,
+        halfPeriod,
+      ),
+    ).toBeCloseTo(1000, 6);
+    // Mid-animation poses keep the plain shift; the caller recentres only the
+    // held open.
+    expect(open.scroll).toBe(oldTo + previousBase - nextBase);
   });
 });
 
