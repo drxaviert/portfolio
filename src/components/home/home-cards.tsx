@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { KeyboardEvent, MouseEvent } from "react";
-import { getTodaysArt } from "@/lib/daily-art";
 import { ArtCard } from "./art-card/art-card";
+import { loadTodaysArt } from "./art-card/today-art-action";
 import { EMPTY_WORK_LABEL } from "./empty-work";
 import { EntranceCell } from "./entrance-cell";
 import type { EntranceVariant } from "./entrance-cell";
@@ -183,7 +183,7 @@ export function PlayCard() {
 }
 
 async function DailyArtPlayCard() {
-  const { art, today, oldest } = await getTodaysArt();
+  const { art, today, oldest } = await loadTodaysArt();
 
   return <ArtCard initialArt={art} today={today} oldest={oldest} />;
 }
