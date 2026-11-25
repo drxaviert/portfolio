@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { READER_TITLE_ID } from "@/components/work/reader";
-import WorkPage from "./page";
+import WorkPage, { generateStaticParams } from "./page";
 
 const { notFound } = vi.hoisted(() => ({
   notFound: vi.fn((...args: unknown[]) => {
@@ -25,10 +25,6 @@ vi.mock("next/navigation", () => ({
 // checks the article's wiring, not the compiled prose.
 vi.mock("../../../../content/work/systems-in-motion.mdx", () => ({
   default: () => <p>Case-study body</p>,
-}));
-
-vi.mock("../../../../content/work/human-contact.mdx", () => ({
-  default: () => <p>Human Contact body</p>,
 }));
 
 // The live canvas branch is mocked here: the reader's WebGL lifecycle is
@@ -99,16 +95,24 @@ describe("work page", () => {
     ).toHaveAttribute("href", "/work/title-sequence");
   });
 
-  it("renders the newest study at the end of the reading order", async () => {
-    await renderStudy("human-contact");
-
-    expect(document.getElementById(READER_TITLE_ID)).toHaveTextContent(
-      "Human Contact",
+  it("calls notFound for the hidden study", async () => {
+    await expect(renderStudy("human-contact")).rejects.toThrow(
+      "NEXT_NOT_FOUND",
     );
-    expect(screen.getByText("Human Contact body")).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Next project: Systems in motion" }),
-    ).toHaveAttribute("href", "/work/systems-in-motion");
+
+    expect(notFound).toHaveBeenCalled();
+  });
+
+  it("does not statically generate the hidden study", () => {
+    const slugs = generateStaticParams().map(({ slug }) => slug);
+
+    expect(slugs).toEqual([
+      "systems-in-motion",
+      "title-sequence",
+      "type-in-motion",
+      "motion-and-stills",
+    ]);
+    expect(slugs).not.toContain("human-contact");
   });
 
   it("calls notFound for an unknown slug", async () => {
