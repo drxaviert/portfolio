@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { VideoMedia } from "@/lib/media-types";
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
+import { beginPerf, perfEnabled } from "@/components/canvas/perf";
 
 /**
  * A looping clip that costs nothing while it is off screen, or an adaptive
@@ -120,6 +121,17 @@ export function MediaVideo({
     const start = () => {
       video.muted = true;
       video.loop = true;
+      if (perfEnabled) {
+        const endPlay = beginPerf("video-play", {
+          id: media.id,
+          viewer: true,
+        });
+        void video.play().then(
+          () => endPlay({ ok: true }),
+          () => endPlay({ ok: false }),
+        );
+        return;
+      }
       void video.play().catch(() => {
         // A later canplay retries.
       });
@@ -134,7 +146,7 @@ export function MediaVideo({
       video.removeEventListener("loadeddata", start);
       video.pause();
     };
-  }, [deferPlayback, loopMuted]);
+  }, [deferPlayback, loopMuted, media.id]);
 
   useEffect(() => {
     if (!hlsUrl || loopMuted) return;
@@ -209,7 +221,15 @@ export function MediaVideo({
     if (!video) return;
 
     if (video.paused) {
-      void video.play().catch(() => {});
+      if (perfEnabled) {
+        const endPlay = beginPerf("video-play", { id: media.id, manual: true });
+        void video.play().then(
+          () => endPlay({ ok: true }),
+          () => endPlay({ ok: false }),
+        );
+      } else {
+        void video.play().catch(() => {});
+      }
     } else {
       video.pause();
     }

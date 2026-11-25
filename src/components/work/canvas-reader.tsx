@@ -13,6 +13,8 @@ import type {
 } from "@/components/canvas/infinite-canvas";
 import type { Box } from "@/components/work/morph";
 import type { WorkMeta } from "@/lib/work";
+import { PerfHud } from "@/components/canvas/perf-hud";
+import { markPerf, perfEnabled } from "@/components/canvas/perf";
 import { Breadcrumb } from "./breadcrumb";
 import { READER_TITLE_ID } from "./parts";
 import "./canvas-reader.css";
@@ -68,6 +70,9 @@ export function CanvasReader({
 
   const openViewer = useCallback(
     (index: number, startAt?: number, openRect?: Box, canvasOwned?: boolean) => {
+      if (perfEnabled) {
+        markPerf("react-open-state", { index, canvasOwned: Boolean(canvasOwned) });
+      }
       setViewerClosing(false);
       setCanvasPending(Boolean(canvasOwned));
       setViewer({ index, startAt, openRect, canvasOwned });
@@ -82,6 +87,7 @@ export function CanvasReader({
   }, []);
 
   const markCanvasOpened = useCallback(() => {
+    if (perfEnabled) markPerf("chrome-visible");
     setCanvasPending(false);
   }, []);
 
@@ -139,6 +145,8 @@ export function CanvasReader({
           Drag or scroll <span aria-hidden="true">·</span> Click to open
         </span>
       </div>
+
+      <PerfHud />
 
       {items.length > 0 ? (
         <FocusViewer

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import { markPerf, perfEnabled } from "./perf";
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
@@ -276,6 +277,10 @@ export function usePan({
       const state = stateRef.current;
       if (state.pointerId !== null) return;
 
+      if (perfEnabled) {
+        markPerf("pointerdown", { pointerType: event.pointerType });
+      }
+
       const now = performance.now();
 
       state.pointerId = event.pointerId;
@@ -351,12 +356,20 @@ export function usePan({
       const now = performance.now();
       const duration = now - state.downTime;
       const wasDrag = state.moved > PAN_TUNING.click.maxDistancePx;
+      const hadCapture = state.captured;
+
+      if (perfEnabled) {
+        markPerf("pointerup", { wasDrag, duration: Math.round(duration) });
+      }
 
       state.pointerId = null;
       state.dragging = false;
       if (state.captured) releaseCapture(event.pointerId);
       state.captured = false;
       setDraggingAttribute(false);
+      if (perfEnabled) {
+        markPerf("pointerup-dom", { hadCapture });
+      }
 
       if (wasDrag) {
         if (!reduceRef.current) {

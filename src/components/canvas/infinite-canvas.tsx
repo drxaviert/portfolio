@@ -70,6 +70,13 @@ import { hoverValue, retargetHover } from "./hover";
 import type { HoverSettings, HoverTween } from "./hover";
 import { usePan } from "./use-pan";
 import { planePosition } from "./wrap";
+import {
+  beginPerf,
+  instrumentWebGL,
+  markFirstOpenFrame,
+  markPerf,
+  perfEnabled,
+} from "./perf";
 import "./infinite-canvas.css";
 
 export type CanvasItem = {
@@ -634,6 +641,8 @@ export const InfiniteCanvas = forwardRef<
       return;
     }
 
+    if (perfEnabled) instrumentWebGL(renderer.getContext());
+
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     renderer.setPixelRatio(dpr);
     renderer.setClearColor(0x000000, 0);
@@ -885,7 +894,13 @@ export const InfiniteCanvas = forwardRef<
           markLoaded(url);
           // Upload every poster as it arrives, not when its plane first flies
           // into view during a drag. Already-uploaded textures are a no-op.
-          renderer.initTexture(texture);
+          if (perfEnabled) {
+            const endUpload = beginPerf("texture-upload", { url });
+            renderer.initTexture(texture);
+            endUpload();
+          } else {
+            renderer.initTexture(texture);
+          }
 
           if (textureLoadMs === null) {
             let loaded = 0;
@@ -957,6 +972,13 @@ export const InfiniteCanvas = forwardRef<
         plane.material.uniforms.uDecodeVideo.value = 1;
         plane.loaded = true;
       }
+
+      if (perfEnabled) {
+        markPerf("video-texture-swap", {
+          index: itemIndex,
+          src: entry.element.currentSrc,
+        });
+      }
     }
 
     /** The opened video uses its full-res poster until playback is upgraded. */
@@ -970,6 +992,13 @@ export const InfiniteCanvas = forwardRef<
       plane.material.uniforms.uTexture.value = poster.texture;
       plane.material.uniforms.uDecodeVideo.value = 0;
       plane.loaded = poster.loaded;
+      if (perfEnabled) {
+        markPerf("poster-swap", {
+          index: plane.itemIndex,
+          width: media.width,
+          height: media.height,
+        });
+      }
     }
 
     /** Progressive image upgrade: the 640 tile texture is already on screen. */
@@ -997,6 +1026,14 @@ export const InfiniteCanvas = forwardRef<
           .sort((a, b) => a.width - b.width)[0] ??
         [...pool].sort((a, b) => b.width - a.width)[0];
 
+      if (perfEnabled) {
+        markPerf("hi-res-load", {
+          index,
+          width: source.width,
+          url: source.url,
+        });
+      }
+
       const texture = loader.load(
         source.url,
         () => {
@@ -1015,7 +1052,16 @@ export const InfiniteCanvas = forwardRef<
           );
 
           // Upload once, after the motion, then swap the focused plane.
-          renderer.initTexture(texture);
+          if (perfEnabled) {
+            const endUpload = beginPerf("texture-upload", {
+              url: source.url,
+              stage: "hi-res",
+            });
+            renderer.initTexture(texture);
+            endUpload();
+          } else {
+            renderer.initTexture(texture);
+          }
           focusTextures.set(index, texture);
           applyFocusTexture(index, texture);
         },
@@ -1037,6 +1083,7 @@ export const InfiniteCanvas = forwardRef<
       transition.plane.material.uniforms.uTexture.value = texture;
       transition.plane.material.uniforms.uDecodeVideo.value = 0;
       transition.plane.loaded = true;
+      if (perfEnabled) markPerf("hi-res-swap", { index });
       renderScene();
       updateDebug();
     }
@@ -1091,6 +1138,22 @@ export const InfiniteCanvas = forwardRef<
 
     function startVideo(entry: VideoEntry): void {
       if (!entry.element.paused) return;
+
+      if (perfEnabled) {
+        const endPlay = beginPerf("video-play", {
+          src: entry.element.currentSrc,
+          tile: true,
+        });
+        void entry.element.play().then(
+          () => endPlay({ ok: true }),
+          () => {
+            entry.failed = true;
+            entry.playing = false;
+            endPlay({ ok: false });
+          },
+        );
+        return;
+      }
 
       void entry.element.play().catch(() => {
         entry.failed = true;
@@ -1828,6 +1891,13 @@ export const InfiniteCanvas = forwardRef<
       const media = items[plane.itemIndex]?.media;
       if (!media) return;
 
+      if (perfEnabled) {
+        markPerf("open-start", {
+          index: plane.itemIndex,
+          kind: media.kind,
+        });
+      }
+
       // Open inside the WebGL scene: the clicked plane keeps its already-loaded
       // texture, glides to the centre and grows to the focus box. The viewer
       // chrome mounts immediately but stays hidden; no DOM media or full-res
@@ -2450,6 +2520,9 @@ export const InfiniteCanvas = forwardRef<
             void preloadItem(next.itemIndex);
           }
 
+          if (perfEnabled) {
+            markPerf("cursor-change", { hover: Boolean(next) });
+          }
           setHoverCursor(Boolean(next));
         }
       }
@@ -2481,6 +2554,7 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function clearHoverNow(): void {
+      if (perfEnabled) markPerf("hover-clear");
       hoverPoint = null;
       hoverDirty = false;
       hoverWasAllowed = false;
@@ -2562,6 +2636,12 @@ export const InfiniteCanvas = forwardRef<
           loadingIndex = null;
           setTransitioning(false);
           onCanvasOpenedRef.current();
+          if (perfEnabled) {
+            markPerf("open-ready", {
+              index: t.index,
+              kind: items[t.index]?.media.kind,
+            });
+          }
           // The 640 texture carried the motion; upgrade it once the chrome
           // has settled. The hidden decoders stay live until the close; any
           // teardown here costs more than the open budget.
@@ -3017,6 +3097,9 @@ export const InfiniteCanvas = forwardRef<
       renderedFrames += 1;
       renderScene();
       updateDebug();
+      if (perfEnabled && transition.phase === "opening") {
+        markFirstOpenFrame();
+      }
 
       const otherActive =
         moving ||
