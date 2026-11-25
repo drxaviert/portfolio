@@ -11,10 +11,6 @@ vi.mock("next/dynamic", () => ({
   default: () => () => null,
 }));
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ prefetch: vi.fn() }),
-}));
-
 describe("HumanContactExperience", () => {
   it("keeps the scene overlay free of the credit and links back to the study", () => {
     const { container } = render(<HumanContactExperience mode="full" />);

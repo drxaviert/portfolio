@@ -2,8 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useSyncExternalStore, useState } from "react";
+import { useSyncExternalStore, useState } from "react";
 import { markDrawerRestore } from "@/components/work/drawer-restore";
 import { hasWebGLSupport, isSafari } from "./environment";
 import {
@@ -60,14 +59,6 @@ export function HumanContactExperience({
   );
   const [failed, setFailed] = useState(false);
   const live = capable && !failed;
-  const router = useRouter();
-
-  // The study is the only way back, and its shared-element close needs the
-  // route cached before the click. Next does not prefetch in development, so
-  // ask for it here; in production this is already warm from the Link.
-  useEffect(() => {
-    if (mode === "full") router.prefetch("/work/human-contact");
-  }, [mode, router]);
 
   return (
     <div className="hc-experience" data-mode={mode}>
