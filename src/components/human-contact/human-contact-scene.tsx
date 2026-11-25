@@ -74,6 +74,16 @@ type DebugWindow = Window & {
     fieldRotation: () => { x: number; y: number; z: number };
     objects: () => DebugObject[];
   };
+  /** Every mounted scene, so a check can count contexts and loops. Dev only. */
+  __humanContactScenes?: Set<{
+    host: HTMLElement;
+    status: () => {
+      running: boolean;
+      inView: boolean;
+      tabVisible: boolean;
+      canvas: boolean;
+    };
+  }>;
 };
 
 /** Stable per-index randomness; layout rebuilds keep the same arrangement. */
@@ -595,8 +605,21 @@ export function HumanContactScene({
     resize();
 
     const debugWindow = window as DebugWindow;
+    const sceneProbe = {
+      host,
+      status: () => ({
+        running,
+        inView,
+        tabVisible: !document.hidden,
+        canvas: host.querySelector("canvas") !== null,
+      }),
+    };
 
     if (process.env.NODE_ENV !== "production") {
+      // Counts mounted scenes (one WebGL context each) and whether each loop
+      // is actually ticking, so hidden Activity copies can be checked.
+      debugWindow.__humanContactScenes ??= new Set();
+      debugWindow.__humanContactScenes.add(sceneProbe);
       // Dev-only probe for the motion checks: the grid must stay at identity,
       // and the per-object samples prove the wave is running and staggered.
       debugWindow.__humanContactDebug = {
@@ -676,6 +699,7 @@ export function HumanContactScene({
       teardownRef.current?.();
 
       if (process.env.NODE_ENV !== "production") {
+        debugWindow.__humanContactScenes?.delete(sceneProbe);
         delete debugWindow.__humanContactDebug;
       }
     };

@@ -681,8 +681,13 @@ export function WorkList({
             coverImage={work.coverImage}
             fit="cover"
             // The live scene is only worth its context while the thumbnail is
-            // showing; the still carries the idle state and the crossfade.
-            still={work.cover === "human-contact" && !thumbActive}
+            // showing; the still carries the idle state and the crossfade. Only
+            // the front slot takes the scene: the back slot is the outgoing row
+            // fading out, so a row swap never holds two loops at once.
+            still={
+              work.cover === "human-contact" &&
+              (!thumbActive || slots.front !== slot)
+            }
           />
         ) : null}
       </div>

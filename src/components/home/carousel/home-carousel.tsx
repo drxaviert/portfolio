@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   useEffect,
   useEffectEvent,
@@ -271,6 +272,11 @@ function Slide({
   const offscreen = slot >= VISIBLE_SLOTS;
   const key = peek ? "peekL" : `${ghost ? "g" : "m"}${index}`;
   const liveCover = item.kind === "work" && item.cover === "human-contact";
+  // The drawer owns the scene on every /work route: the reader hero or the
+  // index thumbnail is the one live canvas, and the home copy behind the panel
+  // stays on the still, so opening a study never leaves the card and the hero
+  // running together. (A hidden Activity copy tears its own scene down.)
+  const drawerRoute = Boolean(usePathname()?.startsWith("/work"));
   // The featured slot carries `.ring-card` as a marker only; every ring host
   // grows its ring by `inset` (ring-hover.css).
   const hostClass = `car-host ring-host rounded-lg${first ? " ring-card" : ""}`;
@@ -309,7 +315,9 @@ function Slide({
           {/* The off-row card is clipped by the row, so it keeps the still:
               only a card in a visible slot may hold the scene. */}
           {liveCover ? (
-            <HumanContactCover live={!ghost && !peek && !offscreen} />
+            <HumanContactCover
+              live={!ghost && !peek && !offscreen && !drawerRoute}
+            />
           ) : null}
         </div>
         {edgeBlur ? (
