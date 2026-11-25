@@ -182,7 +182,7 @@ function hasWebgl(): boolean {
  * never opens a dozen decoders in one frame.
  */
 const VIDEO_TUNING = {
-  desktopPlaying: 12,
+  desktopPlaying: 24,
   mobilePlaying: 6,
   /** The visible set is recomputed this often, starting at most one video. */
   checkMs: 80,
@@ -380,6 +380,8 @@ type VideoEntry = {
   ready: boolean;
   playing: boolean;
   failed: boolean;
+  /** The video texture is bound to the planes (not just loaded). */
+  bound: boolean;
   /** performance.now of the last manual upload. */
   lastUpload: number;
   /** Pending requestVideoFrameCallback, if the browser has it. */
@@ -1064,6 +1066,8 @@ export const InfiniteCanvas = forwardRef<
           src: entry.element.currentSrc,
         });
       }
+
+      entry.bound = true;
     }
 
     /** Last-resort fill when neither the warm focus nor the 480p is ready. */
@@ -1665,7 +1669,7 @@ export const InfiniteCanvas = forwardRef<
 
     /** Browsers without requestVideoFrameCallback upload on a 33ms cadence. */
     function updateVideoFallback(now: number): void {
-      for (const entry of videoEntries.values()) {
+      for (const [itemIndex, entry] of videoEntries) {
         if (!entry.texture || entry.texture.needsUpdate) continue;
         if (entry.element.paused) continue;
         if (typeof entry.element.requestVideoFrameCallback === "function") {
@@ -1675,6 +1679,7 @@ export const InfiniteCanvas = forwardRef<
 
         entry.lastUpload = now;
         entry.texture.needsUpdate = true;
+        if (!entry.bound) applyVideoTexture(itemIndex, entry);
       }
 
       for (const entry of focusVideos.values()) {
@@ -1714,6 +1719,7 @@ export const InfiniteCanvas = forwardRef<
         ready: false,
         playing: false,
         failed: false,
+        bound: false,
         lastUpload: 0,
         frameRequest: null,
       };
@@ -1730,6 +1736,7 @@ export const InfiniteCanvas = forwardRef<
           if (entry.texture && performance.now() - entry.lastUpload >= 30) {
             entry.lastUpload = performance.now();
             entry.texture.needsUpdate = true;
+            if (!entry.bound) applyVideoTexture(itemIndex, entry);
             wake();
           }
 
@@ -1769,7 +1776,6 @@ export const InfiniteCanvas = forwardRef<
         entry.texture = texture;
         entry.lastUpload = performance.now();
         entry.ready = true;
-        applyVideoTexture(itemIndex, entry);
         scheduleFrame();
         wake();
       };
@@ -2014,7 +2020,8 @@ export const InfiniteCanvas = forwardRef<
           const url = urls[itemIndex];
           const entry = ensureTexture(url);
           const videoEntry = videoEntries.get(itemIndex);
-          const videoTexture = videoEntry?.ready ? videoEntry.texture : null;
+          const videoTexture =
+            videoEntry?.ready && videoEntry.bound ? videoEntry.texture : null;
           const loaded = Boolean(videoTexture || entry.loaded);
           const opacity = loaded && introEndedFlag ? 1 : 0;
           const opacityDelay =

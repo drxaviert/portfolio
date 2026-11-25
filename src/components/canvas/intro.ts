@@ -23,8 +23,8 @@ export const INTRO = {
   zoomFrom: 1.3,
   /** Last tween to finish: grayscale, 2250 + 2000. */
   endMs: 4250,
-  /** The latest opacity delay + duration; videos may start here. */
-  videoStartMs: 3250,
+  /** Visible videos start as soon as the poster load releases the intro clock. */
+  videoStartMs: 0,
   /** Reduced motion: no camera/grid motion, just a short opacity fade. */
   reducedFadeMs: 200,
 } as const;
