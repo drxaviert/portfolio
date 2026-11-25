@@ -20,7 +20,7 @@ import {
 import * as THREE from "three";
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
-import type { MediaManifest } from "@/lib/media-types";
+import type { ImageMedia, MediaManifest } from "@/lib/media-types";
 import type { Box } from "@/components/work/morph";
 import {
   gridMetrics,
@@ -444,19 +444,27 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-/** Prefer the WebP around 640w; videos use their JPG poster. */
-function textureUrl(media: MediaManifest): string {
-  if (media.kind === "video") return media.poster.jpg;
-
+/** The pool an image texture is picked from: WebP when present. */
+function imageSources(media: ImageMedia) {
   const webp = media.sources.filter((source) => source.format === "webp");
-  const pool = webp.length > 0 ? webp : media.sources;
+  return webp.length > 0 ? webp : media.sources;
+}
 
-  return pool.reduce((best, source) => {
+/** The source the tile texture is loaded from (nearest 640w). */
+function imageTextureSource(media: ImageMedia) {
+  return imageSources(media).reduce((best, source) => {
     const currentDistance = Math.abs(source.width - TEXTURE_TARGET_WIDTH);
     const bestDistance = Math.abs(best.width - TEXTURE_TARGET_WIDTH);
 
     return currentDistance < bestDistance ? source : best;
-  }).url;
+  });
+}
+
+/** The tile picks the WebP nearest 640w; videos use their JPG poster. */
+function textureUrl(media: MediaManifest): string {
+  if (media.kind === "video") return media.poster.jpg;
+
+  return imageTextureSource(media).url;
 }
 
 function clippedArea(rect: Box, width: number, height: number): number {
@@ -580,7 +588,8 @@ export const InfiniteCanvas = forwardRef<
         pauseVideosRef.current();
       }
       // A canvas-owned open keeps the already-loaded textures live through
-      // the glide; the decoders are paused after the open settles.
+      // the glide; other decoders pause once the open lands, while the focused
+      // one stays live on the canvas-owned viewer.
       clearHoverRef.current();
     } else {
       canvasOwnedRef.current = false;
@@ -960,10 +969,10 @@ export const InfiniteCanvas = forwardRef<
       for (const plane of planes) {
         if (plane.itemIndex !== itemIndex || !plane.isVideo) continue;
 
-        // The canvas-owned open pins the full-res poster on the focused
-        // plane; the video texture returns when the close lands.
+        // The poster carries the open glide; the live texture takes over once
+        // the motion lands (resumeOpenVideo).
         if (
-          transition.phase !== "idle" &&
+          transition.phase === "opening" &&
           !transition.viewerOwned &&
           transition.index === itemIndex
         ) {
@@ -983,7 +992,7 @@ export const InfiniteCanvas = forwardRef<
       }
     }
 
-    /** The opened video uses its full-res poster until playback is upgraded. */
+    /** The focused video shows its full-res poster until the motion lands. */
     function applyPosterToPlane(plane: Plane): void {
       const media = items[plane.itemIndex]?.media;
       if (!media || media.kind !== "video") return;
@@ -1003,7 +1012,10 @@ export const InfiniteCanvas = forwardRef<
       }
     }
 
-    /** Progressive image upgrade: the 640 tile texture is already on screen. */
+    /**
+     * Progressive image upgrade: the tile texture is already on screen. Load
+     * the smallest source that covers the focused plane's device pixels.
+     */
     function upgradeFocusTexture(index: number): void {
       const media = items[index]?.media;
       if (!media || media.kind !== "image") return;
@@ -1011,17 +1023,15 @@ export const InfiniteCanvas = forwardRef<
 
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const neededWidth = Math.round(transition.focusWidth * dpr);
+      const loadedWidth = imageTextureSource(media).width;
 
-      // Skip when the 640w tile already covers the focused plane's device
-      // pixels. On the measured laptop (dpr 1) the portrait focus box is
-      // 648 CSS px, so a 1280w upload adds no visible detail; a HiDPI focus
-      // box that outgrows the tile still upgrades.
-      if (dpr <= 1 || neededWidth <= TEXTURE_TARGET_WIDTH) {
+      if (neededWidth <= loadedWidth) {
         markPerf("hi-res-skip", {
           index,
           dpr,
           neededWidth,
-          reason: dpr <= 1 ? "dpr-1" : "covered",
+          loadedWidth,
+          reason: "covered",
         });
         return;
       }
@@ -1032,38 +1042,35 @@ export const InfiniteCanvas = forwardRef<
         return;
       }
 
-      const webp = media.sources.filter((source) => source.format === "webp");
-      const pool = webp.length > 0 ? webp : media.sources;
+      const pool = imageSources(media);
       if (pool.length === 0) return;
 
-      const targetWidth = Math.min(
-        1920,
-        Math.max(1280, Math.round(transition.focusWidth)),
-      );
       const source =
         pool
-          .filter((entry) => entry.width >= targetWidth)
+          .filter((entry) => entry.width >= neededWidth)
           .sort((a, b) => a.width - b.width)[0] ??
         [...pool].sort((a, b) => b.width - a.width)[0];
 
       // No source beats the tile texture; re-uploading it is pure cost.
-      if (source.width <= TEXTURE_TARGET_WIDTH) {
+      if (source.width <= loadedWidth) {
         markPerf("hi-res-skip", {
           index,
           dpr,
           neededWidth,
+          loadedWidth,
           reason: "no-larger-source",
         });
         return;
       }
 
-      if (perfEnabled) {
-        markPerf("hi-res-load", {
-          index,
-          width: source.width,
-          url: source.url,
-        });
-      }
+      markPerf("hi-res-load", {
+        index,
+        dpr,
+        neededWidth,
+        loadedWidth,
+        width: source.width,
+        url: source.url,
+      });
 
       const texture = loader.load(
         source.url,
@@ -1156,6 +1163,34 @@ export const InfiniteCanvas = forwardRef<
       const entry = videoEntries.get(index);
       if (entry?.texture) applyVideoTexture(index, entry);
       else applyPosterTexture(index);
+    }
+
+    /** The canvas-owned viewer is showing a video on the focused plane. */
+    function openVideoIsLive(): boolean {
+      if (transition.phase !== "open" || transition.viewerOwned) return false;
+
+      const media =
+        transition.index >= 0 ? items[transition.index]?.media : undefined;
+      return media?.kind === "video";
+    }
+
+    /** The motion landed: swap the poster for the live clip and play it. */
+    function resumeOpenVideo(index: number): void {
+      const media = items[index]?.media;
+      if (!media || media.kind !== "video") return;
+
+      const entry = videoEntries.get(index) ?? ensureVideoEntry(index);
+      if (!entry) return;
+
+      if (entry.ready) applyVideoTexture(index, entry);
+
+      startVideo(entry);
+      markPerf("open-video-live", {
+        index,
+        ready: entry.ready,
+        paused: entry.element.paused,
+      });
+      wake();
     }
 
     function disposeVideoEntry(itemIndex: number): void {
@@ -1358,10 +1393,26 @@ export const InfiniteCanvas = forwardRef<
       }
 
       if (pausedRef.current) {
-        // The canvas-owned open freezes its texture but lets the staggered
-        // teardown drain over frames instead of pausing twelve decoders here.
+        // The canvas-owned open keeps the clicked clip live through the glide
+        // so no decoder restarts on the landing frame.
         if (transition.phase === "opening" && !transition.viewerOwned) {
           return false;
+        }
+
+        // The landed open shows one video on the focused plane; only that clip
+        // plays while the viewer owns the screen.
+        if (openVideoIsLive()) {
+          for (const [itemIndex, entry] of videoEntries) {
+            if (itemIndex !== transition.index && !entry.element.paused) {
+              entry.element.pause();
+            }
+          }
+
+          const entry = videoEntries.get(transition.index);
+          if (entry && !entry.failed) {
+            startVideo(entry);
+            return true;
+          }
         }
 
         pauseAllVideos();
@@ -1977,8 +2028,8 @@ export const InfiniteCanvas = forwardRef<
       const tileWidth = plane.mesh.scale.x;
       const tileHeight = plane.mesh.scale.y;
 
-      // Poster-first: the video opens on its full-res poster, then the tile
-      // returns to its playing texture when the viewer closes.
+      // Poster-first: the poster carries the glide; resumeOpenVideo hands the
+      // focused plane back to the playing clip when the motion lands.
       if (media.kind === "video") applyPosterToPlane(plane);
 
       if (reduced) {
@@ -2020,6 +2071,7 @@ export const InfiniteCanvas = forwardRef<
         updateDebug();
         onOpenRef.current(plane.itemIndex, startAt, undefined, true);
         onCanvasOpenedRef.current();
+        resumeOpenVideo(plane.itemIndex);
         return;
       }
 
@@ -2699,6 +2751,9 @@ export const InfiniteCanvas = forwardRef<
           loadingIndex = null;
           setTransitioning(false);
           onCanvasOpenedRef.current();
+          // A video open keeps the poster through the glide, then hands the
+          // focused plane back to the live clip. Images stay as they are.
+          resumeOpenVideo(t.index);
           if (perfEnabled) {
             markPerf("open-ready", {
               index: t.index,
@@ -3138,7 +3193,7 @@ export const InfiniteCanvas = forwardRef<
         (transition.phase === "open" &&
           (transition.waitingForViewer || transition.handoffAt >= 0));
 
-      if (pausedRef.current && !transitionActive) {
+      if (pausedRef.current && !transitionActive && !openVideoIsLive()) {
         last = 0;
         return;
       }
@@ -3205,7 +3260,11 @@ export const InfiniteCanvas = forwardRef<
         transition.viewerOwned &&
         !viewerOpenNeedsFrames(performance.now() - transition.startedAt);
 
-      if (pausedRef.current && (!transitionActive || viewerWaitSettled)) {
+      if (
+        pausedRef.current &&
+        !openVideoIsLive() &&
+        (!transitionActive || viewerWaitSettled)
+      ) {
         return;
       }
 
