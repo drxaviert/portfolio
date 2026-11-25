@@ -278,7 +278,7 @@ describe("CanvasReader viewer staging", () => {
     expect(reader).not.toHaveAttribute("data-canvas-viewing");
   });
 
-  it("returns the canvas-owned focus to the grid when the viewer steps", () => {
+  it("asks the canvas to drop the canvas-owned focus when the viewer steps", () => {
     releaseOpen.mockClear();
     renderViewerReader();
 

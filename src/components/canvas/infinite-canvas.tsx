@@ -102,10 +102,11 @@ export type InfiniteCanvasHandle = {
   /** The viewer has a decoded frame; start the canvas handoff fade. */
   handoff: () => void;
   /**
-   * The viewer stepped to a DOM slide. Return the canvas-owned focus plane to
-   * the grid so it cannot show around the new slide; the reader dims the
-   * stage. The open phase stays, so the stepped close still flies to the
-   * current item's tile.
+   * The viewer stepped to a DOM slide. Drop the canvas-owned focus plane from
+   * the canvas while keeping the grid faded exactly as the open left it, so
+   * no plane shows around the new slide and the background does not change.
+   * The open phase stays, so the stepped close still flies to the current
+   * item's tile.
    */
   releaseOpen: () => void;
   /**
@@ -3220,15 +3221,15 @@ export const InfiniteCanvas = forwardRef<
       if (t.phase !== "open" || t.viewerOwned) return;
 
       const openedIndex = t.index;
-      // The viewer now owns the slides. Return the focused plane to its
-      // resting tile and restore the grid; otherwise the old focus box keeps
-      // showing around a differently shaped DOM slide. The reader dims the
-      // stage (data-viewing without data-canvas-viewing), so the grid reads as
-      // the backdrop, not as a second open.
+      // The viewer now owns the slides. Drop the focused plane from the
+      // canvas but keep the rest of the grid faded out, exactly as the
+      // canvas-owned open left it; the stage behind the DOM slide must not
+      // suddenly show a grid. The planes stay in place at tile size so the
+      // close can pick the current item's tile.
       for (const plane of planes) {
         resetPlaneToTile(plane);
-        plane.opacity = 1;
-        plane.material.uniforms.uOpacity.value = 1;
+        plane.opacity = 0;
+        plane.material.uniforms.uOpacity.value = 0;
       }
       if (openedIndex >= 0) restoreVideoTexture(openedIndex);
       // openVideoIsLive() must go false or the paused loop keeps uploading the
