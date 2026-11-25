@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { listWork } from "@/lib/work";
 import WorkIndexPage from "./page";
 
 vi.mock("next/navigation", () => ({
@@ -52,8 +53,8 @@ describe("work index page", () => {
       ),
     ];
 
-    expect(links).toHaveLength(3);
-    expect(links[0]).toHaveAttribute("href", "/work/systems-in-motion");
+    expect(links).toHaveLength(listWork().length);
+    expect(links[0]).toHaveAttribute("href", "/work/ai-agents-google");
     // The drawer's panel is the layout's, so the page is only the content.
     expect(container.querySelector(".wd-expand-layer")).toBeNull();
     expect(container.querySelector("[data-work-card]")).toBeNull();

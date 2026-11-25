@@ -7,9 +7,9 @@ import { HomeCarousel } from "./home-carousel";
 import type { CarouselItem } from "./home-carousel";
 
 const ITEMS: CarouselItem[] = [
-  { kind: "work", slug: "systems-in-motion", title: "Systems" },
-  { kind: "work", slug: "title-sequence", title: "Titles" },
-  { kind: "work", slug: "type-in-motion", title: "Type" },
+  { kind: "work", slug: "ai-agents-google", title: "Systems" },
+  { kind: "work", slug: "klaris", title: "Titles" },
+  { kind: "work", slug: "shapes-in-motion", title: "Type" },
   { kind: "placeholder", title: "More work soon" },
 ];
 
@@ -131,8 +131,8 @@ describe("HomeCarousel markup", () => {
 
     const cards = container.querySelectorAll("[data-work-card]");
     expect(cards).toHaveLength(1);
-    expect(cards[0]).toHaveAttribute("data-work-card", "systems-in-motion");
-    expect(cards[0]).toHaveAttribute("href", "/work/systems-in-motion");
+    expect(cards[0]).toHaveAttribute("data-work-card", "ai-agents-google");
+    expect(cards[0]).toHaveAttribute("href", "/work/ai-agents-google");
     // The card is empty, so its title is carried as the accessible name.
     expect(cards[0]).toHaveAttribute("aria-label", "Systems");
   });
@@ -144,7 +144,7 @@ describe("HomeCarousel markup", () => {
       [...container.querySelectorAll("[data-work-slug]")].map((element) =>
         element.getAttribute("data-work-slug"),
       ),
-    ).toEqual(["systems-in-motion", "title-sequence", "type-in-motion"]);
+    ).toEqual(["ai-agents-google", "klaris", "shapes-in-motion"]);
   });
 
   it("does not move anything on its own", () => {

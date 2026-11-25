@@ -4,7 +4,7 @@ import { ThemeProvider } from "@/components/theme/theme-provider";
 import WorkLayout from "./layout";
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/work/systems-in-motion",
+  usePathname: () => "/work/ai-agents-google",
   useRouter: () => ({
     back: vi.fn(),
     replace: vi.fn(),

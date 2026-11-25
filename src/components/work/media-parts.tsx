@@ -62,7 +62,7 @@ export function Figure({
   media,
   children,
 }: {
-  caption: string;
+  caption?: string;
   aspect?: string;
   marginCaption?: boolean;
   wide?: boolean;
@@ -92,13 +92,15 @@ export function Figure({
   return (
     <figure className={classes}>
       {slot ?? <div className="wd-media" style={{ aspectRatio: aspect }} />}
-      <figcaption
-        className={["wd-caption", marginCaption && "wd-caption-margin"]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        {caption}
-      </figcaption>
+      {caption ? (
+        <figcaption
+          className={["wd-caption", marginCaption && "wd-caption-margin"]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {caption}
+        </figcaption>
+      ) : null}
     </figure>
   );
 }

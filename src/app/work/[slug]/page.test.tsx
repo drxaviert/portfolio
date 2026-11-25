@@ -13,7 +13,7 @@ const { notFound } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   notFound,
-  usePathname: () => "/work/systems-in-motion",
+  usePathname: () => "/work/ai-agents-google",
   useRouter: () => ({
     push: () => undefined,
     replace: () => undefined,
@@ -23,11 +23,11 @@ vi.mock("next/navigation", () => ({
 
 // Vitest has no MDX transform; the body is a placeholder here. The page test
 // checks the article's wiring, not the compiled prose.
-vi.mock("../../../../content/work/systems-in-motion.mdx", () => ({
+vi.mock("../../../../content/work/ai-agents-google.mdx", () => ({
   default: () => <p>Case-study body</p>,
 }));
 
-async function renderStudy(slug = "systems-in-motion") {
+async function renderStudy(slug = "ai-agents-google") {
   render(
     <ThemeProvider>
       {await WorkPage({ params: Promise.resolve({ slug }) })}
@@ -61,7 +61,7 @@ describe("work page", () => {
 
     // The homepage card has the same title; the article's is the one by id.
     const title = document.getElementById(READER_TITLE_ID);
-    expect(title).toHaveTextContent("Systems in motion");
+    expect(title).toHaveTextContent("AI AGENTS | GOOGLE");
     expect(screen.getByText("Case-study body")).toBeInTheDocument();
   });
 
@@ -83,8 +83,8 @@ describe("work page", () => {
     await renderStudy();
 
     expect(
-      screen.getByRole("link", { name: "Next project: The title sequence" }),
-    ).toHaveAttribute("href", "/work/title-sequence");
+      screen.getByRole("link", { name: "Next project: KLARIS" }),
+    ).toHaveAttribute("href", "/work/klaris");
   });
 
   it("calls notFound for an unknown slug", async () => {

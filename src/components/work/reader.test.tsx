@@ -39,7 +39,7 @@ vi.mock("next/link", () => ({
 }));
 
 function featured() {
-  const meta = getWork("systems-in-motion");
+  const meta = getWork("ai-agents-google");
   if (!meta) throw new Error("missing fixture");
   return meta;
 }
@@ -94,13 +94,13 @@ describe("reader content", () => {
     const nav = screen.getByRole("navigation", { name: "Breadcrumb" });
     const home = screen.getByRole("link", { name: "Home" });
     const work = screen.getByRole("link", { name: "Work" });
-    const title = screen.getByText("Systems in motion", {
+    const title = screen.getByText("AI AGENTS | GOOGLE", {
       selector: ".breadcrumb-current",
     });
     const row = document.querySelector(".wd-reader-back-row");
     const column = document.querySelector(".wd-reader-column");
 
-    expect(nav).toHaveTextContent("Home/Work/Systems in motion");
+    expect(nav).toHaveTextContent("Home/Work/AI AGENTS | GOOGLE");
     expect(home).toHaveAttribute("href", "/");
     expect(work).toHaveAttribute("href", "/work");
     expect(title).toHaveAttribute("aria-current", "page");
@@ -156,10 +156,10 @@ describe("reader content", () => {
     renderReader(<p>Case-study body</p>);
 
     const next = screen.getByRole("link", {
-      name: "Next project: The title sequence",
+      name: "Next project: KLARIS",
     });
 
-    expect(next).toHaveAttribute("href", "/work/title-sequence");
+    expect(next).toHaveAttribute("href", "/work/klaris");
     expect(next).toHaveAttribute("data-replace", "false");
   });
 
@@ -170,7 +170,7 @@ describe("reader content", () => {
     renderReader(<p>Case-study body</p>);
 
     const next = screen.getByRole("link", {
-      name: "Next project: The title sequence",
+      name: "Next project: KLARIS",
     });
     const click = createEvent.click(next);
     fireEvent(next, click);

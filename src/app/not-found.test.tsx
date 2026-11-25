@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import NotFound, { metadata } from "@/app/not-found";
+import { listWork } from "@/lib/work";
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -40,11 +41,9 @@ describe("not-found page", () => {
     const studies = screen
       .getAllByRole("link")
       .filter((link) => link.getAttribute("href")?.startsWith("/work/"));
-    expect(studies.map((link) => link.getAttribute("href"))).toEqual([
-      "/work/systems-in-motion",
-      "/work/title-sequence",
-      "/work/type-in-motion",
-    ]);
+    expect(studies.map((link) => link.getAttribute("href"))).toEqual(
+      listWork().map((work) => `/work/${work.slug}`),
+    );
   });
 
   it("draws no nav and reserves no space for one", () => {

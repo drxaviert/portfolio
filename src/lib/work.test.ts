@@ -35,8 +35,8 @@ describe("parseFrontmatter", () => {
 });
 
 describe("listWork", () => {
-  it("returns the three case studies", () => {
-    expect(listWork()).toHaveLength(3);
+  it("returns the twenty case studies", () => {
+    expect(listWork()).toHaveLength(20);
   });
 
   it("gives every study a known cover", () => {
@@ -47,16 +47,33 @@ describe("listWork", () => {
 
   it("keeps the reading order stable", () => {
     expect(listWork().map((work) => work.slug)).toEqual([
-      "systems-in-motion",
-      "title-sequence",
-      "type-in-motion",
+      "ai-agents-google",
+      "klaris",
+      "shapes-in-motion",
+      "growth-factors-deciem",
+      "cellixir",
+      "tribeca-film-festival-deciem",
+      "urban-decay",
+      "niod-deciem",
+      "eroxon",
+      "good-form-rebrand",
+      "xylo-audio",
+      "lullavibes",
+      "docebo-ai-capabilities",
+      "cash-app-cash-flow",
+      "metaview",
+      "2d-motion-design-introduction",
+      "linksys",
+      "london-public-library",
+      "personal",
+      "about-dat",
     ]);
   });
 });
 
 describe("getWork", () => {
-  it("reads the featured study and its tiles cover", () => {
-    expect(getWork(FEATURED_SLUG)?.cover).toBe("tiles");
+  it("reads the featured study and its window cover", () => {
+    expect(getWork(FEATURED_SLUG)?.cover).toBe("window");
   });
 
   it("returns null for an unknown slug", () => {
@@ -66,16 +83,16 @@ describe("getWork", () => {
 
 describe("nextWork", () => {
   it("returns the following study in reading order", () => {
-    expect(nextWork("systems-in-motion").slug).toBe("title-sequence");
+    expect(nextWork("ai-agents-google").slug).toBe("klaris");
   });
 
   it("wraps from the last study back to the first", () => {
-    expect(nextWork("type-in-motion").slug).toBe("systems-in-motion");
+    expect(nextWork("about-dat").slug).toBe("ai-agents-google");
   });
 });
 
 describe("FEATURED_SLUG", () => {
   it("is the study with the homepage card", () => {
-    expect(FEATURED_SLUG).toBe("systems-in-motion");
+    expect(FEATURED_SLUG).toBe("ai-agents-google");
   });
 });

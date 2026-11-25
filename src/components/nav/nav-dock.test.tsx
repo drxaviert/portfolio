@@ -91,7 +91,7 @@ describe("NavDock", () => {
   });
 
   it("starts in the drawer position on a direct load of a study", () => {
-    mocks.pathname = "/work/systems-in-motion";
+    mocks.pathname = "/work/ai-agents-google";
     renderDock();
 
     expect(dock()).toHaveAttribute("data-nav-state", "reader");
@@ -108,7 +108,7 @@ describe("NavDock", () => {
   });
 
   it("does not move on a study-to-study open", async () => {
-    mocks.pathname = "/work/systems-in-motion";
+    mocks.pathname = "/work/ai-agents-google";
     renderDock();
     mocks.animate.mockClear();
 
@@ -130,7 +130,7 @@ describe("NavDock", () => {
   });
 
   it("closes the whole drawer when the logo is clicked in it", () => {
-    mocks.pathname = "/work/systems-in-motion";
+    mocks.pathname = "/work/ai-agents-google";
     renderDock();
     const close = vi.fn();
     registerReaderClose(close);
@@ -176,7 +176,7 @@ describe("NavDock", () => {
     // Work is the drawer's own section: on a study it is the way back to the
     // index, and on the index it is the page already on screen. Neither is a
     // close.
-    mocks.pathname = "/work/systems-in-motion";
+    mocks.pathname = "/work/ai-agents-google";
     renderDock();
     const close = vi.fn();
     registerReaderClose(close);
@@ -190,7 +190,7 @@ describe("NavDock", () => {
   });
 
   it("leaves a modified click and a direct load to the browser", () => {
-    mocks.pathname = "/work/systems-in-motion";
+    mocks.pathname = "/work/ai-agents-google";
     renderDock();
 
     const link = screen.getByRole("link", { name: "Work" });
@@ -207,7 +207,7 @@ describe("NavDock", () => {
   });
 
   it("puts the nav back home when the route leaves the reader", async () => {
-    mocks.pathname = "/work/systems-in-motion";
+    mocks.pathname = "/work/ai-agents-google";
     const view = renderDock();
     expect(dock()).toHaveAttribute("data-nav-state", "reader");
 
@@ -229,7 +229,7 @@ describe("NavDock", () => {
     const view = renderDock();
     expect(dock()).toHaveAttribute("data-nav-state", "home");
 
-    mocks.pathname = "/work/systems-in-motion";
+    mocks.pathname = "/work/ai-agents-google";
     view.rerender(
       <ThemeProvider>
         <NavDock />

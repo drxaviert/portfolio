@@ -40,7 +40,7 @@ describe("getMedia", () => {
   });
 
   it("throws before touching the filesystem for a malformed id", () => {
-    expect(() => getMedia("../work/systems-in-motion")).toThrow(
+    expect(() => getMedia("../work/ai-agents-google")).toThrow(
       /not a media id/,
     );
   });

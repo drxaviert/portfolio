@@ -206,7 +206,7 @@ describe("HomeNav", () => {
   });
 
   it("keeps Work current inside a study of the work route", () => {
-    mocks.pathname = "/work/systems-in-motion";
+    mocks.pathname = "/work/ai-agents-google";
     renderNav();
 
     expect(screen.getByRole("link", { name: "Work" })).toHaveAttribute(
