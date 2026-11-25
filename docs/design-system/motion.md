@@ -1,6 +1,6 @@
 # Design system motion — 2026-11-13
 
-The shipped motion of the theme toggle, the Day phase row, the home nav's Glide capsule and the Work drawer, recorded from the code (toggle and nav from PR #12, `5bbfba9` / `d574d89`; drawer at `98b6429`; the shipped drawer, its close rules and the index layout switch approved at `cb6785a`, 2026-11-19; the /work hover-thumbnail list approved 2026-11-22 in the last section; the drawer close was later retuned to 300ms on `ease` in PR #80, and the nav motion blur added in PR #68). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
+The shipped motion of the theme toggle, the Day phase row, the home nav's Glide capsule and the Work drawer, recorded from the code (toggle and nav from PR #12, `5bbfba9` / `d574d89`; drawer at `98b6429`; the shipped drawer, its close rules and the index layout switch approved at `cb6785a`, 2026-11-19; the /work hover-thumbnail list approved 2026-11-22; the canvas open/close approved 2026-11-25 in PR #121 (`f0bc21a`) and the Human Contact embed <-> live route on the same motion in PR #119 (`1faa998`), both in the last two sections; the drawer close was later retuned to 300ms on `ease` in PR #80, and the nav motion blur added in PR #68). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
 
 ## Principles
 
@@ -890,11 +890,67 @@ Times are from the first frame with posters ready. The eases are the power curve
 | Videos join | 3250ms | - | - | - |
 | Reduced motion | - | 200ms | - | opacity only |
 
-### Open and close
+### Open and close (retuned 2026-11-25)
 
-Open: the canvas glides the clicked plane to the centre for **1000ms power3.inOut** while the other planes fade for **900ms power3.inOut**. The grow starts **150ms before the glide ends** (**600ms power3.out**); the plane crop goes from `1.06` to `1.0`. At the handoff the persistent canvas clip and the DOM viewer cross-fade for **200ms**; the caption waits **200ms**. The viewer waits for a decoded frame at the canvas time (or `700ms`), then fades in.
+Open and close are each one timeline, owned by `TRANSITION` in `transition.ts`; the DOM viewer is chrome around a WebGL plane, so the media is not swapped mid-flight. On the live study the canvas-owned open still starts from the hover/breath-lifted mesh, so the click does not snap the tile down. The canvas-owned close lands on the resting tile (`plane.tileWidth`/`tileHeight`), not on that lifted mesh: the idle handoff clears hover and starts the breath at 0, so a snapshot of the lifted size would leave the tile a few percent too big until the first idle frame.
 
-Close mirrors it: caption and controls out over **150ms**; the viewer pauses and the canvas clip is seeked to its frame (waiting for `seeked` plus two rendered frames); the viewer cross-fades out over **200ms** with the canvas already at the focus rect and contain crop; then the plane shrinks focus to tile for **600ms power3.inOut** while `uZoom` goes `1 -> 1.06`; the other planes fade in over **900ms power3.inOut**, starting **450ms** after the cross-fade begins. Input unlocks at **1550ms**. Reduced motion uses the 200ms opacity path.
+Open: the clicked plane's periodic copy glides to the centre for **1000ms power3.inOut** (`glideMs` / `glideProgress`). `centrePlaneScroll` targets `nearestPeriodic(-base, scroll, 2 × halfPeriod)`, so a panned canvas opens the copy nearest the current scroll instead of flying back to the first-load slot. The camera travels to `CAMERA_Z` on the same progress, and the other planes fade over **900ms power3.inOut** (`fadeOutMs` / `fadeOutProgress`). The grow starts **150ms before the glide ends** (`growDelayMs` 850ms) and runs **600ms power3.out** (`growMs` / `growProgress`) to the `fitBox` focus rect (0.88 × 0.8 of the viewport), while the crop goes `1.06 -> 1` (`TEXTURE_ZOOM`). The canvas reports opened at **1450ms** (`growDelayMs + growMs`); the viewer chrome joins 200ms later (`captionDelayMs`) and fades in over 180ms.
+
+Close: the viewer holds the focus rect through the **200ms cross-fade window** (`closeCrossFadeMs`) while its caption and close button leave over **150ms** (`closeCaptionMs`; the CSS uses the same literal on `opacity` with `--ease-decelerate`). After that hold, four returns share one **600ms power3.inOut** timeline and end on the same frame at **800ms** (`closeTotalMs`): the target plane shrinks focus -> resting tile (`closeShrinkMs` / `closeShrinkProgress`), the grid scroll reverses to the pre-open offset (`closeScrollOffset`), the lens warp returns to its resting strength (`closeFadeProgress` on `uStrength`), and the other planes fade in (`closeFadeMs` / `closeFadeProgress`). `closeFadeDelayMs` is **0** on purpose: any delay leaves the landed tile static before the idle handoff, which reads as a freeze followed by a snap. `closeTotalMs` is exactly `closeCrossFadeMs + closeShrinkMs` = 800ms, so the viewer unmounts on the landing frame, not after a hold.
+
+| Trigger | Property | Duration | Delay | Easing | From -> to |
+| --- | --- | --- | --- | --- | --- |
+| Tile clicked | grid `scroll` | 1000ms (`glideMs`) | 0 | power3.inOut (`glideProgress`) | current scroll -> `centrePlaneScroll(base, scroll, halfPeriod)` |
+| Tile clicked | camera `z` | 1000ms (same) | 0 | power3.inOut | current -> `CAMERA_Z` 500 |
+| Tile clicked | other planes `opacity` | 900ms (`fadeOutMs`) | 0 | power3.inOut (`fadeOutProgress`) | 1 -> 0 |
+| Tile clicked | plane `scale`, `uPlaneSizes`, `uZoom` | 600ms (`growMs`) | 850ms (`growDelayMs`) | power3.out (`growProgress`) | tile -> `fitBox`, crop `1.06 -> 1` |
+| Close | caption + close `opacity` | 150ms (`closeCaptionMs`) | 0 | `ease-out` (`--ease-decelerate`) | 1 -> 0 |
+| Close | target plane `scale` | 600ms (`closeShrinkMs`) | 200ms (`closeCrossFadeMs`) | power3.inOut (`closeShrinkProgress`) | focus -> `restWidth` × `restHeight`, crop `1 -> 1.06` |
+| Close | grid `scroll` | 600ms (same) | 200ms (`closeCrossFadeMs`) | power3.inOut (`closeScrollOffset`) | focus offset -> pre-open `fromScrollX`/`fromScrollY` |
+| Close | lens `uStrength` | 600ms (`closeFadeMs`) | 200ms (`closeCrossFadeMs`) | power3.inOut (`closeFadeProgress`) | 0 -> resting warp (0.23) |
+| Close | other planes `opacity` | 600ms (`closeFadeMs`) | 200ms (`closeCrossFadeMs`) + `closeFadeDelayMs` 0 | power3.inOut (`closeFadeProgress`) | 0 -> 1 |
+| Close lands | viewer unmount, tile revealed | 0 | 0 | - | tile at rest on the last frame (`closeTotalMs` 800ms) |
+| Reduced motion, open | scroll + plane pose | 0 | 0 | - | one frame: focus pose, canonical `-base` scroll, other planes 0 |
+| Reduced motion, close | other planes `opacity` | 200ms (`reducedFadeMs`) | 0 | linear (`reducedOpacity`) | 0 -> 1, then the target is restored at rest on the same 200ms |
+
+After an Arrow step the DOM viewer owns the media and the frame, not the WebGL plane. That close still uses `closeShrinkMs` **600ms**, but it is a WAAPI FLIP from the frame's current transform to the landing tile rect on `cubic-bezier(0, 0, 0.58, 1)`, starting immediately (no 200ms hold); the canvas grid stays hidden and `landClose` reveals the target tile when both the FLIP and the media prep finish. That path's easing is not power3.inOut.
+
+Reduced motion lands directly. The open writes the focus pose, the canonical `-base` scroll, and the other planes at 0 in one frame (`openPlane` reduced branch), with no glide or grow. The close writes the pre-open scroll in one frame, fades the other planes in over **200ms** (`reducedFadeMs` / `reducedOpacity`, linear), and puts the target tile back at rest when that fade ends; there is no shrink, scroll-reverse or lens animation, so the canvas-owned close takes 200ms instead of 800ms.
+
+### Close invariant (2026-11-25)
+
+Dat approved this on 2026-11-25 (bd pf-9cv.13, PR #121).
+
+- **Same frame.** At `closeTotalMs` the shrink, scroll, lens restore and grid fade all read 1, and the target plane is already at `tileWidth` × `tileHeight`; the viewer unmounts there. There is no static tail and no post-close snap.
+- **Within 0.5px.** The target plane's projected rect on the last close frame equals the tile's resting rect within **0.5px**, and it holds that rect on the first idle frame and after. Measured: canvas-owned paths **0.0px** (Escape, close button, outside click; video and image; after a resize); the viewer-owned Arrow path **0.5px** on x, **0** on y.
+- **Breathing clock.** `landClose` resets `breathIdleSince` to 0 and clears `breathLevel`/`breathActive`/`breathAmplitude`, so the first idle frame restarts the 1s delay and 1.2s fade instead of applying the pre-open idle time in one frame. The canvas-owned close never pauses, so its non-idle frames already reset the clock.
+
+- `src/components/canvas/transition.ts:22` — `TRANSITION`: `glideMs` 1000, `fadeOutMs` 900, `growDelayMs` 850, `growMs` 600, `captionDelayMs` 200, `closeCaptionMs` 150, `closeCrossFadeMs` 200, `closeShrinkMs` 600, `closeFadeDelayMs` 0, `closeFadeMs` 600, `closeTotalMs` 800, `reducedFadeMs` 200
+- `src/components/canvas/transition.ts:139` — `glideProgress`, power3.inOut over `glideMs`
+- `src/components/canvas/transition.ts:147` — `growProgress`, power3.out after `growDelayMs`
+- `src/components/canvas/transition.ts:157` — `closeFadeProgress`
+- `src/components/canvas/transition.ts:166` — `closeShrinkProgress`
+- `src/components/canvas/transition.ts:182` — `closeScrollOffset`, the open's scroll run in reverse
+- `src/components/canvas/transition.ts:210` — `resizeOpenScroll`, the retarget used when the grid is rebuilt
+- `src/components/canvas/transition.ts:246` — `closeComplete` at `closeTotalMs`
+- `src/components/canvas/wrap.ts:43` — `nearestPeriodic`
+- `src/components/canvas/wrap.ts:62` — `centrePlaneScroll`
+- `src/components/canvas/infinite-canvas.tsx:2627` — the open targets `centrePlaneScroll(...)`
+- `src/components/canvas/infinite-canvas.tsx:2634` — `restWidth`/`restHeight` from `plane.tileWidth`/`tileHeight`; `tileWidth`/`tileHeight` from the lifted mesh
+- `src/components/canvas/infinite-canvas.tsx:2667` — reduced open writes the focus pose in one frame
+- `src/components/canvas/infinite-canvas.tsx:2922` — the lens returns on `closeFadeProgress`
+- `src/components/canvas/infinite-canvas.tsx:3079` — the close's shrink and reduced fade
+- `src/components/canvas/infinite-canvas.tsx:3089` — the close lands on `restWidth`/`restHeight`
+- `src/components/canvas/infinite-canvas.tsx:3479` — the scroll reverse on the shrink timeline
+- `src/components/canvas/infinite-canvas.tsx:3499` — the close completes at `closeTotalMs`
+- `src/components/canvas/infinite-canvas.tsx:3861` — `landClose`
+- `src/components/canvas/infinite-canvas.tsx:3884` — the breathing clock reset after a DOM close
+- `src/components/canvas/infinite-canvas.tsx:4046` — `rebindTransitionAfterResize`
+- `src/components/canvas/focus-viewer.tsx:508` — a canvas-owned close waits `closeTotalMs` before unmounting
+- `src/components/canvas/focus-viewer.tsx:585` — the viewer-owned FLIP, `closeShrinkMs` 600ms
+- `src/components/canvas/focus-viewer.tsx:599` — that FLIP's `cubic-bezier(0, 0, 0.58, 1)`, not power3.inOut
+- `src/components/canvas/focus-viewer.css:174` — chrome out 150ms `--ease-decelerate`
+- `src/components/canvas/focus-viewer.css:185` — chrome in 180ms after `captionDelayMs` 200ms
 
 ### Breathing
 
@@ -904,13 +960,13 @@ Close mirrors it: caption and controls out over **150ms**; the viewer pauses and
 | Period | **5s**, shared by every tile |
 | Wave | `0.6` radians of phase per `col + row` grid step, so the ripple runs diagonally; the phase uses the grid index, not the wrapped screen position |
 | Curve | `1 + amplitude × sin(2π·t/period - (col + row)·wave)`; the phase is absolute `performance.now` time |
-| Idle delay | **1s** after the canvas settles |
+| Idle delay | **1s** after the canvas settles; after a DOM close, counted from `landClose` |
 | Fade in | **1.2s** smoothstep amplitude envelope |
 | Fade out | **300ms** exponential amplitude ease when a drag, wheel or key glide starts |
 | Settle threshold | `0.1` px/frame |
 | Render cadence | every rAF; the phase is sampled at native refresh, no frame skipping. Stops when the document or route is hidden |
 
-The amplitude is 0 during the intro, open/close transitions, the viewer and reduced motion. Only the amplitude is enveloped; the phase never resets. The scale is the whole mesh multiplied by the breathing scale, then by the hover scale; the texture crop (`uZoom`) is not touched. Plane edges use analytic 1px coverage (`fwidth`) on top of the render target's 4x MSAA where the target is at or below 10M pixels; the lens pass samples the target linearly.
+The amplitude is 0 during the intro, open/close transitions, the viewer and reduced motion. Only the amplitude is enveloped; the phase never resets. On the DOM/viewer-owned close the canvas has been paused behind the viewer, so `landClose` resets `breathIdleSince` and the level to 0; otherwise the first idle frame would apply the pre-open idle time and jump to the full 6% in one frame. The canvas-owned close never pauses, and each non-idle frame already resets the idle clock. The scale is the whole mesh multiplied by the breathing scale, then by the hover scale; the texture crop (`uZoom`) is not touched. Plane edges use analytic 1px coverage (`fwidth`) on top of the render target's 4x MSAA where the target is at or below 10M pixels; the lens pass samples the target linearly.
 
 ### Hover
 
@@ -941,4 +997,42 @@ Full-screen post-pass: the scene renders into a **1.6×** render target (30% sou
 ### Runtime and performance
 
 The live study pauses the canvas when the route is not active, which stops the rAF and pauses every canvas video; the InfiniteCanvas effect disposes its renderer, render target, textures and video elements on unmount. The capability probe is cached and its context released, so the three open/close cycle test returns to the same context baseline (no leaked canvas contexts). Production idle + hover at 1440×900 with 12 videos measured **p95 8.1ms, max 8.9ms**, 0 frames over 17ms and 0 long tasks; GPU WebGL work was ~75ms per 10s with videos and ~23ms per 10s breathing + hover only.
+
+## Human Contact - embed <-> live (2026-11-25)
+
+Approved 2026-11-25 (bd pf-9cv.9; PR #119, `1faa998`). The `/work/human-contact` case study and `/live/human-contact` do not invent a route curve: they reuse the canvas tile's motion. `human-contact-motion.ts` imports `TRANSITION` and `POWER3_IN_OUT_EASE` from `src/components/canvas/transition.ts` and writes the durations into the `--human-contact-*` custom properties that `globals.css` reads, so there is no second set of numbers in CSS. The live page is the only named participant: its snapshot starts at the embed's stored rect on the way in and ends on it on the way out, so the motion does not depend on the destination page pairing with the source.
+
+| Trigger | Property | Duration | Easing | From -> to |
+| --- | --- | --- | --- | --- |
+| Open (embed -> live) | live snapshot `transform`, `clip-path` | 1000ms (`openMs` = `glideMs`) | power3.inOut (`POWER3_IN_OUT_EASE`, `cubic-bezier(0.65, 0, 0.35, 1)`) | embed rect: `translate` + `scale`, origin `0 0`, inset crop -> viewport: `translate(0, 0) scale(1)`, `inset(0 0 0 0)` |
+| Open | live snapshot `opacity` | first 18% (180ms) | power3.inOut | 0 -> 1 over the real embed, so the container-query type scale does not pop |
+| Open | old root `opacity` (the case study) | 900ms (`pageFadeMs` = `fadeOutMs`) | power3.inOut | 1 -> 0 |
+| Close (live -> embed) | old snapshot `transform`, `clip-path` | 600ms (`closeMs` = `closeShrinkMs`) | power3.inOut | viewport -> the stored embed rect |
+| Close | snapshot `opacity` | last 20% (480-600ms) | power3.inOut | 1 -> 0 over the real embed, so the landing frame has no content pop |
+| Close | new root `opacity` (the case study) | 600ms (same close duration) | power3.inOut | 0 -> 1 |
+| Reduced motion | - | 0 | - | no `<ViewTransition>`; both directions land directly |
+| No stored rect (direct load) | - | 0 | - | plain navigation, no morph |
+
+The close is exact because the embed stores its viewport rect on the forward click (`rememberTile`) and the drawer restores the study's internal scroll to that rect before the close snapshot is taken (`HumanContactEmbed` layout effect), then the close keyframes end on those same variables. Measured at 1440x900: the open started from `{272.5, 193.7, 880, 495}` and the close ended on exactly that rect, with no landing snap.
+
+Reduced motion returns the children with no `<ViewTransition>` at all when the preference is reduce or there is no stored rect, so both routes land directly. If the preference flips between the routes, `globals.css` forces `animation-duration: 0s` on every `view-transition` pseudo.
+
+- `src/components/human-contact/human-contact-motion.ts:11` — imports `POWER3_IN_OUT_EASE` and `TRANSITION` from the canvas
+- `src/components/human-contact/human-contact-motion.ts:19` — `HUMAN_CONTACT_MOTION`: `openMs` = `glideMs`, `closeMs` = `closeShrinkMs`, `pageFadeMs` = `fadeOutMs`, `ease` = `POWER3_IN_OUT_EASE`
+- `src/components/human-contact/human-contact-motion.ts:26` — writes the durations and ease into the `--human-contact-*` custom properties
+- `src/components/human-contact/human-contact-motion.ts:137` — `humanContactTileTransform`, the cover map and clip insets
+- `src/components/human-contact/human-contact-motion.ts:158` — `applyHumanContactTileVars`
+- `src/components/human-contact/human-contact-motion.ts:185` — `markHumanContactDirection`, the `data-human-contact-transition` attribute
+- `src/components/human-contact/human-contact-transition.tsx:54` — reduced motion or no stored rect: no view transition
+- `src/components/human-contact/human-contact-transition.tsx:57` — the one named participant and its open/close types
+- `src/components/human-contact/human-contact-embed.tsx:59` — `rememberTile`, the rect and geometry stored on the forward click
+- `src/components/human-contact/human-contact-embed.tsx:43` — the return restore, scrolls the study back to the stored rect before the close snapshot
+- `src/components/human-contact/human-contact-embed.tsx:88` — the link carries `transitionTypes={[HUMAN_CONTACT_OPEN]}` and calls `rememberTile`
+- `src/app/globals.css:166` — `::view-transition-new(.human-contact-open)`, 1000ms on the canvas ease
+- `src/app/globals.css:177` — `::view-transition-old(.human-contact-close)`, 600ms on the same ease
+- `src/app/globals.css:183` — `human-contact-open` keyframes, opacity 1 by 18%
+- `src/app/globals.css:206` — `human-contact-close` keyframes, opacity holds to 80%
+- `src/app/globals.css:229` — the open's root fade, 900ms
+- `src/app/globals.css:244` — the close's root fade-in, 600ms
+- `src/app/globals.css:262` — reduced motion forces every view-transition pseudo to 0s
 
