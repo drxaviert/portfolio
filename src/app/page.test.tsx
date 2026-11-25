@@ -3,6 +3,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import Page from "@/app/page";
 
+vi.mock("@/lib/daily-art", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/daily-art")>();
+
+  return {
+    ...actual,
+    getTodaysArt: vi.fn(async () => ({
+      art: actual.fallbackArt("2026-11-25"),
+      today: "2026-11-25",
+      oldest: "2026-10-27",
+    })),
+  };
+});
+
+async function renderPage() {
+  const page = await Page();
+
+  return render(<ThemeProvider>{page}</ThemeProvider>);
+}
+
 beforeEach(() => {
   vi.stubGlobal(
     "matchMedia",
@@ -24,12 +43,8 @@ afterEach(() => {
 });
 
 describe("home page", () => {
-  it("renders the promoted prototype layout", () => {
-    render(
-      <ThemeProvider>
-        <Page />
-      </ThemeProvider>,
-    );
+  it("renders the promoted prototype layout", async () => {
+    await renderPage();
 
     // Below md the stacked card and from md the carousel card both render
     // (CSS picks one), so the featured study appears twice in the markup.
@@ -49,12 +64,8 @@ describe("home page", () => {
     ).toBeInTheDocument();
   });
 
-  it("mounts the edge blur bands, which belong to the homepage alone", () => {
-    const { container } = render(
-      <ThemeProvider>
-        <Page />
-      </ThemeProvider>,
-    );
+  it("mounts the edge blur bands, which belong to the homepage alone", async () => {
+    const { container } = await renderPage();
 
     // The bands are homepage-scoped by where they mount (app/page.tsx); a
     // study's direct load comes from app/work/layout.tsx and has none.
@@ -63,12 +74,8 @@ describe("home page", () => {
     expect(container.querySelector(".wd-edge-blur--bottom")).not.toBeNull();
   });
 
-  it("leaves the hidden study out and still steps with the arrow keys", () => {
-    render(
-      <ThemeProvider>
-        <Page />
-      </ThemeProvider>,
-    );
+  it("leaves the hidden study out and still steps with the arrow keys", async () => {
+    await renderPage();
 
     expect(
       screen.queryByRole("link", { name: "Human Contact" }),
@@ -92,12 +99,8 @@ describe("home page", () => {
     expect(front()).toBe("Systems in motion");
   });
 
-  it("does not render dev-only tools", () => {
-    render(
-      <ThemeProvider>
-        <Page />
-      </ThemeProvider>,
-    );
+  it("does not render dev-only tools", async () => {
+    await renderPage();
 
     expect(
       screen.queryByLabelText("Horizon glow tuner"),
@@ -107,12 +110,8 @@ describe("home page", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("gives the carousel's four visible cards the entrance as items 3-6", () => {
-    render(
-      <ThemeProvider>
-        <Page />
-      </ThemeProvider>,
-    );
+  it("gives the carousel's four visible cards the entrance as items 3-6", async () => {
+    await renderPage();
 
     const carousel = screen.getByRole("region", { name: "Selected work" });
     const slides = Array.from(

@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { HorizonLive } from "@/components/horizon/horizon-live";
 import { EntranceCell } from "./entrance-cell";
 import type { EntranceVariant } from "./entrance-cell";
@@ -76,6 +76,14 @@ type HomeLayoutProps = {
   entrance?: EntranceVariant;
   shipped?: boolean;
   /**
+   * Optional server-rendered Play card. The shell is also imported by the
+   * client-side entrance harness, so it may not fetch on its own: a server
+   * route that owns the data passes the filled card here, and every client
+   * preview keeps the empty shell. This is what removes the old environment
+   * check and the Server Action call during initial render.
+   */
+  playCard?: ReactNode;
+  /**
    * Draw the horizon inside this layout. The shipped routes pass false: the
    * root layout's SharedHorizon owns the one canvas above both routes. Dev
    * prototypes keep their own.
@@ -89,6 +97,7 @@ export function HomeLayout({
   items,
   entrance,
   shipped = false,
+  playCard,
   horizon = true,
 }: HomeLayoutProps = {}) {
   const lead = items?.[0];
@@ -165,7 +174,7 @@ export function HomeLayout({
               row={1}
               className="min-w-0 flex-1"
             >
-              <PlayCard />
+              {playCard ?? <PlayCard />}
             </EntranceCell>
           </div>
 
@@ -184,10 +193,7 @@ export function HomeLayout({
                   entrance as items 3-6, and CSS shows only one of them. */}
               <div className="grid gap-3 md:hidden">
                 <EntranceCell variant={entrance} item={3} row={2}>
-                  <ProjectCard
-                    title={stacked?.title}
-                    slug={stacked?.slug}
-                  />
+                  <ProjectCard title={stacked?.title} slug={stacked?.slug} />
                 </EntranceCell>
                 <WorkSlivers entrance={entrance} />
               </div>
@@ -199,10 +205,7 @@ export function HomeLayout({
                 {work ? (
                   <ProjectCard title={work.title} onOpen={work.onOpen} />
                 ) : (
-                  <ProjectCard
-                    title={featured?.title}
-                    slug={featured?.slug}
-                  />
+                  <ProjectCard title={featured?.title} slug={featured?.slug} />
                 )}
               </EntranceCell>
               <WorkSlivers items={work?.slivers} entrance={entrance} />
