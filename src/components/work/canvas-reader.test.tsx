@@ -1,4 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import type { ForwardedRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CanvasItem } from "@/components/canvas/infinite-canvas";
 import type { ImageMedia } from "@/lib/media-types";
@@ -6,23 +9,42 @@ import type { WorkMeta } from "@/lib/work";
 import { CanvasReader } from "./canvas-reader";
 import { DrawerActionsProvider } from "./drawer-actions";
 
+const releaseOpen = vi.hoisted(() => vi.fn());
+
 vi.mock("next/navigation", () => ({
   usePathname: () => "/work/motion-and-stills",
 }));
 
 vi.mock("@/components/canvas/infinite-canvas", async () => {
-  const { forwardRef } = await import("react");
+  const { forwardRef, useImperativeHandle } = await import("react");
   return {
-    InfiniteCanvas: forwardRef(function MockCanvas({
-      onOpen,
-    }: {
-      onOpen?: (
-        index: number,
-        startAt?: number,
-        openRect?: unknown,
-        canvasOwned?: boolean,
-      ) => void;
-    }) {
+    InfiniteCanvas: forwardRef(function MockCanvas(
+      {
+        onOpen,
+      }: {
+        onOpen?: (
+          index: number,
+          startAt?: number,
+          openRect?: unknown,
+          canvasOwned?: boolean,
+        ) => void;
+      },
+      ref: ForwardedRef<unknown>,
+    ) {
+      useImperativeHandle(
+        ref,
+        () => ({
+          releaseOpen,
+          rectForIndex: () => null,
+          reveal: () => {},
+          handoff: () => {},
+          closeTo: () => null,
+          cancelClose: () => {},
+          landClose: () => {},
+        }),
+        [],
+      );
+
       return (
         <div data-canvas-stage>
           <button
@@ -254,5 +276,37 @@ describe("CanvasReader viewer staging", () => {
     expect(reader).not.toHaveAttribute("data-viewing");
     expect(reader).not.toHaveAttribute("data-closing");
     expect(reader).not.toHaveAttribute("data-canvas-viewing");
+  });
+
+  it("returns the canvas-owned focus to the grid when the viewer steps", () => {
+    releaseOpen.mockClear();
+    renderViewerReader();
+
+    fireEvent.click(screen.getByRole("button", { name: "Simulate tile open" }));
+    expect(releaseOpen).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Simulate step" }));
+    expect(releaseOpen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("CanvasReader bottom bar stacking", () => {
+  it("keeps the breadcrumb bar above the fixed focus viewer", () => {
+    const readerCss = readFileSync(
+      join(process.cwd(), "src/components/work/canvas-reader.css"),
+      "utf8",
+    );
+    const viewerCss = readFileSync(
+      join(process.cwd(), "src/components/canvas/focus-viewer.css"),
+      "utf8",
+    );
+    const barZ = Number(
+      readerCss.match(/\.cv-reader__bottom-bar \{[\s\S]*?z-index: (\d+)/)?.[1],
+    );
+    const viewerZ = Number(
+      viewerCss.match(/\.cv-viewer \{[\s\S]*?z-index: (\d+)/)?.[1],
+    );
+
+    expect(barZ).toBeGreaterThan(viewerZ);
   });
 });

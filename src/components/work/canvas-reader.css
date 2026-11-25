@@ -84,7 +84,10 @@
   position: absolute;
   bottom: var(--cv-reader-pill-bottom);
   left: max(16px, env(safe-area-inset-left));
-  z-index: 4;
+  /* The reader's bottom chrome sits above the fixed viewer (z-index 20), so
+     media never paints into the pill in any state. The box is the pill itself,
+     so clicks outside it still reach the content. */
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 8px;

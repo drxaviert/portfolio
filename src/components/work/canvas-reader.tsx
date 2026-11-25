@@ -168,7 +168,10 @@ export function CanvasReader({
           onReopen={markViewerReopened}
           onReopenLanded={markViewerReopenLanded}
           onClosed={closeViewer}
-          onStep={() => setViewerStepped(true)}
+          onStep={() => {
+            setViewerStepped(true);
+            canvasRef.current?.releaseOpen();
+          }}
         />
       ) : null}
     </div>

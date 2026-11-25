@@ -102,6 +102,13 @@ export type InfiniteCanvasHandle = {
   /** The viewer has a decoded frame; start the canvas handoff fade. */
   handoff: () => void;
   /**
+   * The viewer stepped to a DOM slide. Return the canvas-owned focus plane to
+   * the grid so it cannot show around the new slide; the reader dims the
+   * stage. The open phase stays, so the stepped close still flies to the
+   * current item's tile.
+   */
+  releaseOpen: () => void;
+  /**
    * Start a close immediately: return the target tile rect synchronously while
    * the tile's texture/frame prepares in parallel. Null means the close was
    * cancelled before anything was shown.
@@ -611,6 +618,7 @@ export const InfiniteCanvas = forwardRef<
     rectForIndex: () => null,
     reveal: () => {},
     handoff: () => {},
+    releaseOpen: () => {},
     closeTo: () => null,
     cancelClose: () => {},
     landClose: () => {},
@@ -3207,6 +3215,29 @@ export const InfiniteCanvas = forwardRef<
       }
     }
 
+    function releaseOpen(): void {
+      const t = transition;
+      if (t.phase !== "open" || t.viewerOwned) return;
+
+      const openedIndex = t.index;
+      // The viewer now owns the slides. Return the focused plane to its
+      // resting tile and restore the grid; otherwise the old focus box keeps
+      // showing around a differently shaped DOM slide. The reader dims the
+      // stage (data-viewing without data-canvas-viewing), so the grid reads as
+      // the backdrop, not as a second open.
+      for (const plane of planes) {
+        resetPlaneToTile(plane);
+        plane.opacity = 1;
+        plane.material.uniforms.uOpacity.value = 1;
+      }
+      if (openedIndex >= 0) restoreVideoTexture(openedIndex);
+      // openVideoIsLive() must go false or the paused loop keeps uploading the
+      // old focus video behind the slides. Keep the phase open for the close.
+      t.viewerOwned = true;
+      renderScene();
+      updateDebug();
+    }
+
     function updateTransition(now: number): boolean {
       const t = transition;
 
@@ -4094,6 +4125,7 @@ export const InfiniteCanvas = forwardRef<
     api.rectForIndex = rectForIndex;
     api.reveal = revealPlane;
     api.handoff = handoff;
+    api.releaseOpen = releaseOpen;
     api.closeTo = closeTo;
     api.cancelClose = cancelClose;
     api.landClose = landClose;
@@ -4124,6 +4156,7 @@ export const InfiniteCanvas = forwardRef<
       api.rectForIndex = () => null;
       api.reveal = () => {};
       api.handoff = () => {};
+      api.releaseOpen = () => {};
       api.closeTo = () => null;
       api.cancelClose = () => {};
       api.landClose = () => {};
