@@ -19,10 +19,16 @@ import { cacheLife } from "next/cache";
 
 const AIC_SEARCH_URL = "https://api.artic.edu/api/v1/artworks/search";
 /** Generic project name only; the AIC docs ask not to send an email address. */
-const AIC_USER_AGENT = "Daily-Painting/1.0";
+export const AIC_USER_AGENT = "Daily-Painting/1.0";
 const REQUEST_TIMEOUT_MS = 8_000;
 const CANDIDATE_WINDOW = 24;
 const RETRY_WINDOW = 100;
+/**
+ * AIC's public search refuses `from + limit > 1000` with a 403 ("Invalid
+ * number of results"), regardless of the larger Elasticsearch window behind
+ * it. The date hash must stay inside that accessible slice.
+ */
+const SEARCH_WINDOW = 1_000;
 /** The card browses the current day plus the 29 before it. */
 export const ART_HISTORY_DAYS = 30;
 const MIN_ASPECT = 1 / 4;
@@ -232,10 +238,7 @@ export function pickArtwork(
   return null;
 }
 
-export function toDailyArt(
-  item: AicArtwork,
-  dateKey: string,
-): DailyArt | null {
+export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
   if (!usableArtwork(item)) return null;
 
   const id = finiteNumber(item.id);
@@ -260,7 +263,8 @@ export function toDailyArt(
     id: id ?? 0,
     title,
     artist,
-    dateDisplay: text(item.date_display) ?? (dateStart ? String(dateStart) : "Undated"),
+    dateDisplay:
+      text(item.date_display) ?? (dateStart ? String(dateStart) : "Undated"),
     dateStart,
     placeOfOrigin: text(item.place_of_origin),
     styleTitle: text(item.style_title),
@@ -272,8 +276,7 @@ export function toDailyArt(
     height,
     lqip: lqip?.startsWith("data:image/") ? lqip : null,
     color: colorValue,
-    articUrl:
-      id === null ? null : `https://www.artic.edu/artworks/${id}`,
+    articUrl: id === null ? null : `https://www.artic.edu/artworks/${id}`,
     alt:
       text(item.thumbnail?.alt_text) ??
       `${title} by ${artist}, ${text(item.date_display) ?? "undated"}`,
@@ -313,6 +316,7 @@ export function fallbackArt(dateKey: string): DailyArt {
 async function searchAic(
   fetchImpl: FetchLike,
   body: Record<string, unknown>,
+  attempt = 0,
 ): Promise<AicSearchResponse> {
   const response = await fetchImpl(AIC_SEARCH_URL, {
     method: "POST",
@@ -325,7 +329,23 @@ async function searchAic(
   });
 
   if (!response.ok) {
-    throw new Error(`AIC search failed with ${response.status}`);
+    // 403/429/5xx from the public API are usually transient throttling. One
+    // short retry protects a day's pick without turning a bad day into a loop.
+    if (
+      attempt === 0 &&
+      (response.status === 403 ||
+        response.status === 429 ||
+        response.status >= 500)
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return searchAic(fetchImpl, body, attempt + 1);
+    }
+
+    const detail = (await response.text().catch(() => "")).slice(0, 300);
+
+    throw new Error(
+      `AIC search failed with ${response.status}${detail ? `: ${detail}` : ""}`,
+    );
   }
 
   return (await response.json()) as AicSearchResponse;
@@ -369,8 +389,9 @@ export async function fetchDailyArt(
     if (total <= 0) return fallbackArt(dateKey);
 
     const seeded = hashDateKey(dateKey);
-    const window = Math.min(CANDIDATE_WINDOW, total);
-    const maxStart = Math.max(0, total - window);
+    const available = Math.min(total, SEARCH_WINDOW);
+    const window = Math.min(CANDIDATE_WINDOW, available);
+    const maxStart = Math.max(0, available - window);
     const from = maxStart > 0 ? seeded % (maxStart + 1) : 0;
 
     const result = await searchAic(fetchImpl, {
@@ -390,7 +411,7 @@ export async function fetchDailyArt(
       const retry = await searchAic(fetchImpl, {
         ...BASE_QUERY,
         fields: SEARCH_FIELDS,
-        limit: Math.min(RETRY_WINDOW, total),
+        limit: Math.min(RETRY_WINDOW, total, SEARCH_WINDOW),
         from: 0,
       });
       const retryPick = pickArtwork(retry.data ?? [], dateKey);
@@ -403,7 +424,14 @@ export async function fetchDailyArt(
     }
 
     return fallbackArt(dateKey);
-  } catch {
+  } catch (error) {
+    // A fallback must not hide an outage silently; it also must not be cached
+    // for a day, or the card stays empty long after the API recovers.
+    console.warn(
+      `[daily-art] AIC unavailable for ${dateKey}:`,
+      error instanceof Error ? error.message : error,
+    );
+
     return fallbackArt(dateKey);
   }
 }
@@ -411,10 +439,41 @@ export async function fetchDailyArt(
 /**
  * The app-facing loader. The date is the cache key; `cacheLife("days")` keeps
  * the same painting for the whole UTC day and lets the static shell include it.
+ * A fallback is retried on the minutes profile instead of being pinned for a
+ * day.
  */
 export async function getDailyArt(dateKey: string): Promise<DailyArt> {
   "use cache";
-  cacheLife("days");
 
-  return fetchDailyArt(dateKey);
+  const art = await fetchDailyArt(dateKey);
+
+  if (art.fallback) cacheLife("minutes");
+  else cacheLife("days");
+
+  return art;
+}
+
+/**
+ * Today's painting plus the window the card may browse.
+ *
+ * `new Date()` cannot be read in a prerendered component (Next 16 blocks it),
+ * so the clock read lives inside this cached scope. The outer entry uses the
+ * one-minute profile only to notice UTC midnight; the inner day-keyed entry
+ * still does the real caching, so AIC sees the same handful of requests a day.
+ */
+export async function getTodaysArt(): Promise<{
+  art: DailyArt;
+  today: string;
+  oldest: string;
+}> {
+  "use cache";
+  cacheLife("minutes");
+
+  const today = utcDateKey();
+
+  return {
+    art: await getDailyArt(today),
+    today,
+    oldest: historyStartDate(today),
+  };
 }

@@ -47,7 +47,9 @@ function itemsResponse(items: AicArtwork[]): Response {
   return Response.json({ pagination: { total: items.length }, data: items });
 }
 
-function mockFetch(responses: Response[]): ReturnType<typeof vi.fn<typeof fetch>> {
+function mockFetch(
+  responses: Response[],
+): ReturnType<typeof vi.fn<typeof fetch>> {
   const fetchMock = vi.fn<typeof fetch>();
 
   for (const response of responses) fetchMock.mockResolvedValueOnce(response);
@@ -57,8 +59,12 @@ function mockFetch(responses: Response[]): ReturnType<typeof vi.fn<typeof fetch>
 
 describe("UTC day keys", () => {
   it("formats the instant in UTC, not local time", () => {
-    expect(utcDateKey(new Date("2026-11-25T23:30:00-05:00"))).toBe("2026-11-26");
-    expect(utcDateKey(new Date("2026-11-25T00:30:00+02:00"))).toBe("2026-11-24");
+    expect(utcDateKey(new Date("2026-11-25T23:30:00-05:00"))).toBe(
+      "2026-11-26",
+    );
+    expect(utcDateKey(new Date("2026-11-25T00:30:00+02:00"))).toBe(
+      "2026-11-24",
+    );
   });
 
   it("steps across months, years and leap days", () => {
@@ -219,7 +225,7 @@ describe("toDailyArt", () => {
 describe("fetchDailyArt", () => {
   it("asks AIC with a generic header, counts, then frames a candidate", async () => {
     const fetchMock = mockFetch([
-      countResponse(500),
+      countResponse(5000),
       itemsResponse([
         artwork({ id: 31, thumbnail: { width: 9000, height: 1000 } }),
         artwork({ id: 32 }),
@@ -227,7 +233,10 @@ describe("fetchDailyArt", () => {
       ]),
     ]);
 
-    const daily = await fetchDailyArt(DATE, fetchMock as unknown as typeof fetch);
+    const daily = await fetchDailyArt(
+      DATE,
+      fetchMock as unknown as typeof fetch,
+    );
 
     expect(daily.fallback).toBe(false);
     expect(daily.date).toBe(DATE);
@@ -245,6 +254,11 @@ describe("fetchDailyArt", () => {
       expect(JSON.stringify(init.body)).toContain("is_public_domain");
       expect(JSON.stringify(init.body)).toContain("Painting");
     }
+
+    // AIC rejects from + limit above 1,000 with a 403.
+    const window = JSON.parse(fetchMock.mock.calls[1][1]?.body as string);
+
+    expect(window.from + window.limit).toBeLessThanOrEqual(1000);
   });
 
   it("returns the same painting for the same date, and another the next day", async () => {
@@ -264,8 +278,14 @@ describe("fetchDailyArt", () => {
     ];
     const fetchMock = mockFetch(responses());
 
-    const first = await fetchDailyArt(DATE, fetchMock as unknown as typeof fetch);
-    const again = await fetchDailyArt(DATE, fetchMock as unknown as typeof fetch);
+    const first = await fetchDailyArt(
+      DATE,
+      fetchMock as unknown as typeof fetch,
+    );
+    const again = await fetchDailyArt(
+      DATE,
+      fetchMock as unknown as typeof fetch,
+    );
 
     expect(first.id).toBe(again.id);
   });
@@ -274,7 +294,10 @@ describe("fetchDailyArt", () => {
     const fetchMock = vi.fn<typeof fetch>();
     fetchMock.mockRejectedValueOnce(new Error("offline"));
 
-    const daily = await fetchDailyArt(DATE, fetchMock as unknown as typeof fetch);
+    const daily = await fetchDailyArt(
+      DATE,
+      fetchMock as unknown as typeof fetch,
+    );
 
     expect(daily.fallback).toBe(true);
     expect(daily.date).toBe(DATE);
@@ -282,22 +305,32 @@ describe("fetchDailyArt", () => {
     expect(daily.title).toBeTruthy();
   });
 
-  it("falls back on a bad HTTP status or bad JSON", async () => {
-    const failed = mockFetch([new Response("nope", { status: 503 })]);
-    const broken = mockFetch([new Response("{", { status: 200 })]);
+  it("retries a transient HTTP failure once, then falls back", async () => {
+    const failed = mockFetch([
+      new Response("nope", { status: 503 }),
+      new Response("still nope", { status: 503 }),
+    ]);
 
-    expect((await fetchDailyArt(DATE, failed as unknown as typeof fetch)).fallback).toBe(
-      true,
-    );
-    expect((await fetchDailyArt(DATE, broken as unknown as typeof fetch)).fallback).toBe(
-      true,
-    );
+    const daily = await fetchDailyArt(DATE, failed as unknown as typeof fetch);
+
+    expect(daily.fallback).toBe(true);
+    expect(failed).toHaveBeenCalledTimes(2);
+  });
+
+  it("falls back on bad JSON", async () => {
+    const broken = mockFetch([new Response("{", { status: 200 })]);
+    const daily = await fetchDailyArt(DATE, broken as unknown as typeof fetch);
+
+    expect(daily.fallback).toBe(true);
   });
 
   it("falls back when the collection is empty", async () => {
     const fetchMock = mockFetch([countResponse(0)]);
 
-    const daily = await fetchDailyArt(DATE, fetchMock as unknown as typeof fetch);
+    const daily = await fetchDailyArt(
+      DATE,
+      fetchMock as unknown as typeof fetch,
+    );
 
     expect(daily.fallback).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -312,7 +345,10 @@ describe("fetchDailyArt", () => {
       ]),
     ]);
 
-    const daily = await fetchDailyArt(DATE, fetchMock as unknown as typeof fetch);
+    const daily = await fetchDailyArt(
+      DATE,
+      fetchMock as unknown as typeof fetch,
+    );
 
     expect(daily.fallback).toBe(true);
   });
