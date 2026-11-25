@@ -528,10 +528,30 @@ export function usePan({
 
   useEffect(() => {
     const clearKeys = () => arrowKeysRef.current.clear();
-    window.addEventListener("blur", clearKeys);
+    const endLostDrag = (event: PointerEvent) => {
+      const state = stateRef.current;
+      if (state.pointerId === null || event.pointerId !== state.pointerId) {
+        return;
+      }
 
-    return () => window.removeEventListener("blur", clearKeys);
-  }, []);
+      halt();
+      onWakeRef.current?.();
+    };
+    const onWindowBlur = () => {
+      clearKeys();
+      halt();
+    };
+
+    window.addEventListener("blur", onWindowBlur);
+    window.addEventListener("pointerup", endLostDrag);
+    window.addEventListener("pointercancel", endLostDrag);
+
+    return () => {
+      window.removeEventListener("blur", onWindowBlur);
+      window.removeEventListener("pointerup", endLostDrag);
+      window.removeEventListener("pointercancel", endLostDrag);
+    };
+  }, [halt]);
 
   useEffect(() => {
     return () => {
