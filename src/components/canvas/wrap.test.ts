@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { gridLayout, masonryLayout, scatterLayout } from "./layouts";
 import type { CanvasLayout, LayoutItem, LayoutRect } from "./layouts";
-import { mod, nearestPeriodic, planePosition, wrapCoordinate } from "./wrap";
+import {
+  centrePlaneScroll,
+  mod,
+  nearestPeriodic,
+  planePosition,
+  wrapCoordinate,
+} from "./wrap";
 
 const ITEMS: LayoutItem[] = Array.from({ length: 12 }, (_, index) => ({
   id: `tile-${index}`,
@@ -98,6 +104,48 @@ describe("per-plane wrap", () => {
     expect(nearestPeriodic(100, 1500, 2916)).toBe(100);
     expect(nearestPeriodic(100, 2800, 2916)).toBe(3016);
     expect(nearestPeriodic(-100, -2800, 2916)).toBe(-3016);
+  });
+});
+
+describe("centrePlaneScroll", () => {
+  // The real 1440x900 grid: 19 columns of a 238px pitch and 11 rows of 300px.
+  const halfX = 2457;
+  const halfY = 1620;
+  const base = { x: 936, y: 1215 };
+
+  it("centres the canonical copy at the first-load scroll", () => {
+    expect(centrePlaneScroll(base.x, 0, halfX)).toBe(-base.x);
+    expect(centrePlaneScroll(base.y, 0, halfY)).toBe(-base.y);
+  });
+
+  it("centres the same tile at the copy nearest the current scroll", () => {
+    // Panned a full period away and clicked a tile at the viewport centre. The
+    // old target `-base` flew the grid back to the first-load scroll; the
+    // nearest copy is only the tile's offset away.
+    const scrollX = 3999.8;
+    const scrollY = 1999.9;
+    const targetX = centrePlaneScroll(base.x, scrollX, halfX);
+    const targetY = centrePlaneScroll(base.y, scrollY, halfY);
+
+    expect(targetX).toBe(-base.x + halfX * 2);
+    expect(targetY).toBe(-base.y + halfY * 2);
+    expect(Math.abs(targetX - scrollX)).toBeLessThan(40);
+    expect(Math.abs(targetY - scrollY)).toBeLessThan(40);
+    expect(planePosition(base.x, targetX, halfX)).toBeCloseTo(0, 9);
+    expect(planePosition(base.y, targetY, halfY)).toBeCloseTo(0, 9);
+  });
+
+  it("never travels more than half a period from any scroll", () => {
+    for (const scroll of [-9000, -5000, -1, 0, 1, 2500, 5000, 9000]) {
+      const target = centrePlaneScroll(base.x, scroll, halfX);
+
+      expect(Math.abs(target - scroll)).toBeLessThanOrEqual(halfX);
+      expect(planePosition(base.x, target, halfX)).toBeCloseTo(0, 9);
+    }
+  });
+
+  it("falls back to the canonical target without a period", () => {
+    expect(centrePlaneScroll(120, 5000, 0)).toBe(-120);
   });
 });
 

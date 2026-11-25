@@ -5,20 +5,9 @@
  * Mirrors the reference's animateToPlane: every plane glides for 1s with
  * power3.inOut while the other planes fade over .9s. The grow overlaps the
  * last 150ms of the glide, and the close is faster (0.8x the fade).
- *
- * The DOM viewer's FLIP uses the same power3.inOut shape as the canvas, not
- * easeOut, so the handoff changes speed continuously. The sibling reveal on
- * close is the same .9s curve the open uses, rather than a one-frame snap.
  */
-import { clamp01, power3InOut } from "./intro";
-
-/** power3.inOut as a bezier, for Motion's `ease` option. */
-export const HANDOFF_BEZIER: [number, number, number, number] = [
-  0.65, 0, 0.35, 1,
-];
-
-/** The same curve as a CSS timing function, for WAAPI and CSS. */
-export const HANDOFF_EASE = `cubic-bezier(${HANDOFF_BEZIER.join(", ")})`;
+import { clamp01, power3InOut, power3Out } from "./intro";
+import { nearestPeriodic } from "./wrap";
 
 export type TransitionPhase = "idle" | "opening" | "open" | "closing";
 export type TransitionEvent = "open" | "opened" | "close" | "closed";
@@ -37,17 +26,40 @@ export const TRANSITION = {
   closeCrossFadeMs: 200,
   /** The reverse grow: 600ms, same as the open. */
   closeShrinkMs: 600,
-  /** A close that is interrupted and reopens: the shorter reverse flight. */
-  reopenMs: 260,
-  /** Other planes start fading in over the last 150ms of the shrink. */
-  closeFadeDelayMs: 450,
-  closeFadeMs: 900,
-  /** 200ms cross-fade + 450ms delay + 900ms fade. */
-  closeTotalMs: 1550,
-  /** Wait for the viewer's decoded frame before starting the open handoff. */
-  mediaReadyTimeoutMs: 250,
+  /**
+   * The grid, lens and scroll come back with the shrink, not after it. Any
+   * delay here leaves the landed tile static before the idle handoff, which
+   * reads as a freeze followed by a snap.
+   */
+  closeFadeDelayMs: 0,
+  closeFadeMs: 600,
+  /** 200ms cross-fade + 600ms return; ends with the shrink. */
+  closeTotalMs: 800,
   reducedFadeMs: 200,
 } as const;
+
+/** A tile can be the close target only when its whole rect is on screen. */
+export function boxInsideViewport(
+  box: { left: number; top: number; width: number; height: number },
+  width: number,
+  height: number,
+): boolean {
+  return (
+    box.left >= 0 &&
+    box.top >= 0 &&
+    box.left + box.width <= width &&
+    box.top + box.height <= height
+  );
+}
+
+/**
+ * The viewer-owned open only animates the other planes' fade. Once that fade
+ * has finished the scene is a held tile, so the rAF loop can idle until the
+ * viewer hands over or the user closes.
+ */
+export function viewerOpenNeedsFrames(elapsedMs: number): boolean {
+  return elapsedMs < TRANSITION.fadeOutMs;
+}
 
 export const FIT = {
   widthRatio: 0.88,
@@ -126,7 +138,7 @@ export function fadeOutProgress(elapsedMs: number): number {
 }
 
 export function growProgress(elapsedMs: number): number {
-  return power3InOut(
+  return power3Out(
     clamp01((elapsedMs - TRANSITION.growDelayMs) / TRANSITION.growMs),
   );
 }
@@ -153,22 +165,71 @@ export function closeShrinkProgress(elapsedMs: number): number {
 }
 
 /**
- * The viewer-owned close lands when its 600ms reverse FLIP ends. The reference
- * starts the sibling fade 450ms after the crossfade begins, so the remaining
- * 50ms is the gap between the land and that beat.
+ * The reverse of the open's grid glide, on the plane shrink's timeline. The
+ * open moves the canvas scroll from the clicked slot to the focus; the close
+ * runs the same power3.inOut curve back to the pre-open scroll over the 600ms
+ * shrink (after the 200ms cross-fade). Without this the plane can only shrink
+ * in place while the grid reappears recentred, so the tile lands in a new slot
+ * instead of gliding home.
  */
-export function closeSiblingRevealDelayMs(): number {
-  return Math.max(
-    0,
-    TRANSITION.closeCrossFadeMs +
-      TRANSITION.closeFadeDelayMs -
-      TRANSITION.closeShrinkMs,
+export function closeScrollOffset(
+  fromScroll: number,
+  focusScroll: number,
+  elapsedMs: number,
+): number {
+  return (
+    focusScroll +
+    (fromScroll - focusScroll) * closeShrinkProgress(elapsedMs)
   );
 }
 
-/** The .9s power3.inOut sibling fade that replaces the close's snap. */
-export function closeSiblingRevealProgress(elapsedMs: number): number {
-  return power3InOut(clamp01(elapsedMs / TRANSITION.closeFadeMs));
+/**
+ * A resize rebuilds the grid, so the opened plane's base moves with the new
+ * pitch. Retarget the open's scroll, pre-open home and focus target:
+ *
+ * - the focus lands on the new base (`-nextBase`), so the media stays centred;
+ * - the pre-open offset (`from - to`) scales with the viewport, so the tile
+ *   still returns to the same relative spot in the new layout instead of a
+ *   pixel offset that can fall off screen.
+ *
+ * The current scroll shifts with the focus so the resize itself does not move
+ * the opened plane. The new pitch also changes the wrap period: a target that
+ * centred the plane under the old period can sit a whole period away from the
+ * new centre. Pass `halfPeriod` to re-anchor the path on the periodic copy
+ * nearest the pitch-shifted scroll. Without it the path keeps the plain
+ * translation, which is all a caller without a wrap period needs. A held
+ * open should then put its scroll on the returned `to`.
+ */
+export function resizeOpenScroll(
+  scroll: number,
+  from: number,
+  to: number,
+  previousBase: number,
+  nextBase: number,
+  scale: number,
+  halfPeriod = 0,
+): { scroll: number; from: number; to: number } {
+  const delta = previousBase - nextBase;
+  const home = (from - to) * scale;
+
+  if (!Number.isFinite(halfPeriod) || halfPeriod <= 0) {
+    const nextTo = to + delta;
+
+    return {
+      scroll: scroll + delta,
+      from: nextTo + home,
+      to: nextTo,
+    };
+  }
+
+  const shifted = scroll + delta;
+  const nextTo = nearestPeriodic(-nextBase, shifted, halfPeriod * 2);
+
+  return {
+    scroll: shifted,
+    from: nextTo + home,
+    to: nextTo,
+  };
 }
 
 export function openComplete(elapsedMs: number): boolean {

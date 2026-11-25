@@ -20,7 +20,7 @@ import {
 import * as THREE from "three";
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
-import type { MediaManifest } from "@/lib/media-types";
+import type { ImageMedia, MediaManifest } from "@/lib/media-types";
 import type { Box } from "@/components/work/morph";
 import {
   gridMetrics,
@@ -42,19 +42,21 @@ import {
 } from "./intro";
 import {
   TRANSITION,
+  boxInsideViewport,
   canClose,
   canOpen,
   closeComplete,
   closeFadeProgress,
+  closeScrollOffset,
   closeShrinkProgress,
-  closeSiblingRevealDelayMs,
-  closeSiblingRevealProgress,
   fadeOutProgress,
   fitBox,
   glideProgress,
   growProgress,
   handoffProgress,
   nextPhase,
+  resizeOpenScroll,
+  viewerOpenNeedsFrames,
 } from "./transition";
 import type { TransitionPhase } from "./transition";
 import { LENS, lensProject, lensTargetStrength, lensUnproject } from "./lens";
@@ -69,7 +71,14 @@ import type { BreathSettings } from "./breathing";
 import { hoverValue, retargetHover } from "./hover";
 import type { HoverSettings, HoverTween } from "./hover";
 import { usePan } from "./use-pan";
-import { planePosition } from "./wrap";
+import { centrePlaneScroll, planePosition } from "./wrap";
+import {
+  beginPerf,
+  instrumentWebGL,
+  markFirstOpenFrame,
+  markPerf,
+  perfEnabled,
+} from "./perf";
 import "./infinite-canvas.css";
 
 export type CanvasItem = {
@@ -95,11 +104,23 @@ export type InfiniteCanvasHandle = {
   /** The viewer has a decoded frame; start the canvas handoff fade. */
   handoff: () => void;
   /**
+   * The viewer stepped to a DOM slide. Drop the canvas-owned focus plane from
+   * the canvas while keeping the grid faded exactly as the open left it, so
+   * no plane shows around the new slide and the background does not change.
+   * The open phase stays, so the stepped close still flies to the current
+   * item's tile.
+   */
+  releaseOpen: () => void;
+  /**
    * Start a close immediately: return the target tile rect synchronously while
    * the tile's texture/frame prepares in parallel. Null means the close was
    * cancelled before anything was shown.
    */
-  closeTo: (index: number, time?: number) => CloseTarget | null;
+  closeTo: (
+    index: number,
+    time?: number,
+    canvasOwned?: boolean,
+  ) => CloseTarget | null;
   /** The viewer is shrinking again; put the hidden plane back in place. */
   cancelClose: () => void;
   /** The viewer landed; reveal the prepared tile and resume the grid. */
@@ -119,7 +140,14 @@ export type InfiniteCanvasProps = {
   lens: LensSettings;
   breath: BreathSettings;
   hover: HoverSettings;
-  onOpen: (index: number, startAt?: number, openRect?: Box) => void;
+  onOpen: (
+    index: number,
+    startAt?: number,
+    openRect?: Box,
+    canvasOwned?: boolean,
+  ) => void;
+  /** The canvas-owned open has settled; reveal the viewer chrome. */
+  onCanvasOpened: () => void;
 };
 
 const CAMERA_Z = INTRO.cameraToZ;
@@ -164,7 +192,7 @@ function hasWebgl(): boolean {
  * never opens a dozen decoders in one frame.
  */
 const VIDEO_TUNING = {
-  desktopPlaying: 12,
+  desktopPlaying: 24,
   mobilePlaying: 6,
   /** The visible set is recomputed this often, starting at most one video. */
   checkMs: 80,
@@ -344,6 +372,9 @@ type CanvasTransition = {
   fromCameraZ: number;
   tileWidth: number;
   tileHeight: number;
+  /** The tile's resting size (no hover/breath), which the close lands on. */
+  restWidth: number;
+  restHeight: number;
   focusWidth: number;
   focusHeight: number;
   /** performance.now when the grow handed off to the viewer, or -1. */
@@ -354,14 +385,6 @@ type CanvasTransition = {
   prepared: boolean;
   /** The DOM viewer owns the zoom; the canvas only fades the other planes. */
   viewerOwned: boolean;
-  /** Sibling opacities at the open's first frame, if it interrupted a reveal. */
-  fadeFrom?: Map<Plane, number> | null;
-};
-
-type SiblingReveal = {
-  /** performance.now when the .9s power3.inOut fade starts. */
-  startedAt: number;
-  target: Plane | null;
 };
 
 type VideoEntry = {
@@ -370,10 +393,34 @@ type VideoEntry = {
   ready: boolean;
   playing: boolean;
   failed: boolean;
+  /** The video texture is bound to the planes (not just loaded). */
+  bound: boolean;
   /** performance.now of the last manual upload. */
   lastUpload: number;
   /** Pending requestVideoFrameCallback, if the browser has it. */
   frameRequest: number | null;
+};
+
+/**
+ * A full-res video frame warmed from the hover preload. The texture is uploaded
+ * before the open, so the glide can show the full-res frame without paying the
+ * first upload. The element is paused through the glide and plays at open-ready.
+ */
+type FocusVideoEntry = {
+  index: number;
+  element: HTMLVideoElement;
+  texture: THREE.Texture;
+  ready: boolean;
+  playing: boolean;
+  lastUpload: number;
+  frameRequest: number | null;
+  /** Pending seek fallback while the paused preload settles on a time. */
+  seekTimer: number;
+  /** Pending warm texture upload (idle/rAF). */
+  upload: { id: number; idle: boolean } | null;
+  /** Measured warm upload duration, for the dev probe. */
+  warmMs: number | null;
+  warmAt: number;
 };
 
 type CanvasDebug = {
@@ -414,15 +461,26 @@ type CanvasDebug = {
   hoverLevel: number;
   transition: TransitionPhase;
   transitionMs: number;
-  /** 0..1 while the close's sibling fade runs, -1 when it is not. */
-  siblingReveal: number;
   waitingForViewer: boolean;
   prepared: boolean;
+  viewerOwned: boolean;
   targetWidth: number;
   targetHeight: number;
   targetOpacity: number;
   targetZoom: number;
   scroll: { x: number; y: number };
+  /** The in-flight transition's scroll path and plane base (dev tracing). */
+  openScroll: { x: number; y: number } | null;
+  openTarget: { x: number; y: number } | null;
+  openBase: { x: number; y: number } | null;
+  openRect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null;
+  /** Wrap half-periods, so a trace can compare equivalent scroll targets. */
+  half: { x: number; y: number };
   dragging: boolean;
   hidden: boolean;
   videosPlaying: number;
@@ -430,25 +488,82 @@ type CanvasDebug = {
   videoTextures: number;
   videoPlanesBound: number;
   videoUploads: number;
+  focusVideo: {
+    index: number;
+    ready: boolean;
+    playing: boolean;
+    width: number;
+    height: number;
+    warmMs: number | null;
+    warmAt: number;
+    currentTime: number;
+    bound: boolean;
+    version: number;
+    src: string;
+  } | null;
+  /** Live hi-res image textures, to prove they are released. */
+  focusTextures: number;
 };
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-/** Prefer the WebP around 640w; videos use their JPG poster. */
-function textureUrl(media: MediaManifest): string {
-  if (media.kind === "video") return media.poster.jpg;
-
+/** The pool an image texture is picked from: WebP when present. */
+function imageSources(media: ImageMedia) {
   const webp = media.sources.filter((source) => source.format === "webp");
-  const pool = webp.length > 0 ? webp : media.sources;
+  return webp.length > 0 ? webp : media.sources;
+}
 
-  return pool.reduce((best, source) => {
+/** The source the tile texture is loaded from (nearest 640w). */
+function imageTextureSource(media: ImageMedia) {
+  return imageSources(media).reduce((best, source) => {
     const currentDistance = Math.abs(source.width - TEXTURE_TARGET_WIDTH);
     const bestDistance = Math.abs(best.width - TEXTURE_TARGET_WIDTH);
 
     return currentDistance < bestDistance ? source : best;
-  }).url;
+  });
+}
+
+/**
+ * The focus wants the smallest source that covers the device pixels, and the
+ * old DOM used AVIF. Prefer AVIF at that width; keep a WebP variant for a
+ * browser that cannot decode AVIF.
+ */
+function pickFocusImage(media: ImageMedia, neededWidth: number) {
+  const pick = (pool: ImageMedia["sources"]) => {
+    const sorted = pool
+      .filter((source) => source.width >= neededWidth)
+      .sort(
+        (a, b) =>
+          a.width - b.width ||
+          (a.format === "avif" ? -1 : 1) - (b.format === "avif" ? -1 : 1),
+      );
+
+    if (sorted.length > 0) return sorted[0];
+
+    return [...pool].sort(
+      (a, b) =>
+        b.width - a.width ||
+        (a.format === "avif" ? -1 : 1) - (b.format === "avif" ? -1 : 1),
+    )[0];
+  };
+
+  const primary = pick(media.sources);
+  if (!primary) return null;
+
+  const webp = media.sources.filter((source) => source.format === "webp");
+  const fallback =
+    primary.format === "avif" && webp.length > 0 ? pick(webp) : null;
+
+  return { primary, fallback };
+}
+
+/** The tile picks the WebP nearest 640w; videos use their JPG poster. */
+function textureUrl(media: MediaManifest): string {
+  if (media.kind === "video") return media.poster.jpg;
+
+  return imageTextureSource(media).url;
 }
 
 function clippedArea(rect: Box, width: number, height: number): number {
@@ -506,7 +621,11 @@ function StaticFallback({ items }: { items: CanvasItem[] }) {
 export const InfiniteCanvas = forwardRef<
   InfiniteCanvasHandle,
   InfiniteCanvasProps
->(function InfiniteCanvas({ items, paused, lens, breath, hover, onOpen }, ref) {
+>(
+  function InfiniteCanvas(
+    { items, paused, lens, breath, hover, onOpen, onCanvasOpened },
+    ref,
+  ) {
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const [introReady, setIntroReady] = useState(false);
@@ -520,6 +639,7 @@ export const InfiniteCanvas = forwardRef<
     rectForIndex: () => null,
     reveal: () => {},
     handoff: () => {},
+    releaseOpen: () => {},
     closeTo: () => null,
     cancelClose: () => {},
     landClose: () => {},
@@ -531,13 +651,19 @@ export const InfiniteCanvas = forwardRef<
   const pauseVideosRef = useRef<() => void>(() => {});
   const clearHoverRef = useRef<() => void>(() => {});
   const pausedRef = useRef(paused);
+  const canvasOwnedRef = useRef(false);
   const onOpenRef = useRef(onOpen);
+  const onCanvasOpenedRef = useRef(onCanvasOpened);
 
   useImperativeHandle(ref, () => apiRef.current, []);
 
   useEffect(() => {
     onOpenRef.current = onOpen;
   }, [onOpen]);
+
+  useEffect(() => {
+    onCanvasOpenedRef.current = onCanvasOpened;
+  }, [onCanvasOpened]);
 
   useEffect(() => {
     lensRef.current = lens;
@@ -558,9 +684,15 @@ export const InfiniteCanvas = forwardRef<
     pausedRef.current = paused;
 
     if (paused) {
-      pauseVideosRef.current();
+      if (!canvasOwnedRef.current) {
+        pauseVideosRef.current();
+      }
+      // A canvas-owned open keeps the already-loaded textures live through
+      // the glide; other decoders pause once the open lands, while the focused
+      // one stays live on the canvas-owned viewer.
       clearHoverRef.current();
     } else {
+      canvasOwnedRef.current = false;
       restoreRef.current();
       wakeRef.current();
     }
@@ -617,6 +749,8 @@ export const InfiniteCanvas = forwardRef<
       queueMicrotask(() => setWebglFailed(true));
       return;
     }
+
+    if (perfEnabled) instrumentWebGL(renderer.getContext());
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     renderer.setPixelRatio(dpr);
@@ -693,6 +827,7 @@ export const InfiniteCanvas = forwardRef<
     const corner = new THREE.Vector3();
     const projected = new THREE.Vector3();
     const textures = new Map<string, TextureEntry>();
+    const focusTextures = new Map<number, THREE.Texture>();
     const planeByMesh = new Map<THREE.Object3D, Plane>();
     const videoEntries = new Map<number, VideoEntry>();
     const preloaded = new Map<
@@ -765,6 +900,14 @@ export const InfiniteCanvas = forwardRef<
     let hoverWasAllowed = false;
     let hoveredPlane: Plane | null = null;
     let renderedFrames = 0;
+    /** A queued hi-res focus texture upgrade, cancelled on close/unmount. */
+    let focusUpgrade: { id: number; idle: boolean } | null = null;
+    /** Invalidates an in-flight hi-res image load across close/step. */
+    let focusTextureRequest = 0;
+    /** The hovered/opened full-res video frame and its texture. */
+    const focusVideos = new Map<number, FocusVideoEntry>();
+    /** Keep the hovered video's preload entry alive while it is warm. */
+    let focusWarmKey: string | null = null;
 
     const idleTransition = (): CanvasTransition => ({
       phase: "idle",
@@ -779,6 +922,8 @@ export const InfiniteCanvas = forwardRef<
       fromCameraZ: CAMERA_Z,
       tileWidth: 0,
       tileHeight: 0,
+      restWidth: 0,
+      restHeight: 0,
       focusWidth: 0,
       focusHeight: 0,
       handoffAt: -1,
@@ -787,12 +932,6 @@ export const InfiniteCanvas = forwardRef<
       viewerOwned: false,
     });
     let transition = idleTransition();
-    /**
-     * The viewer-owned close lands the tile and unmounts the DOM layer, then
-     * the rest of the grid returns. That used to be one write of opacity 1;
-     * this carries the reference's .9s power3.inOut fade instead.
-     */
-    let siblingReveal: SiblingReveal | null = null;
 
     const debug: CanvasDebug | null =
       process.env.NODE_ENV === "production"
@@ -828,14 +967,19 @@ export const InfiniteCanvas = forwardRef<
             hoverLevel: 0,
             transition: "idle",
             transitionMs: 0,
-            siblingReveal: -1,
             waitingForViewer: false,
             prepared: false,
+            viewerOwned: false,
             targetWidth: 0,
             targetHeight: 0,
             targetOpacity: 0,
             targetZoom: 1,
             scroll: { x: 0, y: 0 },
+            openScroll: null,
+            openTarget: null,
+            openBase: null,
+            openRect: null,
+            half: { x: 0, y: 0 },
             dragging: false,
             hidden: false,
             videosPlaying: 0,
@@ -843,6 +987,8 @@ export const InfiniteCanvas = forwardRef<
             videoTextures: 0,
             videoPlanesBound: 0,
             videoUploads: 0,
+            focusVideo: null,
+            focusTextures: 0,
           };
 
     if (debug) {
@@ -875,7 +1021,13 @@ export const InfiniteCanvas = forwardRef<
           markLoaded(url);
           // Upload every poster as it arrives, not when its plane first flies
           // into view during a drag. Already-uploaded textures are a no-op.
-          renderer.initTexture(texture);
+          if (perfEnabled) {
+            const endUpload = beginPerf("texture-upload", { url });
+            renderer.initTexture(texture);
+            endUpload();
+          } else {
+            renderer.initTexture(texture);
+          }
 
           if (textureLoadMs === null) {
             let loaded = 0;
@@ -933,10 +1085,621 @@ export const InfiniteCanvas = forwardRef<
       for (const plane of planes) {
         if (plane.itemIndex !== itemIndex || !plane.isVideo) continue;
 
+        // Keep the glide's chosen focus texture; the 480p fallback takes over
+        // at open-ready only when the full-res warm frame is not available.
+        if (
+          transition.phase === "opening" &&
+          !transition.viewerOwned &&
+          transition.index === itemIndex
+        ) {
+          continue;
+        }
+
         plane.material.uniforms.uTexture.value = entry.texture;
         plane.material.uniforms.uDecodeVideo.value = 1;
         plane.loaded = true;
       }
+
+      if (perfEnabled) {
+        markPerf("video-texture-swap", {
+          index: itemIndex,
+          src: entry.element.currentSrc,
+        });
+      }
+
+      entry.bound = true;
+    }
+
+    /** Last-resort fill when neither the warm focus nor the 480p is ready. */
+    function applyPosterToPlane(plane: Plane): void {
+      const media = items[plane.itemIndex]?.media;
+      if (!media || media.kind !== "video") return;
+
+      const poster = textures.get(textureUrl(media));
+      if (!poster) return;
+
+      plane.material.uniforms.uTexture.value = poster.texture;
+      plane.material.uniforms.uDecodeVideo.value = 0;
+      plane.loaded = poster.loaded;
+      if (perfEnabled) {
+        markPerf("poster-swap", {
+          index: plane.itemIndex,
+          width: media.width,
+          height: media.height,
+        });
+      }
+    }
+
+    function bindPlaneTexture(plane: Plane, texture: THREE.Texture): void {
+      plane.material.uniforms.uTexture.value = texture;
+      plane.material.uniforms.uDecodeVideo.value = 1;
+      plane.loaded = true;
+    }
+
+    function cancelFocusUpload(entry: FocusVideoEntry): void {
+      if (!entry.upload) return;
+      if (entry.upload.idle) window.cancelIdleCallback?.(entry.upload.id);
+      else window.clearTimeout(entry.upload.id);
+      entry.upload = null;
+    }
+
+    function cancelFocusFrame(entry: FocusVideoEntry): void {
+      if (entry.frameRequest === null) return;
+      entry.element.cancelVideoFrameCallback?.(entry.frameRequest);
+      entry.frameRequest = null;
+    }
+
+    function disposeFocusVideo(index: number): void {
+      const entry = focusVideos.get(index);
+      if (!entry) return;
+
+      cancelFocusUpload(entry);
+      window.clearTimeout(entry.seekTimer);
+      cancelFocusFrame(entry);
+      entry.element.pause();
+      entry.texture.dispose();
+      focusVideos.delete(index);
+    }
+
+    /**
+     * The viewer owns the slides now: drop the full-res decoder, its texture
+     * and the warm preload source. The grid tile has already been rebound.
+     */
+    function releaseFocusVideo(index: number): void {
+      const entry = focusVideos.get(index);
+      if (!entry) return;
+
+      const media = items[index]?.media;
+      disposeFocusVideo(index);
+
+      if (!media || media.kind !== "video") return;
+      const key = `video:${media.id}`;
+      const preload = preloaded.get(key);
+      if (preload) {
+        preloaded.delete(key);
+        cancelPreload(preload);
+      }
+      if (focusWarmKey === key) focusWarmKey = null;
+    }
+
+    function scheduleFocusFrame(entry: FocusVideoEntry, index: number): void {
+      if (entry.frameRequest !== null) return;
+      if (typeof entry.element.requestVideoFrameCallback !== "function") {
+        return;
+      }
+
+      entry.frameRequest = entry.element.requestVideoFrameCallback(() => {
+        entry.frameRequest = null;
+        if (disposed || focusVideos.get(index) !== entry || !entry.playing) {
+          return;
+        }
+
+        const now = performance.now();
+        if (now - entry.lastUpload >= 30) {
+          entry.lastUpload = now;
+          entry.texture.needsUpdate = true;
+          wake();
+        }
+
+        scheduleFocusFrame(entry, index);
+      });
+    }
+
+    function scheduleFocusWarmUpload(
+      entry: FocusVideoEntry,
+      index: number,
+    ): void {
+      if (entry.upload) return;
+
+      const run = () => {
+        entry.upload = null;
+        if (disposed || focusVideos.get(index) !== entry) return;
+        if (entry.element.readyState < 2) return;
+
+        const endUpload = beginPerf("focus-video-warm", {
+          index,
+          width: entry.element.videoWidth,
+          height: entry.element.videoHeight,
+          at: Number(entry.element.currentTime.toFixed(2)),
+        });
+        const startedAt = performance.now();
+        entry.texture.needsUpdate = true;
+        renderer.initTexture(entry.texture);
+        entry.warmMs = performance.now() - startedAt;
+        entry.warmAt = entry.element.currentTime;
+        entry.ready = true;
+        entry.lastUpload = performance.now();
+        endUpload();
+
+        markPerf("focus-video-warm-ready", {
+          index,
+          width: entry.element.videoWidth,
+          height: entry.element.videoHeight,
+          phase: transition.phase,
+        });
+
+        // The open may already be running if the hover/pointerdown warm was
+        // late. Bind the frame when it lands; the 480p stayed until now.
+        if (
+          (transition.phase === "opening" || transition.phase === "open") &&
+          transition.index === index &&
+          !transition.viewerOwned
+        ) {
+          applyFocusVideoTexture(index, entry);
+        }
+        if (transition.phase === "open" && transition.index === index) {
+          startFocusVideo(entry, index);
+        }
+      };
+
+      if (typeof window.requestIdleCallback === "function") {
+        entry.upload = {
+          id: window.requestIdleCallback(run, { timeout: 90 }),
+          idle: true,
+        };
+      } else {
+        entry.upload = { id: window.setTimeout(run, 0), idle: false };
+      }
+    }
+
+    function scheduleFocusWarmSeek(
+      entry: FocusVideoEntry,
+      index: number,
+    ): void {
+      const grid = videoEntries.get(index);
+      const gridTime = grid?.element.currentTime;
+      const seekTo =
+        gridTime !== undefined && Number.isFinite(gridTime)
+          ? gridTime
+          : entry.element.currentTime;
+
+      window.clearTimeout(entry.seekTimer);
+
+      if (
+        entry.element.readyState >= 2 &&
+        Math.abs(entry.element.currentTime - seekTo) < 0.04
+      ) {
+        scheduleFocusWarmUpload(entry, index);
+        return;
+      }
+
+      const onSeeked = () => {
+        entry.element.removeEventListener("seeked", onSeeked);
+        scheduleFocusWarmUpload(entry, index);
+      };
+
+      entry.element.addEventListener("seeked", onSeeked, { once: true });
+      try {
+        entry.element.currentTime = seekTo;
+      } catch {
+        onSeeked();
+        return;
+      }
+
+      // A paused seek can miss its event on a partially buffered clip.
+      entry.seekTimer = window.setTimeout(() => {
+        entry.element.removeEventListener("seeked", onSeeked);
+        if (entry.element.readyState >= 2) {
+          scheduleFocusWarmUpload(entry, index);
+        }
+      }, 300);
+    }
+
+    function warmFocusVideo(index: number): void {
+      const media = items[index]?.media;
+      if (!media || media.kind !== "video" || videoOff) return;
+
+      const key = `video:${media.id}`;
+      focusWarmKey = key;
+
+      for (const [otherIndex] of focusVideos) {
+        if (otherIndex !== index) disposeFocusVideo(otherIndex);
+      }
+
+      const existing = focusVideos.get(index);
+      if (existing) {
+        if (!existing.playing) scheduleFocusWarmSeek(existing, index);
+        return;
+      }
+
+      const preload = preloaded.get(key);
+      if (!preload) {
+        void preloadItem(index).then((ok) => {
+          if (ok) warmFocusVideo(index);
+        });
+        return;
+      }
+
+      const element = preload.elements[0];
+      if (!(element instanceof HTMLVideoElement)) return;
+
+      // The grid entries set these before creating their texture; a video
+      // element left at 0x0 layout can upload a black WebGL frame.
+      if (element.videoWidth > 0) {
+        element.width = element.videoWidth;
+        element.height = element.videoHeight;
+      }
+      element.addEventListener(
+        "loadedmetadata",
+        () => {
+          element.width = element.videoWidth;
+          element.height = element.videoHeight;
+        },
+        { once: true },
+      );
+
+      const texture = new THREE.Texture(element);
+      texture.colorSpace = THREE.NoColorSpace;
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.generateMipmaps = false;
+
+      const entry: FocusVideoEntry = {
+        index,
+        element,
+        texture,
+        ready: false,
+        playing: false,
+        lastUpload: 0,
+        frameRequest: null,
+        seekTimer: 0,
+        upload: null,
+        warmMs: null,
+        warmAt: 0,
+      };
+      focusVideos.set(index, entry);
+
+      void preload.ready.then((ok) => {
+        if (!ok || disposed || focusVideos.get(index) !== entry) return;
+        scheduleFocusWarmSeek(entry, index);
+      });
+
+      if (element.readyState >= 2) scheduleFocusWarmSeek(entry, index);
+    }
+
+    function applyFocusVideoTexture(
+      index: number,
+      entry: FocusVideoEntry,
+    ): void {
+      if (transition.phase !== "opening" && transition.phase !== "open") {
+        return;
+      }
+      if (
+        transition.viewerOwned ||
+        transition.index !== index ||
+        !transition.plane
+      ) {
+        return;
+      }
+
+      bindPlaneTexture(transition.plane, entry.texture);
+      markPerf("focus-video-swap", {
+        index,
+        width: entry.element.videoWidth,
+        height: entry.element.videoHeight,
+        at: Number(entry.element.currentTime.toFixed(2)),
+        phase: transition.phase,
+      });
+      renderScene();
+      updateDebug();
+    }
+
+    function startFocusVideo(entry: FocusVideoEntry, index: number): void {
+      if (!entry.ready || entry.playing) {
+        if (entry.playing) scheduleFocusFrame(entry, index);
+        return;
+      }
+
+      entry.playing = true;
+      entry.lastUpload = performance.now();
+      entry.element.muted = true;
+      entry.element.loop = true;
+      entry.element.playsInline = true;
+
+      // The full-res focus owns the plane; stop the 480p grid decoder.
+      const grid = videoEntries.get(index);
+      if (grid && !grid.element.paused) {
+        grid.element.pause();
+        grid.playing = false;
+      }
+
+      void entry.element.play().catch(() => {
+        entry.playing = false;
+      });
+      scheduleFocusFrame(entry, index);
+      wake();
+    }
+
+    function pauseFocusVideo(index: number): void {
+      const entry = focusVideos.get(index);
+      if (!entry) return;
+      entry.playing = false;
+      entry.element.pause();
+      cancelFocusFrame(entry);
+    }
+
+    /**
+     * Progressive image upgrade: the tile texture is already on screen. Load
+     * the smallest source that covers the focused plane's device pixels.
+     */
+    function upgradeFocusTexture(index: number): void {
+      const media = items[index]?.media;
+      if (!media || media.kind !== "image") return;
+      if (transition.phase !== "open" || transition.index !== index) return;
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const neededWidth = Math.round(transition.focusWidth * dpr);
+      const loadedWidth = imageTextureSource(media).width;
+
+      if (neededWidth <= loadedWidth) {
+        markPerf("hi-res-skip", {
+          index,
+          dpr,
+          neededWidth,
+          loadedWidth,
+          reason: "covered",
+        });
+        return;
+      }
+
+      const existing = focusTextures.get(index);
+      if (existing) {
+        applyFocusTexture(index, existing);
+        return;
+      }
+
+      const picked = pickFocusImage(media, neededWidth);
+      if (!picked) return;
+      const { primary, fallback } = picked;
+
+      // No source beats the tile texture; re-uploading it is pure cost.
+      if (primary.width <= loadedWidth) {
+        markPerf("hi-res-skip", {
+          index,
+          dpr,
+          neededWidth,
+          loadedWidth,
+          reason: "no-larger-source",
+        });
+        return;
+      }
+
+      markPerf("hi-res-load", {
+        index,
+        dpr,
+        neededWidth,
+        loadedWidth,
+        width: primary.width,
+        format: primary.format,
+        fallback: fallback?.format,
+        fallbackWidth: fallback?.width,
+        url: primary.url,
+      });
+
+      const request = ++focusTextureRequest;
+      const loadSource = (
+        source: ImageMedia["sources"][number],
+        next: ImageMedia["sources"][number] | null,
+      ): void => {
+        const texture = loader.load(
+          source.url,
+          () => {
+            if (
+              disposed ||
+              request !== focusTextureRequest ||
+              transition.phase !== "open" ||
+              transition.viewerOwned ||
+              transition.index !== index
+            ) {
+              texture.dispose();
+              return;
+            }
+
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.minFilter = THREE.LinearMipmapLinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            texture.generateMipmaps = true;
+            texture.anisotropy = Math.min(
+              4,
+              renderer.capabilities.getMaxAnisotropy(),
+            );
+
+            // Upload once, after the motion, then swap the focused plane.
+            if (perfEnabled) {
+              const endUpload = beginPerf("texture-upload", {
+                url: source.url,
+                stage: "hi-res",
+                format: source.format,
+              });
+              renderer.initTexture(texture);
+              endUpload();
+            } else {
+              renderer.initTexture(texture);
+            }
+            focusTextures.set(index, texture);
+            applyFocusTexture(index, texture);
+          },
+          undefined,
+          () => {
+            texture.dispose();
+            if (request !== focusTextureRequest) return;
+            if (next && next.url !== source.url) {
+              markPerf("hi-res-fallback", {
+                index,
+                from: source.format,
+                to: next.format,
+                width: next.width,
+              });
+              loadSource(next, null);
+              return;
+            }
+            markPerf("hi-res-error", {
+              index,
+              url: source.url,
+            });
+          },
+        );
+      };
+
+      loadSource(primary, fallback);
+    }
+
+    function cancelFocusUpgrade(): void {
+      focusTextureRequest += 1;
+      if (!focusUpgrade) return;
+      if (focusUpgrade.idle) window.cancelIdleCallback?.(focusUpgrade.id);
+      else window.clearTimeout(focusUpgrade.id);
+      focusUpgrade = null;
+    }
+
+    /**
+     * Queue the hi-res upgrade for browser idle time, after the chrome has
+     * settled. The timeout keeps it from being starved on a busy page; Safari
+     * without requestIdleCallback falls back to the old fixed delay.
+     */
+    function scheduleFocusUpgrade(index: number): void {
+      cancelFocusUpgrade();
+
+      const run = () => {
+        focusUpgrade = null;
+        upgradeFocusTexture(index);
+      };
+
+      if (typeof window.requestIdleCallback === "function") {
+        focusUpgrade = {
+          id: window.requestIdleCallback(run, { timeout: 1200 }),
+          idle: true,
+        };
+      } else {
+        focusUpgrade = { id: window.setTimeout(run, 250), idle: false };
+      }
+    }
+
+    function applyFocusTexture(index: number, texture: THREE.Texture): void {
+      if (
+        transition.phase !== "open" ||
+        transition.viewerOwned ||
+        transition.index !== index ||
+        !transition.plane
+      ) {
+        return;
+      }
+
+      transition.plane.material.uniforms.uTexture.value = texture;
+      transition.plane.material.uniforms.uDecodeVideo.value = 0;
+      transition.plane.loaded = true;
+      if (perfEnabled) markPerf("hi-res-swap", { index });
+      renderScene();
+      updateDebug();
+    }
+
+    function disposeFocusTexture(index: number): void {
+      const texture = focusTextures.get(index);
+      if (!texture) return;
+
+      focusTextures.delete(index);
+      texture.dispose();
+    }
+
+    function restoreVideoTexture(index: number): void {
+      const media = items[index]?.media;
+      if (!media || media.kind !== "video") return;
+
+      const entry = videoEntries.get(index);
+      if (entry?.texture) applyVideoTexture(index, entry);
+      else applyPosterTexture(index);
+    }
+
+    /** Put the tile's normal grid texture back on every copy of an item. */
+    function restoreGridTexture(index: number): void {
+      const media = items[index]?.media;
+      if (!media) return;
+
+      if (media.kind === "video") {
+        restoreVideoTexture(index);
+        return;
+      }
+
+      for (const plane of planes) {
+        if (plane.itemIndex !== index) continue;
+        const entry = textures.get(plane.textureUrl);
+        if (!entry) continue;
+
+        plane.material.uniforms.uTexture.value = entry.texture;
+        plane.material.uniforms.uDecodeVideo.value = 0;
+        plane.loaded = entry.loaded;
+      }
+    }
+
+    /** The canvas-owned viewer is showing a video on the focused plane. */
+    function openVideoIsLive(): boolean {
+      if (transition.phase !== "open" || transition.viewerOwned) return false;
+
+      const media =
+        transition.index >= 0 ? items[transition.index]?.media : undefined;
+      return media?.kind === "video";
+    }
+
+    /** The motion landed: swap the 480p fallback for the live full-res clip. */
+    function resumeOpenVideo(index: number): void {
+      const media = items[index]?.media;
+      if (!media || media.kind !== "video") return;
+
+      const focus = focusVideos.get(index);
+      if (focus?.ready) {
+        applyFocusVideoTexture(index, focus);
+        startFocusVideo(focus, index);
+
+        const grid = videoEntries.get(index);
+        if (grid && !grid.element.paused) {
+          grid.element.pause();
+          grid.playing = false;
+        }
+
+        markPerf("open-video-live", {
+          index,
+          source: "focus",
+          width: focus.element.videoWidth,
+          height: focus.element.videoHeight,
+          at: Number(focus.element.currentTime.toFixed(2)),
+        });
+        wake();
+        return;
+      }
+
+      const entry = videoEntries.get(index) ?? ensureVideoEntry(index);
+      if (!entry) return;
+
+      if (entry.ready) applyVideoTexture(index, entry);
+
+      startVideo(entry);
+      markPerf("open-video-live", {
+        index,
+        source: "canvas",
+        ready: entry.ready,
+        paused: entry.element.paused,
+      });
+      wake();
     }
 
     function disposeVideoEntry(itemIndex: number): void {
@@ -981,6 +1744,22 @@ export const InfiniteCanvas = forwardRef<
     function startVideo(entry: VideoEntry): void {
       if (!entry.element.paused) return;
 
+      if (perfEnabled) {
+        const endPlay = beginPerf("video-play", {
+          src: entry.element.currentSrc,
+          tile: true,
+        });
+        void entry.element.play().then(
+          () => endPlay({ ok: true }),
+          () => {
+            entry.failed = true;
+            entry.playing = false;
+            endPlay({ ok: false });
+          },
+        );
+        return;
+      }
+
       void entry.element.play().catch(() => {
         entry.failed = true;
         entry.playing = false;
@@ -989,9 +1768,21 @@ export const InfiniteCanvas = forwardRef<
 
     /** Browsers without requestVideoFrameCallback upload on a 33ms cadence. */
     function updateVideoFallback(now: number): void {
-      for (const entry of videoEntries.values()) {
+      for (const [itemIndex, entry] of videoEntries) {
         if (!entry.texture || entry.texture.needsUpdate) continue;
         if (entry.element.paused) continue;
+        if (typeof entry.element.requestVideoFrameCallback === "function") {
+          continue;
+        }
+        if (now - entry.lastUpload < 33) continue;
+
+        entry.lastUpload = now;
+        entry.texture.needsUpdate = true;
+        if (!entry.bound) applyVideoTexture(itemIndex, entry);
+      }
+
+      for (const entry of focusVideos.values()) {
+        if (entry.element.paused || !entry.playing) continue;
         if (typeof entry.element.requestVideoFrameCallback === "function") {
           continue;
         }
@@ -1027,6 +1818,7 @@ export const InfiniteCanvas = forwardRef<
         ready: false,
         playing: false,
         failed: false,
+        bound: false,
         lastUpload: 0,
         frameRequest: null,
       };
@@ -1043,6 +1835,7 @@ export const InfiniteCanvas = forwardRef<
           if (entry.texture && performance.now() - entry.lastUpload >= 30) {
             entry.lastUpload = performance.now();
             entry.texture.needsUpdate = true;
+            if (!entry.bound) applyVideoTexture(itemIndex, entry);
             wake();
           }
 
@@ -1082,7 +1875,6 @@ export const InfiniteCanvas = forwardRef<
         entry.texture = texture;
         entry.lastUpload = performance.now();
         entry.ready = true;
-        applyVideoTexture(itemIndex, entry);
         scheduleFrame();
         wake();
       };
@@ -1117,8 +1909,48 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function syncVideos(now: number): boolean {
-      if (videoOff || document.hidden || pausedRef.current) {
+      if (videoOff || document.hidden) {
         pauseAllVideos();
+        return false;
+      }
+
+      if (pausedRef.current) {
+        // The canvas-owned open keeps the clicked clip live through the glide
+        // so no decoder restarts on the landing frame.
+        if (transition.phase === "opening" && !transition.viewerOwned) {
+          return false;
+        }
+
+        // The landed open shows one video on the focused plane. The full-res
+        // warm focus owns it when ready; otherwise the 480p decoder falls back.
+        if (openVideoIsLive()) {
+          const focus = focusVideos.get(transition.index);
+          if (focus?.ready) {
+            for (const entry of videoEntries.values()) {
+              if (!entry.element.paused) {
+                entry.element.pause();
+                entry.playing = false;
+              }
+            }
+            startFocusVideo(focus, transition.index);
+            return true;
+          }
+
+          for (const [itemIndex, entry] of videoEntries) {
+            if (itemIndex !== transition.index && !entry.element.paused) {
+              entry.element.pause();
+            }
+          }
+
+          const entry = videoEntries.get(transition.index);
+          if (entry && !entry.failed) {
+            startVideo(entry);
+            return true;
+          }
+        }
+
+        pauseAllVideos();
+        for (const [index] of focusVideos) pauseFocusVideo(index);
         return false;
       }
 
@@ -1287,7 +2119,8 @@ export const InfiniteCanvas = forwardRef<
           const url = urls[itemIndex];
           const entry = ensureTexture(url);
           const videoEntry = videoEntries.get(itemIndex);
-          const videoTexture = videoEntry?.ready ? videoEntry.texture : null;
+          const videoTexture =
+            videoEntry?.ready && videoEntry.bound ? videoEntry.texture : null;
           const loaded = Boolean(videoTexture || entry.loaded);
           const opacity = loaded && introEndedFlag ? 1 : 0;
           const opacityDelay =
@@ -1404,19 +2237,13 @@ export const InfiniteCanvas = forwardRef<
         ? Number(hoveredPlane.hoverLevel.toFixed(3))
         : 0;
       debug.transition = transition.phase;
-      debug.siblingReveal = siblingReveal
-        ? Number(
-            closeSiblingRevealProgress(
-              performance.now() - siblingReveal.startedAt,
-            ).toFixed(3),
-          )
-        : -1;
       debug.transitionMs =
         transition.phase === "idle"
           ? 0
           : Math.round(performance.now() - transition.startedAt);
       debug.waitingForViewer = transition.waitingForViewer;
       debug.prepared = transition.prepared;
+      debug.viewerOwned = transition.viewerOwned;
 
       const target = transition.target ?? transition.plane;
       debug.targetWidth = target ? Number(target.mesh.scale.x.toFixed(1)) : 0;
@@ -1427,6 +2254,22 @@ export const InfiniteCanvas = forwardRef<
         : 1;
       debug.scroll.x = scrollRef.current.x;
       debug.scroll.y = scrollRef.current.y;
+      debug.half.x = halfX;
+      debug.half.y = halfY;
+
+      const opened = transition.phase === "idle" ? null : transition.plane;
+      debug.openScroll =
+        transition.phase === "idle"
+          ? null
+          : { x: transition.fromScrollX, y: transition.fromScrollY };
+      debug.openTarget =
+        transition.phase === "idle"
+          ? null
+          : { x: transition.toScrollX, y: transition.toScrollY };
+      debug.openBase = opened
+        ? { x: opened.baseX, y: opened.baseY }
+        : null;
+      debug.openRect = opened ? projectPlaneWarped(opened) : null;
       debug.dragging = panIsDragging();
       debug.hidden = hiddenPlane !== null;
       debug.videoEntries = videoEntries.size;
@@ -1448,6 +2291,32 @@ export const InfiniteCanvas = forwardRef<
           plane.material.uniforms.uTexture.value === video.texture,
         );
       }).length;
+
+      const focusEntry = focusVideos.values().next()
+        .value as FocusVideoEntry | undefined;
+      debug.focusVideo = focusEntry
+        ? {
+            index: focusEntry.index,
+            ready: focusEntry.ready,
+            playing: focusEntry.playing,
+            width: focusEntry.element.videoWidth,
+            height: focusEntry.element.videoHeight,
+            warmMs:
+              focusEntry.warmMs === null
+                ? null
+                : Number(focusEntry.warmMs.toFixed(2)),
+            warmAt: Number(focusEntry.warmAt.toFixed(2)),
+            currentTime: Number(focusEntry.element.currentTime.toFixed(2)),
+            bound: Boolean(
+              transition.plane &&
+                transition.plane.material.uniforms.uTexture.value ===
+                  focusEntry.texture,
+            ),
+            version: focusEntry.texture.version,
+            src: focusEntry.element.currentSrc.split("/").slice(-1)[0] ?? "",
+          }
+        : null;
+      debug.focusTextures = focusTextures.size;
     }
 
     function projectPlane(plane: Plane): Box {
@@ -1585,7 +2454,14 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function revealPlane(): void {
-      if (!hiddenPlane) return;
+      if (!hiddenPlane) {
+        // The canvas-owned close already restored the grid; make sure the
+        // viewer unmount leaves a painted frame, not an empty buffer.
+        renderScene();
+        updateDebug();
+        wake();
+        return;
+      }
 
       const plane = hiddenPlane;
       hiddenPlane = null;
@@ -1616,7 +2492,7 @@ export const InfiniteCanvas = forwardRef<
       while (preloaded.size > MAX_PRELOADS) {
         let removed = false;
         for (const [key, entry] of preloaded) {
-          if (key === keepKey) continue;
+          if (key === keepKey || key === focusWarmKey) continue;
           preloaded.delete(key);
           cancelPreload(entry);
           removed = true;
@@ -1644,6 +2520,15 @@ export const InfiniteCanvas = forwardRef<
         video.src = media.mp4.url;
         video.setAttribute("aria-hidden", "true");
         videoHost.appendChild(video);
+        // A preload element with a 0x0 layout uploads a black WebGL frame.
+        // Give it the intrinsic size before any texture is created from it.
+        const sizeVideo = () => {
+          if (video.videoWidth > 0) {
+            video.width = video.videoWidth;
+            video.height = video.videoHeight;
+          }
+        };
+        video.addEventListener("loadedmetadata", sizeVideo, { once: true });
 
         const ready = new Promise<boolean>((resolve) => {
           let done = false;
@@ -1713,31 +2598,116 @@ export const InfiniteCanvas = forwardRef<
       const media = items[plane.itemIndex]?.media;
       if (!media) return;
 
-      // The viewer waits for its exact decoded image/video; the canvas keeps
-      // the clicked tile (pressed) visible until that is ready, then the DOM
-      // layer takes over the zoom at the tile rect.
-      void preloadItem(plane.itemIndex);
+      cancelFocusUpgrade();
+
+      if (perfEnabled) {
+        markPerf("open-start", {
+          index: plane.itemIndex,
+          kind: media.kind,
+        });
+      }
+
+      // Open inside the WebGL scene: the clicked plane keeps its already-loaded
+      // texture, glides to the centre and grows to the focus box. The viewer
+      // chrome mounts immediately but stays hidden; no DOM media or full-res
+      // decode runs on this path.
       panHalt();
+      canvasOwnedRef.current = true;
 
       const focus = fitBox(media.width, media.height, width, height);
       const video = videoEntries.get(plane.itemIndex);
       const startAt = video?.element.currentTime;
       const now = performance.now();
-      const tileRect = viewportRectForPlane(plane);
-      const pressedRect = {
-        left: tileRect.left + (tileRect.width * (1 - OPEN_PRESS_SCALE)) / 2,
-        top: tileRect.top + (tileRect.height * (1 - OPEN_PRESS_SCALE)) / 2,
-        width: tileRect.width * OPEN_PRESS_SCALE,
-        height: tileRect.height * OPEN_PRESS_SCALE,
-      };
+      const fromScrollX = scrollRef.current.x;
+      const fromScrollY = scrollRef.current.y;
+      // The grid wraps, so `-base + k * period` centres the same tile. Target
+      // the equivalent nearest the current scroll: the canonical `-base`
+      // would make a panned canvas fly back to the first-load offset before
+      // the clicked tile opened.
+      const toScrollX = centrePlaneScroll(plane.baseX, fromScrollX, halfX);
+      const toScrollY = centrePlaneScroll(plane.baseY, fromScrollY, halfY);
+      // The open starts from the lifted mesh (hover + breath) so the click
+      // does not snap the tile down. The close must land on the resting tile
+      // instead: the idle handoff clears hover and starts breath at 0, so a
+      // snapshot of the lifted mesh would leave the tile a few percent too
+      // big until the first idle frame, which is the close snap.
+      const restWidth = plane.tileWidth;
+      const restHeight = plane.tileHeight;
+      const tileWidth = plane.mesh.scale.x;
+      const tileHeight = plane.mesh.scale.y;
 
-      // A click can interrupt the grid's own close reveal. Capture where each
-      // sibling was so the open fades from that value instead of snapping to 1.
-      const fadeFrom = new Map<Plane, number>();
-      for (const candidate of planes) {
-        fadeFrom.set(candidate, candidate.opacity);
+      // Full-res-first: use the warm 1080p frame if the hover preload paid the
+      // first upload. Otherwise keep the live 480p texture (the task's fallback)
+      // and fall back to the poster only when even that is not ready.
+      if (media.kind === "video") {
+        const focus = focusVideos.get(plane.itemIndex);
+        if (focus?.ready) {
+          bindPlaneTexture(plane, focus.texture);
+          const grid = videoEntries.get(plane.itemIndex);
+          if (grid && !grid.element.paused) {
+            grid.element.pause();
+            grid.playing = false;
+          }
+          markPerf("focus-video-open", {
+            index: plane.itemIndex,
+            width: focus.element.videoWidth,
+            height: focus.element.videoHeight,
+            at: Number(focus.element.currentTime.toFixed(2)),
+          });
+        } else {
+          const grid = videoEntries.get(plane.itemIndex);
+          if (grid?.texture) {
+            bindPlaneTexture(plane, grid.texture);
+          } else {
+            applyPosterToPlane(plane);
+          }
+        }
       }
-      siblingReveal = null;
+
+      if (reduced) {
+        scrollRef.current.x = -plane.baseX;
+        scrollRef.current.y = -plane.baseY;
+        placePlanes();
+        plane.mesh.visible = true;
+        plane.mesh.scale.set(focus.width, focus.height, 1);
+        plane.material.uniforms.uPlaneSizes.value.set(
+          focus.width,
+          focus.height,
+        );
+        plane.material.uniforms.uZoom.value = 1;
+        plane.opacity = 1;
+        plane.material.uniforms.uOpacity.value = 1;
+
+        for (const other of planes) {
+          if (other === plane) continue;
+          other.opacity = 0;
+          other.material.uniforms.uOpacity.value = 0;
+        }
+
+        transition = {
+          ...idleTransition(),
+          phase: "open",
+          startedAt: now,
+          index: plane.itemIndex,
+          plane,
+          target: plane,
+          tileWidth,
+          tileHeight,
+          restWidth,
+          restHeight,
+          focusWidth: focus.width,
+          focusHeight: focus.height,
+          viewerOwned: false,
+        };
+        loadingIndex = null;
+        setTransitioning(false);
+        renderScene();
+        updateDebug();
+        onOpenRef.current(plane.itemIndex, startAt, undefined, true);
+        onCanvasOpenedRef.current();
+        resumeOpenVideo(plane.itemIndex);
+        return;
+      }
 
       loadingIndex = plane.itemIndex;
       transition = {
@@ -1746,23 +2716,24 @@ export const InfiniteCanvas = forwardRef<
         index: plane.itemIndex,
         plane,
         target: plane,
-        fromScrollX: scrollRef.current.x,
-        fromScrollY: scrollRef.current.y,
-        toScrollX: scrollRef.current.x,
-        toScrollY: scrollRef.current.y,
+        fromScrollX,
+        fromScrollY,
+        toScrollX,
+        toScrollY,
         fromCameraZ: camera.position.z,
-        tileWidth: plane.mesh.scale.x,
-        tileHeight: plane.mesh.scale.y,
+        tileWidth,
+        tileHeight,
+        restWidth,
+        restHeight,
         focusWidth: focus.width,
         focusHeight: focus.height,
         handoffAt: -1,
         waitingForViewer: false,
         prepared: false,
-        viewerOwned: true,
-        fadeFrom,
+        viewerOwned: false,
       };
       setTransitioning(true);
-      onOpenRef.current(plane.itemIndex, startAt, pressedRect);
+      onOpenRef.current(plane.itemIndex, startAt, undefined, true);
       wake();
     }
 
@@ -1794,8 +2765,21 @@ export const InfiniteCanvas = forwardRef<
       return hit ? (planeByMesh.get(hit.object) ?? null) : null;
     }
 
+    /** A still pointer already has a raycast plane from the hover sampler. */
+    function planeForPointer(x: number, y: number): Plane | null {
+      if (
+        hoveredPlane &&
+        hoverPoint &&
+        Math.hypot(hoverPoint.x - x, hoverPoint.y - y) < 3
+      ) {
+        return hoveredPlane;
+      }
+
+      return planeAt(x, y);
+    }
+
     function pick(x: number, y: number): void {
-      const plane = planeAt(x, y);
+      const plane = planeForPointer(x, y);
       if (plane) void openPlane(plane);
     }
 
@@ -1859,6 +2843,27 @@ export const InfiniteCanvas = forwardRef<
       return best;
     }
 
+    /** Prefer a copy of the item whose whole tile is already on screen. */
+    function fullyVisibleCopy(index: number): Plane | null {
+      let best: Plane | null = null;
+      let bestArea = 0;
+
+      for (const plane of planes) {
+        if (plane.itemIndex !== index) continue;
+
+        const rect = viewportRectForPlane(plane);
+        if (!boxInsideViewport(rect, width, height)) continue;
+
+        const area = clippedArea(rect, width, height);
+        if (area > bestArea) {
+          best = plane;
+          bestArea = area;
+        }
+      }
+
+      return best;
+    }
+
     function updateCamera(dt: number): boolean {
       if (!introEndedFlag) {
         camera.position.z = introCamera;
@@ -1866,7 +2871,9 @@ export const InfiniteCanvas = forwardRef<
       }
 
       if (transition.phase === "opening") {
-        return true;
+        // The viewer-owned open holds the camera still while the full-res
+        // source decodes; only the legacy glide/grow moves the camera.
+        return !transition.viewerOwned;
       }
 
       const targetZ = panIsDragging() && !reduced ? CAMERA_DRAG_Z : CAMERA_Z;
@@ -1986,35 +2993,15 @@ export const InfiniteCanvas = forwardRef<
       halfY = (rows * pitchY) / 2;
       placePlanes();
 
-      if (siblingReveal && transition.phase === "idle") {
-        const revealElapsed = now - siblingReveal.startedAt;
-
-        if (revealElapsed < 0) return true;
-
-        const progress = closeSiblingRevealProgress(revealElapsed);
-
-        for (const plane of planes) {
-          const opacity = plane === siblingReveal.target ? 1 : progress;
-          plane.opacity = opacity;
-          plane.material.uniforms.uOpacity.value = opacity;
-        }
-
-        if (progress >= 1) {
-          siblingReveal = null;
-          return false;
-        }
-
-        return true;
-      }
-
       const elapsed =
         transition.phase === "idle" ? 0 : now - transition.startedAt;
 
       if (transition.phase === "opening") {
         if (transition.viewerOwned) {
           // The DOM viewer owns the zoom; updateTransition sets the tile press
-          // and the other planes' fade. Do not grow the WebGL plane.
-          return true;
+          // and the other planes' fade. Do not grow the WebGL plane, and let
+          // the loop idle once that fade has settled.
+          return viewerOpenNeedsFrames(elapsed);
         }
 
         const fade = 1 - fadeOutProgress(elapsed);
@@ -2099,12 +3086,14 @@ export const InfiniteCanvas = forwardRef<
         for (const plane of planes) {
           if (plane === target && target) {
             if (!reduced) {
+              // Land on the resting tile, not the hover/breath snapshot the
+              // open started from; the idle handoff will have both at 0.
               const w =
                 transition.focusWidth +
-                (transition.tileWidth - transition.focusWidth) * shrink;
+                (transition.restWidth - transition.focusWidth) * shrink;
               const h =
                 transition.focusHeight +
-                (transition.tileHeight - transition.focusHeight) * shrink;
+                (transition.restHeight - transition.focusHeight) * shrink;
 
               plane.mesh.scale.set(w, h, 1);
               plane.material.uniforms.uPlaneSizes.value.set(w, h);
@@ -2282,8 +3271,12 @@ export const InfiniteCanvas = forwardRef<
           if (next) {
             next.hover = retargetHover(next.hover, 1, now);
             void preloadItem(next.itemIndex);
+            warmFocusVideo(next.itemIndex);
           }
 
+          if (perfEnabled) {
+            markPerf("cursor-change", { hover: Boolean(next) });
+          }
           setHoverCursor(Boolean(next));
         }
       }
@@ -2315,6 +3308,7 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function clearHoverNow(): void {
+      if (perfEnabled) markPerf("hover-clear");
       hoverPoint = null;
       hoverDirty = false;
       hoverWasAllowed = false;
@@ -2349,6 +3343,57 @@ export const InfiniteCanvas = forwardRef<
       }
     }
 
+    function releaseOpen(): void {
+      const t = transition;
+      if (t.phase !== "open" || t.viewerOwned) return;
+
+      cancelFocusUpgrade();
+      const openedIndex = t.index;
+      // The viewer now owns the slides. Drop the focused plane from the
+      // canvas but keep the rest of the grid faded out, exactly as the
+      // canvas-owned open left it; the stage behind the DOM slide must not
+      // suddenly show a grid. The planes stay in place at tile size so the
+      // close can pick the current item's tile.
+      for (const plane of planes) {
+        resetPlaneToTile(plane);
+        plane.opacity = 0;
+        plane.material.uniforms.uOpacity.value = 0;
+      }
+      if (openedIndex >= 0) {
+        restoreGridTexture(openedIndex);
+        const media = items[openedIndex]?.media;
+        if (media?.kind === "video") releaseFocusVideo(openedIndex);
+        else disposeFocusTexture(openedIndex);
+      }
+      // openVideoIsLive() must go false or the paused loop keeps uploading the
+      // old focus video behind the slides. Keep the phase open for the close.
+      t.viewerOwned = true;
+
+      // The canvas-owned open flattened the lens to carry the focus box. The
+      // grid is invisible behind the DOM slide, so restore the resting warp
+      // now: the close freezes the lens and computes its landing rect from it,
+      // and restoring it on the landing frame instead snapped the tile.
+      if (!reduced) {
+        const strength = lensTargetStrength({
+          mode: lensRef.current.mode,
+          base: lensRef.current.strength,
+          boost: lensRef.current.boost,
+          speed: 0,
+          reduced,
+        });
+
+        lensBase = strength;
+        lensApplied = strength;
+        lensWanted = strength;
+        postMaterial.uniforms.uStrength.value = strength;
+        postMaterial.uniforms.uVignette.value =
+          lensRef.current.mode === "globe" ? lensRef.current.vignette : 0;
+      }
+
+      renderScene();
+      updateDebug();
+    }
+
     function updateTransition(now: number): boolean {
       const t = transition;
 
@@ -2358,11 +3403,9 @@ export const InfiniteCanvas = forwardRef<
 
       if (t.phase === "opening") {
         if (t.viewerOwned) {
-          const fadeProgress = 1 - fadeOutProgress(elapsed);
+          const fade = 1 - fadeOutProgress(elapsed);
 
           for (const plane of planes) {
-            const fade = (t.fadeFrom?.get(plane) ?? 1) * fadeProgress;
-
             if (plane === t.plane) {
               plane.mesh.scale.set(
                 t.tileWidth * OPEN_PRESS_SCALE,
@@ -2381,7 +3424,7 @@ export const InfiniteCanvas = forwardRef<
             }
           }
 
-          return true;
+          return viewerOpenNeedsFrames(elapsed);
         }
 
         const p = glideProgress(elapsed);
@@ -2393,13 +3436,27 @@ export const InfiniteCanvas = forwardRef<
           elapsed >= TRANSITION.growDelayMs + TRANSITION.growMs &&
           !t.waitingForViewer
         ) {
-          t.waitingForViewer = true;
+          t.waitingForViewer = false;
           t.phase = nextPhase(t.phase, "opened");
-          const video = videoEntries.get(t.index);
-          onOpenRef.current(t.index, video?.element.currentTime);
+          loadingIndex = null;
+          setTransitioning(false);
+          onCanvasOpenedRef.current();
+          // A video open keeps the poster through the glide, then hands the
+          // focused plane back to the live clip. Images stay as they are.
+          resumeOpenVideo(t.index);
+          if (perfEnabled) {
+            markPerf("open-ready", {
+              index: t.index,
+              kind: items[t.index]?.media.kind,
+            });
+          }
+          // The 640 texture carried the motion; upgrade it in an idle slot
+          // once the chrome has settled. The hidden decoders stay live until
+          // the close; any teardown here costs more than the open budget.
+          scheduleFocusUpgrade(t.index);
         }
 
-        return true;
+        return t.phase === "opening";
       }
 
       if (t.phase === "open") {
@@ -2419,11 +3476,32 @@ export const InfiniteCanvas = forwardRef<
         if (t.viewerOwned) return false;
         if (!t.prepared) return true;
 
+        // The canvas-owned close retraces the open: the plane shrinks while
+        // the grid glides back to the scroll it had before the click. Without
+        // this the plane can only shrink in place and the grid reappears
+        // recentred, so the tile looks like it jumped into a new slot.
+        if (reduced) {
+          scrollRef.current.x = t.fromScrollX;
+          scrollRef.current.y = t.fromScrollY;
+        } else {
+          scrollRef.current.x = closeScrollOffset(
+            t.fromScrollX,
+            t.toScrollX,
+            elapsed,
+          );
+          scrollRef.current.y = closeScrollOffset(
+            t.fromScrollY,
+            t.toScrollY,
+            elapsed,
+          );
+        }
+
         const done = reduced
           ? elapsed >= TRANSITION.reducedFadeMs
           : closeComplete(elapsed);
 
         if (done) {
+          const closedIndex = t.index;
           t.phase = nextPhase(t.phase, "closed");
           t.index = -1;
           t.plane = null;
@@ -2437,6 +3515,11 @@ export const InfiniteCanvas = forwardRef<
             plane.material.uniforms.uOpacity.value = opacity;
           }
 
+          if (closedIndex >= 0) {
+            restoreGridTexture(closedIndex);
+            disposeFocusTexture(closedIndex);
+            releaseFocusVideo(closedIndex);
+          }
           setTransitioning(false);
           return false;
         }
@@ -2560,8 +3643,18 @@ export const InfiniteCanvas = forwardRef<
       });
     }
 
-    function closeTo(index: number, time?: number): CloseTarget | null {
-      siblingReveal = null;
+    function closeTo(
+      index: number,
+      time?: number,
+      canvasOwned = false,
+    ): CloseTarget | null {
+      const focus = focusVideos.get(index);
+      const focusTime =
+        canvasOwned && focus?.ready ? focus.element.currentTime : undefined;
+      cancelFocusUpgrade();
+      for (const focusIndex of focusVideos.keys()) {
+        pauseFocusVideo(focusIndex);
+      }
 
       // Closing while the viewer is still waiting for its first decoded
       // frame: cancel the open, restore the grid, and let the viewer unmount.
@@ -2583,7 +3676,85 @@ export const InfiniteCanvas = forwardRef<
         return { rect: null, prepared: Promise.resolve() };
       }
 
+      if (
+        canvasOwned &&
+        transition.phase === "opening" &&
+        !transition.viewerOwned
+      ) {
+        // Escape during the WebGL glide: cancel the open and restore the grid.
+        closeRun += 1;
+        const cancelled = transition;
+
+        for (const plane of planes) {
+          resetPlaneToTile(plane);
+          plane.opacity = plane.loaded ? 1 : 0;
+          plane.material.uniforms.uOpacity.value = plane.opacity;
+        }
+
+        // The open had started from this scroll; cancelling mid-glide must put
+        // it back, or the grid stays shifted even though the media is gone.
+        scrollRef.current.x = cancelled.fromScrollX;
+        scrollRef.current.y = cancelled.fromScrollY;
+        placePlanes();
+
+        loadingIndex = null;
+        transition = idleTransition();
+        setTransitioning(false);
+
+        // The warmed focus media belongs to the open that was cancelled.
+        // Put the tile's grid texture back and release the full-res decoder,
+        // texture and preload so Escape mid-glide leaves a live grid tile.
+        if (index >= 0) {
+          restoreGridTexture(index);
+          disposeFocusTexture(index);
+          releaseFocusVideo(index);
+        }
+
+        renderScene();
+        updateDebug();
+        wake();
+        return null;
+      }
+
       if (!canClose(transition.phase)) return null;
+
+      if (canvasOwned) {
+        // The WebGL plane owns the opened media. Shrink it back to its tile
+        // with the legacy canvas timeline; the DOM viewer is chrome only.
+        panHalt();
+        const t = transition;
+        const target = t.plane ?? findPlane(index);
+        if (!target) return null;
+
+        // The grid decoder was frozen when the full-res focus took the
+        // plane. Put it at the frame the viewer actually watched before the
+        // tile is shown again, so closing does not jump backwards.
+        const media = items[index]?.media;
+        if (media?.kind === "video" && focusTime !== undefined) {
+          const grid = videoEntries.get(index) ?? ensureVideoEntry(index);
+          if (grid) {
+            grid.element.pause();
+            void seekVideo(grid, focusTime).then(() => {
+              if (disposed || !grid.texture) return;
+              grid.texture.needsUpdate = true;
+              grid.lastUpload = performance.now();
+            });
+          }
+        }
+
+        t.phase = "closing";
+        t.index = index;
+        t.target = target;
+        t.handoffAt = -1;
+        t.waitingForViewer = false;
+        t.prepared = true;
+        t.viewerOwned = false;
+        t.startedAt = performance.now();
+        setTransitioning(true);
+        wake();
+
+        return { rect: null, prepared: Promise.resolve() };
+      }
 
       panHalt();
       const t = transition;
@@ -2591,12 +3762,30 @@ export const InfiniteCanvas = forwardRef<
       if (!media) return null;
 
       const opened = t.plane;
+      const openedVisible =
+        opened &&
+        opened.itemIndex === index &&
+        boxInsideViewport(viewportRectForPlane(opened), width, height);
       const target =
-        opened && opened.itemIndex === index
-          ? opened
-          : (findPlane(index) ?? opened);
+        (openedVisible ? opened : null) ??
+        fullyVisibleCopy(index) ??
+        findPlane(index) ??
+        opened;
 
       if (!target) return null;
+
+      let rect = viewportRectForPlane(target);
+
+      if (!boxInsideViewport(rect, width, height)) {
+        // An Arrow step can land on a rank whose copies are all outside the
+        // viewport. The grid is hidden for the close, so centre the target
+        // now and fly to the tile the landing will actually reveal.
+        // planePosition is base + scroll, so the neutral scroll is -base.
+        scrollRef.current.x = -target.baseX;
+        scrollRef.current.y = -target.baseY;
+        placePlanes();
+        rect = viewportRectForPlane(target);
+      }
 
       closeRun += 1;
       const run = closeRun;
@@ -2630,8 +3819,7 @@ export const InfiniteCanvas = forwardRef<
         debug.targetOpacity = 0;
       }
 
-      // Keep the grid where it was; the reverse FLIP lands on this rect.
-      const rect = viewportRectForPlane(target);
+      // The reverse FLIP lands on the (possibly re-centred) target rect.
       const prepared = prepareCloseTarget(index, media, time, run);
 
       return { rect, prepared };
@@ -2641,7 +3829,6 @@ export const InfiniteCanvas = forwardRef<
       const t = transition;
       if (t.phase !== "closing" || !t.viewerOwned) return;
 
-      siblingReveal = null;
       closeRun += 1;
       const target = t.target;
 
@@ -2679,8 +3866,7 @@ export const InfiniteCanvas = forwardRef<
       const target = t.target;
 
       // The tile is already at its resting transform; show it before the DOM
-      // viewer unmounts so the hand-back has no blank frame. The other planes
-      // start at 0 and fade in over .9s power3.inOut, on the reference's beat.
+      // viewer unmounts so the hand-back has no blank frame.
       for (const plane of planes) {
         resetPlaneToTile(plane);
         const opacity = plane === target || reduced ? 1 : 0;
@@ -2688,15 +3874,22 @@ export const InfiniteCanvas = forwardRef<
         plane.material.uniforms.uOpacity.value = opacity;
       }
 
-      siblingReveal = reduced
-        ? null
-        : {
-            startedAt: performance.now() + closeSiblingRevealDelayMs(),
-            target,
-          };
-
       hiddenPlane = null;
+      const closedIndex = t.index;
       transition = idleTransition();
+      // The canvas was paused behind the DOM viewer, so the idle clock still
+      // points at the frame before the open. Restart it here: otherwise the
+      // first unpaused idle frame sees seconds of "idle" time and jumps the
+      // grid to full breathing amplitude in one frame.
+      breathIdleSince = 0;
+      breathLevel = 0;
+      breathActive = false;
+      breathAmplitude = 0;
+      if (closedIndex >= 0) {
+        restoreGridTexture(closedIndex);
+        disposeFocusTexture(closedIndex);
+        releaseFocusVideo(closedIndex);
+      }
       setTransitioning(false);
       renderScene();
       updateDebug();
@@ -2753,13 +3946,19 @@ export const InfiniteCanvas = forwardRef<
         return;
       }
 
+      const viewerWaitSettled =
+        pausedRef.current &&
+        transition.phase === "opening" &&
+        transition.viewerOwned &&
+        !viewerOpenNeedsFrames(now - transition.startedAt);
+
       const transitionActive =
         transition.phase === "opening" ||
         (transition.phase === "closing" && !transition.viewerOwned) ||
         (transition.phase === "open" &&
           (transition.waitingForViewer || transition.handoffAt >= 0));
 
-      if (pausedRef.current && !transitionActive) {
+      if (pausedRef.current && !transitionActive && !openVideoIsLive()) {
         last = 0;
         return;
       }
@@ -2783,6 +3982,9 @@ export const InfiniteCanvas = forwardRef<
       renderedFrames += 1;
       renderScene();
       updateDebug();
+      if (perfEnabled && transition.phase === "opening") {
+        markFirstOpenFrame();
+      }
 
       const otherActive =
         moving ||
@@ -2795,7 +3997,7 @@ export const InfiniteCanvas = forwardRef<
         transitionActive ||
         hovering;
 
-      if (otherActive || breathing) {
+      if (!viewerWaitSettled && (otherActive || breathing)) {
         raf = requestAnimationFrame(renderFrame);
       } else {
         last = 0;
@@ -2817,12 +4019,252 @@ export const InfiniteCanvas = forwardRef<
         (transition.phase === "open" &&
           (transition.waitingForViewer || transition.handoffAt >= 0));
 
-      if (pausedRef.current && !transitionActive) {
+      const viewerWaitSettled =
+        pausedRef.current &&
+        transition.phase === "opening" &&
+        transition.viewerOwned &&
+        !viewerOpenNeedsFrames(performance.now() - transition.startedAt);
+
+      if (
+        pausedRef.current &&
+        !openVideoIsLive() &&
+        (!transitionActive || viewerWaitSettled)
+      ) {
         return;
       }
 
       last = 0;
       raf = requestAnimationFrame(renderFrame);
+    }
+
+    /**
+     * A resize disposes and rebuilds every plane. Re-point an in-flight
+     * viewer transition at the fresh meshes (the old ones are removed), and
+     * re-apply the pose the viewer expects: the held tile while it decodes,
+     * or a hidden grid once it owns the screen.
+     */
+    function rebindTransitionAfterResize(
+      planeIndex: number | null,
+      targetIndex: number | null,
+      previousWidth: number,
+      previousHeight: number,
+    ): void {
+      const t = transition;
+      if (t.phase === "idle") return;
+
+      const index = planeIndex ?? (t.index >= 0 ? t.index : null);
+      const targetIndexResolved = targetIndex ?? index;
+      const previousPlane = t.plane;
+      const previousTarget = t.target;
+      t.plane = index !== null ? findPlane(index) : null;
+      t.target =
+        targetIndexResolved !== null ? findPlane(targetIndexResolved) : null;
+
+      if (!t.plane) {
+        transition = idleTransition();
+        loadingIndex = null;
+        hiddenPlane = null;
+        return;
+      }
+
+      // A resize rebuilds the grid, so the opened plane's base moves with the
+      // new pitch. Retarget the open's scroll, pre-open home and focus target:
+      // keep the media centred on the new base, and scale the pre-open offset
+      // with the viewport so the close still lands in the same relative spot
+      // instead of an absolute px offset that can fall off screen.
+      if (!t.viewerOwned) {
+        const focusPlane = t.phase === "closing" ? t.target : t.plane;
+        const previousFocus =
+          t.phase === "closing" ? previousTarget : previousPlane;
+
+        if (focusPlane && previousFocus) {
+          const x = resizeOpenScroll(
+            scrollRef.current.x,
+            t.fromScrollX,
+            t.toScrollX,
+            previousFocus.baseX,
+            focusPlane.baseX,
+            width / previousWidth,
+            halfX,
+          );
+          const y = resizeOpenScroll(
+            scrollRef.current.y,
+            t.fromScrollY,
+            t.toScrollY,
+            previousFocus.baseY,
+            focusPlane.baseY,
+            height / previousHeight,
+            halfY,
+          );
+
+          // The held open sits on the focus, so a new wrap period must land
+          // the scroll on the retargeted focus; mid-glide/close keep their
+          // current pose and continue the retargeted path.
+          scrollRef.current.x = t.phase === "open" ? x.to : x.scroll;
+          scrollRef.current.y = t.phase === "open" ? y.to : y.scroll;
+          t.fromScrollX = x.from;
+          t.fromScrollY = y.from;
+          t.toScrollX = x.to;
+          t.toScrollY = y.to;
+        }
+      }
+
+      const media = index !== null ? items[index]?.media : undefined;
+      if (media) {
+        const focus = fitBox(media.width, media.height, width, height);
+        t.focusWidth = focus.width;
+        t.focusHeight = focus.height;
+      }
+      t.tileWidth = t.plane.tileWidth;
+      t.tileHeight = t.plane.tileHeight;
+      t.restWidth = t.plane.tileWidth;
+      t.restHeight = t.plane.tileHeight;
+
+      if (t.phase === "opening" && !t.viewerOwned) {
+        const elapsed = performance.now() - t.startedAt;
+        const fade = 1 - fadeOutProgress(elapsed);
+        const grow = growProgress(elapsed);
+        loadingIndex = null;
+
+        for (const plane of planes) {
+          resetPlaneToTile(plane);
+
+          if (plane === t.plane) {
+            const w =
+              t.tileWidth + (t.focusWidth - t.tileWidth) * grow;
+            const h =
+              t.tileHeight + (t.focusHeight - t.tileHeight) * grow;
+            plane.mesh.visible = true;
+            plane.mesh.scale.set(w, h, 1);
+            plane.material.uniforms.uPlaneSizes.value.set(w, h);
+            plane.material.uniforms.uZoom.value =
+              TEXTURE_ZOOM + (1 - TEXTURE_ZOOM) * grow;
+            plane.opacity = 1;
+          } else {
+            plane.opacity = fade;
+          }
+
+          plane.material.uniforms.uOpacity.value = plane.opacity;
+        }
+
+        hiddenPlane = null;
+      } else if (t.phase === "open" && !t.viewerOwned) {
+        // Canvas-owned opened view: the focused plane is the media.
+        loadingIndex = null;
+
+        for (const plane of planes) {
+          resetPlaneToTile(plane);
+
+          if (plane === t.plane) {
+            plane.mesh.visible = true;
+            plane.mesh.scale.set(t.focusWidth, t.focusHeight, 1);
+            plane.material.uniforms.uPlaneSizes.value.set(
+              t.focusWidth,
+              t.focusHeight,
+            );
+            plane.material.uniforms.uZoom.value = 1;
+            const upgraded = focusTextures.get(index ?? -1);
+            if (upgraded) {
+              plane.material.uniforms.uTexture.value = upgraded;
+              plane.material.uniforms.uDecodeVideo.value = 0;
+            }
+            const focusVideo =
+              index !== null ? focusVideos.get(index) : undefined;
+            if (focusVideo?.ready) {
+              plane.material.uniforms.uTexture.value = focusVideo.texture;
+              plane.material.uniforms.uDecodeVideo.value = 1;
+              plane.loaded = true;
+            }
+            plane.opacity = 1;
+          } else {
+            plane.opacity = 0;
+          }
+
+          plane.material.uniforms.uOpacity.value = plane.opacity;
+        }
+
+        hiddenPlane = null;
+      } else if (t.phase === "closing" && !t.viewerOwned) {
+        const elapsed = performance.now() - t.startedAt;
+        const shrink = closeShrinkProgress(elapsed);
+        const fade = closeFadeProgress(elapsed);
+        const target = t.target ?? t.plane;
+        loadingIndex = null;
+
+        for (const plane of planes) {
+          resetPlaneToTile(plane);
+
+          if (plane === target) {
+            const w =
+              t.focusWidth + (t.restWidth - t.focusWidth) * shrink;
+            const h =
+              t.focusHeight + (t.restHeight - t.focusHeight) * shrink;
+            plane.mesh.visible = true;
+            plane.mesh.scale.set(w, h, 1);
+            plane.material.uniforms.uPlaneSizes.value.set(w, h);
+            plane.material.uniforms.uZoom.value =
+              1 + (TEXTURE_ZOOM - 1) * shrink;
+            plane.opacity = 1;
+          } else {
+            plane.opacity = fade;
+          }
+
+          plane.material.uniforms.uOpacity.value = plane.opacity;
+        }
+
+        hiddenPlane = null;
+      } else if (t.phase === "opening" && t.viewerOwned) {
+        const elapsed = performance.now() - t.startedAt;
+        const fade = 1 - fadeOutProgress(elapsed);
+        loadingIndex = index;
+
+        for (const plane of planes) {
+          resetPlaneToTile(plane);
+
+          if (plane === t.plane) {
+            const widthAtPress = t.tileWidth * OPEN_PRESS_SCALE;
+            const heightAtPress = t.tileHeight * OPEN_PRESS_SCALE;
+            plane.mesh.visible = true;
+            plane.mesh.scale.set(widthAtPress, heightAtPress, 1);
+            plane.material.uniforms.uPlaneSizes.value.set(
+              widthAtPress,
+              heightAtPress,
+            );
+            plane.opacity = 1;
+          } else {
+            plane.opacity = fade;
+          }
+
+          plane.material.uniforms.uOpacity.value = plane.opacity;
+        }
+
+        hiddenPlane = null;
+      } else {
+        // Open or closing with DOM media: the viewer covers the canvas. Keep
+        // the fresh grid hidden and let landClose reveal the new target mesh.
+        loadingIndex = null;
+
+        for (const plane of planes) {
+          resetPlaneToTile(plane);
+          plane.opacity = 0;
+          plane.material.uniforms.uOpacity.value = 0;
+        }
+
+        hiddenPlane = t.target ?? t.plane;
+        if (hiddenPlane) {
+          hiddenPlane.mesh.visible = false;
+          hiddenPlane.opacity = 0;
+          hiddenPlane.material.uniforms.uOpacity.value = 0;
+        }
+      }
+
+      // buildPlanes left the fresh meshes at their unwrapped base; apply the
+      // retargeted scroll before painting, or a paused open (image media does
+      // not wake the loop) would show the media off centre.
+      placePlanes();
+
+      renderScene();
+      updateDebug();
     }
 
     function resize(): void {
@@ -2834,6 +4276,8 @@ export const InfiniteCanvas = forwardRef<
         return;
       }
 
+      const previousWidth = width;
+      const previousHeight = height;
       width = nextWidth;
       height = nextHeight;
 
@@ -2876,7 +4320,16 @@ export const InfiniteCanvas = forwardRef<
       renderTarget.setSize(rtWidth, rtHeight);
       postMaterial.uniforms.uAspect.value = width / height;
 
+      const transitionPlaneIndex = transition.plane?.itemIndex ?? null;
+      const transitionTargetIndex = transition.target?.itemIndex ?? null;
+
       buildPlanes();
+      rebindTransitionAfterResize(
+        transitionPlaneIndex,
+        transitionTargetIndex,
+        previousWidth,
+        previousHeight,
+      );
       wake();
     }
 
@@ -2916,8 +4369,11 @@ export const InfiniteCanvas = forwardRef<
       if (event.button !== 0 || pausedRef.current || !introEndedFlag) return;
       if (!canOpen(transition.phase)) return;
 
-      const plane = planeAt(event.clientX, event.clientY);
-      if (plane) void preloadItem(plane.itemIndex);
+      const plane = planeForPointer(event.clientX, event.clientY);
+      if (plane) {
+        void preloadItem(plane.itemIndex);
+        warmFocusVideo(plane.itemIndex);
+      }
     };
     surface?.addEventListener("pointerdown", onPreloadPointerDown, {
       passive: true,
@@ -2928,7 +4384,10 @@ export const InfiniteCanvas = forwardRef<
     const onPreloadFocus = () => {
       if (pausedRef.current || !introEndedFlag) return;
       const plane = hoveredPlane ?? centrePlane();
-      if (plane) void preloadItem(plane.itemIndex);
+      if (plane) {
+        void preloadItem(plane.itemIndex);
+        warmFocusVideo(plane.itemIndex);
+      }
     };
     surface?.addEventListener("focus", onPreloadFocus);
 
@@ -2961,6 +4420,7 @@ export const InfiniteCanvas = forwardRef<
     api.rectForIndex = rectForIndex;
     api.reveal = revealPlane;
     api.handoff = handoff;
+    api.releaseOpen = releaseOpen;
     api.closeTo = closeTo;
     api.cancelClose = cancelClose;
     api.landClose = landClose;
@@ -2969,6 +4429,7 @@ export const InfiniteCanvas = forwardRef<
 
     return () => {
       disposed = true;
+      cancelFocusUpgrade();
 
       if (raf !== 0) cancelAnimationFrame(raf);
       if (resizeFrame !== 0) cancelAnimationFrame(resizeFrame);
@@ -2990,6 +4451,7 @@ export const InfiniteCanvas = forwardRef<
       api.rectForIndex = () => null;
       api.reveal = () => {};
       api.handoff = () => {};
+      api.releaseOpen = () => {};
       api.closeTo = () => null;
       api.cancelClose = () => {};
       api.landClose = () => {};
@@ -3013,6 +4475,16 @@ export const InfiniteCanvas = forwardRef<
       for (const entry of textures.values()) {
         entry.texture.dispose();
       }
+
+      for (const texture of focusTextures.values()) {
+        texture.dispose();
+      }
+      focusTextures.clear();
+
+      for (const index of [...focusVideos.keys()]) {
+        disposeFocusVideo(index);
+      }
+      focusVideos.clear();
 
       renderer.dispose();
       renderer.forceContextLoss();

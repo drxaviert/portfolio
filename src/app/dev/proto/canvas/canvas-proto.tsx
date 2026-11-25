@@ -22,6 +22,7 @@ type ViewerState = {
   index: number;
   startAt?: number;
   openRect?: Box;
+  canvasOwned?: boolean;
 };
 
 /** The dev-only label; the slider stays a fraction of the shader strength. */
@@ -90,6 +91,7 @@ export function CanvasProto({
 }) {
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const [viewerClosing, setViewerClosing] = useState(false);
+  const [canvasPending, setCanvasPending] = useState(false);
   const [lens, setLens] = useState<LensSettings>(initialLens);
   const [breath, setBreath] = useState<BreathSettings>(initialBreath);
   const [hover, setHover] = useState<HoverSettings>(initialHover);
@@ -98,9 +100,10 @@ export function CanvasProto({
   const copyTimer = useRef(0);
 
   const openViewer = useCallback(
-    (index: number, startAt?: number, openRect?: Box) => {
+    (index: number, startAt?: number, openRect?: Box, canvasOwned?: boolean) => {
       setViewerClosing(false);
-      setViewer({ index, startAt, openRect });
+      setCanvasPending(Boolean(canvasOwned));
+      setViewer({ index, startAt, openRect, canvasOwned });
     },
     [],
   );
@@ -108,13 +111,21 @@ export function CanvasProto({
   const closeViewer = useCallback(() => {
     setViewer(null);
     setViewerClosing(false);
+    setCanvasPending(false);
   }, []);
 
-  const markViewerClosing = useCallback((index: number, time?: number) => {
-    setViewerClosing(true);
-    // Return the landing rect immediately; the tile prepares in parallel.
-    return canvasRef.current?.closeTo(index, time) ?? null;
+  const markCanvasOpened = useCallback(() => {
+    setCanvasPending(false);
   }, []);
+
+  const markViewerClosing = useCallback(
+    (index: number, time?: number, canvasOwned?: boolean) => {
+      setViewerClosing(true);
+      // Return the landing rect immediately; the tile prepares in parallel.
+      return canvasRef.current?.closeTo(index, time, canvasOwned) ?? null;
+    },
+    [],
+  );
 
   const markViewerLanded = useCallback(() => {
     canvasRef.current?.landClose();
@@ -216,6 +227,7 @@ export function CanvasProto({
           breath={breath}
           hover={hover}
           onOpen={openViewer}
+          onCanvasOpened={markCanvasOpened}
         />
       </div>
 
@@ -359,6 +371,8 @@ export function CanvasProto({
           initialIndex={viewer.index}
           startAt={viewer.startAt}
           openRect={viewer.openRect}
+          canvasOwned={viewer.canvasOwned}
+          pending={canvasPending}
           onReady={markViewerReady}
           onClosing={markViewerClosing}
           onCloseLanded={markViewerLanded}

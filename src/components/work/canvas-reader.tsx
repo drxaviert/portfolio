@@ -13,6 +13,8 @@ import type {
 } from "@/components/canvas/infinite-canvas";
 import type { Box } from "@/components/work/morph";
 import type { WorkMeta } from "@/lib/work";
+import { PerfHud } from "@/components/canvas/perf-hud";
+import { markPerf, perfEnabled } from "@/components/canvas/perf";
 import { Breadcrumb } from "./breadcrumb";
 import { READER_TITLE_ID } from "./parts";
 import "./canvas-reader.css";
@@ -37,6 +39,8 @@ type ViewerState = {
   index: number;
   startAt?: number;
   openRect?: Box;
+  /** The media is the focused WebGL plane; the viewer is chrome only. */
+  canvasOwned?: boolean;
 };
 
 /**
@@ -58,15 +62,23 @@ export function CanvasReader({
 }) {
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const [viewerClosing, setViewerClosing] = useState(false);
+  const [viewerStepped, setViewerStepped] = useState(false);
+  const [canvasPending, setCanvasPending] = useState(false);
   const canvasRef = useRef<InfiniteCanvasHandle | null>(null);
   const pathname = usePathname();
   const active = pathname === `/work/${meta.slug}`;
   const shownViewer = active ? viewer : null;
+  const canvasViewing = Boolean(shownViewer?.canvasOwned) && !viewerStepped;
 
   const openViewer = useCallback(
-    (index: number, startAt?: number, openRect?: Box) => {
+    (index: number, startAt?: number, openRect?: Box, canvasOwned?: boolean) => {
+      if (perfEnabled) {
+        markPerf("react-open-state", { index, canvasOwned: Boolean(canvasOwned) });
+      }
       setViewerClosing(false);
-      setViewer({ index, startAt, openRect });
+      setViewerStepped(false);
+      setCanvasPending(Boolean(canvasOwned));
+      setViewer({ index, startAt, openRect, canvasOwned });
     },
     [],
   );
@@ -74,12 +86,22 @@ export function CanvasReader({
   const closeViewer = useCallback(() => {
     setViewer(null);
     setViewerClosing(false);
+    setViewerStepped(false);
+    setCanvasPending(false);
   }, []);
 
-  const markViewerClosing = useCallback((index: number, time?: number) => {
-    setViewerClosing(true);
-    return canvasRef.current?.closeTo(index, time) ?? null;
+  const markCanvasOpened = useCallback(() => {
+    if (perfEnabled) markPerf("chrome-visible");
+    setCanvasPending(false);
   }, []);
+
+  const markViewerClosing = useCallback(
+    (index: number, time?: number, canvasOwned?: boolean) => {
+      setViewerClosing(true);
+      return canvasRef.current?.closeTo(index, time, canvasOwned) ?? null;
+    },
+    [],
+  );
 
   const markViewerLanded = useCallback(() => {
     canvasRef.current?.landClose();
@@ -101,6 +123,7 @@ export function CanvasReader({
     <div
       className="cv-reader"
       data-viewing={shownViewer && !viewerClosing ? "" : undefined}
+      data-canvas-viewing={canvasViewing ? "" : undefined}
       data-closing={viewerClosing || undefined}
     >
       <h1 id={READER_TITLE_ID} tabIndex={-1} className="cv-reader__title">
@@ -116,6 +139,7 @@ export function CanvasReader({
           breath={LOCKED_BREATH}
           hover={LOCKED_HOVER}
           onOpen={openViewer}
+          onCanvasOpened={markCanvasOpened}
         />
       </div>
 
@@ -127,18 +151,27 @@ export function CanvasReader({
         </span>
       </div>
 
-      {shownViewer ? (
+      <PerfHud />
+
+      {items.length > 0 ? (
         <FocusViewer
+          open={shownViewer !== null}
           items={items}
-          initialIndex={shownViewer.index}
-          startAt={shownViewer.startAt}
-          openRect={shownViewer.openRect}
+          initialIndex={shownViewer?.index ?? 0}
+          startAt={shownViewer?.startAt}
+          openRect={shownViewer?.openRect}
+          canvasOwned={shownViewer?.canvasOwned}
+          pending={canvasPending}
           onReady={markViewerReady}
           onClosing={markViewerClosing}
           onCloseLanded={markViewerLanded}
           onReopen={markViewerReopened}
           onReopenLanded={markViewerReopenLanded}
           onClosed={closeViewer}
+          onStep={() => {
+            setViewerStepped(true);
+            canvasRef.current?.releaseOpen();
+          }}
         />
       ) : null}
     </div>
