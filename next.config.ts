@@ -57,6 +57,12 @@ const nextConfig: NextConfig = {
         hostname: "i.ytimg.com",
         pathname: "/vi/**",
       },
+      {
+        // The daily painting's IIIF images, served at AIC's cached widths.
+        protocol: "https",
+        hostname: "www.artic.edu",
+        pathname: "/iiif/2/**",
+      },
     ],
   },
   // Lets Dat test dev servers from a laptop on the LAN (Next 16 blocks
