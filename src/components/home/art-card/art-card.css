@@ -1,0 +1,708 @@
+/*
+ * Daily painting card.
+ *
+ * The card is a size container, which is what lets the frame size itself:
+ * 100cqh is the card's content height, and --art-frame-share is the widest a
+ * painting may be at that breakpoint. The wall, label and controls sit above
+ * the shared ring layers; only the light and the loading bar crossfade, so a
+ * day change never moves the card or the page.
+ */
+
+.art-card {
+  --art-card-pad: 10px;
+  --art-frame-share: 62cqw;
+  --art-frame-inset: calc(var(--art-card-pad) * 2);
+
+  container-type: size;
+  min-width: 0;
+  min-height: 0;
+}
+
+/*
+ * The card reacts to its own width, not the viewport's. That is what lets the
+ * same component read correctly in the 171px lab stage at a desktop viewport,
+ * and it keeps the 849/728/472/171 home geometries on one scale. The body is a
+ * descendant of the size container; the frame inherits its share from there.
+ */
+@container (min-width: 460px) {
+  .art-card-body {
+    --art-card-pad: 12px;
+    --art-frame-share: 50cqw;
+    --art-frame-inset: 24px;
+  }
+}
+
+@container (min-width: 780px) {
+  .art-card-body {
+    --art-card-pad: 14px;
+    --art-frame-share: 58cqw;
+    --art-frame-inset: 28px;
+  }
+}
+
+/*
+ * The wall. One low-chroma mix of the painting's dominant colour into the card
+ * surface; the gradient and vignette give it depth without becoming a second
+ * visual system. Night keeps the same mix but lets the shadow deepen more.
+ */
+.art-card-wall {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: var(--ring-radius);
+  background-color: color-mix(
+    in oklab,
+    var(--art-tint, var(--surface-container-low)) 16%,
+    var(--surface-container-low)
+  );
+  background-image:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.1),
+      transparent 30%,
+      rgb(0 0 0 / 0.05)
+    ),
+    radial-gradient(
+      120% 90% at 18% 0%,
+      rgb(255 255 255 / 0.08),
+      transparent 62%
+    );
+}
+
+[data-phase="night"] .art-card-wall {
+  background-color: color-mix(
+    in oklab,
+    var(--art-tint, var(--surface-container-low)) 22%,
+    var(--surface-container-low)
+  );
+  background-image:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.06),
+      transparent 30%,
+      rgb(0 0 0 / 0.18)
+    ),
+    radial-gradient(
+      120% 90% at 18% 0%,
+      rgb(255 255 255 / 0.05),
+      transparent 62%
+    );
+}
+
+.art-card-light {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle 300px at var(--art-light-x, 50%) var(--art-light-y, 40%),
+    rgb(255 255 255 / 0.22),
+    transparent 68%
+  );
+  opacity: 0;
+  transition: opacity var(--duration-medium-2) var(--ease-linear);
+  pointer-events: none;
+}
+
+.art-card[data-spotlight="on"]:hover .art-card-light {
+  opacity: 1;
+}
+
+.art-card-vignette {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 70px rgb(0 0 0 / 0.1);
+  pointer-events: none;
+}
+
+[data-phase="night"] .art-card-vignette {
+  box-shadow: inset 0 0 80px rgb(0 0 0 / 0.28);
+}
+
+/*
+ * Body. The scene is the crossfading pair (frame + label); the controls stay
+ * outside it so keyboard focus is never remounted while browsing.
+ */
+.art-card-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: var(--art-card-pad);
+}
+
+.art-card-scene {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: clamp(8px, 1.8cqw, 18px);
+  min-width: 0;
+  height: 100%;
+}
+
+.art-card-frame-button {
+  display: block;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  cursor: zoom-in;
+  line-height: 0;
+}
+
+.art-card-frame-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+}
+
+.art-card-label {
+  display: none;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding-inline: 2px 6px;
+}
+
+@container (min-width: 460px) {
+  .art-card-label {
+    display: flex;
+  }
+}
+
+.art-card-kicker {
+  margin: 0;
+  color: var(--on-surface-variant);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+[data-phase="night"] .art-card-kicker {
+  color: var(--on-surface-variant);
+}
+
+.art-card-title {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--on-surface);
+  font-size: var(--text-base);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  text-wrap: balance;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+@container (min-width: 800px) {
+  .art-card-title {
+    font-size: var(--text-lg);
+  }
+}
+
+.art-card-artist,
+.art-card-meta {
+  overflow: hidden;
+  margin: 0;
+  color: var(--on-surface-variant);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.art-card-meta {
+  display: none;
+}
+
+@container (min-width: 700px) {
+  .art-card-meta {
+    display: block;
+  }
+}
+
+/*
+ * Browse controls stay put while a request is in flight: the wrapper is
+ * outside the keyed scene and the buttons use aria-disabled rather than
+ * disabled, so a keyboard user keeps focus on the button they pressed.
+ */
+.art-card-controls {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-self: center;
+  justify-content: center;
+  /* 30px circles + 8px keeps the two 44px hit areas from overlapping. */
+  gap: 8px;
+}
+
+.art-control {
+  position: relative;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-short-3) var(--ease-decelerate),
+    color var(--duration-short-3) var(--ease-decelerate),
+    transform var(--duration-short-3) var(--ease-decelerate);
+  place-items: center;
+}
+
+/* The visible circle is 30px; the target is 44px. */
+.art-control::after {
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  content: "";
+}
+
+.art-control svg {
+  width: 16px;
+  height: 16px;
+}
+
+.art-control:active {
+  transform: scale(0.94);
+}
+
+.art-control:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.art-control:disabled,
+.art-control[aria-disabled="true"] {
+  opacity: 0.28;
+  cursor: default;
+}
+
+.art-card[data-loading="true"] .art-control {
+  cursor: progress;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .art-control:hover:not(:disabled):not([aria-disabled="true"]) {
+    background-color: color-mix(in oklab, var(--on-surface) 8%, transparent);
+    color: var(--on-surface);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art-control,
+  .art-control:active {
+    transform: none;
+    transition: none;
+  }
+}
+
+/* A two-pixel indeterminate bar tucked into the top edge, above the wall. */
+.art-card-progress {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 3;
+  height: 2px;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--duration-short-2) var(--ease-linear);
+  pointer-events: none;
+}
+
+.art-card[data-loading="true"] .art-card-progress {
+  opacity: 1;
+}
+
+.art-card-progress::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 38%;
+  border-radius: 999px;
+  background: var(--primary);
+  content: "";
+  animation: art-card-progress 1000ms var(--ease-standard) infinite;
+}
+
+@keyframes art-card-progress {
+  from {
+    transform: translateX(-120%);
+  }
+
+  to {
+    transform: translateX(300%);
+  }
+}
+
+/* The first art change gets a short settle; the initial server paint does not. */
+.art-card[data-browsed="true"] .art-card-scene {
+  animation: art-card-scene-in var(--duration-short-7)
+    var(--ease-emphasized-decelerate) both;
+}
+
+@keyframes art-card-scene-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+.art-card-error {
+  position: absolute;
+  bottom: calc(var(--art-card-pad) + 2px);
+  left: calc(var(--art-card-pad) + 4px);
+  z-index: 4;
+  max-width: min(70%, 320px);
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--surface-container-high);
+  box-shadow: var(--shadow-card);
+  color: var(--on-surface);
+}
+
+/* Image + LQIP. The frame reserves the box; the placeholder only fades paint. */
+.art-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  background-color: #16120e;
+}
+
+.art-image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.art-image-lqip {
+  position: absolute;
+  inset: -6%;
+  background-color: #2a241c;
+  background-position: center;
+  background-size: cover;
+  filter: blur(16px) saturate(0.9);
+  transform: scale(1.08);
+  transition: opacity var(--duration-long-1) var(--ease-linear);
+}
+
+.art-image[data-loaded="true"] .art-image-lqip {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art-card-light,
+  .art-card-progress,
+  .art-image-lqip {
+    transition: none;
+  }
+
+  .art-card[data-browsed="true"] .art-card-scene {
+    animation: art-card-scene-fade var(--duration-short-3) var(--ease-linear)
+      both;
+  }
+
+  .art-card-progress::after {
+    width: 100%;
+    opacity: 0.4;
+    animation: none;
+  }
+}
+
+@keyframes art-card-scene-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* -------------------------------------------------------------------------
+ * Full view
+ * ---------------------------------------------------------------------- */
+
+.art-dialog {
+  width: min(1080px, 92vw);
+  max-width: none;
+  max-height: min(92dvh, 900px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 0.18),
+    0 40px 100px -24px rgb(0 0 0 / 0.6);
+}
+
+.art-dialog[open] {
+  animation: art-dialog-in var(--duration-medium-1)
+    var(--ease-emphasized-decelerate) both;
+}
+
+.art-dialog::backdrop {
+  background: rgb(0 0 0 / 0.55);
+  backdrop-filter: blur(3px);
+}
+
+.art-dialog[open]::backdrop {
+  animation: art-dialog-backdrop-in var(--duration-medium-1) var(--ease-linear)
+    both;
+}
+
+@keyframes art-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+}
+
+@keyframes art-dialog-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.art-dialog-panel {
+  position: relative;
+  display: grid;
+  max-height: min(92dvh, 900px);
+  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.9fr);
+}
+
+.art-dialog-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(
+    in oklab,
+    var(--surface-container-low) 88%,
+    transparent
+  );
+  box-shadow: var(--shadow-card);
+  color: var(--on-surface);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-short-3) var(--ease-decelerate),
+    transform var(--duration-short-3) var(--ease-decelerate);
+  place-items: center;
+}
+
+.art-dialog-close svg {
+  width: 20px;
+  height: 20px;
+}
+
+.art-dialog-close:active {
+  transform: scale(0.94);
+}
+
+.art-dialog-close:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .art-dialog-close:hover {
+    background: var(--surface-container-high);
+  }
+}
+
+.art-dialog-stage {
+  display: grid;
+  height: clamp(300px, 58dvh, 620px);
+  padding: clamp(16px, 3vw, 32px);
+  container-type: size;
+  background:
+    radial-gradient(
+      90% 70% at 50% 10%,
+      rgb(255 255 255 / 0.08),
+      transparent 60%
+    ),
+    color-mix(
+      in oklab,
+      var(--surface-container) 70%,
+      var(--surface-container-low)
+    );
+  place-items: center;
+}
+
+.art-dialog-stage .painting-frame {
+  --art-frame-share: 100cqw;
+  --art-frame-inset: 0px;
+}
+
+.art-dialog-copy {
+  max-height: min(92dvh, 900px);
+  padding: clamp(24px, 3.2vw, 44px);
+  overflow-y: auto;
+}
+
+.art-dialog-kicker {
+  margin: 0 0 10px;
+  color: var(--on-surface-variant);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.art-dialog-title {
+  margin: 0;
+  color: var(--on-surface);
+  font-size: var(--text-2xl);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.art-dialog-artist {
+  margin: 8px 0 0;
+  color: var(--on-surface-variant);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.art-dialog-facts {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0 0;
+}
+
+.art-dialog-facts div {
+  display: grid;
+  gap: 2px;
+}
+
+.art-dialog-facts dt {
+  color: var(--on-surface-variant);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.art-dialog-facts dd {
+  margin: 0;
+  color: var(--on-surface);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.art-dialog-note {
+  margin: 24px 0 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.art-dialog-link {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 24px;
+  color: var(--on-surface);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--on-surface) 35%,
+    transparent
+  );
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.art-dialog-link:hover {
+  text-decoration-color: currentColor;
+}
+
+.art-dialog-link:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.art-dialog-day {
+  margin: 28px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in oklab, var(--on-surface) 10%, transparent);
+  color: var(--on-surface-variant);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+@media (max-width: 767px) {
+  .art-dialog {
+    width: 94vw;
+    max-height: 92dvh;
+    overflow-y: auto;
+    border-radius: 12px;
+  }
+
+  .art-dialog-panel {
+    max-height: none;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .art-dialog-stage {
+    height: min(46dvh, 420px);
+    padding: 14px;
+  }
+
+  .art-dialog-copy {
+    max-height: none;
+    padding: 20px 20px 24px;
+    overflow: visible;
+  }
+
+  .art-dialog-close {
+    top: 10px;
+    right: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art-dialog[open] {
+    animation: art-dialog-fade var(--duration-short-3) var(--ease-linear) both;
+  }
+
+  .art-dialog[open]::backdrop {
+    animation: none;
+  }
+
+  .art-dialog-close,
+  .art-dialog-close:active {
+    transform: none;
+    transition: none;
+  }
+}
+
+@keyframes art-dialog-fade {
+  from {
+    opacity: 0;
+  }
+}

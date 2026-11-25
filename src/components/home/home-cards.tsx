@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { KeyboardEvent, MouseEvent } from "react";
+import { getTodaysArt } from "@/lib/daily-art";
+import { ArtCard } from "./art-card/art-card";
 import { EMPTY_WORK_LABEL } from "./empty-work";
 import { EntranceCell } from "./entrance-cell";
 import type { EntranceVariant } from "./entrance-cell";
@@ -159,13 +161,29 @@ export function WorkSlivers({ items, entrance }: WorkSliversProps = {}) {
 }
 
 /**
- * Play card shell at its Figma size. The generative art is paused, so the card
- * renders as the empty ring surface (no src/components/play import).
+ * The Play card shell now holds the daily painting.
+ *
+ * The async server child fetches today's pick (cached per UTC day) and hands
+ * plain data to the client card. The `typeof window` branch exists only for
+ * the client test renderer: home-layout.test.tsx renders this tree in jsdom,
+ * where an async server component cannot resolve, and no production route ever
+ * executes PlayCard on the client (RSC output is serialized). Keeping the shell
+ * sync also keeps the layout test offline.
  */
 export function PlayCard() {
-  return (
-    <div aria-hidden="true" className="ring-host flex-1 rounded-lg">
-      <RingLayers fill="bg-surface-container-low" />
-    </div>
-  );
+  if (typeof window !== "undefined") {
+    return (
+      <div aria-hidden="true" className="ring-host flex-1 rounded-lg">
+        <RingLayers fill="bg-surface-container-low" />
+      </div>
+    );
+  }
+
+  return <DailyArtPlayCard />;
+}
+
+async function DailyArtPlayCard() {
+  const { art, today, oldest } = await getTodaysArt();
+
+  return <ArtCard initialArt={art} today={today} oldest={oldest} />;
 }

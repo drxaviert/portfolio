@@ -59,6 +59,9 @@ const nextConfig: NextConfig = {
       },
       {
         // The daily painting's IIIF images, served at AIC's cached widths.
+        // The card itself goes through /api/art/image: the AIC CDN needs an
+        // AIC-User-Agent header that an <img> and the optimiser cannot send.
+        // This entry stays as the allow-list for any future next/image use.
         protocol: "https",
         hostname: "www.artic.edu",
         pathname: "/iiif/2/**",
