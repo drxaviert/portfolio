@@ -6,6 +6,7 @@ import {
   canOpen,
   closeComplete,
   closeFadeProgress,
+  closeScrollOffset,
   closeShrinkProgress,
   fadeOutProgress,
   fitBox,
@@ -14,6 +15,7 @@ import {
   handoffProgress,
   nextPhase,
   openComplete,
+  resizeOpenScroll,
   shortestWrappedDelta,
   viewerOpenNeedsFrames,
 } from "./transition";
@@ -113,6 +115,70 @@ describe("transition timeline", () => {
     expect(closeFadeProgress(TRANSITION.closeTotalMs)).toBe(1);
     expect(closeComplete(TRANSITION.closeTotalMs - 1)).toBe(false);
     expect(closeComplete(TRANSITION.closeTotalMs)).toBe(true);
+  });
+});
+
+describe("close return glide", () => {
+  it("starts on the focus slot, waits out the cross-fade, then lands home", () => {
+    const home = 120;
+    const focus = 940;
+
+    expect(closeScrollOffset(home, focus, 0)).toBe(focus);
+    expect(closeScrollOffset(home, focus, TRANSITION.closeCrossFadeMs)).toBe(
+      focus,
+    );
+    expect(
+      closeScrollOffset(
+        home,
+        focus,
+        TRANSITION.closeCrossFadeMs + TRANSITION.glideMs / 2,
+      ),
+    ).toBeCloseTo((home + focus) / 2, 6);
+    expect(
+      closeScrollOffset(
+        home,
+        focus,
+        TRANSITION.closeCrossFadeMs + TRANSITION.glideMs,
+      ),
+    ).toBe(home);
+    expect(closeScrollOffset(home, focus, TRANSITION.closeTotalMs)).toBe(home);
+  });
+
+  it("moves monotonically from the focus to the pre-open scroll", () => {
+    let previous = 940;
+
+    for (let elapsed = 0; elapsed <= TRANSITION.closeTotalMs; elapsed += 40) {
+      const value = closeScrollOffset(120, 940, elapsed);
+      expect(value).toBeLessThanOrEqual(previous + 1e-6);
+      expect(value).toBeGreaterThanOrEqual(120 - 1e-6);
+      previous = value;
+    }
+  });
+
+  it("keeps the close landing at the pre-open offset through a resize", () => {
+    const open = resizeOpenScroll(500, -120, 500, -180, -60, 1);
+
+    // Same focus screen point: base + scroll is unchanged.
+    expect(-60 + open.scroll).toBe(-180 + 500);
+    // Same home offset from the focus: the close lands on the same slot.
+    expect(open.from - open.to).toBe(-120 - 500);
+  });
+
+  it("scales the home offset with the viewport like the pre-open view", () => {
+    const open = resizeOpenScroll(500, -120, 500, 0, 0, 0.5);
+
+    // The focus stays put; the home offset halves with the viewport.
+    expect(open.to).toBe(500);
+    expect(open.scroll).toBe(500);
+    expect(open.from - open.to).toBe((-120 - 500) * 0.5);
+  });
+
+  it("is a no-op when the rebuilt grid keeps the same base", () => {
+    expect(resizeOpenScroll(300, 40, 300, 12, 12, 1)).toEqual({
+      scroll: 300,
+      from: 40,
+      to: 300,
+    });
   });
 });
 

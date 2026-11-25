@@ -159,6 +159,63 @@ export function closeShrinkProgress(elapsedMs: number): number {
   );
 }
 
+/**
+ * The reverse of the open's grid glide. The open moves the canvas scroll from
+ * the clicked slot to the focus over 1s with power3.inOut; the close runs the
+ * same curve and duration back to the pre-open scroll, starting with the
+ * shrink after the 200ms cross-fade. Without this the plane can only shrink in
+ * place while the grid reappears recentred, so the tile lands in a new slot
+ * instead of gliding home.
+ */
+export function closeGlideProgress(elapsedMs: number): number {
+  return glideProgress(elapsedMs - TRANSITION.closeCrossFadeMs);
+}
+
+/**
+ * One axis of the close's return scroll: the focus offset at the start and the
+ * pre-open offset once the reverse glide lands.
+ */
+export function closeScrollOffset(
+  fromScroll: number,
+  focusScroll: number,
+  elapsedMs: number,
+): number {
+  return (
+    focusScroll + (fromScroll - focusScroll) * closeGlideProgress(elapsedMs)
+  );
+}
+
+/**
+ * A resize rebuilds the grid, so the opened plane's base moves with the new
+ * pitch. Retarget the open's scroll, pre-open home and focus target:
+ *
+ * - the focus lands on the new base (`-nextBase`), so the media stays centred;
+ * - the pre-open offset (`from - to`) scales with the viewport, so the tile
+ *   still returns to the same relative spot in the new layout instead of a
+ *   pixel offset that can fall off screen.
+ *
+ * The current scroll shifts with the focus so the resize itself does not move
+ * the opened plane.
+ */
+export function resizeOpenScroll(
+  scroll: number,
+  from: number,
+  to: number,
+  previousBase: number,
+  nextBase: number,
+  scale: number,
+): { scroll: number; from: number; to: number } {
+  const delta = previousBase - nextBase;
+  const nextTo = to + delta;
+  const home = (from - to) * scale;
+
+  return {
+    scroll: scroll + delta,
+    from: nextTo + home,
+    to: nextTo,
+  };
+}
+
 export function openComplete(elapsedMs: number): boolean {
   return elapsedMs >= TRANSITION.growDelayMs + TRANSITION.growMs;
 }

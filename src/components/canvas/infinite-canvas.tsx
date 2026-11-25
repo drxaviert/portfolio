@@ -47,6 +47,7 @@ import {
   canOpen,
   closeComplete,
   closeFadeProgress,
+  closeScrollOffset,
   closeShrinkProgress,
   fadeOutProgress,
   fitBox,
@@ -54,6 +55,7 @@ import {
   growProgress,
   handoffProgress,
   nextPhase,
+  resizeOpenScroll,
   viewerOpenNeedsFrames,
 } from "./transition";
 import type { TransitionPhase } from "./transition";
@@ -3306,6 +3308,28 @@ export const InfiniteCanvas = forwardRef<
       // openVideoIsLive() must go false or the paused loop keeps uploading the
       // old focus video behind the slides. Keep the phase open for the close.
       t.viewerOwned = true;
+
+      // The canvas-owned open flattened the lens to carry the focus box. The
+      // grid is invisible behind the DOM slide, so restore the resting warp
+      // now: the close freezes the lens and computes its landing rect from it,
+      // and restoring it on the landing frame instead snapped the tile.
+      if (!reduced) {
+        const strength = lensTargetStrength({
+          mode: lensRef.current.mode,
+          base: lensRef.current.strength,
+          boost: lensRef.current.boost,
+          speed: 0,
+          reduced,
+        });
+
+        lensBase = strength;
+        lensApplied = strength;
+        lensWanted = strength;
+        postMaterial.uniforms.uStrength.value = strength;
+        postMaterial.uniforms.uVignette.value =
+          lensRef.current.mode === "globe" ? lensRef.current.vignette : 0;
+      }
+
       renderScene();
       updateDebug();
     }
@@ -3391,6 +3415,26 @@ export const InfiniteCanvas = forwardRef<
         // The DOM viewer owns the shrink; the canvas waits for landClose.
         if (t.viewerOwned) return false;
         if (!t.prepared) return true;
+
+        // The canvas-owned close retraces the open: the plane shrinks while
+        // the grid glides back to the scroll it had before the click. Without
+        // this the plane can only shrink in place and the grid reappears
+        // recentred, so the tile looks like it jumped into a new slot.
+        if (reduced) {
+          scrollRef.current.x = t.fromScrollX;
+          scrollRef.current.y = t.fromScrollY;
+        } else {
+          scrollRef.current.x = closeScrollOffset(
+            t.fromScrollX,
+            t.toScrollX,
+            elapsed,
+          );
+          scrollRef.current.y = closeScrollOffset(
+            t.fromScrollY,
+            t.toScrollY,
+            elapsed,
+          );
+        }
 
         const done = reduced
           ? elapsed >= TRANSITION.reducedFadeMs
@@ -3579,12 +3623,19 @@ export const InfiniteCanvas = forwardRef<
       ) {
         // Escape during the WebGL glide: cancel the open and restore the grid.
         closeRun += 1;
+        const cancelled = transition;
 
         for (const plane of planes) {
           resetPlaneToTile(plane);
           plane.opacity = plane.loaded ? 1 : 0;
           plane.material.uniforms.uOpacity.value = plane.opacity;
         }
+
+        // The open had started from this scroll; cancelling mid-glide must put
+        // it back, or the grid stays shifted even though the media is gone.
+        scrollRef.current.x = cancelled.fromScrollX;
+        scrollRef.current.y = cancelled.fromScrollY;
+        placePlanes();
 
         loadingIndex = null;
         transition = idleTransition();
@@ -3927,12 +3978,16 @@ export const InfiniteCanvas = forwardRef<
     function rebindTransitionAfterResize(
       planeIndex: number | null,
       targetIndex: number | null,
+      previousWidth: number,
+      previousHeight: number,
     ): void {
       const t = transition;
       if (t.phase === "idle") return;
 
       const index = planeIndex ?? (t.index >= 0 ? t.index : null);
       const targetIndexResolved = targetIndex ?? index;
+      const previousPlane = t.plane;
+      const previousTarget = t.target;
       t.plane = index !== null ? findPlane(index) : null;
       t.target =
         targetIndexResolved !== null ? findPlane(targetIndexResolved) : null;
@@ -3942,6 +3997,43 @@ export const InfiniteCanvas = forwardRef<
         loadingIndex = null;
         hiddenPlane = null;
         return;
+      }
+
+      // A resize rebuilds the grid, so the opened plane's base moves with the
+      // new pitch. Retarget the open's scroll, pre-open home and focus target:
+      // keep the media centred on the new base, and scale the pre-open offset
+      // with the viewport so the close still lands in the same relative spot
+      // instead of an absolute px offset that can fall off screen.
+      if (!t.viewerOwned) {
+        const focusPlane = t.phase === "closing" ? t.target : t.plane;
+        const previousFocus =
+          t.phase === "closing" ? previousTarget : previousPlane;
+
+        if (focusPlane && previousFocus) {
+          const x = resizeOpenScroll(
+            scrollRef.current.x,
+            t.fromScrollX,
+            t.toScrollX,
+            previousFocus.baseX,
+            focusPlane.baseX,
+            width / previousWidth,
+          );
+          const y = resizeOpenScroll(
+            scrollRef.current.y,
+            t.fromScrollY,
+            t.toScrollY,
+            previousFocus.baseY,
+            focusPlane.baseY,
+            height / previousHeight,
+          );
+
+          scrollRef.current.x = x.scroll;
+          scrollRef.current.y = y.scroll;
+          t.fromScrollX = x.from;
+          t.fromScrollY = y.from;
+          t.toScrollX = x.to;
+          t.toScrollY = y.to;
+        }
       }
 
       const media = index !== null ? items[index]?.media : undefined;
@@ -4104,6 +4196,8 @@ export const InfiniteCanvas = forwardRef<
         return;
       }
 
+      const previousWidth = width;
+      const previousHeight = height;
       width = nextWidth;
       height = nextHeight;
 
@@ -4150,7 +4244,12 @@ export const InfiniteCanvas = forwardRef<
       const transitionTargetIndex = transition.target?.itemIndex ?? null;
 
       buildPlanes();
-      rebindTransitionAfterResize(transitionPlaneIndex, transitionTargetIndex);
+      rebindTransitionAfterResize(
+        transitionPlaneIndex,
+        transitionTargetIndex,
+        previousWidth,
+        previousHeight,
+      );
       wake();
     }
 
