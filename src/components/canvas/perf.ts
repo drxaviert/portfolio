@@ -100,10 +100,13 @@ export type PerfWorstFrame = {
   resources: PerfResource[];
 };
 
+export type PerfOpenKind = "image" | "video";
+
 export type PerfSnapshot = {
   openCount: number;
   lastOpenStart: number;
   lastOpenEnd: number;
+  lastOpenKind: PerfOpenKind | null;
   frames: number;
   worst: PerfWorstFrame[];
   phases: PerfPhase[];
@@ -146,6 +149,7 @@ let raf = 0;
 let openCount = 0;
 let lastOpenStart = 0;
 let lastOpenEnd = 0;
+let lastOpenKind: PerfOpenKind | null = null;
 let firstOpenFrameMarked = false;
 let historyPatched = false;
 let detachHistory: (() => void) | null = null;
@@ -177,6 +181,10 @@ export function markPerf(name: string, detail?: PhaseDetail): void {
     openCount += 1;
     lastOpenStart = at;
     lastOpenEnd = 0;
+    lastOpenKind =
+      detail?.kind === "image" || detail?.kind === "video"
+        ? detail.kind
+        : null;
     firstOpenFrameMarked = false;
   } else if (
     openCount > 0 &&
@@ -720,6 +728,7 @@ export function getPerfSnapshot(): PerfSnapshot {
     openCount,
     lastOpenStart,
     lastOpenEnd,
+    lastOpenKind,
     frames: inWindowFrames.length,
     worst,
     phases: inWindowPhases.slice(-30),
@@ -825,7 +834,7 @@ export function getPerfReport(): Record<string, unknown> {
     dpr: typeof window === "undefined" ? 1 : window.devicePixelRatio,
     startedAt,
     openCount,
-    lastOpen: { start: openStart, end: openEnd },
+    lastOpen: { start: openStart, end: openEnd, kind: lastOpenKind },
     hypotheses: snapshot.hypotheses,
     worst5: snapshot.worst,
     phases: phases.filter(
@@ -868,6 +877,7 @@ export function clearPerf(): void {
   openCount = 0;
   lastOpenStart = 0;
   lastOpenEnd = 0;
+  lastOpenKind = null;
   firstOpenFrameMarked = false;
   lastFrameAt = performance.now();
 }

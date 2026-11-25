@@ -132,7 +132,7 @@ export function PerfHud() {
     serverPerf,
   );
   const [snapshot, setSnapshot] = useState<PerfSnapshot | null>(null);
-  const [copied, setCopied] = useState("");
+  const [status, setStatus] = useState("");
 
   useEffect(() => {
     if (!enabled) return;
@@ -148,27 +148,83 @@ export function PerfHud() {
     };
   }, [enabled]);
 
+  const showStatus = useCallback((message: string) => {
+    setStatus(message);
+    window.setTimeout(() => setStatus(""), 6000);
+  }, []);
+
   const copy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(
         JSON.stringify(getPerfReport(), null, 2),
       );
-      setCopied("copied");
+      showStatus("copied");
     } catch {
-      setCopied("copy failed — select the panel text");
+      showStatus("copy blocked (LAN is not secure) — use Send report");
     }
-    window.setTimeout(() => setCopied(""), 2500);
-  }, []);
+  }, [showStatus]);
+
+  const send = useCallback(async () => {
+    if (!snapshot || snapshot.openCount === 0 || !snapshot.lastOpenKind) return;
+
+    showStatus("sending…");
+    try {
+      const response = await fetch("/api/perf-report", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          report: getPerfReport(),
+          kind: snapshot.lastOpenKind,
+          temperature: snapshot.openCount > 1 ? "warm" : "cold",
+        }),
+      });
+      if (!response.ok) {
+        showStatus(`send failed — HTTP ${response.status}`);
+        return;
+      }
+      const data = (await response.json()) as { file?: string };
+      showStatus(data.file ? `saved ${data.file}` : "saved report");
+    } catch (error) {
+      showStatus(
+        `send failed — ${error instanceof Error ? error.message : "network error"}`,
+      );
+    }
+  }, [snapshot, showStatus]);
+
+  const download = useCallback(() => {
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const kind = snapshot?.lastOpenKind ?? "open";
+    const temperature = snapshot && snapshot.openCount > 1 ? "warm" : "cold";
+    const report = {
+      ...getPerfReport(),
+      kind,
+      temperature,
+    };
+    const blob = new Blob([JSON.stringify(report, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${stamp}-${kind}-${temperature}.json`;
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showStatus(`downloaded ${anchor.download}`);
+  }, [snapshot, showStatus]);
 
   const clear = useCallback(() => {
     clearPerf();
     setSnapshot(getPerfSnapshot());
+    setStatus("");
   }, []);
 
   if (!enabled) return null;
 
   const worst = snapshot?.worst ?? [];
   const openStart = snapshot?.lastOpenStart ?? 0;
+  const canExport = Boolean(
+    snapshot && snapshot.openCount > 0 && snapshot.lastOpenKind,
+  );
 
   return (
     <section
@@ -205,12 +261,46 @@ export function PerfHud() {
         <span style={{ flex: 1 }} />
         <button
           type="button"
-          onClick={() => void copy()}
+          onClick={() => void send()}
+          disabled={!canExport}
           style={{
             padding: "4px 8px",
             border: "1px solid #52525b",
             borderRadius: 4,
             background: "#27272a",
+            color: "#fafafa",
+            cursor: canExport ? "pointer" : "not-allowed",
+            opacity: canExport ? 1 : 0.5,
+            font: "inherit",
+          }}
+        >
+          Send report
+        </button>
+        <button
+          type="button"
+          onClick={download}
+          disabled={!canExport}
+          style={{
+            padding: "4px 8px",
+            border: "1px solid #52525b",
+            borderRadius: 4,
+            background: "transparent",
+            color: "#fafafa",
+            cursor: canExport ? "pointer" : "not-allowed",
+            opacity: canExport ? 1 : 0.5,
+            font: "inherit",
+          }}
+        >
+          Download
+        </button>
+        <button
+          type="button"
+          onClick={() => void copy()}
+          style={{
+            padding: "4px 8px",
+            border: "1px solid #52525b",
+            borderRadius: 4,
+            background: "transparent",
             color: "#fafafa",
             cursor: "pointer",
             font: "inherit",
@@ -236,8 +326,9 @@ export function PerfHud() {
       </div>
 
       <div style={{ opacity: 0.85, marginBottom: 6 }}>
-        Open a tile, wait for it to land, then Copy report. The list is the
-        worst five frames of the last open.
+        Open a tile, wait for it to land, then Send report (saves under
+        .perf-reports/), Copy, or Download. The list is the worst five frames
+        of the last open.
       </div>
 
       {snapshot ? (
@@ -275,8 +366,8 @@ export function PerfHud() {
         a React/DOM · b texture/shader · c video · d pointerup style/layout · e
         router/history
       </div>
-      {copied ? (
-        <div style={{ marginTop: 4, color: "#86efac" }}>{copied}</div>
+      {status ? (
+        <div style={{ marginTop: 4, color: "#86efac" }}>{status}</div>
       ) : null}
     </section>
   );
