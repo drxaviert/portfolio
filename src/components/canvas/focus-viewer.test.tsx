@@ -103,6 +103,35 @@ describe("FocusViewer open wait", () => {
 
     expect(onClosed).toHaveBeenCalledTimes(1);
   });
+
+  it("closes a pending canvas-owned glide through the canvas", () => {
+    const onClosing = vi.fn(() => ({
+      rect: null,
+      prepared: Promise.resolve(),
+    }));
+    const onClosed = vi.fn();
+
+    render(
+      <FocusViewer
+        items={[item]}
+        initialIndex={0}
+        canvasOwned
+        pending
+        onClosing={onClosing}
+        onClosed={onClosed}
+      />,
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onClosing).toHaveBeenCalledWith(0, undefined, true);
+
+    act(() => {
+      vi.advanceTimersByTime(1600);
+    });
+
+    expect(onClosed).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("FocusViewer caption anchor", () => {

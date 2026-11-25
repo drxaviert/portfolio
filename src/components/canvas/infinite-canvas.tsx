@@ -3589,6 +3589,16 @@ export const InfiniteCanvas = forwardRef<
         loadingIndex = null;
         transition = idleTransition();
         setTransitioning(false);
+
+        // The warmed focus media belongs to the open that was cancelled.
+        // Put the tile's grid texture back and release the full-res decoder,
+        // texture and preload so Escape mid-glide leaves a live grid tile.
+        if (index >= 0) {
+          restoreGridTexture(index);
+          disposeFocusTexture(index);
+          releaseFocusVideo(index);
+        }
+
         renderScene();
         updateDebug();
         wake();
