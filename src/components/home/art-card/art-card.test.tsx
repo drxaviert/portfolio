@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DailyArt } from "@/lib/daily-art";
 import { ArtCard } from "./art-card";
+import { ArtImage, artImageSrc } from "./art-image";
 
 const TODAY = "2026-11-25";
 const OLDEST = "2026-10-27";
@@ -278,6 +279,150 @@ describe("ArtCard", () => {
         value: originalClose,
       });
     }
+  });
+
+  it("clears the image-failure note when the art changes and returns", async () => {
+    const user = userEvent.setup();
+    const earlier = art({
+      date: "2026-11-24",
+      id: 10,
+      title: "Earlier work",
+      artist: "Another artist",
+    });
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(earlier), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(art()), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container } = renderCard();
+    const image = container.querySelector(".art-image img");
+
+    fireEvent.error(image as HTMLImageElement);
+
+    expect(container.querySelector(".art-image-unavailable")).not.toBeNull();
+    expect(container.querySelector(".art-card-image-note")).not.toBeNull();
+
+    await user.click(
+      screen.getByRole("button", { name: /Previous painting, Nov 24/ }),
+    );
+    expect(await screen.findByText("Earlier work")).toBeInTheDocument();
+    expect(container.querySelector(".art-card-image-note")).toBeNull();
+    expect(container.querySelector(".art-image-unavailable")).toBeNull();
+
+    await user.click(
+      screen.getByRole("button", { name: /Next painting, Today/ }),
+    );
+    expect(await screen.findByText("A painting")).toBeInTheDocument();
+    expect(container.querySelector(".art-card-image-note")).toBeNull();
+    expect(container.querySelector(".art-image-unavailable")).toBeNull();
+  });
+
+  it("clears the dialog image note when the dialog reopens", async () => {
+    const user = userEvent.setup();
+    const dialogProto = window.HTMLDialogElement?.prototype;
+    const showModal = dialogProto?.showModal;
+    const close = dialogProto?.close;
+
+    if (dialogProto) {
+      Object.defineProperty(dialogProto, "showModal", {
+        configurable: true,
+        value: undefined,
+      });
+      Object.defineProperty(dialogProto, "close", {
+        configurable: true,
+        value: undefined,
+      });
+    }
+
+    try {
+      renderCard();
+
+      const trigger = screen.getByRole("button", {
+        name: "View A painting by An artist in full",
+      });
+
+      await user.click(trigger);
+
+      const dialog = screen.getByRole("dialog");
+
+      fireEvent.error(
+        dialog.querySelector(".art-image img") as HTMLImageElement,
+      );
+
+      expect(within(dialog).getByRole("status")).toHaveTextContent(
+        "image service did not respond",
+      );
+
+      await user.keyboard("{Escape}");
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+      await user.click(trigger);
+
+      const reopened = screen.getByRole("dialog");
+
+      expect(within(reopened).queryByRole("status")).not.toBeInTheDocument();
+      expect(reopened.querySelector(".art-image-unavailable")).toBeNull();
+      expect(reopened.querySelector(".art-dialog-note")).toBeNull();
+    } finally {
+      if (dialogProto) {
+        Object.defineProperty(dialogProto, "showModal", {
+          configurable: true,
+          value: showModal,
+        });
+        Object.defineProperty(dialogProto, "close", {
+          configurable: true,
+          value: close,
+        });
+      }
+    }
+  });
+
+  it("keys an image failure to the src and clears it on a successful load", () => {
+    const onUnavailable = vi.fn();
+    const onAvailable = vi.fn();
+    const view = render(
+      <ArtImage
+        art={art({ imageId: "image-1" })}
+        onUnavailable={onUnavailable}
+        onAvailable={onAvailable}
+      />,
+    );
+
+    fireEvent.error(view.container.querySelector("img") as HTMLImageElement);
+
+    expect(onUnavailable).toHaveBeenCalledWith(artImageSrc("image-1", "card"));
+    expect(
+      view.container.querySelector(".art-image-unavailable"),
+    ).not.toBeNull();
+
+    view.rerender(
+      <ArtImage
+        art={art({ imageId: "image-2" })}
+        onUnavailable={onUnavailable}
+        onAvailable={onAvailable}
+      />,
+    );
+
+    const nextImage = view.container.querySelector("img");
+
+    expect(view.container.querySelector(".art-image-unavailable")).toBeNull();
+
+    fireEvent.load(nextImage as HTMLImageElement);
+
+    expect(onAvailable).toHaveBeenCalledWith(artImageSrc("image-2", "card"));
   });
 
   it("shows an intentional unavailable state when the painting image fails", () => {

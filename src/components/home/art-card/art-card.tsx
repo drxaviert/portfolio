@@ -6,7 +6,7 @@ import type { DailyArt } from "@/lib/daily-art";
 import { RingLayers } from "../ring-hover";
 import { ArtDialog } from "./art-dialog";
 import { artKicker, formatArtDate, shiftArtDate } from "./art-date";
-import { ArtImage } from "./art-image";
+import { ArtImage, artImageSrc } from "./art-image";
 import { PaintingFrame } from "./painting-frame";
 import { tiltForDate } from "./tilt";
 import "./art-card.css";
@@ -40,9 +40,7 @@ export function ArtCard({ initialArt, today, oldest }: ArtCardProps) {
   const [error, setError] = useState<string | null>(null);
   const [browsed, setBrowsed] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [imageFailureDate, setImageFailureDate] = useState<string | null>(null);
 
-  const imageNoteId = useId();
   const cardRef = useRef<HTMLElement>(null);
   const lightRef = useRef<HTMLSpanElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -166,8 +164,6 @@ export function ArtCard({ initialArt, today, oldest }: ArtCardProps) {
 
   const canPrevious = art.date > oldest;
   const canNext = art.date < today;
-  const imageUnavailable = imageFailureDate === art.date;
-  const tilt = tiltForDate(art.date);
   const tint = art.color
     ? `hsl(${Math.round(art.color.h)} ${Math.round(art.color.s)}% ${Math.round(art.color.l)}%)`
     : null;
@@ -204,35 +200,12 @@ export function ArtCard({ initialArt, today, oldest }: ArtCardProps) {
       <span className="art-card-progress" aria-hidden="true" />
 
       <div className="art-card-body">
-        <div className="art-card-scene" key={art.date}>
-          <button
-            type="button"
-            className="art-card-frame-button"
-            aria-label={`View ${art.title} by ${art.artist} in full`}
-            aria-haspopup="dialog"
-            aria-describedby={imageUnavailable ? imageNoteId : undefined}
-            onClick={() => setDialogOpen(true)}
-          >
-            <PaintingFrame art={art} tilt={tilt}>
-              <ArtImage
-                art={art}
-                onUnavailable={() => setImageFailureDate(art.date)}
-              />
-            </PaintingFrame>
-          </button>
-
-          <div className="art-card-label">
-            <p className="art-card-kicker">{artKicker(art.date, today)}</p>
-            <h3 className="art-card-title">{art.title}</h3>
-            <p className="art-card-artist">{art.artist}</p>
-            <p className="art-card-meta">
-              {art.dateDisplay} · {art.medium}
-            </p>
-            {imageUnavailable ? (
-              <p className="art-card-image-note">Image unavailable</p>
-            ) : null}
-          </div>
-        </div>
+        <ArtScene
+          key={art.date}
+          art={art}
+          today={today}
+          onOpen={() => setDialogOpen(true)}
+        />
 
         <div
           className="art-card-controls"
@@ -268,25 +241,82 @@ export function ArtCard({ initialArt, today, oldest }: ArtCardProps) {
         </p>
       ) : null}
 
-      {imageUnavailable ? (
-        <p id={imageNoteId} className="sr-only">
-          Image unavailable. The painting image service did not respond.
-        </p>
-      ) : null}
-
       <p className="sr-only" role="status" aria-live="polite">
         {pending
           ? "Loading that day’s painting…"
           : `Showing ${art.title} by ${art.artist}.`}
       </p>
 
-      <ArtDialog
-        art={art}
-        today={today}
-        open={dialogOpen}
-        onClose={closeDialog}
-      />
+      {dialogOpen ? (
+        <ArtDialog art={art} today={today} open onClose={closeDialog} />
+      ) : null}
     </article>
+  );
+}
+
+/**
+ * One artwork's frame + label, keyed by the card at `art.date`.
+ *
+ * The image-failure state lives here rather than in ArtCard: React unmounts
+ * this subtree on every day change, so stepping away and back starts clean,
+ * and a successful load clears any note while the scene is alive.
+ */
+function ArtScene({
+  art,
+  today,
+  onOpen,
+}: {
+  art: DailyArt;
+  today: string;
+  onOpen: () => void;
+}) {
+  const [failureSrc, setFailureSrc] = useState<string | null>(null);
+  const imageSrc = art.imageId ? artImageSrc(art.imageId, "card") : null;
+  const imageUnavailable = imageSrc !== null && failureSrc === imageSrc;
+  const noteId = useId();
+  const tilt = tiltForDate(art.date);
+
+  return (
+    <div className="art-card-scene">
+      <button
+        type="button"
+        className="art-card-frame-button"
+        aria-label={`View ${art.title} by ${art.artist} in full`}
+        aria-haspopup="dialog"
+        aria-describedby={imageUnavailable ? noteId : undefined}
+        onClick={onOpen}
+      >
+        <PaintingFrame art={art} tilt={tilt}>
+          <ArtImage
+            art={art}
+            onUnavailable={(src) => {
+              if (src === imageSrc) setFailureSrc(src);
+            }}
+            onAvailable={(src) => {
+              if (src === imageSrc) setFailureSrc(null);
+            }}
+          />
+        </PaintingFrame>
+      </button>
+
+      <div className="art-card-label">
+        <p className="art-card-kicker">{artKicker(art.date, today)}</p>
+        <h3 className="art-card-title">{art.title}</h3>
+        <p className="art-card-artist">{art.artist}</p>
+        <p className="art-card-meta">
+          {art.dateDisplay} · {art.medium}
+        </p>
+        {imageUnavailable ? (
+          <p className="art-card-image-note">Image unavailable</p>
+        ) : null}
+      </div>
+
+      {imageUnavailable ? (
+        <p id={noteId} className="sr-only">
+          Image unavailable. The painting image service did not respond.
+        </p>
+      ) : null}
+    </div>
   );
 }
 

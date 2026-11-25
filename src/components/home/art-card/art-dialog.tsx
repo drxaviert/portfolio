@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { DailyArt } from "@/lib/daily-art";
 import { artKicker, formatArtDate } from "./art-date";
-import { ArtImage } from "./art-image";
+import { ArtImage, artImageSrc } from "./art-image";
 import { PaintingFrame } from "./painting-frame";
 
 /**
@@ -29,8 +29,11 @@ const FOCUSABLE =
 export function ArtDialog({ art, today, open, onClose }: ArtDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const closingRef = useRef(false);
   const titleId = useId();
-  const [imageUnavailable, setImageUnavailable] = useState(false);
+  const imageSrc = art.imageId ? artImageSrc(art.imageId, "full") : null;
+  const [failureSrc, setFailureSrc] = useState<string | null>(null);
+  const imageUnavailable = imageSrc !== null && failureSrc === imageSrc;
 
   useEffect(() => {
     if (!open) return;
@@ -106,8 +109,15 @@ export function ArtDialog({ art, today, open, onClose }: ArtDialogProps) {
       document.body.style.overflow = bodyOverflow;
 
       if (dialog.open) {
-        if (typeof dialog.close === "function") dialog.close();
-        else dialog.removeAttribute("open");
+        if (typeof dialog.close === "function") {
+          // The dialog is unmounting because the parent already closed it.
+          // Its close event must not call onClose again; in StrictMode the
+          // simulated cleanup would otherwise close the re-mounted dialog.
+          closingRef.current = true;
+          dialog.close();
+        } else {
+          dialog.removeAttribute("open");
+        }
       }
 
       if (returnFocus?.isConnected) {
@@ -118,13 +128,22 @@ export function ArtDialog({ art, today, open, onClose }: ArtDialogProps) {
 
   if (!open) return null;
 
+  const handleNativeClose = () => {
+    if (closingRef.current) {
+      closingRef.current = false;
+      return;
+    }
+
+    onClose();
+  };
+
   return (
     <dialog
       ref={dialogRef}
       className="art-dialog"
       aria-labelledby={titleId}
       aria-modal="true"
-      onClose={onClose}
+      onClose={handleNativeClose}
       onClick={(event) => {
         if (event.target !== event.currentTarget) return;
 
@@ -160,7 +179,12 @@ export function ArtDialog({ art, today, open, onClose }: ArtDialogProps) {
             <ArtImage
               art={art}
               variant="full"
-              onUnavailable={() => setImageUnavailable(true)}
+              onUnavailable={(src) => {
+                if (src === imageSrc) setFailureSrc(src);
+              }}
+              onAvailable={(src) => {
+                if (src === imageSrc) setFailureSrc(null);
+              }}
             />
           </PaintingFrame>
         </div>
