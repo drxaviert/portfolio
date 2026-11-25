@@ -97,7 +97,7 @@ describe("transition timeline", () => {
     expect(openComplete(TRANSITION.growDelayMs + TRANSITION.growMs)).toBe(true);
   });
 
-  it("cross-fades over 200ms and closes over 1.55s", () => {
+  it("cross-fades over 200ms and closes when the 600ms shrink lands", () => {
     expect(handoffProgress(0)).toBe(0);
     expect(handoffProgress(100)).toBeCloseTo(0.5, 6);
     expect(handoffProgress(TRANSITION.handoffMs)).toBe(1);
@@ -111,10 +111,25 @@ describe("transition timeline", () => {
         TRANSITION.closeCrossFadeMs + TRANSITION.closeFadeDelayMs,
       ),
     ).toBe(0);
-    expect(closeFadeProgress(1100)).toBeCloseTo(0.5, 6);
+    expect(closeFadeProgress(500)).toBeCloseTo(0.5, 6);
     expect(closeFadeProgress(TRANSITION.closeTotalMs)).toBe(1);
     expect(closeComplete(TRANSITION.closeTotalMs - 1)).toBe(false);
     expect(closeComplete(TRANSITION.closeTotalMs)).toBe(true);
+  });
+
+  it("ends the shrink, fade, scroll and close on the same frame", () => {
+    const landing =
+      TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs;
+
+    expect(TRANSITION.closeTotalMs).toBe(landing);
+    expect(
+      TRANSITION.closeCrossFadeMs +
+        TRANSITION.closeFadeDelayMs +
+        TRANSITION.closeFadeMs,
+    ).toBe(landing);
+    expect(closeShrinkProgress(landing)).toBe(1);
+    expect(closeFadeProgress(landing)).toBe(1);
+    expect(closeScrollOffset(120, 940, landing)).toBe(120);
   });
 });
 
@@ -131,14 +146,14 @@ describe("close return glide", () => {
       closeScrollOffset(
         home,
         focus,
-        TRANSITION.closeCrossFadeMs + TRANSITION.glideMs / 2,
+        TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs / 2,
       ),
     ).toBeCloseTo((home + focus) / 2, 6);
     expect(
       closeScrollOffset(
         home,
         focus,
-        TRANSITION.closeCrossFadeMs + TRANSITION.glideMs,
+        TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs,
       ),
     ).toBe(home);
     expect(closeScrollOffset(home, focus, TRANSITION.closeTotalMs)).toBe(home);

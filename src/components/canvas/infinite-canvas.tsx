@@ -372,6 +372,9 @@ type CanvasTransition = {
   fromCameraZ: number;
   tileWidth: number;
   tileHeight: number;
+  /** The tile's resting size (no hover/breath), which the close lands on. */
+  restWidth: number;
+  restHeight: number;
   focusWidth: number;
   focusHeight: number;
   /** performance.now when the grow handed off to the viewer, or -1. */
@@ -906,6 +909,8 @@ export const InfiniteCanvas = forwardRef<
       fromCameraZ: CAMERA_Z,
       tileWidth: 0,
       tileHeight: 0,
+      restWidth: 0,
+      restHeight: 0,
       focusWidth: 0,
       focusHeight: 0,
       handoffAt: -1,
@@ -2579,6 +2584,13 @@ export const InfiniteCanvas = forwardRef<
       const now = performance.now();
       const fromScrollX = scrollRef.current.x;
       const fromScrollY = scrollRef.current.y;
+      // The open starts from the lifted mesh (hover + breath) so the click
+      // does not snap the tile down. The close must land on the resting tile
+      // instead: the idle handoff clears hover and starts breath at 0, so a
+      // snapshot of the lifted mesh would leave the tile a few percent too
+      // big until the first idle frame, which is the close snap.
+      const restWidth = plane.tileWidth;
+      const restHeight = plane.tileHeight;
       const tileWidth = plane.mesh.scale.x;
       const tileHeight = plane.mesh.scale.y;
 
@@ -2639,6 +2651,8 @@ export const InfiniteCanvas = forwardRef<
           target: plane,
           tileWidth,
           tileHeight,
+          restWidth,
+          restHeight,
           focusWidth: focus.width,
           focusHeight: focus.height,
           viewerOwned: false,
@@ -2667,6 +2681,8 @@ export const InfiniteCanvas = forwardRef<
         fromCameraZ: camera.position.z,
         tileWidth,
         tileHeight,
+        restWidth,
+        restHeight,
         focusWidth: focus.width,
         focusHeight: focus.height,
         handoffAt: -1,
@@ -3028,12 +3044,14 @@ export const InfiniteCanvas = forwardRef<
         for (const plane of planes) {
           if (plane === target && target) {
             if (!reduced) {
+              // Land on the resting tile, not the hover/breath snapshot the
+              // open started from; the idle handoff will have both at 0.
               const w =
                 transition.focusWidth +
-                (transition.tileWidth - transition.focusWidth) * shrink;
+                (transition.restWidth - transition.focusWidth) * shrink;
               const h =
                 transition.focusHeight +
-                (transition.tileHeight - transition.focusHeight) * shrink;
+                (transition.restHeight - transition.focusHeight) * shrink;
 
               plane.mesh.scale.set(w, h, 1);
               plane.material.uniforms.uPlaneSizes.value.set(w, h);
@@ -3817,6 +3835,14 @@ export const InfiniteCanvas = forwardRef<
       hiddenPlane = null;
       const closedIndex = t.index;
       transition = idleTransition();
+      // The canvas was paused behind the DOM viewer, so the idle clock still
+      // points at the frame before the open. Restart it here: otherwise the
+      // first unpaused idle frame sees seconds of "idle" time and jumps the
+      // grid to full breathing amplitude in one frame.
+      breathIdleSince = 0;
+      breathLevel = 0;
+      breathActive = false;
+      breathAmplitude = 0;
       if (closedIndex >= 0) {
         restoreGridTexture(closedIndex);
         disposeFocusTexture(closedIndex);
@@ -4044,6 +4070,8 @@ export const InfiniteCanvas = forwardRef<
       }
       t.tileWidth = t.plane.tileWidth;
       t.tileHeight = t.plane.tileHeight;
+      t.restWidth = t.plane.tileWidth;
+      t.restHeight = t.plane.tileHeight;
 
       if (t.phase === "opening" && !t.viewerOwned) {
         const elapsed = performance.now() - t.startedAt;
@@ -4121,9 +4149,9 @@ export const InfiniteCanvas = forwardRef<
 
           if (plane === target) {
             const w =
-              t.focusWidth + (t.tileWidth - t.focusWidth) * shrink;
+              t.focusWidth + (t.restWidth - t.focusWidth) * shrink;
             const h =
-              t.focusHeight + (t.tileHeight - t.focusHeight) * shrink;
+              t.focusHeight + (t.restHeight - t.focusHeight) * shrink;
             plane.mesh.visible = true;
             plane.mesh.scale.set(w, h, 1);
             plane.material.uniforms.uPlaneSizes.value.set(w, h);

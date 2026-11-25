@@ -25,11 +25,15 @@ export const TRANSITION = {
   closeCrossFadeMs: 200,
   /** The reverse grow: 600ms, same as the open. */
   closeShrinkMs: 600,
-  /** Other planes start fading in over the last 150ms of the shrink. */
-  closeFadeDelayMs: 450,
-  closeFadeMs: 900,
-  /** 200ms cross-fade + 450ms delay + 900ms fade. */
-  closeTotalMs: 1550,
+  /**
+   * The grid, lens and scroll come back with the shrink, not after it. Any
+   * delay here leaves the landed tile static before the idle handoff, which
+   * reads as a freeze followed by a snap.
+   */
+  closeFadeDelayMs: 0,
+  closeFadeMs: 600,
+  /** 200ms cross-fade + 600ms return; ends with the shrink. */
+  closeTotalMs: 800,
   reducedFadeMs: 200,
 } as const;
 
@@ -160,20 +164,12 @@ export function closeShrinkProgress(elapsedMs: number): number {
 }
 
 /**
- * The reverse of the open's grid glide. The open moves the canvas scroll from
- * the clicked slot to the focus over 1s with power3.inOut; the close runs the
- * same curve and duration back to the pre-open scroll, starting with the
- * shrink after the 200ms cross-fade. Without this the plane can only shrink in
- * place while the grid reappears recentred, so the tile lands in a new slot
+ * The reverse of the open's grid glide, on the plane shrink's timeline. The
+ * open moves the canvas scroll from the clicked slot to the focus; the close
+ * runs the same power3.inOut curve back to the pre-open scroll over the 600ms
+ * shrink (after the 200ms cross-fade). Without this the plane can only shrink
+ * in place while the grid reappears recentred, so the tile lands in a new slot
  * instead of gliding home.
- */
-export function closeGlideProgress(elapsedMs: number): number {
-  return glideProgress(elapsedMs - TRANSITION.closeCrossFadeMs);
-}
-
-/**
- * One axis of the close's return scroll: the focus offset at the start and the
- * pre-open offset once the reverse glide lands.
  */
 export function closeScrollOffset(
   fromScroll: number,
@@ -181,7 +177,8 @@ export function closeScrollOffset(
   elapsedMs: number,
 ): number {
   return (
-    focusScroll + (fromScroll - focusScroll) * closeGlideProgress(elapsedMs)
+    focusScroll +
+    (fromScroll - focusScroll) * closeShrinkProgress(elapsedMs)
   );
 }
 
