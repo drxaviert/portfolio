@@ -30,19 +30,24 @@
   transition: opacity var(--duration-medium-5) var(--ease-decelerate);
 }
 
-.cv-reader[data-viewing] .cv-reader__stage {
+/* A DOM viewer dims the grid around its own media. The canvas-owned open
+   already fades the other planes out, and the focused plane is part of the
+   stage, so dimming it would dim the opened media too. */
+.cv-reader[data-viewing]:not([data-canvas-viewing]) .cv-reader__stage {
   opacity: 0.4;
 }
 
 /* The viewer owns the close shrink, so hide the stale WebGL frame with a
    flat surface layer instead of re-rendering the grid. The layer is removed
-   on the landing frame together with the viewer. */
+   on the landing frame together with the viewer. The canvas-owned close is
+   rendered by the WebGL scene itself, so it must not be covered. */
 .cv-reader[data-closing] .cv-reader__stage {
   opacity: 1;
   transition: none;
 }
 
-.cv-reader[data-closing] .cv-reader__stage::after {
+.cv-reader[data-closing]:not([data-canvas-viewing])
+  .cv-reader__stage::after {
   position: absolute;
   inset: 0;
   z-index: 1;

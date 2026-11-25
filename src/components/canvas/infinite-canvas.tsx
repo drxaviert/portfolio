@@ -1875,7 +1875,14 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function revealPlane(): void {
-      if (!hiddenPlane) return;
+      if (!hiddenPlane) {
+        // The canvas-owned close already restored the grid; make sure the
+        // viewer unmount leaves a painted frame, not an empty buffer.
+        renderScene();
+        updateDebug();
+        wake();
+        return;
+      }
 
       const plane = hiddenPlane;
       hiddenPlane = null;

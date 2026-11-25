@@ -7,6 +7,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
@@ -20,6 +21,35 @@ import "./focus-viewer.css";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), video[controls], [tabindex]:not([tabindex="-1"])';
+
+const SERVER_VIEWPORT: { width: number; height: number } = {
+  width: 1440,
+  height: 900,
+};
+let viewportSnapshot = SERVER_VIEWPORT;
+
+/** Hydration-safe viewport: the server snapshot keeps the first render equal. */
+function readViewport(): { width: number; height: number } {
+  if (typeof window === "undefined") return SERVER_VIEWPORT;
+
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  if (viewportSnapshot.width !== width || viewportSnapshot.height !== height) {
+    viewportSnapshot = { width, height };
+  }
+
+  return viewportSnapshot;
+}
+
+function subscribeViewport(onChange: () => void): () => void {
+  window.addEventListener("resize", onChange);
+  return () => window.removeEventListener("resize", onChange);
+}
+
+function serverViewport(): { width: number; height: number } {
+  return SERVER_VIEWPORT;
+}
 
 /** The video inside the slide for this media, not an exiting neighbour. */
 function videoInSlide(
@@ -59,6 +89,7 @@ export function FocusViewer({
   onReopen,
   onReopenLanded,
   onClosed,
+  onStep,
 }: {
   items: CanvasItem[];
   initialIndex: number;
@@ -90,14 +121,17 @@ export function FocusViewer({
   /** The reopen reached the focus box; the canvas cover can be dropped. */
   onReopenLanded?: () => void;
   onClosed: () => void;
+  /** The reader stepped off the canvas-owned media onto a DOM slide. */
+  onStep?: () => void;
 }) {
   const [index, setIndex] = useState(() =>
     Math.min(Math.max(initialIndex, 0), Math.max(items.length - 1, 0)),
   );
-  const [viewport, setViewport] = useState(() => ({
-    width: typeof window === "undefined" ? 1440 : window.innerWidth,
-    height: typeof window === "undefined" ? 900 : window.innerHeight,
-  }));
+  const viewport = useSyncExternalStore(
+    subscribeViewport,
+    readViewport,
+    serverViewport,
+  );
   const [closing, setClosing] = useState(false);
   const [stepped, setStepped] = useState(false);
   const reduce = useReducedMotion();
@@ -195,19 +229,6 @@ export function FocusViewer({
     placeChip();
     endPlace();
   }, [canvasOwned, domMedia, media, open, pending, placeChip, ready, viewport]);
-
-  useEffect(() => {
-    const onResize = () => {
-      setViewport({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      });
-    };
-
-    window.addEventListener("resize", onResize);
-
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
 
   // Re-arm the one-shot open machinery when the viewer is shown again. The
   // component itself stays mounted (hidden) so the click never pays its mount.
@@ -708,13 +729,14 @@ export function FocusViewer({
 
       // The first step leaves the canvas-owned media for the DOM viewer so
       // stepping keeps its existing slide behavior.
+      onStep?.();
       setStepped(true);
       setIndex((current) => {
         const next = (current + direction) % items.length;
         return next < 0 ? next + items.length : next;
       });
     },
-    [items.length],
+    [items.length, onStep],
   );
 
   useEffect(() => {
@@ -937,9 +959,9 @@ export function FocusViewer({
             style={{
               top: `${captionTop(viewport.height, size.height)}px`,
               opacity: closing ? 0 : chromeVisible ? 1 : 0,
-              transition: reduce
-                ? "none"
-                : `opacity ${closing ? 150 : 180}ms var(--ease-decelerate)`,
+              transitionProperty: "opacity",
+              transitionDuration: reduce ? "0ms" : `${closing ? 150 : 180}ms`,
+              transitionTimingFunction: "var(--ease-decelerate)",
               transitionDelay:
                 closing || !chromeVisible || reduce
                   ? "0ms"

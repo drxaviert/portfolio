@@ -62,11 +62,13 @@ export function CanvasReader({
 }) {
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const [viewerClosing, setViewerClosing] = useState(false);
+  const [viewerStepped, setViewerStepped] = useState(false);
   const [canvasPending, setCanvasPending] = useState(false);
   const canvasRef = useRef<InfiniteCanvasHandle | null>(null);
   const pathname = usePathname();
   const active = pathname === `/work/${meta.slug}`;
   const shownViewer = active ? viewer : null;
+  const canvasViewing = Boolean(shownViewer?.canvasOwned) && !viewerStepped;
 
   const openViewer = useCallback(
     (index: number, startAt?: number, openRect?: Box, canvasOwned?: boolean) => {
@@ -74,6 +76,7 @@ export function CanvasReader({
         markPerf("react-open-state", { index, canvasOwned: Boolean(canvasOwned) });
       }
       setViewerClosing(false);
+      setViewerStepped(false);
       setCanvasPending(Boolean(canvasOwned));
       setViewer({ index, startAt, openRect, canvasOwned });
     },
@@ -83,6 +86,7 @@ export function CanvasReader({
   const closeViewer = useCallback(() => {
     setViewer(null);
     setViewerClosing(false);
+    setViewerStepped(false);
     setCanvasPending(false);
   }, []);
 
@@ -119,6 +123,7 @@ export function CanvasReader({
     <div
       className="cv-reader"
       data-viewing={shownViewer && !viewerClosing ? "" : undefined}
+      data-canvas-viewing={canvasViewing ? "" : undefined}
       data-closing={viewerClosing || undefined}
     >
       <h1 id={READER_TITLE_ID} tabIndex={-1} className="cv-reader__title">
@@ -163,6 +168,7 @@ export function CanvasReader({
           onReopen={markViewerReopened}
           onReopenLanded={markViewerReopenLanded}
           onClosed={closeViewer}
+          onStep={() => setViewerStepped(true)}
         />
       ) : null}
     </div>
