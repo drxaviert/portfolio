@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { HumanContactFull } from "@/components/human-contact/human-contact-full";
+import { RouteTransition } from "@/components/route-transition/route-transition";
 import { SITE_NAME } from "@/lib/site";
 
 const DESCRIPTION =
@@ -30,5 +31,9 @@ export const metadata: Metadata = {
  * the viewport and its touch interaction is reachable on a phone.
  */
 export default function LiveHumanContactPage() {
-  return <HumanContactFull />;
+  return (
+    <RouteTransition>
+      <HumanContactFull />
+    </RouteTransition>
+  );
 }

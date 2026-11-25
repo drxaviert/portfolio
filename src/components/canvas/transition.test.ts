@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  HANDOFF_EASE,
   TRANSITION,
   canClose,
   canOpen,
   closeComplete,
   closeFadeProgress,
   closeShrinkProgress,
+  closeSiblingRevealDelayMs,
+  closeSiblingRevealProgress,
   fadeOutProgress,
   fitBox,
   glideProgress,
@@ -82,10 +85,10 @@ describe("transition timeline", () => {
     expect(fadeOutProgress(TRANSITION.fadeOutMs)).toBe(1);
   });
 
-  it("grows after 850ms and finishes at 1450ms", () => {
+  it("grows after 850ms and finishes at 1450ms on power3.inOut", () => {
     expect(growProgress(0)).toBe(0);
     expect(growProgress(TRANSITION.growDelayMs)).toBe(0);
-    expect(growProgress(TRANSITION.growDelayMs + 300)).toBeCloseTo(0.875, 6);
+    expect(growProgress(TRANSITION.growDelayMs + 300)).toBeCloseTo(0.5, 6);
     expect(growProgress(TRANSITION.growDelayMs + TRANSITION.growMs)).toBe(1);
     expect(openComplete(TRANSITION.growDelayMs + TRANSITION.growMs - 1)).toBe(
       false,
@@ -100,7 +103,9 @@ describe("transition timeline", () => {
     expect(closeShrinkProgress(TRANSITION.closeCrossFadeMs)).toBe(0);
     expect(closeShrinkProgress(500)).toBeCloseTo(0.5, 6);
     expect(
-      closeShrinkProgress(TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs),
+      closeShrinkProgress(
+        TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs,
+      ),
     ).toBe(1);
     expect(
       closeFadeProgress(
@@ -111,6 +116,19 @@ describe("transition timeline", () => {
     expect(closeFadeProgress(TRANSITION.closeTotalMs)).toBe(1);
     expect(closeComplete(TRANSITION.closeTotalMs - 1)).toBe(false);
     expect(closeComplete(TRANSITION.closeTotalMs)).toBe(true);
+  });
+
+  it("reveals the siblings over 0.9s power3.inOut after the viewer lands", () => {
+    expect(HANDOFF_EASE).toBe("cubic-bezier(0.65, 0, 0.35, 1)");
+    expect(closeSiblingRevealDelayMs()).toBe(50);
+    expect(
+      TRANSITION.closeShrinkMs +
+        closeSiblingRevealDelayMs() +
+        TRANSITION.closeFadeMs,
+    ).toBe(TRANSITION.closeTotalMs);
+    expect(closeSiblingRevealProgress(0)).toBe(0);
+    expect(closeSiblingRevealProgress(450)).toBeCloseTo(0.5, 6);
+    expect(closeSiblingRevealProgress(TRANSITION.closeFadeMs)).toBe(1);
   });
 });
 

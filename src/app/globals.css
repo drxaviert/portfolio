@@ -105,13 +105,13 @@
  * makes the blend a straight cross-dissolve: no live page shows through the
  * middle, and no second crossfade runs underneath.
  */
-::view-transition-old(root) {
+:root[data-phase-switching]::view-transition-old(root) {
   z-index: 1;
   animation: phase-crossfade var(--horizon-transition-duration)
     var(--horizon-transition-ease) both;
 }
 
-::view-transition-new(root) {
+:root[data-phase-switching]::view-transition-new(root) {
   animation: none;
   opacity: 1;
 }
@@ -123,6 +123,110 @@
 }
 
 @keyframes phase-crossfade {
+  to {
+    opacity: 0;
+  }
+}
+
+/*
+ * Route wipe (pf-9cv.9): opt-in per navigation through the `route-wipe`
+ * transition type, so the Work drawer's morph and every untagged route change
+ * are untouched. Values mirror src/components/route-transition/route-motion.ts;
+ * RouteMotionVariant writes the live duration onto <html> for the A/B.
+ */
+:root {
+  --route-wipe-duration: 1750ms;
+  --route-wipe-reduced-duration: 200ms;
+  --route-wipe-ease: cubic-bezier(0.86, 0, 0.07, 1);
+}
+
+/*
+ * A wipe is a page change, not a modal: let the live page keep receiving
+ * clicks while the snapshots play, so a second navigation can interrupt it.
+ */
+html[data-route-transition]::view-transition,
+::view-transition-group(.route-wipe),
+::view-transition-old(.route-wipe),
+::view-transition-new(.route-wipe) {
+  pointer-events: none;
+}
+
+/*
+ * The live page is the only named participant, so the page being left stays
+ * in the root snapshot. Animate that root too: the old page scales/fades and
+ * the incoming root clips up, whichever side the named live page is on.
+ */
+html[data-route-transition]::view-transition-old(root) {
+  z-index: 1;
+  transform-origin: 50% 50%;
+  mix-blend-mode: normal;
+  animation: route-wipe-old var(--route-wipe-duration) var(--route-wipe-ease)
+    both;
+}
+
+html[data-route-transition]::view-transition-new(root) {
+  z-index: 1000;
+  mix-blend-mode: normal;
+  animation: route-wipe-new var(--route-wipe-duration) var(--route-wipe-ease)
+    both;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(.route-wipe) {
+    z-index: 1;
+    transform-origin: 50% 50%;
+    mix-blend-mode: normal;
+    animation: route-wipe-old var(--route-wipe-duration) var(--route-wipe-ease)
+      both;
+  }
+
+  ::view-transition-new(.route-wipe) {
+    z-index: 1000;
+    mix-blend-mode: normal;
+    animation: route-wipe-new var(--route-wipe-duration) var(--route-wipe-ease)
+      both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-route-transition]::view-transition-old(root),
+  ::view-transition-old(.route-wipe) {
+    z-index: 1;
+    mix-blend-mode: normal;
+    animation: route-wipe-reduced var(--route-wipe-reduced-duration) linear both;
+  }
+
+  html[data-route-transition]::view-transition-new(root),
+  ::view-transition-new(.route-wipe) {
+    z-index: 1000;
+    clip-path: none;
+    mix-blend-mode: normal;
+    opacity: 1;
+    animation: none;
+  }
+}
+
+@keyframes route-wipe-old {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0.25;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes route-wipe-new {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes route-wipe-reduced {
   to {
     opacity: 0;
   }

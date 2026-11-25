@@ -14,7 +14,7 @@ import { MediaVideo } from "@/components/media/media-video";
 import type { Box } from "@/components/work/morph";
 import type { CanvasItem, CloseTarget } from "./infinite-canvas";
 import { projectLabel } from "./items";
-import { TRANSITION, fitBox } from "./transition";
+import { HANDOFF_BEZIER, HANDOFF_EASE, TRANSITION, fitBox } from "./transition";
 import "./focus-viewer.css";
 
 const FOCUSABLE =
@@ -231,7 +231,7 @@ export function FocusViewer({
           },
           {
             duration: TRANSITION.growMs / 1000,
-            ease: "easeOut",
+            ease: HANDOFF_BEZIER,
             onUpdate: placeChip,
             onComplete: () => {
               setZooming(false);
@@ -301,14 +301,17 @@ export function FocusViewer({
             const image = new Image();
             image.src = src;
 
-            void image.decode().catch(() => undefined).then(() => {
-              if (closingRef.current) return;
-              setPosterSrc(src);
-              // Let React swap the still, then paint it once before the FLIP.
-              requestAnimationFrame(() => {
-                requestAnimationFrame(finish);
+            void image
+              .decode()
+              .catch(() => undefined)
+              .then(() => {
+                if (closingRef.current) return;
+                setPosterSrc(src);
+                // Let React swap the still, then paint it once before the FLIP.
+                requestAnimationFrame(() => {
+                  requestAnimationFrame(finish);
+                });
               });
-            });
           } catch {
             // Canvas capture is best-effort; the manifest poster is the
             // fallback and the clip starts from the top to match it.
@@ -480,7 +483,7 @@ export function FocusViewer({
       ],
       {
         duration: TRANSITION.closeShrinkMs,
-        easing: "cubic-bezier(0, 0, 0.58, 1)",
+        easing: HANDOFF_EASE,
         fill: "forwards",
       },
     );
@@ -541,8 +544,8 @@ export function FocusViewer({
         { transform: "translate(0px, 0px) scale(1, 1)" },
       ],
       {
-        duration: 260,
-        easing: "cubic-bezier(0, 0, 0.58, 1)",
+        duration: TRANSITION.reopenMs,
+        easing: HANDOFF_EASE,
         fill: "forwards",
       },
     );

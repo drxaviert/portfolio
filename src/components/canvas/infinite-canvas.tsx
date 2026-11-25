@@ -47,6 +47,8 @@ import {
   closeComplete,
   closeFadeProgress,
   closeShrinkProgress,
+  closeSiblingRevealDelayMs,
+  closeSiblingRevealProgress,
   fadeOutProgress,
   fitBox,
   glideProgress,
@@ -352,6 +354,14 @@ type CanvasTransition = {
   prepared: boolean;
   /** The DOM viewer owns the zoom; the canvas only fades the other planes. */
   viewerOwned: boolean;
+  /** Sibling opacities at the open's first frame, if it interrupted a reveal. */
+  fadeFrom?: Map<Plane, number> | null;
+};
+
+type SiblingReveal = {
+  /** performance.now when the .9s power3.inOut fade starts. */
+  startedAt: number;
+  target: Plane | null;
 };
 
 type VideoEntry = {
@@ -404,6 +414,8 @@ type CanvasDebug = {
   hoverLevel: number;
   transition: TransitionPhase;
   transitionMs: number;
+  /** 0..1 while the close's sibling fade runs, -1 when it is not. */
+  siblingReveal: number;
   waitingForViewer: boolean;
   prepared: boolean;
   targetWidth: number;
@@ -775,6 +787,12 @@ export const InfiniteCanvas = forwardRef<
       viewerOwned: false,
     });
     let transition = idleTransition();
+    /**
+     * The viewer-owned close lands the tile and unmounts the DOM layer, then
+     * the rest of the grid returns. That used to be one write of opacity 1;
+     * this carries the reference's .9s power3.inOut fade instead.
+     */
+    let siblingReveal: SiblingReveal | null = null;
 
     const debug: CanvasDebug | null =
       process.env.NODE_ENV === "production"
@@ -810,6 +828,7 @@ export const InfiniteCanvas = forwardRef<
             hoverLevel: 0,
             transition: "idle",
             transitionMs: 0,
+            siblingReveal: -1,
             waitingForViewer: false,
             prepared: false,
             targetWidth: 0,
@@ -1385,6 +1404,13 @@ export const InfiniteCanvas = forwardRef<
         ? Number(hoveredPlane.hoverLevel.toFixed(3))
         : 0;
       debug.transition = transition.phase;
+      debug.siblingReveal = siblingReveal
+        ? Number(
+            closeSiblingRevealProgress(
+              performance.now() - siblingReveal.startedAt,
+            ).toFixed(3),
+          )
+        : -1;
       debug.transitionMs =
         transition.phase === "idle"
           ? 0
@@ -1705,6 +1731,14 @@ export const InfiniteCanvas = forwardRef<
         height: tileRect.height * OPEN_PRESS_SCALE,
       };
 
+      // A click can interrupt the grid's own close reveal. Capture where each
+      // sibling was so the open fades from that value instead of snapping to 1.
+      const fadeFrom = new Map<Plane, number>();
+      for (const candidate of planes) {
+        fadeFrom.set(candidate, candidate.opacity);
+      }
+      siblingReveal = null;
+
       loadingIndex = plane.itemIndex;
       transition = {
         phase: "opening",
@@ -1725,6 +1759,7 @@ export const InfiniteCanvas = forwardRef<
         waitingForViewer: false,
         prepared: false,
         viewerOwned: true,
+        fadeFrom,
       };
       setTransitioning(true);
       onOpenRef.current(plane.itemIndex, startAt, pressedRect);
@@ -1950,6 +1985,27 @@ export const InfiniteCanvas = forwardRef<
       halfX = (cols * pitchX) / 2;
       halfY = (rows * pitchY) / 2;
       placePlanes();
+
+      if (siblingReveal && transition.phase === "idle") {
+        const revealElapsed = now - siblingReveal.startedAt;
+
+        if (revealElapsed < 0) return true;
+
+        const progress = closeSiblingRevealProgress(revealElapsed);
+
+        for (const plane of planes) {
+          const opacity = plane === siblingReveal.target ? 1 : progress;
+          plane.opacity = opacity;
+          plane.material.uniforms.uOpacity.value = opacity;
+        }
+
+        if (progress >= 1) {
+          siblingReveal = null;
+          return false;
+        }
+
+        return true;
+      }
 
       const elapsed =
         transition.phase === "idle" ? 0 : now - transition.startedAt;
@@ -2302,9 +2358,11 @@ export const InfiniteCanvas = forwardRef<
 
       if (t.phase === "opening") {
         if (t.viewerOwned) {
-          const fade = 1 - fadeOutProgress(elapsed);
+          const fadeProgress = 1 - fadeOutProgress(elapsed);
 
           for (const plane of planes) {
+            const fade = (t.fadeFrom?.get(plane) ?? 1) * fadeProgress;
+
             if (plane === t.plane) {
               plane.mesh.scale.set(
                 t.tileWidth * OPEN_PRESS_SCALE,
@@ -2503,6 +2561,8 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function closeTo(index: number, time?: number): CloseTarget | null {
+      siblingReveal = null;
+
       // Closing while the viewer is still waiting for its first decoded
       // frame: cancel the open, restore the grid, and let the viewer unmount.
       if (transition.phase === "opening" && transition.viewerOwned) {
@@ -2581,6 +2641,7 @@ export const InfiniteCanvas = forwardRef<
       const t = transition;
       if (t.phase !== "closing" || !t.viewerOwned) return;
 
+      siblingReveal = null;
       closeRun += 1;
       const target = t.target;
 
@@ -2618,13 +2679,21 @@ export const InfiniteCanvas = forwardRef<
       const target = t.target;
 
       // The tile is already at its resting transform; show it before the DOM
-      // viewer unmounts so the hand-back has no blank frame.
+      // viewer unmounts so the hand-back has no blank frame. The other planes
+      // start at 0 and fade in over .9s power3.inOut, on the reference's beat.
       for (const plane of planes) {
         resetPlaneToTile(plane);
         const opacity = plane === target || reduced ? 1 : 0;
         plane.opacity = opacity;
         plane.material.uniforms.uOpacity.value = opacity;
       }
+
+      siblingReveal = reduced
+        ? null
+        : {
+            startedAt: performance.now() + closeSiblingRevealDelayMs(),
+            target,
+          };
 
       hiddenPlane = null;
       transition = idleTransition();

@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Work_Sans } from "next/font/google";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { SharedHorizon } from "@/components/horizon/shared-horizon";
 import { NavDock } from "@/components/nav/nav-dock";
 import { PersistentPlayerProvider } from "@/components/player/persistent-player-provider";
+import { RouteMotionVariant } from "@/components/route-transition/route-motion-variant";
 import { MobileGate } from "@/components/system/mobile-gate";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
@@ -79,6 +80,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 mounted by `/` itself (app/page.tsx), not here. */}
             <NavDock />
             <MobileGate />
+            <Suspense fallback={null}>
+              <RouteMotionVariant />
+            </Suspense>
           </PersistentPlayerProvider>
         </ThemeProvider>
       </body>

@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { ROUTE_MOTION_TYPE } from "@/components/route-transition/route-motion";
 import { HumanContactStill } from "./human-contact-still";
 
 const HumanContactExperience = dynamic(
@@ -36,7 +37,11 @@ export function HumanContactEmbed({ wide = false }: { wide?: boolean }) {
       <figcaption className="hc-embed-caption">
         Live recreation. The original had no hover; the scale is Dat&apos;s
         addition.{" "}
-        <Link className="hc-embed-open" href="/live/human-contact">
+        <Link
+          className="hc-embed-open"
+          href="/live/human-contact"
+          transitionTypes={[ROUTE_MOTION_TYPE]}
+        >
           Open full screen
         </Link>
       </figcaption>
