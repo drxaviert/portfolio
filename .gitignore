@@ -67,3 +67,6 @@ media/local/
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+
+# dev-only perf reports from ?perf=1 HUD
+.perf-reports/

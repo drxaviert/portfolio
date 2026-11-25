@@ -4,6 +4,18 @@
  */
 
 .cv-reader {
+  /*
+   * The bottom pill's shared geometry. The bar and the opened-tile caption
+   * both read these, so their vertical centres line up without measuring
+   * either one at reveal time. The row is the breadcrumb's 32px list height.
+   */
+  --cv-reader-pill-pad-y: 8px;
+  --cv-reader-pill-row: 2rem;
+  --cv-reader-pill-height: calc(
+    var(--cv-reader-pill-row) + 2 * var(--cv-reader-pill-pad-y)
+  );
+  --cv-reader-pill-bottom: calc(max(16px, env(safe-area-inset-bottom)) + 24px);
+
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
@@ -30,19 +42,24 @@
   transition: opacity var(--duration-medium-5) var(--ease-decelerate);
 }
 
-.cv-reader[data-viewing] .cv-reader__stage {
+/* A DOM viewer dims the grid around its own media. The canvas-owned open
+   already fades the other planes out, and the focused plane is part of the
+   stage, so dimming it would dim the opened media too. */
+.cv-reader[data-viewing]:not([data-canvas-viewing]) .cv-reader__stage {
   opacity: 0.4;
 }
 
 /* The viewer owns the close shrink, so hide the stale WebGL frame with a
    flat surface layer instead of re-rendering the grid. The layer is removed
-   on the landing frame together with the viewer. */
+   on the landing frame together with the viewer. The canvas-owned close is
+   rendered by the WebGL scene itself, so it must not be covered. */
 .cv-reader[data-closing] .cv-reader__stage {
   opacity: 1;
   transition: none;
 }
 
-.cv-reader[data-closing] .cv-reader__stage::after {
+.cv-reader[data-closing]:not([data-canvas-viewing])
+  .cv-reader__stage::after {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -54,7 +71,7 @@
 /* One bottom chip: the shared breadcrumb, a hairline divider and the hint.
    The chip keeps the hint pill's surface: no stroke, card shadow, pill radius. */
 .cv-reader__pill {
-  padding: 8px 12px;
+  padding: var(--cv-reader-pill-pad-y) 12px;
   border-radius: 999px;
   background: var(--surface-container-low);
   color: var(--on-surface-variant);
@@ -65,16 +82,50 @@
 
 .cv-reader__bottom-bar {
   position: absolute;
-  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 24px);
+  bottom: var(--cv-reader-pill-bottom);
   left: max(16px, env(safe-area-inset-left));
-  z-index: 4;
+  /* The reader's bottom chrome sits above the fixed viewer (z-index 20), so
+     media never paints into the pill in any state. The box is the pill itself,
+     so clicks outside it still reach the content. */
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 8px;
+  height: var(--cv-reader-pill-height);
   max-width: calc(100vw - 32px);
   margin: 0;
   pointer-events: auto;
   white-space: nowrap;
+}
+
+/*
+ * The opened-tile caption is the breadcrumb pill's twin: same type scale,
+ * padding, row height and fully rounded surface, so the two read as one chrome
+ * row. Its right edge anchors to the focus box's right edge (the box width is
+ * known from the fit, so a resize needs no layout read); its vertical centre
+ * is the bar's. The viewer is fixed to the viewport while the bar sits inside
+ * the drawer panel, so the panel inset is part of the shared bottom offset.
+ * Its own height cancels through the translate, so only the bar's height is
+ * needed to line the centres up.
+ */
+.cv-reader .cv-viewer__caption {
+  bottom: calc(
+    var(--wd-panel-inset) + var(--cv-reader-pill-bottom) +
+      var(--cv-reader-pill-height) / 2
+  );
+  left: calc(50% + var(--cv-viewer-frame-width, 0px) / 2);
+  display: block;
+  min-height: var(--cv-reader-pill-height);
+  padding: var(--cv-reader-pill-pad-y) 12px;
+  border-radius: 999px;
+  font-size: var(--text-base);
+  line-height: var(--cv-reader-pill-row);
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translate(-100%, 50%);
 }
 
 .cv-reader__bottom-bar .wd-breadcrumb {

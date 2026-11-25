@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   TRANSITION,
+  boxInsideViewport,
   canClose,
   canOpen,
   closeComplete,
@@ -14,7 +15,6 @@ import {
   nextPhase,
   openComplete,
   shortestWrappedDelta,
-  boxInsideViewport,
   viewerOpenNeedsFrames,
 } from "./transition";
 import type { TransitionPhase } from "./transition";

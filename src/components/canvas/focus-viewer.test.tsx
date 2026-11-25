@@ -1,4 +1,4 @@
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CanvasItem } from "./infinite-canvas";
 import type { VideoMedia } from "@/lib/media-types";
@@ -69,5 +69,127 @@ describe("FocusViewer open wait", () => {
 
     expect(onReady).not.toHaveBeenCalled();
     expect(onClosed).not.toHaveBeenCalled();
+  });
+
+  it("renders chrome only for a canvas-owned open and closes through the canvas", () => {
+    const onClosing = vi.fn(() => ({
+      rect: null,
+      prepared: Promise.resolve(),
+    }));
+    const onClosed = vi.fn();
+
+    const { container } = render(
+      <FocusViewer
+        items={[item]}
+        initialIndex={0}
+        canvasOwned
+        onClosing={onClosing}
+        onClosed={onClosed}
+      />,
+    );
+
+    expect(container.querySelector(".cv-viewer")).toHaveAttribute(
+      "data-canvas-owned",
+    );
+    expect(container.querySelector(".cv-viewer__media")).toBeNull();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onClosing).toHaveBeenCalledWith(0, undefined, true);
+
+    act(() => {
+      vi.advanceTimersByTime(1600);
+    });
+
+    expect(onClosed).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes a pending canvas-owned glide through the canvas", () => {
+    const onClosing = vi.fn(() => ({
+      rect: null,
+      prepared: Promise.resolve(),
+    }));
+    const onClosed = vi.fn();
+
+    render(
+      <FocusViewer
+        items={[item]}
+        initialIndex={0}
+        canvasOwned
+        pending
+        onClosing={onClosing}
+        onClosed={onClosed}
+      />,
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onClosing).toHaveBeenCalledWith(0, undefined, true);
+
+    act(() => {
+      vi.advanceTimersByTime(1600);
+    });
+
+    expect(onClosed).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("FocusViewer caption anchor", () => {
+  it("publishes the fit width for CSS and leaves the caption free of an inline top", () => {
+    const { container } = render(
+      <FocusViewer
+        items={[item]}
+        initialIndex={0}
+        canvasOwned
+        onClosed={() => undefined}
+      />,
+    );
+    const stage = container.querySelector(
+      ".cv-viewer__stage",
+    ) as HTMLElement | null;
+    const caption = container.querySelector(
+      ".cv-viewer__caption",
+    ) as HTMLElement | null;
+
+    expect(stage?.style.getPropertyValue("--cv-viewer-frame-width")).not.toBe(
+      "",
+    );
+    expect(caption?.style.top).toBe("");
+  });
+});
+
+describe("FocusViewer Arrow step", () => {
+  it("reveals and plays the DOM fallback video after a canvas-owned open", () => {
+    const onStep = vi.fn();
+    const onClosed = vi.fn();
+    const nextItem: CanvasItem = {
+      key: "test-1",
+      project: "Test",
+      media: { ...media, id: "test-video-1111111111" },
+    };
+
+    const { container } = render(
+      <FocusViewer
+        items={[item, nextItem]}
+        initialIndex={0}
+        canvasOwned
+        onStep={onStep}
+        onClosed={onClosed}
+      />,
+    );
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+
+    expect(onStep).toHaveBeenCalledTimes(1);
+    expect(container.querySelector(".cv-viewer")).not.toHaveAttribute(
+      "data-canvas-owned",
+    );
+    expect(container.querySelector(".cv-viewer__slide")).not.toBeNull();
+    const video = container.querySelector(".cv-viewer__video");
+    expect(video).not.toBeNull();
+    expect(video).toHaveAttribute("data-visible");
+    expect(
+      container.querySelector('[data-testid="viewer-video"]'),
+    ).not.toBeNull();
   });
 });
