@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { DailyArt } from "@/lib/daily-art";
 import { artKicker, formatArtDate } from "./art-date";
 import { ArtImage } from "./art-image";
@@ -30,6 +30,7 @@ export function ArtDialog({ art, today, open, onClose }: ArtDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
+  const [imageUnavailable, setImageUnavailable] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -156,7 +157,11 @@ export function ArtDialog({ art, today, open, onClose }: ArtDialogProps) {
 
         <div className="art-dialog-stage">
           <PaintingFrame art={art} variant="full">
-            <ArtImage art={art} variant="full" />
+            <ArtImage
+              art={art}
+              variant="full"
+              onUnavailable={() => setImageUnavailable(true)}
+            />
           </PaintingFrame>
         </div>
 
@@ -166,6 +171,14 @@ export function ArtDialog({ art, today, open, onClose }: ArtDialogProps) {
             {art.title}
           </h2>
           <p className="art-dialog-artist">{art.artist}</p>
+
+          {imageUnavailable ? (
+            <p className="art-dialog-note" role="status">
+              The image service did not respond, so the painting itself could
+              not be loaded. The record and the Art Institute link are still
+              valid.
+            </p>
+          ) : null}
 
           {art.fallback ? (
             <p className="art-dialog-note">

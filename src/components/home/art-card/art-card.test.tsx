@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DailyArt } from "@/lib/daily-art";
@@ -19,9 +19,6 @@ function art(overrides: Partial<DailyArt> = {}): DailyArt {
     styleTitle: "Realism",
     medium: "Oil on canvas",
     imageId: "image-1",
-    imageUrl: "https://www.artic.edu/iiif/2/image-1/full/843,/0/default.jpg",
-    largeImageUrl:
-      "https://www.artic.edu/iiif/2/image-1/full/1686,/0/default.jpg",
     width: 1200,
     height: 900,
     lqip: null,
@@ -199,6 +196,14 @@ describe("ArtCard", () => {
         screen.getByRole("link", { name: /Art Institute/ }),
       ).toHaveAttribute("href", "https://www.artic.edu/artworks/9");
 
+      const dialogImage = dialog.querySelector(".art-image img");
+
+      fireEvent.error(dialogImage as HTMLImageElement);
+
+      expect(within(dialog).getByRole("status")).toHaveTextContent(
+        "image service did not respond",
+      );
+
       // Tab from Close reaches the link; another Tab wraps back to Close.
       await user.tab();
       expect(screen.getByRole("link", { name: /Art Institute/ })).toHaveFocus();
@@ -223,7 +228,94 @@ describe("ArtCard", () => {
     }
   });
 
-  it("keeps the spotlight off for reduced motion and coarse pointers", () => {
+  it("uses the native showModal/close path when the environment provides it", async () => {
+    const user = userEvent.setup();
+    const proto = window.HTMLDialogElement?.prototype;
+
+    if (!proto) return;
+
+    const originalShow = proto.showModal;
+    const originalClose = proto.close;
+    const showModal = vi.fn(function (this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    });
+    const close = vi.fn(function (this: HTMLDialogElement) {
+      this.removeAttribute("open");
+      this.dispatchEvent(new Event("close"));
+    });
+
+    Object.defineProperty(proto, "showModal", {
+      configurable: true,
+      value: showModal,
+    });
+    Object.defineProperty(proto, "close", {
+      configurable: true,
+      value: close,
+    });
+
+    try {
+      renderCard();
+      await user.click(
+        screen.getByRole("button", {
+          name: "View A painting by An artist in full",
+        }),
+      );
+
+      expect(showModal).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("dialog")).toHaveAttribute("open");
+
+      await user.keyboard("{Escape}");
+
+      expect(close).toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    } finally {
+      Object.defineProperty(proto, "showModal", {
+        configurable: true,
+        value: originalShow,
+      });
+      Object.defineProperty(proto, "close", {
+        configurable: true,
+        value: originalClose,
+      });
+    }
+  });
+
+  it("shows an intentional unavailable state when the painting image fails", () => {
+    const { container } = renderCard();
+    const image = container.querySelector(".art-image img");
+
+    expect(image).not.toBeNull();
+    fireEvent.error(image as HTMLImageElement);
+
+    expect(container.querySelector(".art-image-unavailable")).not.toBeNull();
+    expect(container.querySelector(".painting-frame-window > svg")).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "A painting" }),
+    ).toBeInTheDocument();
+
+    const trigger = screen.getByRole("button", {
+      name: "View A painting by An artist in full",
+    });
+    const describedBy = trigger.getAttribute("aria-describedby");
+
+    expect(describedBy).toBeTruthy();
+    expect(
+      document.getElementById(describedBy as string)?.textContent,
+    ).toContain("image service did not respond");
+  });
+
+  it("keeps the spotlight off for a coarse pointer", () => {
+    vi.stubGlobal("matchMedia", vi.fn(matchMedia(() => false)));
+
+    const { container } = renderCard();
+
+    expect(container.querySelector(".art-card")).toHaveAttribute(
+      "data-spotlight",
+      "off",
+    );
+  });
+
+  it("keeps the spotlight off for reduced motion", () => {
     vi.stubGlobal(
       "matchMedia",
       vi.fn(matchMedia((query) => query.includes("prefers-reduced-motion"))),

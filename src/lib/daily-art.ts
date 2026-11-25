@@ -1,4 +1,21 @@
 import { cacheLife } from "next/cache";
+import {
+  hashDateKey,
+  historyStartDate,
+  isValidDateKey,
+  utcDateKey,
+} from "./art-shared";
+
+export {
+  ART_HISTORY_DAYS,
+  hashDateKey,
+  historyStartDate,
+  isWithinHistory,
+  isValidDateKey,
+  parseDateKey,
+  shiftDateKey,
+  utcDateKey,
+} from "./art-shared";
 
 /**
  * One public-domain painting per UTC day, from the Art Institute of Chicago.
@@ -29,8 +46,6 @@ const RETRY_WINDOW = 100;
  * it. The date hash must stay inside that accessible slice.
  */
 const SEARCH_WINDOW = 1_000;
-/** The card browses the current day plus the 29 before it. */
-export const ART_HISTORY_DAYS = 30;
 const MIN_ASPECT = 1 / 4;
 const MAX_ASPECT = 4;
 
@@ -38,7 +53,6 @@ const SEARCH_FIELDS = [
   "id",
   "title",
   "artist_title",
-  "artist_display",
   "date_display",
   "date_start",
   "place_of_origin",
@@ -64,10 +78,6 @@ export type DailyArt = {
   styleTitle: string | null;
   medium: string;
   imageId: string | null;
-  /** IIIF at 843px, the card's size. Null on the bundled fallback. */
-  imageUrl: string | null;
-  /** IIIF at 1686px for the full-view dialog. */
-  largeImageUrl: string | null;
   /** Original pixel dimensions, for the frame's aspect ratio. */
   width: number;
   height: number;
@@ -97,7 +107,6 @@ export type AicArtwork = {
   id?: number | null;
   title?: string | null;
   artist_title?: string | null;
-  artist_display?: string | null;
   date_display?: string | null;
   date_start?: number | null;
   place_of_origin?: string | null;
@@ -115,68 +124,6 @@ type AicSearchResponse = {
 
 type FetchLike = typeof fetch;
 
-/** `new Date()` in UTC, as the key every cached pick is stored under. */
-export function utcDateKey(now: Date = new Date()): string {
-  return now.toISOString().slice(0, 10);
-}
-
-/** Parse a YYYY-MM-DD key to its UTC midnight, or null when it is not a day. */
-export function parseDateKey(key: string): Date | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return null;
-
-  const [year, month, day] = key.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    return null;
-  }
-
-  return date;
-}
-
-export function isValidDateKey(key: string): boolean {
-  return parseDateKey(key) !== null;
-}
-
-/** Step a valid key by whole days; month and year boundaries are handled. */
-export function shiftDateKey(key: string, days: number): string {
-  const date = parseDateKey(key);
-
-  if (!date) throw new RangeError(`Not a UTC date key: ${key}`);
-
-  date.setUTCDate(date.getUTCDate() + days);
-
-  return date.toISOString().slice(0, 10);
-}
-
-/** Oldest day the card may browse; today counts as day one. */
-export function historyStartDate(
-  today: string,
-  days = ART_HISTORY_DAYS,
-): string {
-  return shiftDateKey(today, -(days - 1));
-}
-
-export function isWithinHistory(date: string, today: string): boolean {
-  return date <= today && date >= historyStartDate(today);
-}
-
-/** FNV-1a, unsigned. Small and stable across runtimes. */
-export function hashDateKey(key: string): number {
-  let hash = 0x811c9dc5;
-
-  for (let index = 0; index < key.length; index += 1) {
-    hash ^= key.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-
-  return hash >>> 0;
-}
-
 /**
  * A painting wider than 4:1 or taller than 1:4 cannot be hung in the card's
  * frame without turning into a strip, so it is rejected in favour of the next
@@ -189,10 +136,6 @@ export function isAcceptableAspect(width: number, height: number): boolean {
   const aspect = width / height;
 
   return aspect >= MIN_ASPECT && aspect <= MAX_ASPECT;
-}
-
-export function iiifUrl(imageId: string, width: 843 | 1686): string {
-  return `https://www.artic.edu/iiif/2/${encodeURIComponent(imageId)}/full/${width},/0/default.jpg`;
 }
 
 function text(value: string | null | undefined): string | null {
@@ -270,8 +213,6 @@ export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
     styleTitle: text(item.style_title),
     medium: text(item.medium_display) ?? "Painting",
     imageId,
-    imageUrl: iiifUrl(imageId, 843),
-    largeImageUrl: iiifUrl(imageId, 1686),
     width,
     height,
     lqip: lqip?.startsWith("data:image/") ? lqip : null,
@@ -301,8 +242,6 @@ export function fallbackArt(dateKey: string): DailyArt {
     styleTitle: null,
     medium: "Ink, light and a little patience",
     imageId: null,
-    imageUrl: null,
-    largeImageUrl: null,
     width: 4,
     height: 3,
     lqip: null,
@@ -329,14 +268,10 @@ async function searchAic(
   });
 
   if (!response.ok) {
-    // 403/429/5xx from the public API are usually transient throttling. One
-    // short retry protects a day's pick without turning a bad day into a loop.
-    if (
-      attempt === 0 &&
-      (response.status === 403 ||
-        response.status === 429 ||
-        response.status >= 500)
-    ) {
+    // 429/5xx are transient throttling. A 403 is a rejection (the old
+    // too-many-results case, a bad body, or a block); retrying it only doubles
+    // the wait before the fallback.
+    if (attempt === 0 && (response.status === 429 || response.status >= 500)) {
       await new Promise((resolve) => setTimeout(resolve, 400));
       return searchAic(fetchImpl, body, attempt + 1);
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { DailyArt } from "@/lib/daily-art";
 import { RingLayers } from "../ring-hover";
@@ -40,7 +40,9 @@ export function ArtCard({ initialArt, today, oldest }: ArtCardProps) {
   const [error, setError] = useState<string | null>(null);
   const [browsed, setBrowsed] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [imageFailureDate, setImageFailureDate] = useState<string | null>(null);
 
+  const imageNoteId = useId();
   const cardRef = useRef<HTMLElement>(null);
   const lightRef = useRef<HTMLSpanElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -164,6 +166,7 @@ export function ArtCard({ initialArt, today, oldest }: ArtCardProps) {
 
   const canPrevious = art.date > oldest;
   const canNext = art.date < today;
+  const imageUnavailable = imageFailureDate === art.date;
   const tilt = tiltForDate(art.date);
   const tint = art.color
     ? `hsl(${Math.round(art.color.h)} ${Math.round(art.color.s)}% ${Math.round(art.color.l)}%)`
@@ -207,10 +210,14 @@ export function ArtCard({ initialArt, today, oldest }: ArtCardProps) {
             className="art-card-frame-button"
             aria-label={`View ${art.title} by ${art.artist} in full`}
             aria-haspopup="dialog"
+            aria-describedby={imageUnavailable ? imageNoteId : undefined}
             onClick={() => setDialogOpen(true)}
           >
             <PaintingFrame art={art} tilt={tilt}>
-              <ArtImage art={art} />
+              <ArtImage
+                art={art}
+                onUnavailable={() => setImageFailureDate(art.date)}
+              />
             </PaintingFrame>
           </button>
 
@@ -221,6 +228,9 @@ export function ArtCard({ initialArt, today, oldest }: ArtCardProps) {
             <p className="art-card-meta">
               {art.dateDisplay} · {art.medium}
             </p>
+            {imageUnavailable ? (
+              <p className="art-card-image-note">Image unavailable</p>
+            ) : null}
           </div>
         </div>
 
@@ -255,6 +265,12 @@ export function ArtCard({ initialArt, today, oldest }: ArtCardProps) {
       {error ? (
         <p className="art-card-error text-xs" role="alert">
           {error}
+        </p>
+      ) : null}
+
+      {imageUnavailable ? (
+        <p id={imageNoteId} className="sr-only">
+          Image unavailable. The painting image service did not respond.
         </p>
       ) : null}
 

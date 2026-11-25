@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { ArtCard } from "@/components/home/art-card/art-card";
-import { fallbackArt, getTodaysArt, iiifUrl } from "@/lib/daily-art";
+import { fallbackArt, getTodaysArt } from "@/lib/daily-art";
 import type { DailyArt } from "@/lib/daily-art";
 import "./lab.css";
 
@@ -38,17 +38,12 @@ const CARD_SIZES = [
 ] as const;
 
 function baseArt(
-  fields: Omit<
-    DailyArt,
-    "imageUrl" | "largeImageUrl" | "articUrl" | "fallback" | "date"
-  >,
+  fields: Omit<DailyArt, "articUrl" | "fallback" | "date">,
   date: string,
 ): DailyArt {
   return {
     ...fields,
     date,
-    imageUrl: fields.imageId ? iiifUrl(fields.imageId, 843) : null,
-    largeImageUrl: fields.imageId ? iiifUrl(fields.imageId, 1686) : null,
     articUrl: fields.id ? `https://www.artic.edu/artworks/${fields.id}` : null,
     fallback: false,
   };

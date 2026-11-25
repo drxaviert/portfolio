@@ -6,14 +6,17 @@ import { AIC_USER_AGENT } from "@/lib/daily-art";
  * The image CDN sits behind Cloudflare and answers 403 ("Just a moment…") to a
  * request without `AIC-User-Agent`; browsers cannot send that header on an
  * <img>, and Next's optimiser does not send it either. This route makes the
- * only request AIC accepts, then serves the bytes from our origin. The IDs and
- * widths are a closed set, so it cannot be used as an open proxy.
+ * only request AIC accepts, then serves the bytes from our origin.
  *
- * These images never change for an id, so the response is immutable for a year.
+ * The id must be one of AIC's UUID-shaped image ids and the width one of the
+ * two IIIF sizes, so the route cannot be used as an open proxy. Anything else
+ * is rejected before the network. A genuine upstream failure is logged in dev
+ * and reported as 502; the card shows an explicit unavailable state.
  */
 
 const AIC_IMAGE_BASE = "https://www.artic.edu/iiif/2";
-const IMAGE_ID = /^[a-zA-Z0-9-]{6,80}$/;
+const AIC_IMAGE_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const WIDTHS = new Set([843, 1686]);
 const FALLBACK_WIDTH = 843;
 const TIMEOUT_MS = 15_000;
@@ -24,15 +27,15 @@ export async function GET(
 ) {
   const { imageId } = await context.params;
 
-  if (!IMAGE_ID.test(imageId)) {
-    return new Response("Unknown painting image", { status: 404 });
+  if (!AIC_IMAGE_ID.test(imageId)) {
+    return new Response("Unknown painting image", { status: 400 });
   }
 
   const widthParam = new URL(request.url).searchParams.get("width");
   const width = widthParam === null ? FALLBACK_WIDTH : Number(widthParam);
 
   if (!WIDTHS.has(width)) {
-    return new Response("Unsupported image width", { status: 404 });
+    return new Response("Unsupported image width", { status: 400 });
   }
 
   try {
@@ -48,6 +51,12 @@ export async function GET(
     );
 
     if (!upstream.ok || !upstream.body) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn(
+          `[art-image] AIC ${width} ${imageId} failed with ${upstream.status}`,
+        );
+      }
+
       return new Response("Painting image unavailable", { status: 502 });
     }
 
@@ -58,7 +67,14 @@ export async function GET(
           "public, max-age=31536000, s-maxage=31536000, immutable",
       },
     });
-  } catch {
+  } catch (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn(
+        `[art-image] AIC ${width} ${imageId} could not be reached:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+
     return new Response("Painting image unavailable", { status: 502 });
   }
 }

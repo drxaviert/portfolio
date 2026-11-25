@@ -4,7 +4,6 @@ import {
   fetchDailyArt,
   hashDateKey,
   historyStartDate,
-  iiifUrl,
   isAcceptableAspect,
   isValidDateKey,
   isWithinHistory,
@@ -21,7 +20,6 @@ function artwork(overrides: Partial<AicArtwork> = {}): AicArtwork {
     id: 1,
     title: "A painting",
     artist_title: "An artist",
-    artist_display: "An artist (Somewhere, 1800-1899)",
     date_display: "1850",
     date_start: 1850,
     place_of_origin: "France",
@@ -182,8 +180,6 @@ describe("toDailyArt", () => {
       articUrl: "https://www.artic.edu/artworks/1",
       fallback: false,
     });
-    expect(daily?.imageUrl).toBe(iiifUrl("image-1", 843));
-    expect(daily?.largeImageUrl).toBe(iiifUrl("image-1", 1686));
     expect(daily?.lqip).toMatch(/^data:image\//);
     expect(daily?.alt).toBe("A painted landscape with a river.");
   });
@@ -261,7 +257,7 @@ describe("fetchDailyArt", () => {
     expect(window.from + window.limit).toBeLessThanOrEqual(1000);
   });
 
-  it("returns the same painting for the same date, and another the next day", async () => {
+  it("returns the same painting for the same date", async () => {
     const responses = () => [
       countResponse(200),
       itemsResponse(
@@ -315,6 +311,15 @@ describe("fetchDailyArt", () => {
 
     expect(daily.fallback).toBe(true);
     expect(failed).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry a 403, which is a rejection rather than throttling", async () => {
+    const denied = mockFetch([new Response("nope", { status: 403 })]);
+
+    const daily = await fetchDailyArt(DATE, denied as unknown as typeof fetch);
+
+    expect(daily.fallback).toBe(true);
+    expect(denied).toHaveBeenCalledTimes(1);
   });
 
   it("falls back on bad JSON", async () => {

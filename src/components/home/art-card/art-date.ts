@@ -1,18 +1,15 @@
+import { shiftDateKey } from "@/lib/art-shared";
+
 /**
  * Date helpers the card's client bundle can own.
  *
- * daily-art.ts is server-only (it imports next/cache); the card still needs to
- * step and label days for the browse controls, so the tiny pure UTC helpers
- * live here. The server passes `today` and `oldest`, which keeps the window
+ * The stepping logic is shared with the server data layer (art-shared.ts) so
+ * the browse window cannot drift from the server's; only the labelling lives
+ * here. The server passes `today` and `oldest`, which keeps the window
  * authoritative in one place.
  */
 
-export function shiftArtDate(key: string, days: number): string {
-  const [year, month, day] = key.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day + days));
-
-  return date.toISOString().slice(0, 10);
-}
+export const shiftArtDate = shiftDateKey;
 
 /** Short UTC label: "Today" or "Nov 24". Never depends on the visitor's TZ. */
 export function formatArtDate(key: string, today: string): string {

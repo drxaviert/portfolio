@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import type { DailyArt } from "@/lib/daily-art";
 import { FallbackPainting } from "./fallback-painting";
+import { ImageUnavailable } from "./image-unavailable";
 
 /**
  * The IIIF image at the frame's width, with AIC's inline LQIP underneath.
@@ -16,13 +17,18 @@ import { FallbackPainting } from "./fallback-painting";
  * placeholder is only a paint concern, never a layout one. The image is always
  * opaque once the browser has it; the placeholder fades out underneath, which
  * also keeps the card visible if hydration never happens.
+ *
+ * A failed image is an explicit state, not a silent swap: `onUnavailable`
+ * lets the card or dialog say what happened, and dev logs the failing source.
  */
 export function ArtImage({
   art,
   variant = "card",
+  onUnavailable,
 }: {
   art: DailyArt;
   variant?: "card" | "full";
+  onUnavailable?: () => void;
 }) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -33,7 +39,8 @@ export function ArtImage({
     if (image?.complete && image.naturalWidth > 0) setLoaded(true);
   }, []);
 
-  if (!art.imageId || failed) return <FallbackPainting />;
+  if (!art.imageId) return <FallbackPainting />;
+  if (failed) return <ImageUnavailable />;
 
   const width = variant === "full" ? 1686 : 843;
   const src = `/api/art/image/${encodeURIComponent(art.imageId)}?width=${width}`;
@@ -59,7 +66,14 @@ export function ArtImage({
         decoding="async"
         draggable={false}
         onLoad={() => setLoaded(true)}
-        onError={() => setFailed(true)}
+        onError={() => {
+          setFailed(true);
+          onUnavailable?.();
+
+          if (process.env.NODE_ENV === "development") {
+            console.warn(`[art-image] painting image failed: ${src}`);
+          }
+        }}
       />
     </span>
   );
