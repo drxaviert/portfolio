@@ -386,6 +386,28 @@ type VideoEntry = {
   frameRequest: number | null;
 };
 
+/**
+ * A full-res video frame warmed from the hover preload. The texture is uploaded
+ * before the open, so the glide can show the full-res frame without paying the
+ * first upload. The element is paused through the glide and plays at open-ready.
+ */
+type FocusVideoEntry = {
+  index: number;
+  element: HTMLVideoElement;
+  texture: THREE.Texture;
+  ready: boolean;
+  playing: boolean;
+  lastUpload: number;
+  frameRequest: number | null;
+  /** Pending seek fallback while the paused preload settles on a time. */
+  seekTimer: number;
+  /** Pending warm texture upload (idle/rAF). */
+  upload: { id: number; idle: boolean } | null;
+  /** Measured warm upload duration, for the dev probe. */
+  warmMs: number | null;
+  warmAt: number;
+};
+
 type CanvasDebug = {
   mode: "webgl";
   planes: number;
@@ -438,6 +460,19 @@ type CanvasDebug = {
   videoTextures: number;
   videoPlanesBound: number;
   videoUploads: number;
+  focusVideo: {
+    index: number;
+    ready: boolean;
+    playing: boolean;
+    width: number;
+    height: number;
+    warmMs: number | null;
+    warmAt: number;
+    currentTime: number;
+    bound: boolean;
+    version: number;
+    src: string;
+  } | null;
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -458,6 +493,40 @@ function imageTextureSource(media: ImageMedia) {
 
     return currentDistance < bestDistance ? source : best;
   });
+}
+
+/**
+ * The focus wants the smallest source that covers the device pixels, and the
+ * old DOM used AVIF. Prefer AVIF at that width; keep a WebP variant for a
+ * browser that cannot decode AVIF.
+ */
+function pickFocusImage(media: ImageMedia, neededWidth: number) {
+  const pick = (pool: ImageMedia["sources"]) => {
+    const sorted = pool
+      .filter((source) => source.width >= neededWidth)
+      .sort(
+        (a, b) =>
+          a.width - b.width ||
+          (a.format === "avif" ? -1 : 1) - (b.format === "avif" ? -1 : 1),
+      );
+
+    if (sorted.length > 0) return sorted[0];
+
+    return [...pool].sort(
+      (a, b) =>
+        b.width - a.width ||
+        (a.format === "avif" ? -1 : 1) - (b.format === "avif" ? -1 : 1),
+    )[0];
+  };
+
+  const primary = pick(media.sources);
+  if (!primary) return null;
+
+  const webp = media.sources.filter((source) => source.format === "webp");
+  const fallback =
+    primary.format === "avif" && webp.length > 0 ? pick(webp) : null;
+
+  return { primary, fallback };
 }
 
 /** The tile picks the WebP nearest 640w; videos use their JPG poster. */
@@ -802,6 +871,10 @@ export const InfiniteCanvas = forwardRef<
     let renderedFrames = 0;
     /** A queued hi-res focus texture upgrade, cancelled on close/unmount. */
     let focusUpgrade: { id: number; idle: boolean } | null = null;
+    /** The hovered/opened full-res video frame and its texture. */
+    const focusVideos = new Map<number, FocusVideoEntry>();
+    /** Keep the hovered video's preload entry alive while it is warm. */
+    let focusWarmKey: string | null = null;
 
     const idleTransition = (): CanvasTransition => ({
       phase: "idle",
@@ -873,6 +946,7 @@ export const InfiniteCanvas = forwardRef<
             videoTextures: 0,
             videoPlanesBound: 0,
             videoUploads: 0,
+            focusVideo: null,
           };
 
     if (debug) {
@@ -969,8 +1043,8 @@ export const InfiniteCanvas = forwardRef<
       for (const plane of planes) {
         if (plane.itemIndex !== itemIndex || !plane.isVideo) continue;
 
-        // The poster carries the open glide; the live texture takes over once
-        // the motion lands (resumeOpenVideo).
+        // Keep the glide's chosen focus texture; the 480p fallback takes over
+        // at open-ready only when the full-res warm frame is not available.
         if (
           transition.phase === "opening" &&
           !transition.viewerOwned &&
@@ -992,7 +1066,7 @@ export const InfiniteCanvas = forwardRef<
       }
     }
 
-    /** The focused video shows its full-res poster until the motion lands. */
+    /** Last-resort fill when neither the warm focus nor the 480p is ready. */
     function applyPosterToPlane(plane: Plane): void {
       const media = items[plane.itemIndex]?.media;
       if (!media || media.kind !== "video") return;
@@ -1010,6 +1084,293 @@ export const InfiniteCanvas = forwardRef<
           height: media.height,
         });
       }
+    }
+
+    function bindPlaneTexture(plane: Plane, texture: THREE.Texture): void {
+      plane.material.uniforms.uTexture.value = texture;
+      plane.material.uniforms.uDecodeVideo.value = 1;
+      plane.loaded = true;
+    }
+
+    function cancelFocusUpload(entry: FocusVideoEntry): void {
+      if (!entry.upload) return;
+      if (entry.upload.idle) window.cancelIdleCallback?.(entry.upload.id);
+      else window.clearTimeout(entry.upload.id);
+      entry.upload = null;
+    }
+
+    function cancelFocusFrame(entry: FocusVideoEntry): void {
+      if (entry.frameRequest === null) return;
+      entry.element.cancelVideoFrameCallback?.(entry.frameRequest);
+      entry.frameRequest = null;
+    }
+
+    function disposeFocusVideo(index: number): void {
+      const entry = focusVideos.get(index);
+      if (!entry) return;
+
+      cancelFocusUpload(entry);
+      window.clearTimeout(entry.seekTimer);
+      cancelFocusFrame(entry);
+      entry.element.pause();
+      entry.texture.dispose();
+      focusVideos.delete(index);
+    }
+
+    function scheduleFocusFrame(entry: FocusVideoEntry, index: number): void {
+      if (entry.frameRequest !== null) return;
+      if (typeof entry.element.requestVideoFrameCallback !== "function") {
+        return;
+      }
+
+      entry.frameRequest = entry.element.requestVideoFrameCallback(() => {
+        entry.frameRequest = null;
+        if (disposed || focusVideos.get(index) !== entry || !entry.playing) {
+          return;
+        }
+
+        const now = performance.now();
+        if (now - entry.lastUpload >= 30) {
+          entry.lastUpload = now;
+          entry.texture.needsUpdate = true;
+          wake();
+        }
+
+        scheduleFocusFrame(entry, index);
+      });
+    }
+
+    function scheduleFocusWarmUpload(
+      entry: FocusVideoEntry,
+      index: number,
+    ): void {
+      if (entry.upload) return;
+
+      const run = () => {
+        entry.upload = null;
+        if (disposed || focusVideos.get(index) !== entry) return;
+        if (entry.element.readyState < 2) return;
+
+        const endUpload = beginPerf("focus-video-warm", {
+          index,
+          width: entry.element.videoWidth,
+          height: entry.element.videoHeight,
+          at: Number(entry.element.currentTime.toFixed(2)),
+        });
+        const startedAt = performance.now();
+        entry.texture.needsUpdate = true;
+        renderer.initTexture(entry.texture);
+        entry.warmMs = performance.now() - startedAt;
+        entry.warmAt = entry.element.currentTime;
+        entry.ready = true;
+        entry.lastUpload = performance.now();
+        endUpload();
+
+        markPerf("focus-video-warm-ready", {
+          index,
+          width: entry.element.videoWidth,
+          height: entry.element.videoHeight,
+          phase: transition.phase,
+        });
+
+        // The open may already be running if the hover/pointerdown warm was
+        // late. Bind the frame when it lands; the 480p stayed until now.
+        if (
+          (transition.phase === "opening" || transition.phase === "open") &&
+          transition.index === index &&
+          !transition.viewerOwned
+        ) {
+          applyFocusVideoTexture(index, entry);
+        }
+        if (transition.phase === "open" && transition.index === index) {
+          startFocusVideo(entry, index);
+        }
+      };
+
+      if (typeof window.requestIdleCallback === "function") {
+        entry.upload = {
+          id: window.requestIdleCallback(run, { timeout: 90 }),
+          idle: true,
+        };
+      } else {
+        entry.upload = { id: window.setTimeout(run, 0), idle: false };
+      }
+    }
+
+    function scheduleFocusWarmSeek(
+      entry: FocusVideoEntry,
+      index: number,
+    ): void {
+      const grid = videoEntries.get(index);
+      const gridTime = grid?.element.currentTime;
+      const seekTo =
+        gridTime !== undefined && Number.isFinite(gridTime)
+          ? gridTime
+          : entry.element.currentTime;
+
+      window.clearTimeout(entry.seekTimer);
+
+      if (
+        entry.element.readyState >= 2 &&
+        Math.abs(entry.element.currentTime - seekTo) < 0.04
+      ) {
+        scheduleFocusWarmUpload(entry, index);
+        return;
+      }
+
+      const onSeeked = () => {
+        entry.element.removeEventListener("seeked", onSeeked);
+        scheduleFocusWarmUpload(entry, index);
+      };
+
+      entry.element.addEventListener("seeked", onSeeked, { once: true });
+      try {
+        entry.element.currentTime = seekTo;
+      } catch {
+        onSeeked();
+        return;
+      }
+
+      // A paused seek can miss its event on a partially buffered clip.
+      entry.seekTimer = window.setTimeout(() => {
+        entry.element.removeEventListener("seeked", onSeeked);
+        if (entry.element.readyState >= 2) {
+          scheduleFocusWarmUpload(entry, index);
+        }
+      }, 300);
+    }
+
+    function warmFocusVideo(index: number): void {
+      const media = items[index]?.media;
+      if (!media || media.kind !== "video" || videoOff) return;
+
+      const key = `video:${media.id}`;
+      focusWarmKey = key;
+
+      for (const [otherIndex] of focusVideos) {
+        if (otherIndex !== index) disposeFocusVideo(otherIndex);
+      }
+
+      const existing = focusVideos.get(index);
+      if (existing) {
+        if (!existing.playing) scheduleFocusWarmSeek(existing, index);
+        return;
+      }
+
+      const preload = preloaded.get(key);
+      if (!preload) {
+        void preloadItem(index).then((ok) => {
+          if (ok) warmFocusVideo(index);
+        });
+        return;
+      }
+
+      const element = preload.elements[0];
+      if (!(element instanceof HTMLVideoElement)) return;
+
+      // The grid entries set these before creating their texture; a video
+      // element left at 0x0 layout can upload a black WebGL frame.
+      if (element.videoWidth > 0) {
+        element.width = element.videoWidth;
+        element.height = element.videoHeight;
+      }
+      element.addEventListener(
+        "loadedmetadata",
+        () => {
+          element.width = element.videoWidth;
+          element.height = element.videoHeight;
+        },
+        { once: true },
+      );
+
+      const texture = new THREE.Texture(element);
+      texture.colorSpace = THREE.NoColorSpace;
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.generateMipmaps = false;
+
+      const entry: FocusVideoEntry = {
+        index,
+        element,
+        texture,
+        ready: false,
+        playing: false,
+        lastUpload: 0,
+        frameRequest: null,
+        seekTimer: 0,
+        upload: null,
+        warmMs: null,
+        warmAt: 0,
+      };
+      focusVideos.set(index, entry);
+
+      void preload.ready.then((ok) => {
+        if (!ok || disposed || focusVideos.get(index) !== entry) return;
+        scheduleFocusWarmSeek(entry, index);
+      });
+
+      if (element.readyState >= 2) scheduleFocusWarmSeek(entry, index);
+    }
+
+    function applyFocusVideoTexture(
+      index: number,
+      entry: FocusVideoEntry,
+    ): void {
+      if (transition.phase !== "opening" && transition.phase !== "open") {
+        return;
+      }
+      if (
+        transition.viewerOwned ||
+        transition.index !== index ||
+        !transition.plane
+      ) {
+        return;
+      }
+
+      bindPlaneTexture(transition.plane, entry.texture);
+      markPerf("focus-video-swap", {
+        index,
+        width: entry.element.videoWidth,
+        height: entry.element.videoHeight,
+        at: Number(entry.element.currentTime.toFixed(2)),
+        phase: transition.phase,
+      });
+      renderScene();
+      updateDebug();
+    }
+
+    function startFocusVideo(entry: FocusVideoEntry, index: number): void {
+      if (!entry.ready || entry.playing) {
+        if (entry.playing) scheduleFocusFrame(entry, index);
+        return;
+      }
+
+      entry.playing = true;
+      entry.lastUpload = performance.now();
+      entry.element.muted = true;
+      entry.element.loop = true;
+      entry.element.playsInline = true;
+
+      // The full-res focus owns the plane; stop the 480p grid decoder.
+      const grid = videoEntries.get(index);
+      if (grid && !grid.element.paused) {
+        grid.element.pause();
+        grid.playing = false;
+      }
+
+      void entry.element.play().catch(() => {
+        entry.playing = false;
+      });
+      scheduleFocusFrame(entry, index);
+      wake();
+    }
+
+    function pauseFocusVideo(index: number): void {
+      const entry = focusVideos.get(index);
+      if (!entry) return;
+      entry.playing = false;
+      entry.element.pause();
+      cancelFocusFrame(entry);
     }
 
     /**
@@ -1042,17 +1403,12 @@ export const InfiniteCanvas = forwardRef<
         return;
       }
 
-      const pool = imageSources(media);
-      if (pool.length === 0) return;
-
-      const source =
-        pool
-          .filter((entry) => entry.width >= neededWidth)
-          .sort((a, b) => a.width - b.width)[0] ??
-        [...pool].sort((a, b) => b.width - a.width)[0];
+      const picked = pickFocusImage(media, neededWidth);
+      if (!picked) return;
+      const { primary, fallback } = picked;
 
       // No source beats the tile texture; re-uploading it is pure cost.
-      if (source.width <= loadedWidth) {
+      if (primary.width <= loadedWidth) {
         markPerf("hi-res-skip", {
           index,
           dpr,
@@ -1068,44 +1424,71 @@ export const InfiniteCanvas = forwardRef<
         dpr,
         neededWidth,
         loadedWidth,
-        width: source.width,
-        url: source.url,
+        width: primary.width,
+        format: primary.format,
+        fallback: fallback?.format,
+        fallbackWidth: fallback?.width,
+        url: primary.url,
       });
 
-      const texture = loader.load(
-        source.url,
-        () => {
-          if (disposed) {
+      const loadSource = (
+        source: ImageMedia["sources"][number],
+        next: ImageMedia["sources"][number] | null,
+      ): void => {
+        const texture = loader.load(
+          source.url,
+          () => {
+            if (disposed) {
+              texture.dispose();
+              return;
+            }
+
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.minFilter = THREE.LinearMipmapLinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            texture.generateMipmaps = true;
+            texture.anisotropy = Math.min(
+              4,
+              renderer.capabilities.getMaxAnisotropy(),
+            );
+
+            // Upload once, after the motion, then swap the focused plane.
+            if (perfEnabled) {
+              const endUpload = beginPerf("texture-upload", {
+                url: source.url,
+                stage: "hi-res",
+                format: source.format,
+              });
+              renderer.initTexture(texture);
+              endUpload();
+            } else {
+              renderer.initTexture(texture);
+            }
+            focusTextures.set(index, texture);
+            applyFocusTexture(index, texture);
+          },
+          undefined,
+          () => {
             texture.dispose();
-            return;
-          }
-
-          texture.colorSpace = THREE.SRGBColorSpace;
-          texture.minFilter = THREE.LinearMipmapLinearFilter;
-          texture.magFilter = THREE.LinearFilter;
-          texture.generateMipmaps = true;
-          texture.anisotropy = Math.min(
-            4,
-            renderer.capabilities.getMaxAnisotropy(),
-          );
-
-          // Upload once, after the motion, then swap the focused plane.
-          if (perfEnabled) {
-            const endUpload = beginPerf("texture-upload", {
+            if (next && next.url !== source.url) {
+              markPerf("hi-res-fallback", {
+                index,
+                from: source.format,
+                to: next.format,
+                width: next.width,
+              });
+              loadSource(next, null);
+              return;
+            }
+            markPerf("hi-res-error", {
+              index,
               url: source.url,
-              stage: "hi-res",
             });
-            renderer.initTexture(texture);
-            endUpload();
-          } else {
-            renderer.initTexture(texture);
-          }
-          focusTextures.set(index, texture);
-          applyFocusTexture(index, texture);
-        },
-        undefined,
-        () => texture.dispose(),
-      );
+          },
+        );
+      };
+
+      loadSource(primary, fallback);
     }
 
     function cancelFocusUpgrade(): void {
@@ -1174,10 +1557,32 @@ export const InfiniteCanvas = forwardRef<
       return media?.kind === "video";
     }
 
-    /** The motion landed: swap the poster for the live clip and play it. */
+    /** The motion landed: swap the 480p fallback for the live full-res clip. */
     function resumeOpenVideo(index: number): void {
       const media = items[index]?.media;
       if (!media || media.kind !== "video") return;
+
+      const focus = focusVideos.get(index);
+      if (focus?.ready) {
+        applyFocusVideoTexture(index, focus);
+        startFocusVideo(focus, index);
+
+        const grid = videoEntries.get(index);
+        if (grid && !grid.element.paused) {
+          grid.element.pause();
+          grid.playing = false;
+        }
+
+        markPerf("open-video-live", {
+          index,
+          source: "focus",
+          width: focus.element.videoWidth,
+          height: focus.element.videoHeight,
+          at: Number(focus.element.currentTime.toFixed(2)),
+        });
+        wake();
+        return;
+      }
 
       const entry = videoEntries.get(index) ?? ensureVideoEntry(index);
       if (!entry) return;
@@ -1187,6 +1592,7 @@ export const InfiniteCanvas = forwardRef<
       startVideo(entry);
       markPerf("open-video-live", {
         index,
+        source: "canvas",
         ready: entry.ready,
         paused: entry.element.paused,
       });
@@ -1262,6 +1668,17 @@ export const InfiniteCanvas = forwardRef<
       for (const entry of videoEntries.values()) {
         if (!entry.texture || entry.texture.needsUpdate) continue;
         if (entry.element.paused) continue;
+        if (typeof entry.element.requestVideoFrameCallback === "function") {
+          continue;
+        }
+        if (now - entry.lastUpload < 33) continue;
+
+        entry.lastUpload = now;
+        entry.texture.needsUpdate = true;
+      }
+
+      for (const entry of focusVideos.values()) {
+        if (entry.element.paused || !entry.playing) continue;
         if (typeof entry.element.requestVideoFrameCallback === "function") {
           continue;
         }
@@ -1399,9 +1816,21 @@ export const InfiniteCanvas = forwardRef<
           return false;
         }
 
-        // The landed open shows one video on the focused plane; only that clip
-        // plays while the viewer owns the screen.
+        // The landed open shows one video on the focused plane. The full-res
+        // warm focus owns it when ready; otherwise the 480p decoder falls back.
         if (openVideoIsLive()) {
+          const focus = focusVideos.get(transition.index);
+          if (focus?.ready) {
+            for (const entry of videoEntries.values()) {
+              if (!entry.element.paused) {
+                entry.element.pause();
+                entry.playing = false;
+              }
+            }
+            startFocusVideo(focus, transition.index);
+            return true;
+          }
+
           for (const [itemIndex, entry] of videoEntries) {
             if (itemIndex !== transition.index && !entry.element.paused) {
               entry.element.pause();
@@ -1416,6 +1845,7 @@ export const InfiniteCanvas = forwardRef<
         }
 
         pauseAllVideos();
+        for (const [index] of focusVideos) pauseFocusVideo(index);
         return false;
       }
 
@@ -1738,6 +2168,31 @@ export const InfiniteCanvas = forwardRef<
           plane.material.uniforms.uTexture.value === video.texture,
         );
       }).length;
+
+      const focusEntry = focusVideos.values().next()
+        .value as FocusVideoEntry | undefined;
+      debug.focusVideo = focusEntry
+        ? {
+            index: focusEntry.index,
+            ready: focusEntry.ready,
+            playing: focusEntry.playing,
+            width: focusEntry.element.videoWidth,
+            height: focusEntry.element.videoHeight,
+            warmMs:
+              focusEntry.warmMs === null
+                ? null
+                : Number(focusEntry.warmMs.toFixed(2)),
+            warmAt: Number(focusEntry.warmAt.toFixed(2)),
+            currentTime: Number(focusEntry.element.currentTime.toFixed(2)),
+            bound: Boolean(
+              transition.plane &&
+                transition.plane.material.uniforms.uTexture.value ===
+                  focusEntry.texture,
+            ),
+            version: focusEntry.texture.version,
+            src: focusEntry.element.currentSrc.split("/").slice(-1)[0] ?? "",
+          }
+        : null;
     }
 
     function projectPlane(plane: Plane): Box {
@@ -1913,7 +2368,7 @@ export const InfiniteCanvas = forwardRef<
       while (preloaded.size > MAX_PRELOADS) {
         let removed = false;
         for (const [key, entry] of preloaded) {
-          if (key === keepKey) continue;
+          if (key === keepKey || key === focusWarmKey) continue;
           preloaded.delete(key);
           cancelPreload(entry);
           removed = true;
@@ -1941,6 +2396,15 @@ export const InfiniteCanvas = forwardRef<
         video.src = media.mp4.url;
         video.setAttribute("aria-hidden", "true");
         videoHost.appendChild(video);
+        // A preload element with a 0x0 layout uploads a black WebGL frame.
+        // Give it the intrinsic size before any texture is created from it.
+        const sizeVideo = () => {
+          if (video.videoWidth > 0) {
+            video.width = video.videoWidth;
+            video.height = video.videoHeight;
+          }
+        };
+        video.addEventListener("loadedmetadata", sizeVideo, { once: true });
 
         const ready = new Promise<boolean>((resolve) => {
           let done = false;
@@ -2035,9 +2499,33 @@ export const InfiniteCanvas = forwardRef<
       const tileWidth = plane.mesh.scale.x;
       const tileHeight = plane.mesh.scale.y;
 
-      // Poster-first: the poster carries the glide; resumeOpenVideo hands the
-      // focused plane back to the playing clip when the motion lands.
-      if (media.kind === "video") applyPosterToPlane(plane);
+      // Full-res-first: use the warm 1080p frame if the hover preload paid the
+      // first upload. Otherwise keep the live 480p texture (the task's fallback)
+      // and fall back to the poster only when even that is not ready.
+      if (media.kind === "video") {
+        const focus = focusVideos.get(plane.itemIndex);
+        if (focus?.ready) {
+          bindPlaneTexture(plane, focus.texture);
+          const grid = videoEntries.get(plane.itemIndex);
+          if (grid && !grid.element.paused) {
+            grid.element.pause();
+            grid.playing = false;
+          }
+          markPerf("focus-video-open", {
+            index: plane.itemIndex,
+            width: focus.element.videoWidth,
+            height: focus.element.videoHeight,
+            at: Number(focus.element.currentTime.toFixed(2)),
+          });
+        } else {
+          const grid = videoEntries.get(plane.itemIndex);
+          if (grid?.texture) {
+            bindPlaneTexture(plane, grid.texture);
+          } else {
+            applyPosterToPlane(plane);
+          }
+        }
+      }
 
       if (reduced) {
         scrollRef.current.x = -plane.baseX;
@@ -2640,6 +3128,7 @@ export const InfiniteCanvas = forwardRef<
           if (next) {
             next.hover = retargetHover(next.hover, 1, now);
             void preloadItem(next.itemIndex);
+            warmFocusVideo(next.itemIndex);
           }
 
           if (perfEnabled) {
@@ -2942,6 +3431,9 @@ export const InfiniteCanvas = forwardRef<
       canvasOwned = false,
     ): CloseTarget | null {
       cancelFocusUpgrade();
+      for (const focusIndex of focusVideos.keys()) {
+        pauseFocusVideo(focusIndex);
+      }
 
       // Closing while the viewer is still waiting for its first decoded
       // frame: cancel the open, restore the grid, and let the viewer unmount.
@@ -3545,7 +4037,10 @@ export const InfiniteCanvas = forwardRef<
       if (!canOpen(transition.phase)) return;
 
       const plane = planeForPointer(event.clientX, event.clientY);
-      if (plane) void preloadItem(plane.itemIndex);
+      if (plane) {
+        void preloadItem(plane.itemIndex);
+        warmFocusVideo(plane.itemIndex);
+      }
     };
     surface?.addEventListener("pointerdown", onPreloadPointerDown, {
       passive: true,
@@ -3556,7 +4051,10 @@ export const InfiniteCanvas = forwardRef<
     const onPreloadFocus = () => {
       if (pausedRef.current || !introEndedFlag) return;
       const plane = hoveredPlane ?? centrePlane();
-      if (plane) void preloadItem(plane.itemIndex);
+      if (plane) {
+        void preloadItem(plane.itemIndex);
+        warmFocusVideo(plane.itemIndex);
+      }
     };
     surface?.addEventListener("focus", onPreloadFocus);
 
@@ -3647,6 +4145,11 @@ export const InfiniteCanvas = forwardRef<
         texture.dispose();
       }
       focusTextures.clear();
+
+      for (const index of [...focusVideos.keys()]) {
+        disposeFocusVideo(index);
+      }
+      focusVideos.clear();
 
       renderer.dispose();
       renderer.forceContextLoss();
