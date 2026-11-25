@@ -78,8 +78,11 @@ type NavigationEvent = {
 };
 
 
-/** Content entrance: held while the panel morphs, released before it lands. */
-export type RevealState = "pending" | "on";
+/**
+ * Content entrance: held while the panel morphs, released before it lands.
+ * `settled`: already visible, and the entrance must not replay.
+ */
+export type RevealState = "pending" | "on" | "settled";
 
 type Morph = ReturnType<typeof animate>;
 
@@ -248,6 +251,12 @@ export function useDrawerMorph(
      * (closing replaces it instead of stepping back through history).
      */
     resting?: boolean;
+    /**
+     * The router hid this tree behind a full-screen route and is showing it
+     * again. Returns true once, for the show that should resume at rest without
+     * replaying the panel flight or the reader entrance.
+     */
+    restoreOnShow?: () => boolean;
   },
 ): {
   phase: DrawerPhase;
@@ -256,8 +265,10 @@ export function useDrawerMorph(
   stepBack: () => void;
   /** What the drawer opened from, for the post-close focus return. */
   originRef: RefObject<HTMLElement | null>;
+  /** Bumped when a returning full-screen route resumes the drawer at rest. */
+  restoreToken: number;
 } {
-  const { slug, route, resting = false } = options;
+  const { slug, route, resting = false, restoreOnShow } = options;
   const router = useRouter();
   const reduce = useReducedMotion() ?? false;
 
@@ -308,6 +319,7 @@ export function useDrawerMorph(
   });
   const [phase, setPhase] = useState<DrawerPhase>(initialPhase);
   const [reveal, setReveal] = useState<RevealState>(resting ? "on" : "pending");
+  const [restoreToken, setRestoreToken] = useState(0);
   const restingRef = useRef(false);
 
   /** The route this entry is on, and whether the next change is Back/Forward. */
@@ -581,7 +593,35 @@ export function useDrawerMorph(
     const m = machine.current;
 
     if (m.hidden || m.phase === "closed") {
-      enter("entry");
+      if (restoreOnShow?.()) {
+        // A full-screen route is handing the drawer back: it was already open,
+        // so resume at rest. Skipping `enter` is what prevents the panel flight
+        // and the reader entrance from replaying under the route transition's
+        // landing frame.
+        if (m.revealTimer) {
+          window.clearTimeout(m.revealTimer);
+          m.revealTimer = 0;
+        }
+
+        m.flight?.stop();
+        m.flight = null;
+        m.closing = null;
+        m.hidden = false;
+        m.phase = "open";
+        m.entry = readEntry();
+        originRef.current = m.entry.origin;
+        /* eslint-disable react-hooks/set-state-in-effect -- The router has just
+           shown this tree; the drawer has to be at rest in this commit, before
+           the route transition captures the new page. A timer or microtask
+           would land after the snapshot. */
+        setPhase("open");
+        setReveal("settled");
+        setRestoreToken((token) => token + 1);
+        /* eslint-enable react-hooks/set-state-in-effect */
+        markResting();
+      } else {
+        enter("entry");
+      }
     } else if (resting && !restingRef.current) {
       restingRef.current = true;
       m.entry = readEntry();
@@ -597,7 +637,15 @@ export function useDrawerMorph(
     }
 
     return watchForHide();
-  }, [enter, markResting, panelRef, readEntry, resting, watchForHide]);
+  }, [
+    enter,
+    markResting,
+    panelRef,
+    readEntry,
+    resting,
+    restoreOnShow,
+    watchForHide,
+  ]);
 
   // A resize mid-morph jumps to the end; after that the panel is pure CSS, so
   // the new viewport just reflows it and close measures the origin again.
@@ -975,5 +1023,5 @@ export function useDrawerMorph(
     return closing;
   }, [commit, originBox, panelRef, reduce, router]);
 
-  return { phase, reveal, close, stepBack, originRef };
+  return { phase, reveal, close, stepBack, originRef, restoreToken };
 }

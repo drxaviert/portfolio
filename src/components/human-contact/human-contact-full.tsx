@@ -1,5 +1,6 @@
 import { HumanContactExperience } from "./human-contact-experience";
 import { HumanContactStill } from "./human-contact-still";
+import { HumanContactTransition } from "./human-contact-transition";
 
 /**
  * The full-screen composition, shared by `/live/human-contact` and the dev
@@ -8,9 +9,11 @@ import { HumanContactStill } from "./human-contact-still";
  */
 export function HumanContactFull() {
   return (
-    <main className="hc-live">
-      <HumanContactStill />
-      <HumanContactExperience mode="full" />
-    </main>
+    <HumanContactTransition>
+      <main className="hc-live">
+        <HumanContactStill />
+        <HumanContactExperience mode="full" />
+      </main>
+    </HumanContactTransition>
   );
 }

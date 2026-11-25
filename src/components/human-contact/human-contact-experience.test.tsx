@@ -11,6 +11,10 @@ vi.mock("next/dynamic", () => ({
   default: () => () => null,
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ prefetch: vi.fn() }),
+}));
+
 describe("HumanContactExperience", () => {
   it("keeps the scene overlay free of the credit and links back to the study", () => {
     const { container } = render(<HumanContactExperience mode="full" />);
@@ -20,8 +24,9 @@ describe("HumanContactExperience", () => {
     expect(overlay?.textContent).not.toContain("Original design");
     expect(overlay?.textContent).not.toContain("Hover interaction");
     expect(container.querySelector(".hc-credit")).toBeNull();
-    expect(
-      screen.getByRole("link", { name: /case study/i }),
-    ).toHaveAttribute("href", "/work/human-contact");
+    expect(screen.getByRole("link", { name: /case study/i })).toHaveAttribute(
+      "href",
+      "/work/human-contact",
+    );
   });
 });
