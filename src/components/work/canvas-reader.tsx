@@ -37,6 +37,8 @@ type ViewerState = {
   index: number;
   startAt?: number;
   openRect?: Box;
+  /** The media is the focused WebGL plane; the viewer is chrome only. */
+  canvasOwned?: boolean;
 };
 
 /**
@@ -58,15 +60,17 @@ export function CanvasReader({
 }) {
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const [viewerClosing, setViewerClosing] = useState(false);
+  const [canvasPending, setCanvasPending] = useState(false);
   const canvasRef = useRef<InfiniteCanvasHandle | null>(null);
   const pathname = usePathname();
   const active = pathname === `/work/${meta.slug}`;
   const shownViewer = active ? viewer : null;
 
   const openViewer = useCallback(
-    (index: number, startAt?: number, openRect?: Box) => {
+    (index: number, startAt?: number, openRect?: Box, canvasOwned?: boolean) => {
       setViewerClosing(false);
-      setViewer({ index, startAt, openRect });
+      setCanvasPending(Boolean(canvasOwned));
+      setViewer({ index, startAt, openRect, canvasOwned });
     },
     [],
   );
@@ -74,12 +78,20 @@ export function CanvasReader({
   const closeViewer = useCallback(() => {
     setViewer(null);
     setViewerClosing(false);
+    setCanvasPending(false);
   }, []);
 
-  const markViewerClosing = useCallback((index: number, time?: number) => {
-    setViewerClosing(true);
-    return canvasRef.current?.closeTo(index, time) ?? null;
+  const markCanvasOpened = useCallback(() => {
+    setCanvasPending(false);
   }, []);
+
+  const markViewerClosing = useCallback(
+    (index: number, time?: number, canvasOwned?: boolean) => {
+      setViewerClosing(true);
+      return canvasRef.current?.closeTo(index, time, canvasOwned) ?? null;
+    },
+    [],
+  );
 
   const markViewerLanded = useCallback(() => {
     canvasRef.current?.landClose();
@@ -116,6 +128,7 @@ export function CanvasReader({
           breath={LOCKED_BREATH}
           hover={LOCKED_HOVER}
           onOpen={openViewer}
+          onCanvasOpened={markCanvasOpened}
         />
       </div>
 
@@ -127,12 +140,15 @@ export function CanvasReader({
         </span>
       </div>
 
-      {shownViewer ? (
+      {items.length > 0 ? (
         <FocusViewer
+          open={shownViewer !== null}
           items={items}
-          initialIndex={shownViewer.index}
-          startAt={shownViewer.startAt}
-          openRect={shownViewer.openRect}
+          initialIndex={shownViewer?.index ?? 0}
+          startAt={shownViewer?.startAt}
+          openRect={shownViewer?.openRect}
+          canvasOwned={shownViewer?.canvasOwned}
+          pending={canvasPending}
           onReady={markViewerReady}
           onClosing={markViewerClosing}
           onCloseLanded={markViewerLanded}

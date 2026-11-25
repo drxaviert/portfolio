@@ -99,7 +99,11 @@ export type InfiniteCanvasHandle = {
    * the tile's texture/frame prepares in parallel. Null means the close was
    * cancelled before anything was shown.
    */
-  closeTo: (index: number, time?: number) => CloseTarget | null;
+  closeTo: (
+    index: number,
+    time?: number,
+    canvasOwned?: boolean,
+  ) => CloseTarget | null;
   /** The viewer is shrinking again; put the hidden plane back in place. */
   cancelClose: () => void;
   /** The viewer landed; reveal the prepared tile and resume the grid. */
@@ -119,7 +123,14 @@ export type InfiniteCanvasProps = {
   lens: LensSettings;
   breath: BreathSettings;
   hover: HoverSettings;
-  onOpen: (index: number, startAt?: number, openRect?: Box) => void;
+  onOpen: (
+    index: number,
+    startAt?: number,
+    openRect?: Box,
+    canvasOwned?: boolean,
+  ) => void;
+  /** The canvas-owned open has settled; reveal the viewer chrome. */
+  onCanvasOpened: () => void;
 };
 
 const CAMERA_Z = INTRO.cameraToZ;
@@ -496,7 +507,11 @@ function StaticFallback({ items }: { items: CanvasItem[] }) {
 export const InfiniteCanvas = forwardRef<
   InfiniteCanvasHandle,
   InfiniteCanvasProps
->(function InfiniteCanvas({ items, paused, lens, breath, hover, onOpen }, ref) {
+>(
+  function InfiniteCanvas(
+    { items, paused, lens, breath, hover, onOpen, onCanvasOpened },
+    ref,
+  ) {
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const [introReady, setIntroReady] = useState(false);
@@ -521,13 +536,19 @@ export const InfiniteCanvas = forwardRef<
   const pauseVideosRef = useRef<() => void>(() => {});
   const clearHoverRef = useRef<() => void>(() => {});
   const pausedRef = useRef(paused);
+  const canvasOwnedRef = useRef(false);
   const onOpenRef = useRef(onOpen);
+  const onCanvasOpenedRef = useRef(onCanvasOpened);
 
   useImperativeHandle(ref, () => apiRef.current, []);
 
   useEffect(() => {
     onOpenRef.current = onOpen;
   }, [onOpen]);
+
+  useEffect(() => {
+    onCanvasOpenedRef.current = onCanvasOpened;
+  }, [onCanvasOpened]);
 
   useEffect(() => {
     lensRef.current = lens;
@@ -548,9 +569,14 @@ export const InfiniteCanvas = forwardRef<
     pausedRef.current = paused;
 
     if (paused) {
-      pauseVideosRef.current();
+      if (!canvasOwnedRef.current) {
+        pauseVideosRef.current();
+      }
+      // A canvas-owned open keeps the already-loaded textures live through
+      // the glide; the decoders are paused after the open settles.
       clearHoverRef.current();
     } else {
+      canvasOwnedRef.current = false;
       restoreRef.current();
       wakeRef.current();
     }
@@ -683,6 +709,7 @@ export const InfiniteCanvas = forwardRef<
     const corner = new THREE.Vector3();
     const projected = new THREE.Vector3();
     const textures = new Map<string, TextureEntry>();
+    const focusTextures = new Map<number, THREE.Texture>();
     const planeByMesh = new Map<THREE.Object3D, Plane>();
     const videoEntries = new Map<number, VideoEntry>();
     const preloaded = new Map<
@@ -916,10 +943,111 @@ export const InfiniteCanvas = forwardRef<
       for (const plane of planes) {
         if (plane.itemIndex !== itemIndex || !plane.isVideo) continue;
 
+        // The canvas-owned open pins the full-res poster on the focused
+        // plane; the video texture returns when the close lands.
+        if (
+          transition.phase !== "idle" &&
+          !transition.viewerOwned &&
+          transition.index === itemIndex
+        ) {
+          continue;
+        }
+
         plane.material.uniforms.uTexture.value = entry.texture;
         plane.material.uniforms.uDecodeVideo.value = 1;
         plane.loaded = true;
       }
+    }
+
+    /** The opened video uses its full-res poster until playback is upgraded. */
+    function applyPosterToPlane(plane: Plane): void {
+      const media = items[plane.itemIndex]?.media;
+      if (!media || media.kind !== "video") return;
+
+      const poster = textures.get(textureUrl(media));
+      if (!poster) return;
+
+      plane.material.uniforms.uTexture.value = poster.texture;
+      plane.material.uniforms.uDecodeVideo.value = 0;
+      plane.loaded = poster.loaded;
+    }
+
+    /** Progressive image upgrade: the 640 tile texture is already on screen. */
+    function upgradeFocusTexture(index: number): void {
+      const media = items[index]?.media;
+      if (!media || media.kind !== "image") return;
+
+      const existing = focusTextures.get(index);
+      if (existing) {
+        applyFocusTexture(index, existing);
+        return;
+      }
+
+      const webp = media.sources.filter((source) => source.format === "webp");
+      const pool = webp.length > 0 ? webp : media.sources;
+      if (pool.length === 0) return;
+
+      const targetWidth = Math.min(
+        1920,
+        Math.max(1280, Math.round(transition.focusWidth)),
+      );
+      const source =
+        pool
+          .filter((entry) => entry.width >= targetWidth)
+          .sort((a, b) => a.width - b.width)[0] ??
+        [...pool].sort((a, b) => b.width - a.width)[0];
+
+      const texture = loader.load(
+        source.url,
+        () => {
+          if (disposed) {
+            texture.dispose();
+            return;
+          }
+
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.minFilter = THREE.LinearMipmapLinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          texture.generateMipmaps = true;
+          texture.anisotropy = Math.min(
+            4,
+            renderer.capabilities.getMaxAnisotropy(),
+          );
+
+          // Upload once, after the motion, then swap the focused plane.
+          renderer.initTexture(texture);
+          focusTextures.set(index, texture);
+          applyFocusTexture(index, texture);
+        },
+        undefined,
+        () => texture.dispose(),
+      );
+    }
+
+    function applyFocusTexture(index: number, texture: THREE.Texture): void {
+      if (
+        transition.phase !== "open" ||
+        transition.viewerOwned ||
+        transition.index !== index ||
+        !transition.plane
+      ) {
+        return;
+      }
+
+      transition.plane.material.uniforms.uTexture.value = texture;
+      transition.plane.material.uniforms.uDecodeVideo.value = 0;
+      transition.plane.loaded = true;
+      renderScene();
+      updateDebug();
+    }
+
+    function restoreVideoTexture(index: number): void {
+      const media = items[index]?.media;
+      if (!media || media.kind !== "video") return;
+
+      const entry = videoEntries.get(index);
+      if (entry?.texture) applyVideoTexture(index, entry);
+      else applyPosterTexture(index);
     }
 
     function disposeVideoEntry(itemIndex: number): void {
@@ -1100,7 +1228,18 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function syncVideos(now: number): boolean {
-      if (videoOff || document.hidden || pausedRef.current) {
+      if (videoOff || document.hidden) {
+        pauseAllVideos();
+        return false;
+      }
+
+      if (pausedRef.current) {
+        // The canvas-owned open freezes its texture but lets the staggered
+        // teardown drain over frames instead of pausing twelve decoders here.
+        if (transition.phase === "opening" && !transition.viewerOwned) {
+          return false;
+        }
+
         pauseAllVideos();
         return false;
       }
@@ -1689,23 +1828,67 @@ export const InfiniteCanvas = forwardRef<
       const media = items[plane.itemIndex]?.media;
       if (!media) return;
 
-      // The viewer waits for its exact decoded image/video; the canvas keeps
-      // the clicked tile (pressed) visible until that is ready, then the DOM
-      // layer takes over the zoom at the tile rect.
-      void preloadItem(plane.itemIndex);
+      // Open inside the WebGL scene: the clicked plane keeps its already-loaded
+      // texture, glides to the centre and grows to the focus box. The viewer
+      // chrome mounts immediately but stays hidden; no DOM media or full-res
+      // decode runs on this path.
       panHalt();
+      canvasOwnedRef.current = true;
 
       const focus = fitBox(media.width, media.height, width, height);
       const video = videoEntries.get(plane.itemIndex);
       const startAt = video?.element.currentTime;
       const now = performance.now();
-      const tileRect = viewportRectForPlane(plane);
-      const pressedRect = {
-        left: tileRect.left + (tileRect.width * (1 - OPEN_PRESS_SCALE)) / 2,
-        top: tileRect.top + (tileRect.height * (1 - OPEN_PRESS_SCALE)) / 2,
-        width: tileRect.width * OPEN_PRESS_SCALE,
-        height: tileRect.height * OPEN_PRESS_SCALE,
-      };
+      const fromScrollX = scrollRef.current.x;
+      const fromScrollY = scrollRef.current.y;
+      const tileWidth = plane.mesh.scale.x;
+      const tileHeight = plane.mesh.scale.y;
+
+      // Poster-first: the video opens on its full-res poster, then the tile
+      // returns to its playing texture when the viewer closes.
+      if (media.kind === "video") applyPosterToPlane(plane);
+
+      if (reduced) {
+        scrollRef.current.x = -plane.baseX;
+        scrollRef.current.y = -plane.baseY;
+        placePlanes();
+        plane.mesh.visible = true;
+        plane.mesh.scale.set(focus.width, focus.height, 1);
+        plane.material.uniforms.uPlaneSizes.value.set(
+          focus.width,
+          focus.height,
+        );
+        plane.material.uniforms.uZoom.value = 1;
+        plane.opacity = 1;
+        plane.material.uniforms.uOpacity.value = 1;
+
+        for (const other of planes) {
+          if (other === plane) continue;
+          other.opacity = 0;
+          other.material.uniforms.uOpacity.value = 0;
+        }
+
+        transition = {
+          ...idleTransition(),
+          phase: "open",
+          startedAt: now,
+          index: plane.itemIndex,
+          plane,
+          target: plane,
+          tileWidth,
+          tileHeight,
+          focusWidth: focus.width,
+          focusHeight: focus.height,
+          viewerOwned: false,
+        };
+        loadingIndex = null;
+        setTransitioning(false);
+        renderScene();
+        updateDebug();
+        onOpenRef.current(plane.itemIndex, startAt, undefined, true);
+        onCanvasOpenedRef.current();
+        return;
+      }
 
       loadingIndex = plane.itemIndex;
       transition = {
@@ -1714,22 +1897,22 @@ export const InfiniteCanvas = forwardRef<
         index: plane.itemIndex,
         plane,
         target: plane,
-        fromScrollX: scrollRef.current.x,
-        fromScrollY: scrollRef.current.y,
-        toScrollX: scrollRef.current.x,
-        toScrollY: scrollRef.current.y,
+        fromScrollX,
+        fromScrollY,
+        toScrollX: -plane.baseX,
+        toScrollY: -plane.baseY,
         fromCameraZ: camera.position.z,
-        tileWidth: plane.mesh.scale.x,
-        tileHeight: plane.mesh.scale.y,
+        tileWidth,
+        tileHeight,
         focusWidth: focus.width,
         focusHeight: focus.height,
         handoffAt: -1,
         waitingForViewer: false,
         prepared: false,
-        viewerOwned: true,
+        viewerOwned: false,
       };
       setTransitioning(true);
-      onOpenRef.current(plane.itemIndex, startAt, pressedRect);
+      onOpenRef.current(plane.itemIndex, startAt, undefined, true);
       wake();
     }
 
@@ -1761,8 +1944,21 @@ export const InfiniteCanvas = forwardRef<
       return hit ? (planeByMesh.get(hit.object) ?? null) : null;
     }
 
+    /** A still pointer already has a raycast plane from the hover sampler. */
+    function planeForPointer(x: number, y: number): Plane | null {
+      if (
+        hoveredPlane &&
+        hoverPoint &&
+        Math.hypot(hoverPoint.x - x, hoverPoint.y - y) < 3
+      ) {
+        return hoveredPlane;
+      }
+
+      return planeAt(x, y);
+    }
+
     function pick(x: number, y: number): void {
-      const plane = planeAt(x, y);
+      const plane = planeForPointer(x, y);
       if (plane) void openPlane(plane);
     }
 
@@ -2361,13 +2557,18 @@ export const InfiniteCanvas = forwardRef<
           elapsed >= TRANSITION.growDelayMs + TRANSITION.growMs &&
           !t.waitingForViewer
         ) {
-          t.waitingForViewer = true;
+          t.waitingForViewer = false;
           t.phase = nextPhase(t.phase, "opened");
-          const video = videoEntries.get(t.index);
-          onOpenRef.current(t.index, video?.element.currentTime);
+          loadingIndex = null;
+          setTransitioning(false);
+          onCanvasOpenedRef.current();
+          // The 640 texture carried the motion; upgrade it once the chrome
+          // has settled. The hidden decoders stay live until the close; any
+          // teardown here costs more than the open budget.
+          window.setTimeout(() => upgradeFocusTexture(t.index), 250);
         }
 
-        return true;
+        return t.phase === "opening";
       }
 
       if (t.phase === "open") {
@@ -2392,6 +2593,7 @@ export const InfiniteCanvas = forwardRef<
           : closeComplete(elapsed);
 
         if (done) {
+          const closedIndex = t.index;
           t.phase = nextPhase(t.phase, "closed");
           t.index = -1;
           t.plane = null;
@@ -2405,6 +2607,7 @@ export const InfiniteCanvas = forwardRef<
             plane.material.uniforms.uOpacity.value = opacity;
           }
 
+          if (closedIndex >= 0) restoreVideoTexture(closedIndex);
           setTransitioning(false);
           return false;
         }
@@ -2528,7 +2731,11 @@ export const InfiniteCanvas = forwardRef<
       });
     }
 
-    function closeTo(index: number, time?: number): CloseTarget | null {
+    function closeTo(
+      index: number,
+      time?: number,
+      canvasOwned = false,
+    ): CloseTarget | null {
       // Closing while the viewer is still waiting for its first decoded
       // frame: cancel the open, restore the grid, and let the viewer unmount.
       if (transition.phase === "opening" && transition.viewerOwned) {
@@ -2549,7 +2756,52 @@ export const InfiniteCanvas = forwardRef<
         return { rect: null, prepared: Promise.resolve() };
       }
 
+      if (
+        canvasOwned &&
+        transition.phase === "opening" &&
+        !transition.viewerOwned
+      ) {
+        // Escape during the WebGL glide: cancel the open and restore the grid.
+        closeRun += 1;
+
+        for (const plane of planes) {
+          resetPlaneToTile(plane);
+          plane.opacity = plane.loaded ? 1 : 0;
+          plane.material.uniforms.uOpacity.value = plane.opacity;
+        }
+
+        loadingIndex = null;
+        transition = idleTransition();
+        setTransitioning(false);
+        renderScene();
+        updateDebug();
+        wake();
+        return null;
+      }
+
       if (!canClose(transition.phase)) return null;
+
+      if (canvasOwned) {
+        // The WebGL plane owns the opened media. Shrink it back to its tile
+        // with the legacy canvas timeline; the DOM viewer is chrome only.
+        panHalt();
+        const t = transition;
+        const target = t.plane ?? findPlane(index);
+        if (!target) return null;
+
+        t.phase = "closing";
+        t.index = index;
+        t.target = target;
+        t.handoffAt = -1;
+        t.waitingForViewer = false;
+        t.prepared = true;
+        t.viewerOwned = false;
+        t.startedAt = performance.now();
+        setTransitioning(true);
+        wake();
+
+        return { rect: null, prepared: Promise.resolve() };
+      }
 
       panHalt();
       const t = transition;
@@ -2670,7 +2922,9 @@ export const InfiniteCanvas = forwardRef<
       }
 
       hiddenPlane = null;
+      const closedIndex = t.index;
       transition = idleTransition();
+      if (closedIndex >= 0) restoreVideoTexture(closedIndex);
       setTransitioning(false);
       renderScene();
       updateDebug();
@@ -2837,11 +3091,104 @@ export const InfiniteCanvas = forwardRef<
         return;
       }
 
-      if (t.phase === "opening" && t.viewerOwned) {
+      const media = index !== null ? items[index]?.media : undefined;
+      if (media) {
+        const focus = fitBox(media.width, media.height, width, height);
+        t.focusWidth = focus.width;
+        t.focusHeight = focus.height;
+      }
+      t.tileWidth = t.plane.tileWidth;
+      t.tileHeight = t.plane.tileHeight;
+
+      if (t.phase === "opening" && !t.viewerOwned) {
         const elapsed = performance.now() - t.startedAt;
         const fade = 1 - fadeOutProgress(elapsed);
-        t.tileWidth = t.plane.tileWidth;
-        t.tileHeight = t.plane.tileHeight;
+        const grow = growProgress(elapsed);
+        loadingIndex = null;
+
+        for (const plane of planes) {
+          resetPlaneToTile(plane);
+
+          if (plane === t.plane) {
+            const w =
+              t.tileWidth + (t.focusWidth - t.tileWidth) * grow;
+            const h =
+              t.tileHeight + (t.focusHeight - t.tileHeight) * grow;
+            plane.mesh.visible = true;
+            plane.mesh.scale.set(w, h, 1);
+            plane.material.uniforms.uPlaneSizes.value.set(w, h);
+            plane.material.uniforms.uZoom.value =
+              TEXTURE_ZOOM + (1 - TEXTURE_ZOOM) * grow;
+            plane.opacity = 1;
+          } else {
+            plane.opacity = fade;
+          }
+
+          plane.material.uniforms.uOpacity.value = plane.opacity;
+        }
+
+        hiddenPlane = null;
+      } else if (t.phase === "open" && !t.viewerOwned) {
+        // Canvas-owned opened view: the focused plane is the media.
+        loadingIndex = null;
+
+        for (const plane of planes) {
+          resetPlaneToTile(plane);
+
+          if (plane === t.plane) {
+            plane.mesh.visible = true;
+            plane.mesh.scale.set(t.focusWidth, t.focusHeight, 1);
+            plane.material.uniforms.uPlaneSizes.value.set(
+              t.focusWidth,
+              t.focusHeight,
+            );
+            plane.material.uniforms.uZoom.value = 1;
+            const upgraded = focusTextures.get(index ?? -1);
+            if (upgraded) {
+              plane.material.uniforms.uTexture.value = upgraded;
+              plane.material.uniforms.uDecodeVideo.value = 0;
+            }
+            plane.opacity = 1;
+          } else {
+            plane.opacity = 0;
+          }
+
+          plane.material.uniforms.uOpacity.value = plane.opacity;
+        }
+
+        hiddenPlane = null;
+      } else if (t.phase === "closing" && !t.viewerOwned) {
+        const elapsed = performance.now() - t.startedAt;
+        const shrink = closeShrinkProgress(elapsed);
+        const fade = closeFadeProgress(elapsed);
+        const target = t.target ?? t.plane;
+        loadingIndex = null;
+
+        for (const plane of planes) {
+          resetPlaneToTile(plane);
+
+          if (plane === target) {
+            const w =
+              t.focusWidth + (t.tileWidth - t.focusWidth) * shrink;
+            const h =
+              t.focusHeight + (t.tileHeight - t.focusHeight) * shrink;
+            plane.mesh.visible = true;
+            plane.mesh.scale.set(w, h, 1);
+            plane.material.uniforms.uPlaneSizes.value.set(w, h);
+            plane.material.uniforms.uZoom.value =
+              1 + (TEXTURE_ZOOM - 1) * shrink;
+            plane.opacity = 1;
+          } else {
+            plane.opacity = fade;
+          }
+
+          plane.material.uniforms.uOpacity.value = plane.opacity;
+        }
+
+        hiddenPlane = null;
+      } else if (t.phase === "opening" && t.viewerOwned) {
+        const elapsed = performance.now() - t.startedAt;
+        const fade = 1 - fadeOutProgress(elapsed);
         loadingIndex = index;
 
         for (const plane of planes) {
@@ -2866,8 +3213,8 @@ export const InfiniteCanvas = forwardRef<
 
         hiddenPlane = null;
       } else {
-        // Open or closing: the viewer covers the canvas. Keep the fresh grid
-        // hidden and let landClose reveal the new target mesh.
+        // Open or closing with DOM media: the viewer covers the canvas. Keep
+        // the fresh grid hidden and let landClose reveal the new target mesh.
         loadingIndex = null;
 
         for (const plane of planes) {
@@ -2983,7 +3330,7 @@ export const InfiniteCanvas = forwardRef<
       if (event.button !== 0 || pausedRef.current || !introEndedFlag) return;
       if (!canOpen(transition.phase)) return;
 
-      const plane = planeAt(event.clientX, event.clientY);
+      const plane = planeForPointer(event.clientX, event.clientY);
       if (plane) void preloadItem(plane.itemIndex);
     };
     surface?.addEventListener("pointerdown", onPreloadPointerDown, {
@@ -3080,6 +3427,11 @@ export const InfiniteCanvas = forwardRef<
       for (const entry of textures.values()) {
         entry.texture.dispose();
       }
+
+      for (const texture of focusTextures.values()) {
+        texture.dispose();
+      }
+      focusTextures.clear();
 
       renderer.dispose();
       renderer.forceContextLoss();

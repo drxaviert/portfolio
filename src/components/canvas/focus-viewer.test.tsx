@@ -1,4 +1,4 @@
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CanvasItem } from "./infinite-canvas";
 import type { VideoMedia } from "@/lib/media-types";
@@ -69,5 +69,38 @@ describe("FocusViewer open wait", () => {
 
     expect(onReady).not.toHaveBeenCalled();
     expect(onClosed).not.toHaveBeenCalled();
+  });
+
+  it("renders chrome only for a canvas-owned open and closes through the canvas", () => {
+    const onClosing = vi.fn(() => ({
+      rect: null,
+      prepared: Promise.resolve(),
+    }));
+    const onClosed = vi.fn();
+
+    const { container } = render(
+      <FocusViewer
+        items={[item]}
+        initialIndex={0}
+        canvasOwned
+        onClosing={onClosing}
+        onClosed={onClosed}
+      />,
+    );
+
+    expect(container.querySelector(".cv-viewer")).toHaveAttribute(
+      "data-canvas-owned",
+    );
+    expect(container.querySelector(".cv-viewer__media")).toBeNull();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onClosing).toHaveBeenCalledWith(0, undefined, true);
+
+    act(() => {
+      vi.advanceTimersByTime(1600);
+    });
+
+    expect(onClosed).toHaveBeenCalledTimes(1);
   });
 });

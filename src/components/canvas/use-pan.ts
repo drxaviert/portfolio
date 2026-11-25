@@ -81,6 +81,8 @@ export const PAN_TUNING = {
 type DragState = {
   pointerId: number | null;
   dragging: boolean;
+  /** Capture only starts once a drag passes the click threshold. */
+  captured: boolean;
   pointerType: string;
   moved: number;
   lastX: number;
@@ -144,6 +146,7 @@ export function usePan({
   const stateRef = useRef<DragState>({
     pointerId: null,
     dragging: false,
+    captured: false,
     pointerType: "",
     moved: 0,
     lastX: 0,
@@ -185,7 +188,8 @@ export function usePan({
     arrowKeysRef.current.clear();
 
     if (state.pointerId !== null) {
-      releaseCapture(state.pointerId);
+      if (state.captured) releaseCapture(state.pointerId);
+      state.captured = false;
       state.pointerId = null;
     }
 
@@ -276,6 +280,7 @@ export function usePan({
 
       state.pointerId = event.pointerId;
       state.dragging = true;
+      state.captured = false;
       state.pointerType = event.pointerType;
       state.moved = 0;
       state.lastX = event.clientX;
@@ -286,12 +291,6 @@ export function usePan({
       // Grabbing a glide stops it where it is; the hand then adds velocity.
       state.velocity = { x: 0, y: 0 };
       state.lastTick = now;
-
-      try {
-        event.currentTarget.setPointerCapture(event.pointerId);
-      } catch {
-        // Capture is best-effort.
-      }
 
       setDraggingAttribute(true);
       onWakeRef.current?.();
@@ -314,6 +313,17 @@ export function usePan({
       state.lastDeltaX = deltaX;
       state.lastDeltaY = deltaY;
       state.moved += Math.hypot(deltaX, deltaY);
+
+      // A tap must not take pointer capture: releasing it was a measurable
+      // compositor stall on the tile-open path.
+      if (!state.captured && state.moved > PAN_TUNING.click.maxDistancePx) {
+        state.captured = true;
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+          // Capture is best-effort.
+        }
+      }
 
       if (reduceRef.current) {
         scrollRef.current.x += deltaX;
@@ -344,7 +354,8 @@ export function usePan({
 
       state.pointerId = null;
       state.dragging = false;
-      releaseCapture(event.pointerId);
+      if (state.captured) releaseCapture(event.pointerId);
+      state.captured = false;
       setDraggingAttribute(false);
 
       if (wasDrag) {

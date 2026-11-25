@@ -10,6 +10,19 @@
   overflow: hidden;
 }
 
+/* The overlay stays mounted between opens; this removes the layer insertion
+   from the pointer-up frame while keeping the DOM warm. */
+.cv-viewer[data-hidden] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cv-viewer[data-hidden] .cv-viewer__frame,
+.cv-viewer[data-hidden] .cv-viewer__caption,
+.cv-viewer[data-hidden] .cv-viewer__close {
+  pointer-events: none;
+}
+
 .cv-viewer:focus,
 .cv-viewer:focus-visible {
   outline: none;
@@ -45,6 +58,21 @@
   box-shadow: var(--shadow-card);
   will-change: transform;
   pointer-events: auto;
+}
+
+.cv-viewer[data-canvas-owned] .cv-viewer__frame {
+  background: transparent;
+  box-shadow: none;
+}
+
+.cv-viewer[data-pending] .cv-viewer__backdrop {
+  pointer-events: none;
+}
+
+.cv-viewer[data-pending] .cv-viewer__close {
+  opacity: 0;
+  pointer-events: none;
+  animation: none;
 }
 
 .cv-viewer__content {
