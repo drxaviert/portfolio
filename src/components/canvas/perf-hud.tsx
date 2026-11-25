@@ -17,7 +17,9 @@ import {
 import type { PerfSnapshot, PerfWorstFrame } from "./perf";
 
 function phaseTag(name: string): string {
-  if (/pointer|react|open-state|hover|cursor/i.test(name)) return "a/d";
+  if (/pointer|react|open-state|hover|cursor|place-chip/i.test(name)) {
+    return "a/d";
+  }
   if (/texture|hi-res|shader/i.test(name)) return "b";
   if (/video|play/i.test(name)) return "c";
   if (/history|resource|router|prefetch/i.test(name)) return "e";

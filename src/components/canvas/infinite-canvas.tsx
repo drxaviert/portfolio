@@ -791,6 +791,8 @@ export const InfiniteCanvas = forwardRef<
     let hoverWasAllowed = false;
     let hoveredPlane: Plane | null = null;
     let renderedFrames = 0;
+    /** A queued hi-res focus texture upgrade, cancelled on close/unmount. */
+    let focusUpgrade: { id: number; idle: boolean } | null = null;
 
     const idleTransition = (): CanvasTransition => ({
       phase: "idle",
@@ -1005,6 +1007,24 @@ export const InfiniteCanvas = forwardRef<
     function upgradeFocusTexture(index: number): void {
       const media = items[index]?.media;
       if (!media || media.kind !== "image") return;
+      if (transition.phase !== "open" || transition.index !== index) return;
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const neededWidth = Math.round(transition.focusWidth * dpr);
+
+      // Skip when the 640w tile already covers the focused plane's device
+      // pixels. On the measured laptop (dpr 1) the portrait focus box is
+      // 648 CSS px, so a 1280w upload adds no visible detail; a HiDPI focus
+      // box that outgrows the tile still upgrades.
+      if (dpr <= 1 || neededWidth <= TEXTURE_TARGET_WIDTH) {
+        markPerf("hi-res-skip", {
+          index,
+          dpr,
+          neededWidth,
+          reason: dpr <= 1 ? "dpr-1" : "covered",
+        });
+        return;
+      }
 
       const existing = focusTextures.get(index);
       if (existing) {
@@ -1025,6 +1045,17 @@ export const InfiniteCanvas = forwardRef<
           .filter((entry) => entry.width >= targetWidth)
           .sort((a, b) => a.width - b.width)[0] ??
         [...pool].sort((a, b) => b.width - a.width)[0];
+
+      // No source beats the tile texture; re-uploading it is pure cost.
+      if (source.width <= TEXTURE_TARGET_WIDTH) {
+        markPerf("hi-res-skip", {
+          index,
+          dpr,
+          neededWidth,
+          reason: "no-larger-source",
+        });
+        return;
+      }
 
       if (perfEnabled) {
         markPerf("hi-res-load", {
@@ -1068,6 +1099,36 @@ export const InfiniteCanvas = forwardRef<
         undefined,
         () => texture.dispose(),
       );
+    }
+
+    function cancelFocusUpgrade(): void {
+      if (!focusUpgrade) return;
+      if (focusUpgrade.idle) window.cancelIdleCallback?.(focusUpgrade.id);
+      else window.clearTimeout(focusUpgrade.id);
+      focusUpgrade = null;
+    }
+
+    /**
+     * Queue the hi-res upgrade for browser idle time, after the chrome has
+     * settled. The timeout keeps it from being starved on a busy page; Safari
+     * without requestIdleCallback falls back to the old fixed delay.
+     */
+    function scheduleFocusUpgrade(index: number): void {
+      cancelFocusUpgrade();
+
+      const run = () => {
+        focusUpgrade = null;
+        upgradeFocusTexture(index);
+      };
+
+      if (typeof window.requestIdleCallback === "function") {
+        focusUpgrade = {
+          id: window.requestIdleCallback(run, { timeout: 1200 }),
+          idle: true,
+        };
+      } else {
+        focusUpgrade = { id: window.setTimeout(run, 250), idle: false };
+      }
     }
 
     function applyFocusTexture(index: number, texture: THREE.Texture): void {
@@ -1891,6 +1952,8 @@ export const InfiniteCanvas = forwardRef<
       const media = items[plane.itemIndex]?.media;
       if (!media) return;
 
+      cancelFocusUpgrade();
+
       if (perfEnabled) {
         markPerf("open-start", {
           index: plane.itemIndex,
@@ -2642,10 +2705,10 @@ export const InfiniteCanvas = forwardRef<
               kind: items[t.index]?.media.kind,
             });
           }
-          // The 640 texture carried the motion; upgrade it once the chrome
-          // has settled. The hidden decoders stay live until the close; any
-          // teardown here costs more than the open budget.
-          window.setTimeout(() => upgradeFocusTexture(t.index), 250);
+          // The 640 texture carried the motion; upgrade it in an idle slot
+          // once the chrome has settled. The hidden decoders stay live until
+          // the close; any teardown here costs more than the open budget.
+          scheduleFocusUpgrade(t.index);
         }
 
         return t.phase === "opening";
@@ -2816,6 +2879,8 @@ export const InfiniteCanvas = forwardRef<
       time?: number,
       canvasOwned = false,
     ): CloseTarget | null {
+      cancelFocusUpgrade();
+
       // Closing while the viewer is still waiting for its first decoded
       // frame: cancel the open, restore the grid, and let the viewer unmount.
       if (transition.phase === "opening" && transition.viewerOwned) {
@@ -3466,6 +3531,7 @@ export const InfiniteCanvas = forwardRef<
 
     return () => {
       disposed = true;
+      cancelFocusUpgrade();
 
       if (raf !== 0) cancelAnimationFrame(raf);
       if (resizeFrame !== 0) cancelAnimationFrame(resizeFrame);

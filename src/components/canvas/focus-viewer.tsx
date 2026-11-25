@@ -11,10 +11,11 @@ import {
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
 import { MediaVideo } from "@/components/media/media-video";
+import { beginPerf, markPerf } from "@/components/canvas/perf";
 import type { Box } from "@/components/work/morph";
 import type { CanvasItem, CloseTarget } from "./infinite-canvas";
 import { projectLabel } from "./items";
-import { TRANSITION, fitBox } from "./transition";
+import { TRANSITION, captionTop, fitBox } from "./transition";
 import "./focus-viewer.css";
 
 const FOCUSABLE =
@@ -179,8 +180,21 @@ export function FocusViewer({
     // While the WebGL glide owns the screen there is no visible chip; placing
     // it now would force a page layout inside the pointer-up handler.
     if (!open || pending) return;
+
+    // The canvas-owned frame sits at the known focus box, and its caption is
+    // positioned from that size + the viewport in render. Revealing the chrome
+    // therefore never reads the animated frame rect.
+    if (canvasOwned && !domMedia) {
+      markPerf("place-chip", { canvasOwned: true, css: true });
+      return;
+    }
+
+    const endPlace = beginPerf("place-chip", {
+      canvasOwned: Boolean(canvasOwned),
+    });
     placeChip();
-  }, [media, open, pending, placeChip, ready, viewport]);
+    endPlace();
+  }, [canvasOwned, domMedia, media, open, pending, placeChip, ready, viewport]);
 
   useEffect(() => {
     const onResize = () => {
@@ -921,6 +935,7 @@ export function FocusViewer({
             ref={captionRef}
             className="cv-viewer__caption"
             style={{
+              top: `${captionTop(viewport.height, size.height)}px`,
               opacity: closing ? 0 : chromeVisible ? 1 : 0,
               transition: reduce
                 ? "none"

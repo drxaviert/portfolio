@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   TRANSITION,
+  boxInsideViewport,
   canClose,
   canOpen,
+  captionTop,
   closeComplete,
   closeFadeProgress,
   closeShrinkProgress,
@@ -14,7 +16,6 @@ import {
   nextPhase,
   openComplete,
   shortestWrappedDelta,
-  boxInsideViewport,
   viewerOpenNeedsFrames,
 } from "./transition";
 import type { TransitionPhase } from "./transition";
@@ -122,6 +123,13 @@ describe("fitBox", () => {
       width: 880,
       height: 440,
     });
+  });
+});
+
+describe("captionTop", () => {
+  it("centres the caption between the frame bottom and the viewport", () => {
+    expect(captionTop(1000, 600)).toBe(900);
+    expect(captionTop(900, 900)).toBe(900);
   });
 });
 
