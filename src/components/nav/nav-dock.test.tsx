@@ -307,6 +307,46 @@ describe("NavDock", () => {
     render_.unmount();
   });
 
+  it("tweens the home scale into the drawer instead of snapping the bar", async () => {
+    const view = renderDock();
+    const el = dock();
+    const home = {
+      top: 741.531,
+      left: 228.703,
+      width: 1078.563,
+      height: 60.75,
+    };
+    const reader = { top: 44, left: 200, width: 1136, height: 64 };
+
+    // The real boxes on a 1536x864 screen: the home dock is zoomed by
+    // 0.949451, the drawer's is 1x. The flight must carry that difference.
+    el.getBoundingClientRect = () => {
+      const box = el.dataset.navState === "reader" ? reader : home;
+      return {
+        ...box,
+        right: box.left + box.width,
+        bottom: box.top + box.height,
+        x: box.left,
+        y: box.top,
+        toJSON: () => ({}),
+      } as DOMRect;
+    };
+
+    await act(() => moveNav("reader", "flip"));
+
+    const frames = mocks.animate.mock.calls.at(-1)?.[1] as {
+      transform: string[];
+    };
+    expect(frames.transform[0]).toMatch(
+      /translate\(-?[\d.]+px, 697(?:\.\d+)?px\) scale\(0\.949/,
+    );
+    expect(frames.transform[1]).toBe("translate(0px, 0px) scale(1)");
+    // Nothing is left transformed at rest.
+    expect(el.style.transform).toBe("");
+    expect(el.style.transformOrigin).toBe("");
+    view.unmount();
+  });
+
   it("scales the home dock with the frame, in the frame's own space", () => {
     const css = readFileSync(
       join(process.cwd(), "src", "components", "nav", "nav-dock.css"),

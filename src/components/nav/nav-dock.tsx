@@ -107,6 +107,7 @@ export function NavDock() {
       if (!animate) {
         el.style.removeProperty("top");
         el.style.removeProperty("transform");
+        el.style.removeProperty("transform-origin");
         el.style.removeProperty("opacity");
         el.dataset.navState = to;
         stateRef.current = to;
@@ -115,7 +116,7 @@ export function NavDock() {
         return;
       }
 
-      const from = el.getBoundingClientRect().top;
+      const fromRect = el.getBoundingClientRect();
       flyingRef.current?.stop();
       flyingRef.current = null;
 
@@ -130,6 +131,7 @@ export function NavDock() {
 
         el.style.removeProperty("top");
         el.style.removeProperty("transform");
+        el.style.removeProperty("transform-origin");
         el.dataset.navState = to;
         stateRef.current = to;
 
@@ -150,12 +152,33 @@ export function NavDock() {
 
       // Switching state moves the element's CSS box; measure where it would
       // paint untransformed, then start from where it appears right now.
+      //
+      // The home dock is zoomed by --fit while the reader's is 1x. Scaling the
+      // reader nav would shrink it away from the panel's 1120px back row and
+      // its 1x type, so the size change belongs to the flight instead: the
+      // first frame is the measured home box, the last is the measured reader
+      // box, and the same transform carries the travel and the scale on the
+      // drawer's own curve. Without this, width, height and left snap at the
+      // state switch (~57px wider, ~29px per side at 1536x864).
       el.style.removeProperty("top");
       el.style.transform = "none";
+      el.style.removeProperty("transform-origin");
       el.dataset.navState = to;
       stateRef.current = to;
-      const target = el.getBoundingClientRect().top;
-      const delta = from - target;
+      const targetRect = el.getBoundingClientRect();
+      const delta = fromRect.top - targetRect.top;
+      const centerDelta =
+        fromRect.left +
+        fromRect.width / 2 -
+        (targetRect.left + targetRect.width / 2);
+      const scale =
+        targetRect.width > 0 ? fromRect.width / targetRect.width : 1;
+      const startTransform = `translate(${centerDelta}px, ${delta}px) scale(${scale})`;
+
+      // Pin the first painted frame to the old box before starting; Motion's
+      // first keyframe then continues from exactly where the switch left it.
+      el.style.transformOrigin = "50% 0";
+      el.style.transform = startTransform;
 
       const fallback: NavFlightTiming =
         to === "reader"
@@ -166,7 +189,7 @@ export function NavDock() {
 
       const flight = animate(
         el,
-        { transform: [`translateY(${delta}px)`, "translateY(0px)"] },
+        { transform: [startTransform, "translate(0px, 0px) scale(1)"] },
         spec,
       );
       flyingRef.current = flight;
@@ -190,13 +213,17 @@ export function NavDock() {
       flyingRef.current = null;
       endNavBlur();
       el.style.removeProperty("transform");
+      el.style.removeProperty("transform-origin");
       delete el.dataset.navLeaving;
       if (to === "home") alignHomeRef.current?.();
 
       // Motion writes the final keyframe as an inline style on the frame after
       // `finished` resolves; clear it again so no identity transform lingers.
       requestAnimationFrame(() => {
-        if (!flyingRef.current) el.style.removeProperty("transform");
+        if (!flyingRef.current) {
+          el.style.removeProperty("transform");
+          el.style.removeProperty("transform-origin");
+        }
       });
     },
     [],

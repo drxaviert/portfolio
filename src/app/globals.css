@@ -369,17 +369,19 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
     --wd-nav-content-gap: 32px;
 
     /*
-     * The home frame is drawn at 1200 x 908: the 780px column plus one 64px
-     * gap above and below (home-layout.tsx). Scale it down uniformly on
-     * shorter or narrower desktop viewports, never up. Length/length division
-     * is the tan(atan2()) trick faux-ui.css uses; plain CSS cannot divide two
-     * lengths. The width ratio keeps the minimum 1280 layout from clipping the
-     * composition; the height ratio does the real work at 16:9.
+     * The home frame is drawn at 1200 x 910: the 780px column, the 64px
+     * bottom gap, and the 65px top gap (the 64px gap plus the 1px top line),
+     * with 1px of centring slack so the top line lands at y=0. Scale it down
+     * uniformly on shorter or narrower desktop viewports, never up.
+     * Length/length division is the tan(atan2()) trick faux-ui.css uses;
+     * plain CSS cannot divide two lengths. The width ratio keeps the minimum
+     * 1280 layout from clipping the composition; the height ratio does the
+     * real work at 16:9.
      */
     --fit: min(
       1,
       calc(tan(atan2(100vw, 1280px))),
-      calc(tan(atan2(100dvh, 908px)))
+      calc(tan(atan2(100dvh, 910px)))
     );
 
     /*

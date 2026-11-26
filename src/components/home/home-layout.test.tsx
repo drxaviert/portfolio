@@ -57,7 +57,9 @@ describe("HomeLayout", () => {
 
     expect(globals).toMatch(/--fit:\s*1;/);
     expect(globals).toMatch(/tan\(atan2\(100vw,\s*1280px\)\)/);
-    expect(globals).toMatch(/tan\(atan2\(100dvh,\s*908px\)\)/);
+    // 910 includes the 1px top line plus the centring slack that keeps it at
+    // y=0; 908 left the line 1px above the viewport at fit < 1.
+    expect(globals).toMatch(/tan\(atan2\(100dvh,\s*910px\)\)/);
     expect(desktop).toMatch(
       /\[data-home-frame\]\s*\{[^}]*zoom:\s*var\(--fit\);/,
     );

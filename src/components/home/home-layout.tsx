@@ -15,10 +15,12 @@ import { RingHoverPointer } from "./ring-pointer";
 import "./ring-hover.css";
 
 /*
- * Nominal frame: 780px content + 2 x 64px gaps = 908px. A 900px-tall viewport
- * overflows that by 8px, so the horizontal lines fall outside the frame and
- * are clipped. Shrink the gaps to the space available; 64px is kept as soon
- * as 100dvh leaves room (1920x1080 is unchanged).
+ * Nominal frame: 780px content, a 64px bottom gap, and a 65px top gap (the
+ * 64px gap plus the 1px top line) = 909px of ink. Fit against 910px: the extra
+ * pixel is the column's centring slack, which keeps the top line at y=0
+ * instead of 1px above the viewport. A 900px-tall viewport is shorter than
+ * that, so the whole frame scales rather than clipping the lines. The 64px
+ * gaps are kept as soon as 100dvh / --fit leaves room (1920x1080 unchanged).
  */
 const frameGapStyle = {
   "--frame-gap": "clamp(0px, calc((100dvh / var(--fit) - 780px) / 2), 64px)",
