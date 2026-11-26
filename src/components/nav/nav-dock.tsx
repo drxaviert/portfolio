@@ -153,13 +153,10 @@ export function NavDock() {
       // Switching state moves the element's CSS box; measure where it would
       // paint untransformed, then start from where it appears right now.
       //
-      // The home dock is zoomed by --fit while the reader's is 1x. Scaling the
-      // reader nav would shrink it away from the panel's 1120px back row and
-      // its 1x type, so the size change belongs to the flight instead: the
-      // first frame is the measured home box, the last is the measured reader
-      // box, and the same transform carries the travel and the scale on the
-      // drawer's own curve. Without this, width, height and left snap at the
-      // state switch (~57px wider, ~29px per side at 1536x864).
+      // Both states now use the same --fit zoom, so the dock keeps one size
+      // through the switch: the flight only moves it. The measured boxes are
+      // still carried as a scale so a future width difference cannot snap; the
+      // transform lives inside the zoomed dock, hence the /zoom on the travel.
       el.style.removeProperty("top");
       el.style.transform = "none";
       el.style.removeProperty("transform-origin");
@@ -173,7 +170,11 @@ export function NavDock() {
         (targetRect.left + targetRect.width / 2);
       const scale =
         targetRect.width > 0 ? fromRect.width / targetRect.width : 1;
-      const startTransform = `translate(${centerDelta}px, ${delta}px) scale(${scale})`;
+      // The dock is zoomed by --fit in both states now, so the measured
+      // positions are painted pixels while the transform is written inside the
+      // zoomed element. Divide the travel back into its coordinate space.
+      const zoom = el.offsetWidth > 0 ? targetRect.width / el.offsetWidth : 1;
+      const startTransform = `translate(${centerDelta / zoom}px, ${delta / zoom}px) scale(${scale})`;
 
       // Pin the first painted frame to the old box before starting; Motion's
       // first keyframe then continues from exactly where the switch left it.

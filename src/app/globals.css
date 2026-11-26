@@ -356,14 +356,12 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
   --fit: 1;
 
   /*
-   * Fluid page geometry for the scrolling pages (reader, work index, boundary
-   * screens). Each clamp lands on its old wide value at 1440px+, so the
-   * 3440x1440 composition is unchanged; between 768 and 1440 the gutter, gap
-   * and reading column now move with the viewport instead of jumping at a
-   * breakpoint. The <768 values stay at their previous mobile sizes.
+   * Page geometry for the scrolling desktop pages. At >=768 these are the xl
+   * (widest) values, and the whole composition is scaled by --fit; below 768
+   * the mobile gate keeps its previous values. There are no intermediate
+   * breakpoints to snap to.
    */
   --page-pad: 16px;
-  --page-pad-y: 16px;
   --page-gap: 16px;
   --reading-column: 582px;
   --reading-rail: 170px;
@@ -383,56 +381,40 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
     --wd-nav-content-gap: 32px;
 
     /*
-     * The home frame is drawn at 1200 x 910: the 780px column, the 64px
-     * bottom gap, and the 65px top gap (the 64px gap plus the 1px top line),
-     * with 1px of centring slack so the top line lands at y=0. Scale it down
-     * uniformly on shorter or narrower desktop viewports, never up.
-     * Length/length division is the tan(atan2()) trick faux-ui.css uses;
-     * plain CSS cannot divide two lengths. The width ratio keeps the minimum
-     * 1280 layout from clipping the composition; the height ratio does the
-     * real work at 16:9.
+     * The desktop is one composition: the xl design (1200 x 910: the 780px
+     * column, the 64px bottom gap, and the 65px top gap including the 1px
+     * top line, plus 1px of centring slack). It is drawn on the 1440px design
+     * frame (the 1200px frame plus 120px side padding each way), so the width
+     * ratio is 100vw / 1440px. The height ratio stays 910px. Never grows past
+     * 1. Length/length division is the tan(atan2()) trick faux-ui.css uses;
+     * plain CSS cannot divide two lengths.
      */
     --fit: min(
       1,
-      calc(tan(atan2(100vw, 1280px))),
+      calc(tan(atan2(100vw, 1440px))),
       calc(tan(atan2(100dvh, 910px)))
     );
 
     /*
      * Edge blur may only cover the empty margin around the frame's content,
      * never a card or text. The margin is half of what the viewport has left
-     * after the content, so the band is clamped to it; on a tall screen it
-     * settles at the design 172px. The md column is 868px tall, lg 668px, xl
-     * 780px (tracker + gap + band + gap + nav); each breakpoint overrides the
-     * height below. The peak blur follows the frame's scale.
+     * after the xl 780px column, so the band is clamped to it; on a tall
+     * screen it settles at the design 172px. The peak blur follows the scale.
      */
-    --edge-blur-height: min(172px, calc((100dvh - 868px * var(--fit)) / 2));
+    --edge-blur-height: min(172px, calc((100dvh - 780px * var(--fit)) / 2));
     --edge-blur-max: calc(8px * var(--fit));
 
-    /* Fluid reading geometry: the wide ends are the 1440 values above. */
-    --page-pad: clamp(24px, 2.25vw, 32px);
-    --page-pad-y: clamp(32px, 4.17vw, 60px);
-    --page-gap: clamp(24px, 3vw, 44px);
-    --reading-column: clamp(34rem, 45vw, 36.375rem);
-    --title-fluid: clamp(2.25rem, 1.3rem + 1.333vw, 2.5rem);
+    /* Desktop reading geometry: the xl values, scaled by --fit. */
+    --page-pad: 32px;
+    --page-gap: 44px;
+    --reading-column: 582px;
+    --reading-rail: 170px;
+    --title-fluid: 2.5rem;
   }
 
-  /* Zoom the frame, not body: the shared horizon stays full-bleed. */
+  /* The desktop composition is always the xl one, scaled by --fit. */
   [data-home-frame] {
     zoom: var(--fit);
-  }
-}
-
-@media (min-width: 1024px) {
-  :root {
-    --edge-blur-height: min(172px, calc((100dvh - 668px * var(--fit)) / 2));
-    --reading-rail: clamp(140px, 12vw, 170px);
-  }
-}
-
-@media (min-width: 1280px) {
-  :root {
-    --edge-blur-height: min(172px, calc((100dvh - 780px * var(--fit)) / 2));
   }
 }
 
@@ -955,9 +937,9 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
 }
 
 /*
- * The display title for the scrolling pages: 2.5rem at the wide end, starting
- * at 2.25rem on a 768px desktop and growing with the viewport. The mobile
- * value (2rem) is the old text-title-sm step.
+ * The display title for the scrolling pages. Below 768 it is the mobile 2rem;
+ * at >=768 it is the xl 2.5rem and the page zoom scales it with the rest of
+ * the composition.
  */
 @utility text-title-fluid {
   font-size: var(--title-fluid);

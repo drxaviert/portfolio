@@ -119,7 +119,7 @@ export function HomeLayout({
 
       <div
         data-home-frame=""
-        className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-12 xl:py-15"
+        className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-15"
         style={frameGapStyle}
       >
         {/* Vertical frame lines: 1px hairlines on the content-column edges,
@@ -127,12 +127,12 @@ export function HomeLayout({
         <span
           aria-hidden="true"
           data-frame-line="v"
-          className="pointer-events-none absolute inset-y-0 left-0 hidden w-px bg-frame-line min-[1440px]:block"
+          className="pointer-events-none absolute inset-y-0 left-0 hidden w-px bg-frame-line md:block"
         />
         <span
           aria-hidden="true"
           data-frame-line="v"
-          className="pointer-events-none absolute inset-y-0 right-0 hidden w-px bg-frame-line min-[1440px]:block"
+          className="pointer-events-none absolute inset-y-0 right-0 hidden w-px bg-frame-line md:block"
         />
 
         <div className="relative mx-auto my-auto flex w-full max-w-[1136px] flex-col gap-3">
@@ -141,13 +141,13 @@ export function HomeLayout({
           <span
             aria-hidden="true"
             data-frame-line="h"
-            className="pointer-events-none absolute -inset-x-8 hidden h-px bg-frame-line min-[1440px]:block"
+            className="pointer-events-none absolute -inset-x-8 hidden h-px bg-frame-line md:block"
             style={{ top: "calc(var(--frame-gap) * -1 - 1px)" }}
           />
           <span
             aria-hidden="true"
             data-frame-line="h"
-            className="pointer-events-none absolute -inset-x-8 hidden h-px bg-frame-line min-[1440px]:block"
+            className="pointer-events-none absolute -inset-x-8 hidden h-px bg-frame-line md:block"
             style={{ bottom: "calc(var(--frame-gap) * -1)" }}
           />
 
@@ -175,7 +175,7 @@ export function HomeLayout({
           {items && items.length === 0 ? (
             // No studies yet: one line in the band's own height, in the same
             // place the cards would be. No stand-in card, no empty slot.
-            <div className="flex h-[420px] items-center justify-center md:h-[560px] lg:h-[360px] xl:h-[416px]">
+            <div className="flex h-[420px] items-center justify-center md:h-[416px]">
               <p className="text-base text-on-surface-variant">
                 {EMPTY_WORK_LABEL}
               </p>
@@ -197,7 +197,7 @@ export function HomeLayout({
               <HomeCarousel items={items} entrance={entrance} />
             </>
           ) : (
-            <div className="grid gap-3 md:h-[560px] md:grid-cols-[444fr_120fr_52fr_52fr] lg:h-[360px] lg:grid-cols-[656fr_140fr_64fr_64fr] xl:h-[416px] xl:grid-cols-[753fr_180fr_83fr_84fr]">
+            <div className="grid gap-3 md:h-[416px] md:grid-cols-[753fr_180fr_83fr_84fr]">
               <EntranceCell variant={entrance} item={3} row={2}>
                 {work ? (
                   <ProjectCard title={work.title} onOpen={work.onOpen} />

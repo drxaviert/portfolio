@@ -112,7 +112,7 @@ export function FrameLineSpotlight() {
     let promoted = false;
 
     function measure() {
-      if (window.innerWidth < 1440) return;
+      if (window.innerWidth < 768) return;
 
       const rootRect = rootEl.getBoundingClientRect();
       zoom = rectZoom(rootEl, rootRect);
@@ -201,7 +201,7 @@ export function FrameLineSpotlight() {
     function apply() {
       frame = 0;
 
-      if (!pointer || window.innerWidth < 1440) {
+      if (!pointer || window.innerWidth < 768) {
         clearLights();
         return;
       }

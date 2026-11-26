@@ -307,7 +307,7 @@ describe("NavDock", () => {
     render_.unmount();
   });
 
-  it("tweens the home scale into the drawer instead of snapping the bar", async () => {
+  it("carries the home position into the drawer in the dock's zoomed space", async () => {
     const view = renderDock();
     const el = dock();
     const home = {
@@ -316,10 +316,20 @@ describe("NavDock", () => {
       width: 1078.563,
       height: 60.75,
     };
-    const reader = { top: 44, left: 200, width: 1136, height: 64 };
+    const reader = {
+      top: 44,
+      left: 228.703,
+      width: 1078.563,
+      height: 60.75,
+    };
 
-    // The real boxes on a 1536x864 screen: the home dock is zoomed by
-    // 0.949451, the drawer's is 1x. The flight must carry that difference.
+    // Both states are the xl dock scaled by --fit: the visual boxes have the
+    // same size, and their measured px must be divided back into the zoomed
+    // coordinate space before the flight writes the transform.
+    Object.defineProperty(el, "offsetWidth", {
+      configurable: true,
+      value: 1136,
+    });
     el.getBoundingClientRect = () => {
       const box = el.dataset.navState === "reader" ? reader : home;
       return {
@@ -338,7 +348,7 @@ describe("NavDock", () => {
       transform: string[];
     };
     expect(frames.transform[0]).toMatch(
-      /translate\(-?[\d.]+px, 697(?:\.\d+)?px\) scale\(0\.949/,
+      /translate\(0px, 734(?:\.\d+)?px\) scale\(1\)/,
     );
     expect(frames.transform[1]).toBe("translate(0px, 0px) scale(1)");
     // Nothing is left transformed at rest.
@@ -353,9 +363,7 @@ describe("NavDock", () => {
       "utf8",
     );
 
-    expect(css).toMatch(
-      /\.wd-nav-dock\[data-nav-state="home"\]\s*\{[^}]*zoom:\s*var\(--fit\);/,
-    );
+    expect(css).toMatch(/\.wd-nav-dock\s*\{[^}]*zoom:\s*var\(--fit\);/);
     // 50dvh is not zoomed, so the dock divides it back into frame px.
     expect(css).toMatch(/50dvh \/ var\(--fit\)/);
     expect(css).toMatch(/calc\(50% - 568px\)/);

@@ -74,14 +74,14 @@ export function TrackerWidget() {
     <div
       role="img"
       aria-label="Contribution tracker, placeholder data"
-      className="ring-host flex h-40 w-40 flex-col rounded-lg pt-[22px] pb-[22px] md:size-[220px] md:pt-[26px] xl:h-[276px] xl:w-[275px]"
+      className="ring-host flex h-40 w-40 flex-col rounded-lg pt-[22px] pb-[22px] md:h-[276px] md:w-[275px] md:pt-[26px]"
     >
       <RingLayers fill="bg-surface-container-low" />
       <div className="mx-auto w-[98px] md:hidden">
         <MiniGrid cells={CELLS.slice(0, DAYS * 7)} />
       </div>
 
-      <div className="mx-auto hidden w-[165px] flex-col gap-[9px] md:flex xl:w-[223px]">
+      <div className="mx-auto hidden w-[223px] flex-col gap-[9px] md:flex">
         <Band cells={CELLS.slice(0, BAND_CELLS)} />
         <Band cells={CELLS.slice(BAND_CELLS)} />
       </div>

@@ -92,7 +92,7 @@ export function NowPlayingCard({
       onPointerEnter={store.warm}
       onFocus={store.warm}
       onPointerDown={store.warm}
-      className="ring-host now-playing-card flex h-40 w-40 flex-col rounded-lg md:size-[220px] xl:h-[276px] xl:w-[275px]"
+      className="ring-host now-playing-card flex h-40 w-40 flex-col rounded-lg md:h-[276px] md:w-[275px]"
     >
       <RingLayers fill="bg-surface-container-low" />
 
@@ -122,7 +122,7 @@ export function NowPlayingCard({
 
         <div className="now-playing-row">
           <div className="now-playing-meta">
-            <p className="now-playing-title text-xs font-semibold xl:text-sm">
+            <p className="now-playing-title text-xs font-semibold md:text-sm">
               {track.title}
             </p>
             {status === "error" ? (
