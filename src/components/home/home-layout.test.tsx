@@ -49,22 +49,17 @@ describe("HomeLayout", () => {
     );
 
     expect(frame).not.toBeNull();
-    // The verticals start on the top horizontal and stop on the bottom one.
-    // The horizontals keep the shared box positions and lengths.
+    // The verticals keep main's full-viewport length; only their x position
+    // follows the composition. The horizontals sit on the box's top and last
+    // pixel, so the verticals cross them at the frame corners.
     expect(vertical?.style.getPropertyValue("top")).toBe(
-      "var(--frame-line-top)",
+      "var(--frame-line-v-top)",
     );
     expect(vertical?.style.getPropertyValue("height")).toBe(
-      "var(--frame-line-height)",
+      "var(--frame-line-v-height)",
     );
     expect(horizontals[0]?.style.getPropertyValue("top")).toBe(
       "var(--frame-line-top)",
-    );
-    expect(horizontals[0]?.style.getPropertyValue("left")).toBe(
-      "var(--frame-line-h-left)",
-    );
-    expect(horizontals[0]?.style.getPropertyValue("width")).toBe(
-      "var(--frame-line-h-width)",
     );
     expect(horizontals[1]?.style.getPropertyValue("top")).toBe(
       "calc(var(--frame-line-top) + var(--frame-line-height) - 1px)",
@@ -88,8 +83,9 @@ describe("HomeLayout", () => {
     expect(globals).toMatch(/--frame-line-height:\s*909px/);
     expect(globals).toMatch(/--frame-line-height:\s*964px/);
     expect(globals).toMatch(
-      /--frame-line-h-width:\s*calc\(100vw \/ var\(--home-fit\)\)/,
+      /--frame-line-v-height:\s*calc\(100dvh \/ var\(--home-fit\)\)/,
     );
+    expect(globals).toMatch(/--frame-line-v-top:\s*calc\(\(100% - 100dvh \/ var\(--home-fit\)\) \/ 2\)/);
     expect(desktop).toMatch(
       /\[data-home-frame\]\s*\{[^}]*zoom:\s*var\(--home-fit\);/,
     );

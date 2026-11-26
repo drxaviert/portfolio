@@ -426,13 +426,12 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
   /* The desktop composition is always the xl one, scaled by its own fit. */
   [data-home-frame] {
     /* The xl box is the 910px ink frame (909px of line ink); the horizontals
-       sit on its top/bottom and keep main's frame width. The verticals start
-       at the top horizontal and end at the bottom horizontal, so they span the
-       same 909px box. */
+       sit on its top/bottom. The verticals keep main's full-viewport length,
+       positioned on the box's left/right edges. */
     --frame-line-top: calc((100% - 910px) / 2);
     --frame-line-height: 909px;
-    --frame-line-h-left: 0px;
-    --frame-line-h-width: 100%;
+    --frame-line-v-top: calc((100% - 100dvh / var(--home-fit)) / 2);
+    --frame-line-v-height: calc(100dvh / var(--home-fit));
 
     zoom: var(--home-fit);
   }
@@ -468,13 +467,10 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
     padding: 48px 32px;
     margin-block: auto;
 
-    /* The 768 frame's hairlines keep the box positions on its four edges; the
-       horizontals run the full viewport width, while the verticals start and
-       end on those horizontals. */
+    /* The 768 frame's hairlines sit on its four edges; the 12px gutters and
+       the 32/48 padding stay inside the frame. */
     --frame-line-top: 0px;
     --frame-line-height: 964px;
-    --frame-line-h-left: calc((100% - 100vw / var(--home-fit)) / 2);
-    --frame-line-h-width: calc(100vw / var(--home-fit));
   }
 }
 
