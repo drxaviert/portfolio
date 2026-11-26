@@ -17,13 +17,14 @@ import "./ring-hover.css";
 
 /*
  * The frame hairlines keep main's full-length treatment: the verticals run
- * the full viewport height and the horizontals span the frame width, so they
- * cross at the frame corners. Their positions follow the active composition:
- * the xl box is the 910px ink frame (780px content + 64px bottom gap + 65px
- * top gap including the 1px line, plus 1px slack) and the tablet box is the
- * 768x964 artboard. `--frame-line-top` / `--frame-line-height` place the
- * horizontals; `--frame-line-v-top` / `--frame-line-v-height` extend the
- * verticals to the viewport in globals.css.
+ * the full viewport height and the horizontals span the frame width (the
+ * tablet also runs them the full viewport width), so they cross at the frame
+ * corners. Their positions follow the active composition: the xl box is the
+ * 910px ink frame (780px content + 64px bottom gap + 65px top gap including
+ * the 1px line, plus 1px slack) and the tablet box is the 768x964 artboard.
+ * `--frame-line-top` / `--frame-line-height` and `--frame-line-h-left` /
+ * `--frame-line-h-width` place the horizontals; `--frame-line-v-top` /
+ * `--frame-line-v-height` extend the verticals to the viewport.
  */
 
 /**
@@ -158,15 +159,21 @@ export function HomeLayout({
         <span
           aria-hidden="true"
           data-frame-line="h"
-          className="pointer-events-none absolute inset-x-0 hidden h-px bg-frame-line md:block"
-          style={{ top: "var(--frame-line-top)" }}
+          className="pointer-events-none absolute hidden h-px bg-frame-line md:block"
+          style={{
+            top: "var(--frame-line-top)",
+            left: "var(--frame-line-h-left)",
+            width: "var(--frame-line-h-width)",
+          }}
         />
         <span
           aria-hidden="true"
           data-frame-line="h"
-          className="pointer-events-none absolute inset-x-0 hidden h-px bg-frame-line md:block"
+          className="pointer-events-none absolute hidden h-px bg-frame-line md:block"
           style={{
             top: "calc(var(--frame-line-top) + var(--frame-line-height) - 1px)",
+            left: "var(--frame-line-h-left)",
+            width: "var(--frame-line-h-width)",
           }}
         />
 

@@ -61,6 +61,12 @@ describe("HomeLayout", () => {
     expect(horizontals[0]?.style.getPropertyValue("top")).toBe(
       "var(--frame-line-top)",
     );
+    expect(horizontals[0]?.style.getPropertyValue("left")).toBe(
+      "var(--frame-line-h-left)",
+    );
+    expect(horizontals[0]?.style.getPropertyValue("width")).toBe(
+      "var(--frame-line-h-width)",
+    );
     expect(horizontals[1]?.style.getPropertyValue("top")).toBe(
       "calc(var(--frame-line-top) + var(--frame-line-height) - 1px)",
     );
@@ -86,6 +92,9 @@ describe("HomeLayout", () => {
       /--frame-line-v-height:\s*calc\(100dvh \/ var\(--home-fit\)\)/,
     );
     expect(globals).toMatch(/--frame-line-v-top:\s*calc\(\(100% - 100dvh \/ var\(--home-fit\)\) \/ 2\)/);
+    expect(globals).toMatch(
+      /--frame-line-h-width:\s*calc\(100vw \/ var\(--home-fit\)\)/,
+    );
     expect(desktop).toMatch(
       /\[data-home-frame\]\s*\{[^}]*zoom:\s*var\(--home-fit\);/,
     );
