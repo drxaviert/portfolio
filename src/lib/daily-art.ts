@@ -24,8 +24,8 @@ const AIC_SEARCH_URL = "https://api.artic.edu/api/v1/artworks/search";
 /** Generic project name only; the AIC docs ask not to send an email address. */
 export const AIC_USER_AGENT = "Daily-Painting/1.0";
 const REQUEST_TIMEOUT_MS = 8_000;
-const CANDIDATE_WINDOW = 24;
-const RETRY_WINDOW = 100;
+/** One seeded page, scanned here so a described pick never trusts the server. */
+const DESCRIBED_PAGE_SIZE = 100;
 /**
  * AIC's public search refuses `from + limit > 1000` with a 403 ("Invalid
  * number of results"), regardless of the larger Elasticsearch window behind
@@ -41,7 +41,7 @@ const MAX_ASPECT = 4;
  * it. This is what keeps a new field (the synopsis) from silently disappearing
  * for the rest of a cached day.
  */
-export const ART_DATA_VERSION = 3;
+export const ART_DATA_VERSION = 4;
 
 const SEARCH_FIELDS = [
   "id",
@@ -58,7 +58,12 @@ const SEARCH_FIELDS = [
   "description",
 ] as const;
 
-/** A described-work query, so a normal daily pick always has museum text. */
+/*
+ * A described-work query, so the count and page are already narrowed. AIC only
+ * parses this JSON when the request is sent as application/json; searchAic
+ * sets that header. A form-encoded body is ignored and returns the unfiltered
+ * total, which is why the pick still checks descriptions client-side below.
+ */
 const BASE_QUERY = {
   query: {
     bool: {
@@ -258,29 +263,6 @@ function usableArtwork(item: AicArtwork): boolean {
   return isAcceptableAspect(width, height);
 }
 
-/**
- * Deterministic pick. Records are ordered by id first so an API reorder cannot
- * change the painting; the date hash sets the start, then the list is scanned
- * forward (wrapping once) for the first record that can be framed.
- */
-export function pickArtwork(
-  items: readonly AicArtwork[],
-  dateKey: string,
-): AicArtwork | null {
-  if (items.length === 0) return null;
-
-  const ordered = [...items].sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
-  const start = hashDateKey(dateKey) % ordered.length;
-
-  for (let step = 0; step < ordered.length; step += 1) {
-    const candidate = ordered[(start + step) % ordered.length];
-
-    if (usableArtwork(candidate)) return candidate;
-  }
-
-  return null;
-}
-
 export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
   if (!usableArtwork(item)) return null;
 
@@ -300,8 +282,9 @@ export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
   const synopsis =
     clipSynopsis(item.short_description) ?? clipSynopsis(item.description);
 
-  // The search only returns described works; a record without text is not a
-  // usable daily pick. The bundled offline painting remains for API failure.
+  // The page scan re-checks museum text client-side, so an ignored server
+  // filter cannot select an undescribed work. The bundled offline painting
+  // remains for API failure.
   if (!synopsis) return null;
 
   return {
@@ -325,6 +308,24 @@ export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
       `${title} by ${artist}, ${text(item.date_display) ?? "undated"}`,
     fallback: false,
   };
+}
+
+/**
+ * The page's first described, framable record. toDailyArt enforces the museum
+ * text, image and aspect checks, so this never selects an undescribed work even
+ * if AIC ignores the description filter.
+ */
+function pickDescribedArtwork(
+  items: readonly AicArtwork[],
+  dateKey: string,
+): DailyArt | null {
+  for (const item of items) {
+    const daily = toDailyArt(item, dateKey);
+
+    if (daily) return daily;
+  }
+
+  return null;
 }
 
 /**
@@ -415,37 +416,32 @@ export async function fetchDailyArt(
 
     const seeded = hashDateKey(dateKey);
     const available = Math.min(total, SEARCH_WINDOW);
-    const window = Math.min(CANDIDATE_WINDOW, available);
-    const maxStart = Math.max(0, available - window);
+    const pageSize = Math.min(DESCRIBED_PAGE_SIZE, available);
+    const maxStart = Math.max(0, available - pageSize);
     const from = maxStart > 0 ? seeded % (maxStart + 1) : 0;
 
     const result = await searchAic(fetchImpl, {
       ...BASE_QUERY,
       fields: SEARCH_FIELDS,
-      limit: window,
+      limit: pageSize,
       from,
     });
-    const picked = pickArtwork(result.data ?? [], dateKey);
-    const daily = picked ? toDailyArt(picked, dateKey) : null;
+    const daily = pickDescribedArtwork(result.data ?? [], dateKey);
 
     if (daily) return daily;
 
-    // The seeded window had no framable painting (rare: extreme ratios, missing
-    // dimensions). Re-seed from the start of the collection before giving up.
+    // The seeded page had no described, framable record. Check the start of the
+    // accessible window once before using the bundled offline painting.
     if (from > 0) {
       const retry = await searchAic(fetchImpl, {
         ...BASE_QUERY,
         fields: SEARCH_FIELDS,
-        limit: Math.min(RETRY_WINDOW, total, SEARCH_WINDOW),
+        limit: pageSize,
         from: 0,
       });
-      const retryPick = pickArtwork(retry.data ?? [], dateKey);
+      const retryDaily = pickDescribedArtwork(retry.data ?? [], dateKey);
 
-      if (retryPick) {
-        const retryDaily = toDailyArt(retryPick, dateKey);
-
-        if (retryDaily) return retryDaily;
-      }
+      if (retryDaily) return retryDaily;
     }
 
     return fallbackArt(dateKey);

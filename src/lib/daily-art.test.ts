@@ -7,7 +7,6 @@ import {
   hashDateKey,
   isAcceptableAspect,
   isValidDateKey,
-  pickArtwork,
   toDailyArt,
   utcDateKey,
 } from "./daily-art";
@@ -98,45 +97,7 @@ describe("aspect rejection", () => {
   });
 });
 
-describe("deterministic pick", () => {
-  const paintings = Array.from({ length: 12 }, (_, index) =>
-    artwork({ id: index + 1, title: `Painting ${index + 1}` }),
-  );
-
-  it("returns the same painting for the same day, twice", () => {
-    const first = pickArtwork(paintings, DATE);
-    const second = pickArtwork(paintings, DATE);
-
-    expect(first?.id).toBe(second?.id);
-    expect(first).not.toBeNull();
-  });
-
-  it("changes the pick on another day", () => {
-    const first = pickArtwork(paintings, DATE);
-    const next = pickArtwork(paintings, "2026-11-26");
-
-    expect(first?.id).not.toBe(next?.id);
-  });
-
-  it("is independent of the API's order", () => {
-    const first = pickArtwork(paintings, DATE);
-    const reversed = pickArtwork([...paintings].reverse(), DATE);
-
-    expect(first?.id).toBe(reversed?.id);
-  });
-
-  it("skips extreme aspect ratios and missing dimensions", () => {
-    const wide = artwork({
-      id: 2,
-      thumbnail: { width: 9000, height: 1000 },
-    });
-    const missingImage = artwork({ id: 3, image_id: null });
-    const good = artwork({ id: 4 });
-
-    expect(pickArtwork([wide, missingImage, good], DATE)?.id).toBe(4);
-    expect(pickArtwork([wide, missingImage], DATE)).toBeNull();
-  });
-
+describe("date hash", () => {
   it("hashes the same string to the same unsigned number", () => {
     expect(hashDateKey(DATE)).toBe(hashDateKey(DATE));
     expect(hashDateKey(DATE)).not.toBe(hashDateKey("2026-11-26"));
@@ -284,6 +245,7 @@ describe("fetchDailyArt", () => {
       expect(call[0]).toBe("https://api.artic.edu/api/v1/artworks/search");
       expect(init.method).toBe("POST");
       expect(headers["AIC-User-Agent"]).toBe("Daily-Painting/1.0");
+      expect(headers["Content-Type"]).toBe("application/json");
       expect(JSON.stringify(headers)).not.toContain("@");
       const body = JSON.stringify(init.body);
 
@@ -305,6 +267,42 @@ describe("fetchDailyArt", () => {
     expect(window.from + window.limit).toBeLessThanOrEqual(1000);
     expect(window.fields).toContain("short_description");
     expect(window.fields).toContain("description");
+  });
+
+  it("scans a mixed page for the first described, framable record", async () => {
+    const fetchMock = mockFetch([
+      countResponse(133375),
+      itemsResponse([
+        artwork({ id: 40, short_description: null, description: null }),
+        artwork({
+          id: 41,
+          short_description: "<p>A described but extreme work.</p>",
+          thumbnail: { width: 9000, height: 1000 },
+        }),
+        artwork({
+          id: 42,
+          short_description: "<p>A described work with no image.</p>",
+          image_id: null,
+        }),
+        artwork({
+          id: 43,
+          title: "Described work",
+          short_description: "<p>The real museum description.</p>",
+        }),
+      ]),
+    ]);
+
+    const daily = await fetchDailyArt(
+      DATE,
+      fetchMock as unknown as typeof fetch,
+    );
+    const page = JSON.parse(fetchMock.mock.calls[1][1]?.body as string);
+
+    expect(daily.id).toBe(43);
+    expect(daily.synopsis).toBe("The real museum description.");
+    expect(daily.fallback).toBe(false);
+    expect(page.limit).toBe(100);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("returns the same painting for the same date", async () => {
@@ -350,6 +348,114 @@ describe("fetchDailyArt", () => {
     expect(daily.imageId).toBeNull();
     expect(daily.title).toBeTruthy();
     expect(daily.synopsis).toContain("stand-in");
+  });
+
+  const liveDescribe = process.env.LIVE_AIC === "1" ? describe : describe.skip;
+
+  liveDescribe("live AIC totals (LIVE_AIC=1; recorded 2026-11-26)", () => {
+    const url = "https://api.artic.edu/api/v1/artworks/search";
+    const must = [
+      { term: { is_public_domain: true } },
+      { term: { "artwork_type_title.keyword": "Painting" } },
+      { exists: { field: "image_id" } },
+    ];
+    const described = [
+      { exists: { field: "short_description" } },
+      { exists: { field: "description" } },
+    ];
+
+    async function totalFor(
+      clauseMust: unknown[],
+      clauseShould?: unknown[],
+    ): Promise<number | undefined> {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "AIC-User-Agent": "Daily-Painting/1.0",
+        },
+        body: JSON.stringify({
+          query: {
+            bool: {
+              must: clauseMust,
+              ...(clauseShould
+                ? { should: clauseShould, minimum_should_match: 1 }
+                : {}),
+            },
+          },
+          fields: ["id"],
+          limit: 1,
+          from: 0,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+
+      expect(response.ok).toBe(true);
+
+      const json = (await response.json()) as {
+        pagination?: { total?: number };
+      };
+
+      return json.pagination?.total;
+    }
+
+    it("applies public-domain, painting, image and description filters", async () => {
+      const cases = [
+        { name: "public-domain", must: [must[0]], total: 62285 },
+        { name: "+painting", must: must.slice(0, 2), total: 2029 },
+        { name: "+image", must, total: 1936 },
+        {
+          name: "+description",
+          must,
+          should: described,
+          total: 758,
+        },
+      ];
+      const observed = [];
+
+      for (const item of cases) {
+        observed.push({
+          name: item.name,
+          total: await totalFor(item.must, item.should),
+        });
+      }
+
+      expect(observed).toEqual(
+        cases.map((item) => ({ name: item.name, total: item.total })),
+      );
+    }, 60_000);
+
+    it("sees the described total from the app's count request", async () => {
+      type LiveBody = {
+        query: {
+          bool: { should: unknown; minimum_should_match: number };
+        };
+      };
+      const calls: Array<{ body: LiveBody; total?: number }> = [];
+      const liveFetch = (async (
+        input: string,
+        init: RequestInit,
+      ): Promise<Response> => {
+        const response = await fetch(input, init);
+        const json = (await response.clone().json()) as {
+          pagination?: { total?: number };
+        };
+
+        calls.push({
+          body: JSON.parse(init.body as string) as LiveBody,
+          total: json.pagination?.total,
+        });
+
+        return response;
+      }) as unknown as typeof fetch;
+      const daily = await fetchDailyArt(DATE, liveFetch);
+
+      expect(calls[0].total).toBe(758);
+      expect(calls[0].body.query.bool.should).toEqual(described);
+      expect(calls[0].body.query.bool.minimum_should_match).toBe(1);
+      expect(daily.fallback).toBe(false);
+      expect(daily.synopsis.trim()).not.toBe("");
+    }, 60_000);
   });
 
   it("retries a transient HTTP failure once, then falls back", async () => {
