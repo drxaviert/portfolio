@@ -1,5 +1,6 @@
 ﻿import { notFound } from "next/navigation";
 import { ArtCard } from "@/components/home/art-card/art-card";
+import { VariantGallery } from "./variant-gallery";
 import { ART_DATA_VERSION, fallbackArt, getTodaysArt } from "@/lib/daily-art";
 import type { DailyArt } from "@/lib/daily-art";
 import "./lab.css";
@@ -28,6 +29,8 @@ type LabSample = {
   key: string;
   caption: string;
   note?: string;
+  /** Lab-only AIC dominant colour, used by the painting-tint variant. */
+  accent?: string;
   art: DailyArt;
 };
 
@@ -57,6 +60,7 @@ function samples(today: string): LabSample[] {
   return [
     {
       key: "portrait-ornate",
+      accent: "hsl(39 14% 53%)",
       caption:
         "Portrait Â· 0.79 Â· pre-1700 ornate gilt Â· The Music Lesson, 1665",
       art: baseArt(
@@ -130,6 +134,7 @@ function samples(today: string): LabSample[] {
     },
     {
       key: "landscape-walnut",
+      accent: "hsl(59 12% 52%)",
       caption:
         "Landscape Â· 1.49 Â· 1880â€“1945 walnut Â· A Sunday on La Grande Jatte, 1884",
       art: baseArt(
@@ -267,8 +272,11 @@ export default async function ArtCardLabPage() {
     notFound();
   }
 
-  const today = (await getTodaysArt(ART_DATA_VERSION)).date;
+  const todayArt = await getTodaysArt(ART_DATA_VERSION);
+  const today = todayArt.date;
   const items = samples(today);
+  const portrait = items.find((item) => item.key === "portrait-ornate");
+  const landscape = items.find((item) => item.key === "landscape-walnut");
 
   return (
     <main className="art-lab">
@@ -286,6 +294,14 @@ export default async function ArtCardLabPage() {
           1960 date because the public-domain set has no post-1945 paintings.
         </p>
       </header>
+
+      <VariantGallery
+        today={todayArt}
+        portrait={portrait?.art ?? todayArt}
+        portraitAccent={portrait?.accent}
+        landscape={landscape?.art ?? todayArt}
+        landscapeAccent={landscape?.accent}
+      />
 
       {items.map((sample) => (
         <section className="art-lab-sample" key={sample.key}>
