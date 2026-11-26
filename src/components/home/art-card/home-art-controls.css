@@ -1,6 +1,7 @@
 /*
  * Dev-only frame lab panel. Loaded only from home-art-controls.tsx, which is
- * outside the production client graph. Every control is a 44px target.
+ * outside the production client graph. Every control is a 44px target; the
+ * pill face is visually smaller than its hit area.
  */
 
 .home-art-panel,
@@ -77,24 +78,93 @@
   display: grid;
   gap: 4px;
   min-width: 0;
+}
+
+.home-art-label {
   color: var(--on-surface-variant);
   font-size: var(--text-xs);
   font-weight: 500;
   letter-spacing: 0.04em;
 }
 
-.home-art-field select,
-.home-art-field input,
+.home-art-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.home-art-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.home-art-pill {
+  display: inline-flex;
+  height: 44px;
+  min-width: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--on-surface-variant);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.home-art-pill-face {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+
+.home-art-pill:hover .home-art-pill-face {
+  background: var(--surface-container-high);
+}
+
+.home-art-pill[aria-checked="true"] .home-art-pill-face {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.home-art-pill[aria-checked="true"]:hover .home-art-pill-face {
+  background: var(--primary);
+}
+
+.home-art-pill:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.home-art-custom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.home-art-custom input,
 .home-art-custom button,
 .home-art-panel-toggle,
 .home-art-icon-button {
   min-height: 44px;
 }
 
-.home-art-field select,
-.home-art-field input {
-  width: 100%;
-  padding: 0 10px;
+.home-art-custom input {
+  width: 76px;
+  height: 44px;
+  padding: 0 8px;
   border: 0;
   border-radius: 8px;
   background: var(--surface-container-high);
@@ -103,30 +173,19 @@
   font-size: var(--text-base);
 }
 
-.home-art-field select:focus-visible,
-.home-art-field input:focus-visible,
-.home-art-custom button:focus-visible,
-.home-art-panel-toggle:focus-visible,
-.home-art-icon-button:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-
-.home-art-custom {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: end;
+.home-art-custom input::placeholder {
+  color: var(--on-surface-variant);
 }
 
 .home-art-custom button {
-  padding: 0 14px;
+  height: 44px;
+  padding: 0 10px;
   border: 0;
   border-radius: 8px;
   background: var(--primary);
   color: var(--on-primary);
   font: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 500;
   cursor: pointer;
 }
@@ -134,6 +193,14 @@
 .home-art-custom button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.home-art-custom input:focus-visible,
+.home-art-custom button:focus-visible,
+.home-art-panel-toggle:focus-visible,
+.home-art-icon-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .home-art-panel-toggle {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { ArtOverride } from "@/lib/art-override";
 import type { Phase } from "@/lib/theme";
@@ -14,21 +15,31 @@ import "./home-art-controls.css";
  * development only. The URL remains the source of truth: every control calls
  * the same `writeArtOverride` the dev overrides already read, so changes apply
  * live, survive a refresh and are shareable.
+ *
+ * Each row is a radiogroup of pill buttons. The roving tab stop moves with the
+ * arrow keys, while the pill face stays smaller than the 44px hit area.
  */
 
 export const PANEL_SHORTCUT = "Shift+F";
 
-const ERA_OPTIONS: { value: FrameEra | "auto"; label: string }[] = [
-  { value: "auto", label: "Auto (artwork era)" },
-  { value: "gilt-ornate", label: "Gilt ornate" },
-  { value: "gilt-carved", label: "Gilt carved" },
+type PillOption<T> = { value: T; label: string };
+
+const FRAME_OPTIONS: readonly PillOption<FrameEra | null>[] = [
+  { value: null, label: "Auto" },
+  { value: "gilt-ornate", label: "Gilt" },
+  { value: "gilt-carved", label: "Carved" },
   { value: "walnut", label: "Walnut" },
-  { value: "modern", label: "Modern float" },
-  { value: "scroll", label: "Silk scroll" },
+  { value: "modern", label: "Modern" },
+  { value: "scroll", label: "Scroll" },
 ];
 
-const PHASE_OPTIONS: { value: Phase | "auto"; label: string }[] = [
-  { value: "auto", label: "Auto (clock)" },
+const FRAMES_OPTIONS: readonly PillOption<boolean>[] = [
+  { value: false, label: "New" },
+  { value: true, label: "Current" },
+];
+
+const PHASE_OPTIONS: readonly PillOption<Phase | null>[] = [
+  { value: null, label: "Auto" },
   { value: "day", label: "Day" },
   { value: "dawn", label: "Dawn" },
   { value: "dusk", label: "Dusk" },
@@ -37,14 +48,13 @@ const PHASE_OPTIONS: { value: Phase | "auto"; label: string }[] = [
 
 const SAMPLE_IDS = new Set([512, 2169, 4887, 8900]);
 
-const PAINTING_OPTIONS = [
-  { value: "today", label: "Today’s painting" },
-  { value: "512", label: "512 · The Music Lesson" },
-  { value: "2169", label: "2169 · John Thomlinson and His Family" },
-  { value: "4887", label: "4887 · Irises" },
-  { value: "8900", label: "8900 · Beauty Beneath a Willow Tree" },
-  { value: "custom", label: "Custom AIC id…" },
-] as const;
+const PAINTING_OPTIONS: readonly PillOption<string>[] = [
+  { value: "today", label: "Today" },
+  { value: "512", label: "512" },
+  { value: "2169", label: "2169" },
+  { value: "4887", label: "4887" },
+  { value: "8900", label: "8900" },
+];
 
 /** True only after hydration, so the portal never runs on the server. */
 function subscribeToMount() {
@@ -66,6 +76,86 @@ function isEditable(target: EventTarget | null): boolean {
   );
 }
 
+function PillGroup<T extends string | number | boolean | null>({
+  label,
+  options,
+  value,
+  onChange,
+  trailing,
+}: {
+  label: string;
+  options: readonly PillOption<T>[];
+  value: T;
+  onChange: (value: T) => void;
+  trailing?: ReactNode;
+}) {
+  const selectedIndex = options.findIndex((option) => option.value === value);
+  // With a custom painting no pill is checked; keep the row tabbable anyway.
+  const focusIndex = selectedIndex === -1 ? 0 : selectedIndex;
+
+  function onKeyDown(
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) {
+    let nextIndex: number;
+
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        nextIndex = (index + 1) % options.length;
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        nextIndex = (index + options.length - 1) % options.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = options.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    onChange(options[nextIndex].value);
+    event.currentTarget
+      .closest('[role="radiogroup"]')
+      ?.querySelectorAll<HTMLButtonElement>('[role="radio"]')
+      [nextIndex]?.focus();
+  }
+
+  return (
+    <div className="home-art-field">
+      <span className="home-art-label">{label}</span>
+      <div className="home-art-row">
+        <div className="home-art-pills" role="radiogroup" aria-label={label}>
+          {options.map((option, index) => {
+            const selected = option.value === value;
+
+            return (
+              <button
+                key={String(option.value)}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                tabIndex={index === focusIndex ? 0 : -1}
+                className="home-art-pill"
+                onClick={() => onChange(option.value)}
+                onKeyDown={(event) => onKeyDown(event, index)}
+              >
+                <span className="home-art-pill-face">{option.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        {trailing}
+      </div>
+    </div>
+  );
+}
+
 export function HomeArtControls({
   override,
   onChange,
@@ -75,11 +165,9 @@ export function HomeArtControls({
 }) {
   const mounted = useSyncExternalStore(subscribeToMount, isMounted, isServer);
   const [open, setOpen] = useState(true);
-  const [customOpen, setCustomOpen] = useState(false);
   const [customDraft, setCustomDraft] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const firstOpen = useRef(true);
 
   useEffect(() => {
@@ -127,21 +215,13 @@ export function HomeArtControls({
     /^\d{1,9}$/.test(customValue);
 
   const paintingValue =
-    customOpen || (override.artId !== null && !SAMPLE_IDS.has(override.artId))
-      ? "custom"
-      : override.artId === null
-        ? "today"
-        : String(override.artId);
+    override.artId === null
+      ? "today"
+      : SAMPLE_IDS.has(override.artId)
+        ? String(override.artId)
+        : "custom";
 
   function choosePainting(value: string) {
-    if (value === "custom") {
-      setCustomOpen(true);
-      setCustomDraft(activeCustomId);
-      requestAnimationFrame(() => inputRef.current?.focus());
-      return;
-    }
-
-    setCustomOpen(false);
     setCustomDraft(null);
     onChange({
       ...override,
@@ -152,10 +232,37 @@ export function HomeArtControls({
   function applyCustom() {
     if (!customValid || customId === null) return;
 
-    setCustomOpen(!SAMPLE_IDS.has(customId));
-    setCustomDraft(String(customId));
+    setCustomDraft(SAMPLE_IDS.has(customId) ? null : String(customId));
     onChange({ ...override, artId: customId });
   }
+
+  const customForm = (
+    <form
+      className="home-art-custom"
+      onSubmit={(event) => {
+        event.preventDefault();
+        applyCustom();
+      }}
+    >
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        autoComplete="off"
+        spellCheck={false}
+        aria-label="AIC id"
+        placeholder="AIC id"
+        value={customValue}
+        aria-invalid={!customValid && customValue !== ""}
+        onChange={(event) =>
+          setCustomDraft(event.target.value.replace(/\D/g, "").slice(0, 9))
+        }
+      />
+      <button type="submit" disabled={!customValid}>
+        Apply
+      </button>
+    </form>
+  );
 
   const panel = open ? (
     <aside
@@ -196,114 +303,34 @@ export function HomeArtControls({
       </p>
 
       <div id="home-art-panel-body" className="home-art-panel-body">
-        <label className="home-art-field">
-          <span>Frame style</span>
-          <select
-            aria-label="Frame style"
-            value={override.era ?? "auto"}
-            onChange={(event) => {
-              const value = event.target.value;
+        <PillGroup
+          label="Frame"
+          options={FRAME_OPTIONS}
+          value={override.era}
+          onChange={(era) => onChange({ ...override, era })}
+        />
 
-              onChange({
-                ...override,
-                era: value === "auto" ? null : (value as FrameEra),
-              });
-            }}
-          >
-            {ERA_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <PillGroup
+          label="Frames"
+          options={FRAMES_OPTIONS}
+          value={override.frames}
+          onChange={(frames) => onChange({ ...override, frames })}
+        />
 
-        <label className="home-art-field">
-          <span>Frames</span>
-          <select
-            aria-label="Frames"
-            value={override.frames ? "current" : "new"}
-            onChange={(event) =>
-              onChange({
-                ...override,
-                frames: event.target.value === "current",
-              })
-            }
-          >
-            <option value="new">New shades</option>
-            <option value="current">Current (origin/main)</option>
-          </select>
-        </label>
+        <PillGroup
+          label="Phase"
+          options={PHASE_OPTIONS}
+          value={override.phase}
+          onChange={(phase) => onChange({ ...override, phase })}
+        />
 
-        <label className="home-art-field">
-          <span>Phase</span>
-          <select
-            aria-label="Phase"
-            value={override.phase ?? "auto"}
-            onChange={(event) => {
-              const value = event.target.value;
-
-              onChange({
-                ...override,
-                phase: value === "auto" ? null : (value as Phase),
-              });
-            }}
-          >
-            {PHASE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="home-art-field">
-          <span>Painting</span>
-          <select
-            aria-label="Painting"
-            value={paintingValue}
-            onChange={(event) => choosePainting(event.target.value)}
-          >
-            {PAINTING_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {paintingValue === "custom" ? (
-          <form
-            className="home-art-custom"
-            onSubmit={(event) => {
-              event.preventDefault();
-              applyCustom();
-            }}
-          >
-            <label className="home-art-field" htmlFor="home-art-custom-id">
-              <span>AIC id</span>
-              <input
-                ref={inputRef}
-                id="home-art-custom-id"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                autoComplete="off"
-                spellCheck={false}
-                value={customValue}
-                aria-invalid={!customValid && customValue !== ""}
-                onChange={(event) =>
-                  setCustomDraft(
-                    event.target.value.replace(/\D/g, "").slice(0, 9),
-                  )
-                }
-              />
-            </label>
-            <button type="submit" disabled={!customValid}>
-              Apply
-            </button>
-          </form>
-        ) : null}
+        <PillGroup
+          label="Painting"
+          options={PAINTING_OPTIONS}
+          value={paintingValue}
+          onChange={choosePainting}
+          trailing={customForm}
+        />
       </div>
     </aside>
   ) : (
