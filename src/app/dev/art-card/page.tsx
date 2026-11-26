@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { ArtCard } from "@/components/home/art-card/art-card";
+import { PaintingFrame } from "@/components/home/art-card/painting-frame";
+import type { FrameEra } from "@/components/home/art-card/frame-style";
 import { ART_DATA_VERSION, fallbackArt, getTodaysArt } from "@/lib/daily-art";
 import type { DailyArt } from "@/lib/daily-art";
 import "./lab.css";
@@ -36,6 +38,57 @@ const CARD_SIZES = [
   { label: "1024 · 728 × 220", width: 728, height: 220 },
   { label: "375 · 171 × 160", width: 171, height: 160 },
 ] as const;
+
+/**
+ * Contrast matrix instrumentation: every frame era on the real card surface,
+ * scoped to each phase. Nested data-phase blocks re-declare the phase tokens
+ * for their subtree, so one page can show all four side by side. The frame
+ * gallery is for judging the boundary; the samples below keep the real cards.
+ */
+const PHASE_COLUMNS = [
+  { id: "day", label: "Day" },
+  { id: "dawn", label: "Dawn" },
+  { id: "dusk", label: "Dusk" },
+  { id: "night", label: "Night" },
+] as const;
+
+const FRAME_ROWS: {
+  era: FrameEra;
+  label: string;
+  note: string;
+  sampleKey: string;
+}[] = [
+  {
+    era: "gilt-ornate",
+    label: "Gilt ornate",
+    note: "pre-1700",
+    sampleKey: "portrait-ornate",
+  },
+  {
+    era: "gilt-carved",
+    label: "Gilt carved",
+    note: "1700–1880",
+    sampleKey: "landscape-carved",
+  },
+  {
+    era: "walnut",
+    label: "Walnut",
+    note: "1880–1945",
+    sampleKey: "square-walnut",
+  },
+  {
+    era: "modern",
+    label: "Modern float",
+    note: "post-1945",
+    sampleKey: "modern",
+  },
+  {
+    era: "scroll",
+    label: "Silk scroll",
+    note: "hanging mount",
+    sampleKey: "scroll",
+  },
+];
 
 function baseArt(
   fields: Omit<DailyArt, "articUrl" | "fallback" | "date">,
@@ -269,6 +322,7 @@ export default async function ArtCardLabPage() {
 
   const today = (await getTodaysArt(ART_DATA_VERSION)).date;
   const items = samples(today);
+  const artByKey = new Map(items.map((item) => [item.key, item.art]));
 
   return (
     <main className="art-lab">
@@ -286,6 +340,66 @@ export default async function ArtCardLabPage() {
           1960 date because the public-domain set has no post-1945 paintings.
         </p>
       </header>
+
+      <section className="art-lab-section" aria-labelledby="frame-matrix-title">
+        <div className="art-lab-caption">
+          <h2 className="art-lab-sample-title" id="frame-matrix-title">
+            Era frames on the card surface
+          </h2>
+          <p className="art-lab-caption-line">
+            Every era against the same card surface in all four phases. Each
+            frame sits in its own data-phase scope, so this is the matrix the
+            boundary contrast is measured from (WCAG 1.4.11, target ≥ 3:1).
+          </p>
+        </div>
+
+        <div className="art-lab-matrix-scroll">
+          <div className="art-lab-matrix">
+            <div className="art-lab-matrix-head">
+              <span className="art-lab-matrix-corner">Era</span>
+              {PHASE_COLUMNS.map((phase) => (
+                <span className="art-lab-matrix-phase" key={phase.id}>
+                  {phase.label}
+                </span>
+              ))}
+            </div>
+
+            {FRAME_ROWS.map((row) => {
+              const art = artByKey.get(row.sampleKey);
+              if (!art) return null;
+
+              return (
+                <div className="art-lab-matrix-row" key={row.era}>
+                  <div className="art-lab-matrix-era">
+                    <span className="art-lab-matrix-era-name">{row.label}</span>
+                    <span className="art-lab-matrix-era-note">{row.note}</span>
+                  </div>
+                  {PHASE_COLUMNS.map((phase) => (
+                    <div
+                      className="art-lab-frame-cell"
+                      data-phase-cell={phase.id}
+                      data-era-cell={row.era}
+                      key={phase.id}
+                    >
+                      <div
+                        className="art-lab-frame-stage"
+                        data-phase={phase.id}
+                      >
+                        <PaintingFrame art={art} era={row.era}>
+                          <span
+                            className="art-lab-frame-canvas"
+                            aria-hidden="true"
+                          />
+                        </PaintingFrame>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
       {items.map((sample) => (
         <section className="art-lab-sample" key={sample.key}>
