@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import { artSynopsis } from "@/lib/art-shared";
 import type { DailyArt } from "@/lib/daily-art";
 import { RingLayers } from "../ring-hover";
 import { ArtDialog } from "./art-dialog";
@@ -113,18 +113,11 @@ export function ArtCard({ art }: ArtCardProps) {
     };
   }, []);
 
-  const tint = art.color
-    ? `hsl(${Math.round(art.color.h)} ${Math.round(art.color.s)}% ${Math.round(art.color.l)}%)`
-    : null;
-
   return (
     <article
       ref={cardRef}
       className="ring-host art-card flex-1"
       aria-label="Daily painting"
-      style={
-        { "--art-tint": tint ?? "var(--surface-container)" } as CSSProperties
-      }
     >
       <RingLayers fill="bg-surface-container-low" />
 
@@ -151,6 +144,7 @@ function ArtScene({ art, onOpen }: { art: DailyArt; onOpen: () => void }) {
   const imageSrc = art.imageId ? artImageSrc(art.imageId, "card") : null;
   const imageUnavailable = imageSrc !== null && failureSrc === imageSrc;
   const noteId = useId();
+  const synopsis = artSynopsis(art);
 
   return (
     <div className="art-card-scene">
@@ -161,7 +155,7 @@ function ArtScene({ art, onOpen }: { art: DailyArt; onOpen: () => void }) {
         <p className="art-card-meta">
           {art.dateDisplay} · {art.medium}
         </p>
-        <p className="art-card-synopsis">{art.synopsis}</p>
+        <p className="art-card-synopsis">{synopsis}</p>
         {imageUnavailable ? (
           <p className="art-card-image-note">Image unavailable</p>
         ) : null}

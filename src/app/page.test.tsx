@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import Page from "@/app/page";
+import { ART_DATA_VERSION, getTodaysArt } from "@/lib/daily-art";
 
 vi.mock("@/lib/daily-art", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/daily-art")>();
@@ -41,6 +42,8 @@ afterEach(() => {
 describe("home page", () => {
   it("renders the promoted prototype layout", async () => {
     await renderPage();
+
+    expect(vi.mocked(getTodaysArt)).toHaveBeenCalledWith(ART_DATA_VERSION);
 
     // Below md the stacked card and from md the carousel card both render
     // (CSS picks one), so the featured study appears twice in the markup.

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { ArtCard } from "@/components/home/art-card/art-card";
 import { HomeScreen } from "@/components/home/home-screen";
 import { WorkDrawer } from "@/components/work/work-drawer";
-import { getTodaysArt } from "@/lib/daily-art";
+import { ART_DATA_VERSION, getTodaysArt } from "@/lib/daily-art";
 
 /**
  * `/work` and `/work/<slug>` are one route segment, so they share this layout:
@@ -21,7 +21,7 @@ export default async function WorkLayout({
 }: {
   children: ReactNode;
 }) {
-  const art = await getTodaysArt();
+  const art = await getTodaysArt(ART_DATA_VERSION);
 
   return (
     <>

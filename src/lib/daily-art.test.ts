@@ -28,7 +28,6 @@ function artwork(overrides: Partial<AicArtwork> = {}): AicArtwork {
       lqip: "data:image/gif;base64,R0lGOD",
       alt_text: "A painted landscape with a river.",
     },
-    color: { h: 30, s: 40, l: 50 },
     medium_display: "Oil on canvas",
     short_description: "<p>A painted <em>landscape</em>.</p>",
     description: null,
@@ -159,7 +158,6 @@ describe("toDailyArt", () => {
       imageId: "image-1",
       width: 1200,
       height: 900,
-      color: { h: 30, s: 40, l: 50 },
       articUrl: "https://www.artic.edu/artworks/1",
       fallback: false,
     });
@@ -262,7 +260,6 @@ describe("toDailyArt", () => {
         style_title: null,
         short_description: null,
         description: null,
-        color: null,
         thumbnail: { width: 1200, height: 900, lqip: null },
       }),
       DATE,
@@ -275,7 +272,6 @@ describe("toDailyArt", () => {
     expect(daily?.synopsis).toBe(
       "A painting from the Art Institute of Chicago.",
     );
-    expect(daily?.color).toBeNull();
     expect(daily?.lqip).toBeNull();
     expect(daily?.alt).toContain("by Unknown artist");
   });

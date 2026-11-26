@@ -40,9 +40,10 @@
 }
 
 /*
- * The wall. One low-chroma mix of the painting's dominant colour into the card
- * surface; the gradient and vignette give it depth without becoming a second
- * visual system. Night keeps the same mix but lets the shadow deepen more.
+ * The wall is a phase surface, not a painting tint. It takes the phase's
+ * surface and horizon hues, so Day/ Dawn/ Dusk/ Night and live phase changes
+ * flow through automatically. The three accents stay below 10% so the label's
+ * phase ink keeps well over the WCAG AA ratio.
  */
 .art-card-wall {
   position: absolute;
@@ -50,51 +51,43 @@
   z-index: 0;
   overflow: hidden;
   border-radius: var(--ring-radius);
-  background-color: color-mix(
-    in oklab,
-    var(--art-tint, var(--surface-container-low)) 16%,
-    var(--surface-container-low)
-  );
+  background-color: var(--surface-container-low);
   background-image:
-    linear-gradient(
-      180deg,
-      rgb(255 255 255 / 0.1),
-      transparent 30%,
-      rgb(0 0 0 / 0.05)
-    ),
     radial-gradient(
       120% 90% at 18% 0%,
-      rgb(255 255 255 / 0.08),
+      color-mix(in oklab, var(--horizon-1) 9%, transparent),
       transparent 62%
+    ),
+    radial-gradient(
+      120% 100% at 84% 100%,
+      color-mix(in oklab, var(--horizon-2) 8%, transparent),
+      transparent 64%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--horizon-3) 9%, transparent),
+      transparent 58%
     );
 }
 
-[data-phase="night"] .art-card-wall {
-  background-color: color-mix(
-    in oklab,
-    var(--art-tint, var(--surface-container-low)) 22%,
-    var(--surface-container-low)
-  );
-  background-image:
-    linear-gradient(
-      180deg,
-      rgb(255 255 255 / 0.06),
-      transparent 30%,
-      rgb(0 0 0 / 0.18)
-    ),
-    radial-gradient(
-      120% 90% at 18% 0%,
-      rgb(255 255 255 / 0.05),
-      transparent 62%
-    );
-}
-
+/*
+ * The spotlight is the same phase gradient the nav orb paints, cut to a
+ * pointer-following radial mask. It therefore changes hue with the phase and
+ * with a live phase switch, while staying a light rather than a surface.
+ */
 .art-card-light {
   position: absolute;
   inset: 0;
-  background: radial-gradient(
+  background-image: var(--orb-gradient);
+  background-size: 100% 100%;
+  -webkit-mask-image: radial-gradient(
     circle 300px at var(--art-light-x, 50%) var(--art-light-y, 40%),
-    rgb(255 255 255 / 0.22),
+    #000 0%,
+    transparent 68%
+  );
+  mask-image: radial-gradient(
+    circle 300px at var(--art-light-x, 50%) var(--art-light-y, 40%),
+    #000 0%,
     transparent 68%
   );
   opacity: 0;
@@ -103,7 +96,7 @@
 }
 
 .art-card[data-spotlight="on"]:hover .art-card-light {
-  opacity: 1;
+  opacity: 0.16;
 }
 
 .art-card-vignette {
@@ -239,7 +232,9 @@
   display: -webkit-box;
   overflow: hidden;
   margin: 0;
-  color: var(--on-surface-variant);
+  /* Body copy uses the stronger phase ink: it is the text Dat needs to see,
+     and it clears AA even over the phase accents. */
+  color: var(--on-surface);
   font-size: var(--text-xs);
   line-height: 1.4;
   -webkit-box-orient: vertical;
@@ -506,7 +501,7 @@
 
 .art-dialog-synopsis {
   margin: 14px 0 0;
-  color: var(--on-surface-variant);
+  color: var(--on-surface);
   font-size: var(--text-sm);
   line-height: 1.55;
   text-wrap: pretty;

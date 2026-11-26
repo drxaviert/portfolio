@@ -1,5 +1,10 @@
 import { cacheLife } from "next/cache";
-import { hashDateKey, isValidDateKey, utcDateKey } from "./art-shared";
+import {
+  factualSynopsis,
+  hashDateKey,
+  isValidDateKey,
+  utcDateKey,
+} from "./art-shared";
 
 export { hashDateKey, isValidDateKey, utcDateKey } from "./art-shared";
 
@@ -35,6 +40,14 @@ const SEARCH_WINDOW = 1_000;
 const MIN_ASPECT = 1 / 4;
 const MAX_ASPECT = 4;
 
+/**
+ * Part of the cache key for the daily pick. Bump whenever DailyArt's shape or
+ * mapping changes so a mapped record cached before the change cannot outlive
+ * it. This is what keeps a new field (the synopsis) from silently disappearing
+ * for the rest of a cached day.
+ */
+export const ART_DATA_VERSION = 2;
+
 const SEARCH_FIELDS = [
   "id",
   "title",
@@ -45,7 +58,6 @@ const SEARCH_FIELDS = [
   "style_title",
   "image_id",
   "thumbnail",
-  "color",
   "medium_display",
   "short_description",
   "description",
@@ -53,8 +65,6 @@ const SEARCH_FIELDS = [
 
 /** The card's synopsis target, cut at a sentence boundary. */
 const SYNOPSIS_LIMIT = 220;
-
-export type ArtColor = { h: number; s: number; l: number };
 
 export type DailyArt = {
   /** UTC day the pick belongs to, YYYY-MM-DD. */
@@ -76,8 +86,6 @@ export type DailyArt = {
   height: number;
   /** AIC's tiny inline blur placeholder (a data URI), when available. */
   lqip: string | null;
-  /** Dominant colour, when the API has one; tints the card wall. */
-  color: ArtColor | null;
   articUrl: string | null;
   alt: string;
   fallback: boolean;
@@ -90,12 +98,6 @@ type AicThumbnail = {
   alt_text?: string | null;
 };
 
-type AicColor = {
-  h?: number | null;
-  s?: number | null;
-  l?: number | null;
-};
-
 export type AicArtwork = {
   id?: number | null;
   title?: string | null;
@@ -106,7 +108,6 @@ export type AicArtwork = {
   style_title?: string | null;
   image_id?: string | null;
   thumbnail?: AicThumbnail | null;
-  color?: AicColor | null;
   medium_display?: string | null;
   short_description?: string | null;
   description?: string | null;
@@ -232,34 +233,6 @@ function clipSynopsis(value: string | null | undefined): string | null {
   return out;
 }
 
-/** One factual line when AIC has no museum text. Never fills a missing fact. */
-function generatedSynopsis({
-  medium,
-  placeOfOrigin,
-  styleTitle,
-  dateDisplay,
-}: {
-  medium: string | null;
-  placeOfOrigin: string | null;
-  styleTitle: string | null;
-  dateDisplay: string | null;
-}): string {
-  const headParts = [
-    medium,
-    placeOfOrigin ? `painted in ${placeOfOrigin}` : null,
-    dateDisplay,
-  ].filter((part): part is string => Boolean(part));
-  let head = headParts.join(", ");
-
-  if (head) head = head.charAt(0).toUpperCase() + head.slice(1);
-
-  if (head && styleTitle) return `${head} — ${styleTitle}.`;
-  if (head) return `${head}.`;
-  if (styleTitle) return `${styleTitle}.`;
-
-  return "A painting from the Art Institute of Chicago.";
-}
-
 function usableArtwork(item: AicArtwork): boolean {
   const imageId = text(item.image_id);
   const width = finiteNumber(item.thumbnail?.width);
@@ -308,19 +281,11 @@ export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
   const placeOfOrigin = text(item.place_of_origin);
   const styleTitle = text(item.style_title);
   const medium = text(item.medium_display);
-  const color = item.color;
   const lqip = text(item.thumbnail?.lqip);
-  const colorValue =
-    color &&
-    finiteNumber(color.h) !== null &&
-    finiteNumber(color.s) !== null &&
-    finiteNumber(color.l) !== null
-      ? { h: color.h as number, s: color.s as number, l: color.l as number }
-      : null;
   const synopsis =
     clipSynopsis(item.short_description) ??
     clipSynopsis(item.description) ??
-    generatedSynopsis({
+    factualSynopsis({
       medium,
       placeOfOrigin,
       styleTitle,
@@ -342,7 +307,6 @@ export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
     width,
     height,
     lqip: lqip?.startsWith("data:image/") ? lqip : null,
-    color: colorValue,
     articUrl: id === null ? null : `https://www.artic.edu/artworks/${id}`,
     alt:
       text(item.thumbnail?.alt_text) ??
@@ -373,7 +337,6 @@ export function fallbackArt(dateKey: string): DailyArt {
     width: 4,
     height: 3,
     lqip: null,
-    color: { h: 38, s: 30, l: 56 },
     articUrl: null,
     alt: "A muted abstract landscape standing in for today's painting.",
     fallback: true,
@@ -504,8 +467,14 @@ export async function fetchDailyArt(
  * painting for the whole UTC day and lets the static shell include it; a
  * fallback is retried on the minutes profile instead of being pinned for a day.
  */
-async function getDailyArt(dateKey: string): Promise<DailyArt> {
+async function getDailyArt(
+  dateKey: string,
+  version: number,
+): Promise<DailyArt> {
   "use cache";
+
+  // The version is part of the cache key, not a branch in the body.
+  void version;
 
   const art = await fetchDailyArt(dateKey);
 
@@ -518,14 +487,19 @@ async function getDailyArt(dateKey: string): Promise<DailyArt> {
 /**
  * Today's painting, the only card state.
  *
+ * `version` is part of both cache keys. Bump ART_DATA_VERSION when DailyArt's
+ * shape or mapping changes: an entry cached under the old key cannot be served
+ * with a field missing. Without that, a mapped record created before the
+ * synopsis existed could keep the card synopsis blank for the cache lifetime.
+ *
  * `new Date()` cannot be read in a prerendered component (Next 16 blocks it),
  * so the clock read lives inside this cached scope. The outer entry uses the
  * one-minute profile only to notice UTC midnight; the inner day-keyed entry
  * still does the real caching, so AIC sees the same handful of requests a day.
  */
-export async function getTodaysArt(): Promise<DailyArt> {
+export async function getTodaysArt(version: number): Promise<DailyArt> {
   "use cache";
   cacheLife("minutes");
 
-  return getDailyArt(utcDateKey());
+  return getDailyArt(utcDateKey(), version);
 }

@@ -43,3 +43,48 @@ export function hashDateKey(key: string): number {
 
   return hash >>> 0;
 }
+
+export type SynopsisFacts = {
+  synopsis?: string | null;
+  medium: string | null;
+  placeOfOrigin: string | null;
+  styleTitle: string | null;
+  dateDisplay: string | null;
+};
+
+/** One factual line when AIC has no museum text. Never fills a missing fact. */
+export function factualSynopsis({
+  medium,
+  placeOfOrigin,
+  styleTitle,
+  dateDisplay,
+}: Omit<SynopsisFacts, "synopsis">): string {
+  const date = dateDisplay && dateDisplay !== "Undated" ? dateDisplay : null;
+  const headParts = [
+    medium,
+    placeOfOrigin ? `painted in ${placeOfOrigin}` : null,
+    date,
+  ].filter((part): part is string => Boolean(part));
+  let head = headParts.join(", ");
+
+  if (head) head = head.charAt(0).toUpperCase() + head.slice(1);
+
+  if (head && styleTitle) return `${head} — ${styleTitle}.`;
+  if (head) return `${head}.`;
+  if (styleTitle) return `${styleTitle}.`;
+
+  return "A painting from the Art Institute of Chicago.";
+}
+
+/**
+ * The card's synopsis, with a client-side safety net for a stale serialized
+ * record from before the synopsis field existed. A non-empty museum synopsis
+ * always wins; otherwise the factual line is rebuilt from stable fields.
+ */
+export function artSynopsis(facts: SynopsisFacts): string {
+  const supplied = facts.synopsis?.trim();
+
+  if (supplied) return supplied;
+
+  return factualSynopsis(facts);
+}

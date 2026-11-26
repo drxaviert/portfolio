@@ -1,7 +1,7 @@
 import { ArtCard } from "@/components/home/art-card/art-card";
 import { HomeScreen } from "@/components/home/home-screen";
 import { ViewportEdgeBlur } from "@/components/edge-blur/viewport-edge-blur";
-import { getTodaysArt } from "@/lib/daily-art";
+import { ART_DATA_VERSION, getTodaysArt } from "@/lib/daily-art";
 
 /**
  * `/`: the homepage as the page. A study's direct load renders it too.
@@ -16,7 +16,7 @@ import { getTodaysArt } from "@/lib/daily-art";
  * with the drawer panel, which is what the bands' own comment promises.
  */
 export default async function Home() {
-  const art = await getTodaysArt();
+  const art = await getTodaysArt(ART_DATA_VERSION);
 
   return (
     <>

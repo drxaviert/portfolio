@@ -24,7 +24,6 @@ function art(overrides: Partial<DailyArt> = {}): DailyArt {
     width: 1200,
     height: 900,
     lqip: null,
-    color: { h: 30, s: 40, l: 50 },
     articUrl: "https://www.artic.edu/artworks/9",
     alt: "A painted landscape with a river.",
     fallback: false,
@@ -115,6 +114,14 @@ describe("ArtCard", () => {
       screen.getByRole("button", {
         name: "View A painting by An artist in full",
       }),
+    ).toBeInTheDocument();
+  });
+
+  it("rebuilds a synopsis when a stale prop has none", () => {
+    renderCard(art({ synopsis: "" }));
+
+    expect(
+      screen.getByText("Oil on canvas, painted in France, 1850 — Realism."),
     ).toBeInTheDocument();
   });
 
