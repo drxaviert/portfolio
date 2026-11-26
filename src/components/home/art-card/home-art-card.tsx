@@ -19,6 +19,10 @@ import { ArtCard } from "./art-card";
  * render a stable card and the client can adopt the query without a
  * setState-in-effect cascade. `?era=scroll` also forces the hanging mount,
  * because the scroll styling is a mount, not just an era.
+ *
+ * TEMPORARY pf-ut4: `?frames=current` marks the frame for the origin/main
+ * treatment in painting-frame-current.css. Remove the flag, that CSS file and
+ * the frames props before merging.
  */
 
 function subscribeToLocation(onChange: () => void) {
@@ -47,7 +51,7 @@ function DevArtCard({ art }: { art: DailyArt }) {
     readLocationSearch,
     readServerSearch,
   );
-  const { artId, era, phase } = parseArtOverride(search);
+  const { artId, era, phase, frames } = parseArtOverride(search);
   const [fetched, setFetched] = useState<{
     artId: number;
     art: DailyArt;
@@ -97,6 +101,7 @@ function DevArtCard({ art }: { art: DailyArt }) {
       art={current}
       era={era ?? undefined}
       mount={era === "scroll" ? "hanging" : undefined}
+      frames={frames ? "current" : undefined}
     />
   );
 }

@@ -24,6 +24,8 @@ export type ArtOverride = {
   artId: number | null;
   era: FrameEra | null;
   phase: Phase | null;
+  /** TEMPORARY pf-ut4 comparison: the pre-merge frame treatment. */
+  frames: boolean;
 };
 
 export function parseArtOverride(search: string): ArtOverride {
@@ -40,5 +42,6 @@ export function parseArtOverride(search: string): ArtOverride {
     artId: artId !== null && artId > 0 ? artId : null,
     era,
     phase,
+    frames: params.get("frames") === "current",
   };
 }

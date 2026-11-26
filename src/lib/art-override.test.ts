@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import { parseArtOverride } from "./art-override";
 
 describe("parseArtOverride", () => {
-  it("reads a valid era, art id and phase", () => {
-    expect(parseArtOverride("?era=modern&art=512&phase=night")).toEqual({
+  it("reads a valid era, art id, phase and frame treatment", () => {
+    expect(
+      parseArtOverride("?era=modern&art=512&phase=night&frames=current"),
+    ).toEqual({
       artId: 512,
       era: "modern",
       phase: "night",
+      frames: true,
     });
   });
 
@@ -15,14 +18,16 @@ describe("parseArtOverride", () => {
       artId: null,
       era: null,
       phase: null,
+      frames: false,
     });
   });
 
-  it("ignores unknown eras and phases", () => {
-    expect(parseArtOverride("?era=baroque&phase=noon")).toEqual({
+  it("ignores unknown eras, phases and frame treatments", () => {
+    expect(parseArtOverride("?era=baroque&phase=noon&frames=legacy")).toEqual({
       artId: null,
       era: null,
       phase: null,
+      frames: false,
     });
   });
 

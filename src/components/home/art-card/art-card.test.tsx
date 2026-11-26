@@ -71,6 +71,23 @@ function disableNativeDialog() {
 }
 
 describe("ArtCard", () => {
+  it("leaves the default frame unmarked", () => {
+    const { container } = renderCard();
+
+    expect(container.querySelector(".painting-frame")).not.toHaveAttribute(
+      "data-frames",
+    );
+  });
+
+  it("marks the origin/main comparison frame", () => {
+    const { container } = render(<ArtCard art={art()} frames="current" />);
+
+    expect(container.querySelector(".painting-frame")).toHaveAttribute(
+      "data-frames",
+      "current",
+    );
+  });
+
   it("renders today's label, synopsis and full-view button", () => {
     renderCard();
 

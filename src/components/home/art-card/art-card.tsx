@@ -27,9 +27,11 @@ type ArtCardProps = {
   era?: FrameEra;
   /** Dev override: force the mount to match a forced era. */
   mount?: FrameMount;
+  /** TEMPORARY pf-ut4: render the origin/main frame treatment. */
+  frames?: "current";
 };
 
-export function ArtCard({ art, era, mount }: ArtCardProps) {
+export function ArtCard({ art, era, mount, frames }: ArtCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const closeDialog = useCallback(() => setDialogOpen(false), []);
 
@@ -46,6 +48,7 @@ export function ArtCard({ art, era, mount }: ArtCardProps) {
           art={art}
           era={era}
           mount={mount}
+          frames={frames}
           onOpen={() => setDialogOpen(true)}
         />
       </div>
@@ -55,6 +58,7 @@ export function ArtCard({ art, era, mount }: ArtCardProps) {
           art={art}
           era={era}
           mount={mount}
+          frames={frames}
           open
           onClose={closeDialog}
         />
@@ -71,11 +75,13 @@ function ArtScene({
   art,
   era,
   mount,
+  frames,
   onOpen,
 }: {
   art: DailyArt;
   era?: FrameEra;
   mount?: FrameMount;
+  frames?: "current";
   onOpen: () => void;
 }) {
   const [failureSrc, setFailureSrc] = useState<string | null>(null);
@@ -105,7 +111,7 @@ function ArtScene({
         aria-describedby={imageUnavailable ? noteId : undefined}
         onClick={onOpen}
       >
-        <PaintingFrame art={art} era={era} mount={mount}>
+        <PaintingFrame art={art} era={era} mount={mount} frames={frames}>
           <ArtImage
             art={art}
             onUnavailable={(src) => {

@@ -3,6 +3,10 @@ import type { DailyArt } from "@/lib/daily-art";
 import { frameStyleFor } from "./frame-style";
 import type { FrameEra, FrameMount } from "./frame-style";
 import "./painting-frame.css";
+// TEMPORARY pf-ut4 comparison: the pre-merge frame treatment, scoped to
+// [data-frames="current"] by the dev-only ?frames=current override. Remove
+// this import and the file before merging.
+import "./painting-frame-current.css";
 
 /**
  * The painting's frame. Outer box = the artwork's aspect, so the frame itself
@@ -30,6 +34,8 @@ type PaintingFrameProps = {
   era?: FrameEra;
   /** Dev override: pair a forced era with a mount that suits it. */
   mount?: FrameMount;
+  /** TEMPORARY pf-ut4: render the origin/main frame treatment. */
+  frames?: "current";
   className?: string;
 };
 
@@ -39,6 +45,7 @@ export function PaintingFrame({
   variant = "card",
   era,
   mount,
+  frames,
   className = "",
 }: PaintingFrameProps) {
   const style = frameStyleFor(art);
@@ -55,6 +62,7 @@ export function PaintingFrame({
       className={`painting-frame ${className}`.trim()}
       data-era={era ?? style.era}
       data-mount={mount ?? style.mount}
+      data-frames={frames}
       data-variant={variant}
       style={{ "--art-ratio": aspect } as CSSProperties}
     >
