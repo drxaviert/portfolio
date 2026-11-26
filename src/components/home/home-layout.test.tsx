@@ -49,14 +49,14 @@ describe("HomeLayout", () => {
     );
 
     expect(frame).not.toBeNull();
-    // The four lines span the composition's own line box, never inset-y-0 on
-    // the raw viewport. The bottom line is the box's last pixel, so the
-    // corners meet the verticals.
+    // The verticals keep main's full-viewport length; only their x position
+    // follows the composition. The horizontals sit on the box's top and last
+    // pixel, so the verticals cross them at the frame corners.
     expect(vertical?.style.getPropertyValue("top")).toBe(
-      "var(--frame-line-top)",
+      "var(--frame-line-v-top)",
     );
     expect(vertical?.style.getPropertyValue("height")).toBe(
-      "var(--frame-line-height)",
+      "var(--frame-line-v-height)",
     );
     expect(horizontals[0]?.style.getPropertyValue("top")).toBe(
       "var(--frame-line-top)",
@@ -82,6 +82,10 @@ describe("HomeLayout", () => {
     expect(globals).toMatch(/tan\(atan2\(100dvh,\s*964px\)\)/);
     expect(globals).toMatch(/--frame-line-height:\s*909px/);
     expect(globals).toMatch(/--frame-line-height:\s*964px/);
+    expect(globals).toMatch(
+      /--frame-line-v-height:\s*calc\(100dvh \/ var\(--home-fit\)\)/,
+    );
+    expect(globals).toMatch(/--frame-line-v-top:\s*calc\(\(100% - 100dvh \/ var\(--home-fit\)\) \/ 2\)/);
     expect(desktop).toMatch(
       /\[data-home-frame\]\s*\{[^}]*zoom:\s*var\(--home-fit\);/,
     );

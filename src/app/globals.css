@@ -425,10 +425,13 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
 
   /* The desktop composition is always the xl one, scaled by its own fit. */
   [data-home-frame] {
-    /* The xl frame is the 910px ink box, centred in the viewport: all four
-       hairlines span its 909px of ink, not the raw viewport. */
+    /* The xl box is the 910px ink frame (909px of line ink); the horizontals
+       sit on its top/bottom. The verticals keep main's full-viewport length,
+       positioned on the box's left/right edges. */
     --frame-line-top: calc((100% - 910px) / 2);
     --frame-line-height: 909px;
+    --frame-line-v-top: calc((100% - 100dvh / var(--home-fit)) / 2);
+    --frame-line-v-height: calc(100dvh / var(--home-fit));
 
     zoom: var(--home-fit);
   }
