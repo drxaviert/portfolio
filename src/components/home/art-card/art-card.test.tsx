@@ -117,12 +117,11 @@ describe("ArtCard", () => {
     ).toBeInTheDocument();
   });
 
-  it("rebuilds a synopsis when a stale prop has none", () => {
-    renderCard(art({ synopsis: "" }));
+  it("omits the medium separator when the record has none", () => {
+    renderCard(art({ medium: null }));
 
-    expect(
-      screen.getByText("Oil on canvas, painted in France, 1850 — Realism."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("1850")).toBeInTheDocument();
+    expect(screen.queryByText("1850 · ")).not.toBeInTheDocument();
   });
 
   it("places the label before the frame and has no browsing controls or tilt", () => {

@@ -77,7 +77,8 @@ export type DailyArt = {
   dateStart: number | null;
   placeOfOrigin: string | null;
   styleTitle: string | null;
-  medium: string;
+  /** AIC's medium, or null when the record has none. Never fabricated. */
+  medium: string | null;
   /** 1-3 stripped museum sentences, or one generated factual line. */
   synopsis: string;
   imageId: string | null;
@@ -301,7 +302,7 @@ export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
     dateStart,
     placeOfOrigin,
     styleTitle,
-    medium: medium ?? "Painting",
+    medium,
     synopsis,
     imageId,
     width,
@@ -463,6 +464,31 @@ export async function fetchDailyArt(
 }
 
 /**
+ * The mapped record always carries a synopsis: museum text or the server-built
+ * factual line. If a future mapping drops it, fail loudly in development and
+ * repair the record in production rather than render a blank card.
+ */
+function requireSynopsis(art: DailyArt): DailyArt {
+  if (art.synopsis.trim()) return art;
+
+  const message = `[daily-art] Missing synopsis for ${art.title} (id ${art.id})`;
+
+  if (process.env.NODE_ENV === "development") throw new Error(message);
+
+  console.error(message);
+
+  return {
+    ...art,
+    synopsis: factualSynopsis({
+      medium: art.medium,
+      placeOfOrigin: art.placeOfOrigin,
+      styleTitle: art.styleTitle,
+      dateDisplay: art.dateDisplay,
+    }),
+  };
+}
+
+/**
  * The day-keyed cache behind getTodaysArt. `cacheLife("days")` keeps the same
  * painting for the whole UTC day and lets the static shell include it; a
  * fallback is retried on the minutes profile instead of being pinned for a day.
@@ -476,7 +502,7 @@ async function getDailyArt(
   // The version is part of the cache key, not a branch in the body.
   void version;
 
-  const art = await fetchDailyArt(dateKey);
+  const art = requireSynopsis(await fetchDailyArt(dateKey));
 
   if (art.fallback) cacheLife("minutes");
   else cacheLife("days");

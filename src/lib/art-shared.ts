@@ -44,8 +44,7 @@ export function hashDateKey(key: string): number {
   return hash >>> 0;
 }
 
-export type SynopsisFacts = {
-  synopsis?: string | null;
+type SynopsisFacts = {
   medium: string | null;
   placeOfOrigin: string | null;
   styleTitle: string | null;
@@ -58,7 +57,7 @@ export function factualSynopsis({
   placeOfOrigin,
   styleTitle,
   dateDisplay,
-}: Omit<SynopsisFacts, "synopsis">): string {
+}: SynopsisFacts): string {
   const date = dateDisplay && dateDisplay !== "Undated" ? dateDisplay : null;
   const headParts = [
     medium,
@@ -74,17 +73,4 @@ export function factualSynopsis({
   if (styleTitle) return `${styleTitle}.`;
 
   return "A painting from the Art Institute of Chicago.";
-}
-
-/**
- * The card's synopsis, with a client-side safety net for a stale serialized
- * record from before the synopsis field existed. A non-empty museum synopsis
- * always wins; otherwise the factual line is rebuilt from stable fields.
- */
-export function artSynopsis(facts: SynopsisFacts): string {
-  const supplied = facts.synopsis?.trim();
-
-  if (supplied) return supplied;
-
-  return factualSynopsis(facts);
 }

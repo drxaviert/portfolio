@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { artSynopsis } from "@/lib/art-shared";
 import type { DailyArt } from "@/lib/daily-art";
 import { RingLayers } from "../ring-hover";
 import { ArtDialog } from "./art-dialog";
@@ -144,7 +143,7 @@ function ArtScene({ art, onOpen }: { art: DailyArt; onOpen: () => void }) {
   const imageSrc = art.imageId ? artImageSrc(art.imageId, "card") : null;
   const imageUnavailable = imageSrc !== null && failureSrc === imageSrc;
   const noteId = useId();
-  const synopsis = artSynopsis(art);
+  const meta = [art.dateDisplay, art.medium].filter(Boolean).join(" · ");
 
   return (
     <div className="art-card-scene">
@@ -152,10 +151,8 @@ function ArtScene({ art, onOpen }: { art: DailyArt; onOpen: () => void }) {
         <p className="art-card-kicker">Today’s painting</p>
         <h3 className="art-card-title">{art.title}</h3>
         <p className="art-card-artist">{art.artist}</p>
-        <p className="art-card-meta">
-          {art.dateDisplay} · {art.medium}
-        </p>
-        <p className="art-card-synopsis">{synopsis}</p>
+        {meta ? <p className="art-card-meta">{meta}</p> : null}
+        <p className="art-card-synopsis">{art.synopsis}</p>
         {imageUnavailable ? (
           <p className="art-card-image-note">Image unavailable</p>
         ) : null}

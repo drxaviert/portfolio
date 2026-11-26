@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { artSynopsis } from "@/lib/art-shared";
 import type { DailyArt } from "@/lib/daily-art";
 import { ArtImage, artImageSrc } from "./art-image";
 import { PaintingFrame } from "./painting-frame";
@@ -33,7 +32,6 @@ export function ArtDialog({ art, open, onClose }: ArtDialogProps) {
   const imageSrc = art.imageId ? artImageSrc(art.imageId, "full") : null;
   const [failureSrc, setFailureSrc] = useState<string | null>(null);
   const imageUnavailable = imageSrc !== null && failureSrc === imageSrc;
-  const synopsis = artSynopsis(art);
 
   useEffect(() => {
     if (!open) return;
@@ -195,7 +193,7 @@ export function ArtDialog({ art, open, onClose }: ArtDialogProps) {
             {art.title}
           </h2>
           <p className="art-dialog-artist">{art.artist}</p>
-          <p className="art-dialog-synopsis">{synopsis}</p>
+          <p className="art-dialog-synopsis">{art.synopsis}</p>
 
           {imageUnavailable ? (
             <p className="art-dialog-note" role="status">
@@ -216,10 +214,12 @@ export function ArtDialog({ art, open, onClose }: ArtDialogProps) {
                 <dt>Date</dt>
                 <dd>{art.dateDisplay}</dd>
               </div>
-              <div>
-                <dt>Medium</dt>
-                <dd>{art.medium}</dd>
-              </div>
+              {art.medium ? (
+                <div>
+                  <dt>Medium</dt>
+                  <dd>{art.medium}</dd>
+                </div>
+              ) : null}
               {art.placeOfOrigin ? (
                 <div>
                   <dt>Origin</dt>

@@ -61,6 +61,12 @@ describe("home page", () => {
     expect(
       screen.getByRole("button", { name: "Play Door to the Cosmos" }),
     ).toBeInTheDocument();
+    // The home card receives a non-empty synopsis prop from the server entry.
+    expect(
+      screen.getAllByText(
+        "A bundled stand-in while the Art Institute of Chicago is unavailable.",
+      ).length,
+    ).toBeGreaterThan(0);
   });
 
   it("mounts the edge blur bands, which belong to the homepage alone", async () => {

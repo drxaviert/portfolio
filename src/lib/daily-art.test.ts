@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  ART_DATA_VERSION,
   type AicArtwork,
   fetchDailyArt,
+  getTodaysArt,
   hashDateKey,
   isAcceptableAspect,
   isValidDateKey,
@@ -9,6 +11,8 @@ import {
   toDailyArt,
   utcDateKey,
 } from "./daily-art";
+
+vi.mock("next/cache", () => ({ cacheLife: vi.fn() }));
 
 const DATE = "2026-11-25";
 
@@ -246,9 +250,10 @@ describe("toDailyArt", () => {
     expect(daily?.synopsis).toBe(
       "A painting from the Art Institute of Chicago.",
     );
+    expect(daily?.synopsis.trim()).not.toBe("");
   });
 
-  it("falls back to honest labels for missing metadata", () => {
+  it("falls back to honest labels and never fabricates a medium", () => {
     const daily = toDailyArt(
       artwork({
         title: "  ",
@@ -268,7 +273,7 @@ describe("toDailyArt", () => {
     expect(daily?.title).toBe("Untitled");
     expect(daily?.artist).toBe("Unknown artist");
     expect(daily?.dateDisplay).toBe("Undated");
-    expect(daily?.medium).toBe("Painting");
+    expect(daily?.medium).toBeNull();
     expect(daily?.synopsis).toBe(
       "A painting from the Art Institute of Chicago.",
     );
@@ -284,6 +289,25 @@ describe("toDailyArt", () => {
     expect(
       toDailyArt(artwork({ thumbnail: { width: 9000, height: 1000 } }), DATE),
     ).toBeNull();
+  });
+});
+
+describe("getTodaysArt", () => {
+  it("returns a non-empty synopsis from the public server entry", async () => {
+    const fetchMock = mockFetch([
+      countResponse(1),
+      itemsResponse([artwork()]),
+    ]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const daily = await getTodaysArt(ART_DATA_VERSION);
+
+      expect(daily.synopsis.trim()).not.toBe("");
+      expect(daily.synopsis).toBe("A painted landscape.");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 
