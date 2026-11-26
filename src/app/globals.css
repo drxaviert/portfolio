@@ -355,6 +355,20 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
      never zoomed and this stays 1. The desktop rules below set the real value. */
   --fit: 1;
 
+  /*
+   * Fluid page geometry for the scrolling pages (reader, work index, boundary
+   * screens). Each clamp lands on its old wide value at 1440px+, so the
+   * 3440x1440 composition is unchanged; between 768 and 1440 the gutter, gap
+   * and reading column now move with the viewport instead of jumping at a
+   * breakpoint. The <768 values stay at their previous mobile sizes.
+   */
+  --page-pad: 16px;
+  --page-pad-y: 16px;
+  --page-gap: 16px;
+  --reading-column: 582px;
+  --reading-rail: 170px;
+  --title-fluid: 2rem;
+
   /* Homepage edge blur (viewport-edge-blur.css): the fixed progressive blur at
      the top and bottom of `/`. The band's height, and the deepest band's blur;
      the ramp fades to zero at the band's inner edge. */
@@ -394,6 +408,13 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
      */
     --edge-blur-height: min(172px, calc((100dvh - 868px * var(--fit)) / 2));
     --edge-blur-max: calc(8px * var(--fit));
+
+    /* Fluid reading geometry: the wide ends are the 1440 values above. */
+    --page-pad: clamp(24px, 2.25vw, 32px);
+    --page-pad-y: clamp(32px, 4.17vw, 60px);
+    --page-gap: clamp(24px, 3vw, 44px);
+    --reading-column: clamp(34rem, 45vw, 36.375rem);
+    --title-fluid: clamp(2.25rem, 1.3rem + 1.333vw, 2.5rem);
   }
 
   /* Zoom the frame, not body: the shared horizon stays full-bleed. */
@@ -405,6 +426,7 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
 @media (min-width: 1024px) {
   :root {
     --edge-blur-height: min(172px, calc((100dvh - 668px * var(--fit)) / 2));
+    --reading-rail: clamp(140px, 12vw, 170px);
   }
 }
 
@@ -930,6 +952,17 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
 
 @utility shadow-card {
   box-shadow: var(--shadow-card);
+}
+
+/*
+ * The display title for the scrolling pages: 2.5rem at the wide end, starting
+ * at 2.25rem on a 768px desktop and growing with the viewport. The mobile
+ * value (2rem) is the old text-title-sm step.
+ */
+@utility text-title-fluid {
+  font-size: var(--title-fluid);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
 }
 
 /*

@@ -34,22 +34,27 @@
   padding: calc(
       var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
     )
-    16px 0;
-}
-
-@media (min-width: 768px) {
-  .wd-reader-back-row {
-    padding-inline: 32px;
-  }
+    var(--page-pad) 0;
 }
 
 .wd-reader-column {
   position: relative;
   width: 100%;
-  max-width: 582px; /* 550px measure + 2 × 16px gutters */
+  max-width: var(--reading-column);
   margin-inline: auto;
   /* The back row above owns the header nav's clearance. */
   padding: 0 16px 64px;
+
+  /* Reader rhythm, 768 -> 1440: every max is the old wide value, so the
+     3440 desktop is unchanged. */
+  --reader-gap-xs: clamp(12px, 1.1vw, 16px);
+  --reader-gap-sm: clamp(16px, 2vw, 28px);
+  --reader-gap-fig: clamp(16px, 1.7vw, 24px);
+  --reader-gap-pre: clamp(14px, 1.4vw, 20px);
+  --reader-gap-contact: clamp(24px, 2.2vw, 32px);
+  --reader-gap-lg: clamp(32px, 3.3vw, 48px);
+  --reader-gap-xl: clamp(40px, 3.9vw, 56px);
+  --reader-note-gap: clamp(12px, 1.4vw, 20px);
 }
 
 /* Anchors the margin notes and the wide breakouts without pixel geometry. */
@@ -84,7 +89,7 @@
     inset-block: 0;
     /* 20px left of the 550px measure; the column's box adds its 16px gutter. */
     right: calc(100% + 4px);
-    width: 170px;
+    width: var(--reading-rail);
   }
 }
 
@@ -416,7 +421,7 @@
 /* ---------------------------------------------------------------- intro ---- */
 
 .wd-intro {
-  margin-top: 28px;
+  margin-top: var(--reader-gap-sm);
 }
 
 .wd-kicker {
@@ -467,7 +472,7 @@
 }
 
 .wd-p {
-  margin: 16px 0 0;
+  margin: var(--reader-gap-xs) 0 0;
   /* Long-form body: keep the measure inside the reading band even if the
      column ever widens. Headings and the meta row keep the full column. */
   max-width: 68ch;
@@ -479,7 +484,7 @@
 }
 
 .wd-h2 {
-  margin: 44px 0 0;
+  margin: var(--page-gap) 0 0;
   color: var(--on-surface);
   font-size: var(--text-lg);
   line-height: 1.3;
@@ -488,7 +493,7 @@
 }
 
 .wd-h2 + .wd-p {
-  margin-top: 12px;
+  margin-top: clamp(8px, 0.8vw, 12px);
 }
 
 .wd-link {
@@ -511,7 +516,7 @@
 .wd-ul,
 .wd-ol {
   max-width: 68ch;
-  margin: 16px 0 0;
+  margin: var(--reader-gap-xs) 0 0;
   padding-inline-start: 1.35em;
   color: var(--on-surface-variant);
   font-size: var(--text-base);
@@ -537,7 +542,7 @@
 
 .wd-quote {
   max-width: 68ch;
-  margin: 20px 0 0;
+  margin: var(--reader-gap-pre) 0 0;
   padding-inline-start: 16px;
   border-inline-start: 2px solid var(--outline-variant);
   color: var(--on-surface);
@@ -574,7 +579,7 @@
 }
 
 .wd-hr {
-  margin: 32px 0;
+  margin: var(--reader-gap-contact) 0;
   border: 0;
   border-top: 1px solid var(--outline-variant);
 }
@@ -588,7 +593,7 @@
 
 .wd-fig {
   position: relative;
-  margin: 24px 0 0;
+  margin: var(--reader-gap-fig) 0 0;
 }
 
 .wd-fig > .wd-media {
@@ -608,8 +613,8 @@
   .wd-caption-margin {
     position: absolute;
     top: 4px;
-    left: calc(100% + 20px);
-    width: 170px;
+    left: calc(100% + var(--reader-note-gap));
+    width: var(--reading-rail);
     margin: 0;
   }
 }
@@ -618,7 +623,7 @@
 @media (min-width: 768px) {
   .wd-fig-wide {
     left: 50%;
-    width: min(880px, 100cqi - 96px);
+    width: min(880px, calc(100cqi - var(--page-pad) * 3));
     translate: -50% 0;
   }
 }
@@ -669,8 +674,8 @@
   .wd-margin-note {
     position: absolute;
     top: 2px;
-    left: calc(100% + 20px);
-    width: 170px;
+    left: calc(100% + var(--reader-note-gap));
+    width: var(--reading-rail);
     margin: 0;
   }
 }
@@ -735,7 +740,7 @@
 }
 
 .wd-notes {
-  margin-top: 48px;
+  margin-top: var(--reader-gap-lg);
   padding-top: 20px;
   border-top: 1px solid var(--outline-variant);
 }
@@ -757,7 +762,7 @@
 /* ---------------------------------------------------------------- brief ---- */
 
 .wd-brief {
-  margin: 28px 0 0;
+  margin: var(--reader-gap-sm) 0 0;
 }
 
 .wd-brief figcaption {
@@ -779,13 +784,13 @@
 }
 
 .wd-pre {
-  margin-top: 20px;
+  margin-top: var(--reader-gap-pre);
 }
 
 /* ---------------------------------------------------------------- table ---- */
 
 .wd-table-fig {
-  margin: 28px 0 0;
+  margin: var(--reader-gap-sm) 0 0;
   overflow-x: auto;
 }
 
@@ -934,7 +939,7 @@
 /* -------------------------------------------------------- contact sheet ---- */
 
 .wd-contact {
-  margin: 32px 0 0;
+  margin: var(--reader-gap-contact) 0 0;
 }
 
 .wd-contact-grid {
@@ -961,7 +966,7 @@
 /* ----------------------------------------------------------- next link ---- */
 
 .wd-nextlink {
-  margin-top: 56px;
+  margin-top: var(--reader-gap-xl);
   padding-top: 20px;
   border-top: 1px solid var(--outline-variant);
 }
