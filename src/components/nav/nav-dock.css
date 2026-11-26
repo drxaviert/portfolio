@@ -8,9 +8,10 @@
  *
  * Keep --wd-nav-offset in step with src/components/home/home-layout.tsx: the
  * xl tracker (276px), the 12px gap, the xl card band (416px) and the 12px gap
- * again. At >=768 that is the only desktop layout; --fit scales the dock with
- * the home frame. NavDock also corrects any drift from [data-nav-slot] at
- * runtime.
+ * again. At >=1280 that is the xl layout; 768-1279 uses the tablet frame's own
+ * slot (the rule below). The home dock takes the frame's fit; the reader keeps
+ * the xl --fit, because the drawer is still the xl composition. NavDock also
+ * corrects any drift from [data-nav-slot] at runtime.
  */
 
 .wd-nav-dock {
@@ -56,6 +57,23 @@
     );
     left: max(var(--wd-frame-pad), calc(50% - 568px));
     width: min(1136px, 100% - var(--wd-frame-pad) * 2);
+  }
+}
+
+/*
+ * Home / Dawn / 768: the home frame is the 768x964 tablet composition,
+ * centred. Its nav slot is the frame's 48px top inset plus the 220px top band,
+ * the 12px gap, the 560px card band and the 12px gap again: 852px from the
+ * frame's top, or 370px below the viewport centre at fit 1. The dock takes the
+ * frame's own --home-fit so it stays on that slot while the composition scales;
+ * the reader keeps --fit because the drawer is still the xl composition.
+ */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .wd-nav-dock[data-nav-state="home"] {
+    zoom: var(--home-fit);
+    top: calc(50dvh / var(--home-fit) + 370px);
+    left: max(32px, calc(50% - 352px));
+    width: min(704px, 100% - 64px);
   }
 }
 

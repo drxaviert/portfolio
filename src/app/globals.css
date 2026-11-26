@@ -356,6 +356,14 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
   --fit: 1;
 
   /*
+   * The home frame's own fit. At 768-1279 the tablet frame (768x964) is scaled
+   * by this; at >=1280 it aliases --fit, so the xl composition keeps exactly
+   * the old fit. The other fixed compositions (drawer, play lab, messages)
+   * keep --fit: they are still the xl composition at every desktop width.
+   */
+  --home-fit: 1;
+
+  /*
    * Page geometry for the scrolling desktop pages. At >=768 these are the xl
    * (widest) values, and the whole composition is scaled by --fit; below 768
    * the mobile gate keeps its previous values. There are no intermediate
@@ -395,6 +403,9 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
       calc(tan(atan2(100dvh, 910px)))
     );
 
+    /* >=1280 keeps the xl fit for the home frame too. */
+    --home-fit: var(--fit);
+
     /*
      * Edge blur may only cover the empty margin around the frame's content,
      * never a card or text. The margin is half of what the viewport has left
@@ -412,9 +423,49 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
     --title-fluid: 2.5rem;
   }
 
-  /* The desktop composition is always the xl one, scaled by --fit. */
+  /* The desktop composition is always the xl one, scaled by its own fit. */
   [data-home-frame] {
-    zoom: var(--fit);
+    --frame-gap-cap: 64px;
+    --frame-line-bottom: calc(var(--frame-gap) * -1);
+
+    zoom: var(--home-fit);
+  }
+}
+
+/*
+ * Home / Dawn / 768: the tablet frame.
+ *
+ * From 768 to 1279 the home page is the 768 design frame: a 768x964 portrait
+ * composition with 32px side padding and 48px top/bottom, holding a 220px top
+ * band, a 560px card band and the 64px nav (two 12px gaps: 48 + 220 + 12 + 560
+ * + 12 + 64 + 48 = 964). It is centred and scaled by its own fit, capped at 1,
+ * so it never grows past the design size. >=1280 returns to the xl frame above.
+ */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  :root {
+    --home-fit: min(
+      1,
+      calc(tan(atan2(100vw, 768px))),
+      calc(tan(atan2(100dvh, 964px)))
+    );
+
+    /* The 768 frame's content column is 868 tall (964 - 2 * 48). */
+    --edge-blur-height: min(172px, calc((100dvh - 868px * var(--home-fit)) / 2));
+    --edge-blur-max: calc(8px * var(--home-fit));
+  }
+
+  [data-home-frame] {
+    flex: 0 0 auto;
+    width: 768px;
+    max-width: 768px;
+    height: 964px;
+    padding: 48px 32px;
+    margin-block: auto;
+
+    /* The 768 design's lines sit flush with the content column: the top line
+       1px above it and the bottom line immediately below it. */
+    --frame-gap-cap: 0px;
+    --frame-line-bottom: -1px;
   }
 }
 

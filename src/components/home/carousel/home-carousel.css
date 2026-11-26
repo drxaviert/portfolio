@@ -32,6 +32,21 @@
   clip-path: inset(-12px -6px);
 }
 
+/*
+ * Home / Dawn / 768: the tablet band is 444/120/52/52 over the 704 column and
+ * 560 tall, with the same 12px gutters. These are the 768 design's own slot
+ * ratios, not the xl 753/180/83/84 scaled down. >=1280 keeps the xl band above.
+ */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .car-row {
+    --c0: 444;
+    --c1: 120;
+    --c2: 52;
+    --c3: 52;
+    --cols: 444fr 120fr 52fr 52fr;
+    height: 560px;
+  }
+}
 
 /* The unseen grid the script measures the real slot boxes from. */
 .car-guide {

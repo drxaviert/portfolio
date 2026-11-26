@@ -11,19 +11,25 @@ import { EMPTY_WORK_LABEL } from "./empty-work";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
 import { NowPlayingCard } from "./now-playing-card";
+import { TrackerWidget } from "./tracker-widget";
 import { RingHoverPointer } from "./ring-pointer";
 import "./ring-hover.css";
 
 /*
- * Nominal frame: 780px content, a 64px bottom gap, and a 65px top gap (the
+ * Nominal xl frame: 780px content, a 64px bottom gap, and a 65px top gap (the
  * 64px gap plus the 1px top line) = 909px of ink. Fit against 910px: the extra
  * pixel is the column's centring slack, which keeps the top line at y=0
  * instead of 1px above the viewport. A 900px-tall viewport is shorter than
  * that, so the whole frame scales rather than clipping the lines. The 64px
  * gaps are kept as soon as 100dvh / --fit leaves room (1920x1080 unchanged).
+ *
+ * At 768-1279 the tablet frame takes over: its lines sit flush with the 868px
+ * content column, so `--frame-gap-cap` is 0 and the gap collapses to the 1px
+ * top line / 1px bottom offset (see globals.css).
  */
 const frameGapStyle = {
-  "--frame-gap": "clamp(0px, calc((100dvh / var(--fit) - 780px) / 2), 64px)",
+  "--frame-gap":
+    "clamp(0px, calc((100dvh / var(--fit) - 780px) / 2), var(--frame-gap-cap, 64px))",
 } as CSSProperties;
 
 /**
@@ -33,7 +39,9 @@ const frameGapStyle = {
  *
  * Mirrors the final Figma frames (Day 121:2003, Night 121:3243): a 1200-wide
  * frame with 1px hairlines, a tracker card plus the Play card shell, the
- * 753/180/83/84 main band and the nav bar.
+ * 753/180/83/84 main band and the nav bar. From 768 to 1279 the 768 frame
+ * (Home / Dawn / 768) replaces it: a 768x964 portrait frame with a 220px top
+ * band (the dot-grid tracker), a 444/120/52/52 band and the same nav.
  *
  * Hover is the promoted "Ring + nav bar" language: every card and the nav bar
  * is one ring surface that grows into its own box and is lit by a glow in the
@@ -157,11 +165,13 @@ export function HomeLayout({
             aria-hidden="true"
             data-frame-line="h"
             className="pointer-events-none absolute -inset-x-8 hidden h-px bg-frame-line md:block"
-            style={{ bottom: "calc(var(--frame-gap) * -1)" }}
+            style={{ bottom: "var(--frame-line-bottom)" }}
           />
 
-          {/* Top band: the widget card, then the Play card's empty shell at
-              its Figma size (275 + 12 + 849 at 1440). No generative art. */}
+          {/* Top band. The xl frame pairs the music card with the Play card
+              (275 + 12 + 849 at 1440); the 768 frame pairs the dot-grid tracker
+              with it (220 + 12 + 472). Both are 220/276 tall, so the visible
+              card drives the row. */}
           <div className="flex gap-3">
             <EntranceCell
               variant={entrance}
@@ -169,7 +179,12 @@ export function HomeLayout({
               row={1}
               className="shrink-0"
             >
-              <NowPlayingCard />
+              <div className="hidden shrink-0 max-md:block xl:block">
+                <NowPlayingCard />
+              </div>
+              <div className="hidden shrink-0 md:block xl:hidden">
+                <TrackerWidget />
+              </div>
             </EntranceCell>
             <EntranceCell
               variant={entrance}
