@@ -601,10 +601,11 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
       Math.max(centre - cardBox.height / 2, panelBox.top + margin),
       Math.max(panelBox.top + margin, lowest),
     );
+    const zoom = nav.offsetHeight ? navBox.height / nav.offsetHeight : 1;
 
     nav.style.setProperty(
       "--wd-ruler-card-y",
-      `${Math.round(top - navBox.top)}px`,
+      `${Math.round((top - navBox.top) / zoom)}px`,
     );
   }, [active, layout]);
 
@@ -625,12 +626,17 @@ export function ScrollRuler({ studySlug }: ScrollRulerProps) {
     const scrollEl = scrollRef.current;
     if (!target || !scrollEl) return;
 
+    const scrollRect = scrollEl.getBoundingClientRect();
+    // The drawer layer scales this whole reader by --fit; the measured rect is
+    // painted px, while scrollTop is in the scroll box's own layout px.
+    const zoom = scrollEl.offsetWidth
+      ? scrollRect.width / scrollEl.offsetWidth
+      : 1;
     const top = target.element.getBoundingClientRect().top;
     const offset =
       target.element === scrollEl
         ? 0
-        : top -
-          scrollEl.getBoundingClientRect().top +
+        : (top - scrollRect.top) / zoom +
           scrollEl.scrollTop -
           clearanceOf(target.element);
 

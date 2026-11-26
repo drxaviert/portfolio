@@ -6,9 +6,9 @@
  */
 
 /*
- * The message column: the site's 1200px frame, with the gutter and vertical
- * padding fluid between 768 and 1440. At 3440x1440 the values are the old
- * 32px gutter and 60px block padding; below 768 they stay the old 16px.
+ * The message column: the site's 1200px frame. Below 768 it is the mobile
+ * 16px/2rem column used by the mobile gate; at >=768 it is the xl 32px/60px
+ * column, scaled by the shared --fit zoom.
  */
 .wd-message-column {
   position: relative;
@@ -18,7 +18,14 @@
   flex: 1 1 auto;
   flex-direction: column;
   margin-inline: auto;
-  padding: var(--page-pad-y) var(--page-pad);
+  padding: 16px;
+}
+
+@media (min-width: 768px) {
+  .wd-message-column {
+    padding: 60px 32px;
+    zoom: var(--fit);
+  }
 }
 
 .wd-message-block {

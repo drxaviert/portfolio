@@ -23,7 +23,7 @@
   padding: calc(
       var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
     )
-    var(--page-pad) calc(96px + env(safe-area-inset-bottom));
+    32px calc(96px + env(safe-area-inset-bottom));
 }
 
 /*

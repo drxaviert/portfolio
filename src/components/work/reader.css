@@ -1,7 +1,8 @@
 /*
- * The Margin reader: one scroll container, a 550px measure with notes and
- * captions in the right margin from 1024px up, and 880px figure breakouts from
- * 768px up.
+ * The Margin reader: one scroll container, the xl 550px measure with notes and
+ * captions in the margins, and 880px figure breakouts. At >=768 the drawer
+ * layer scales this whole composition by --fit; there is no smaller desktop
+ * variant. Below 768 the mobile gate covers it.
  *
  * Geometry is CSS only. Container query units on the scroll container size the
  * breakouts, so they account for the panel inset and the scrollbar gutter
@@ -34,7 +35,7 @@
   padding: calc(
       var(--wd-nav-inset) + var(--wd-nav-height) + var(--wd-nav-content-gap)
     )
-    var(--page-pad) 0;
+    32px 0;
 }
 
 .wd-reader-column {
@@ -45,16 +46,16 @@
   /* The back row above owns the header nav's clearance. */
   padding: 0 16px 64px;
 
-  /* Reader rhythm, 768 -> 1440: every max is the old wide value, so the
-     3440 desktop is unchanged. */
-  --reader-gap-xs: clamp(12px, 1.1vw, 16px);
-  --reader-gap-sm: clamp(16px, 2vw, 28px);
-  --reader-gap-fig: clamp(16px, 1.7vw, 24px);
-  --reader-gap-pre: clamp(14px, 1.4vw, 20px);
-  --reader-gap-contact: clamp(24px, 2.2vw, 32px);
-  --reader-gap-lg: clamp(32px, 3.3vw, 48px);
-  --reader-gap-xl: clamp(40px, 3.9vw, 56px);
-  --reader-note-gap: clamp(12px, 1.4vw, 20px);
+  /* The xl reader rhythm. At >=768 the drawer layer scales the whole design by
+     --fit; there is no smaller desktop step. */
+  --reader-gap-xs: 16px;
+  --reader-gap-sm: 28px;
+  --reader-gap-fig: 24px;
+  --reader-gap-pre: 20px;
+  --reader-gap-contact: 32px;
+  --reader-gap-lg: 48px;
+  --reader-gap-xl: 56px;
+  --reader-note-gap: 20px;
 }
 
 /* Anchors the margin notes and the wide breakouts without pixel geometry. */
@@ -65,32 +66,27 @@
 /* ------------------------------------------------------------ ways back ---- */
 
 /*
- * The left margin rail from 1024px: "↑ Top" near the foot of the panel. It uses
- * the margin notes' type and has no surface, so the rail reads as a note beside
- * the article rather than as chrome. The way back to the index is the shared
- * Breadcrumb above the column on every width (breadcrumb.tsx).
+ * The left margin rail in the xl composition: "↑ Top" near the foot of the
+ * panel. It uses the margin notes' type and has no surface, so the rail reads
+ * as a note beside the article rather than as chrome. The way back to the
+ * index is the shared Breadcrumb above the column on every width
+ * (breadcrumb.tsx).
  *
  * The rail is the column's own box; its one child is sticky to the foot of the
  * scroll area.
  */
 .wd-rail {
-  display: none;
-}
-
-@media (min-width: 1024px) {
-  .wd-rail {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    position: absolute;
-    /* Above the 880px breakouts, which are positioned later in the DOM and
-       would otherwise paint over the rail's label and its click target. */
-    z-index: 1;
-    inset-block: 0;
-    /* 20px left of the 550px measure; the column's box adds its 16px gutter. */
-    right: calc(100% + 4px);
-    width: var(--reading-rail);
-  }
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  position: absolute;
+  /* Above the 880px breakouts, which are positioned later in the DOM and
+     would otherwise paint over the rail's label and its click target. */
+  z-index: 1;
+  inset-block: 0;
+  /* 20px left of the 550px measure; the column's box adds its 16px gutter. */
+  right: calc(100% + 4px);
+  width: var(--reading-rail);
 }
 
 .wd-rail-top {
@@ -172,51 +168,10 @@
     visibility 0s linear 150ms;
 }
 
-/* Below 1024px: two 44px thumb targets on the panel's foot. They are absolute
-   inside the fixed panel rather than fixed to the viewport, so at 768-1023
-   they keep the panel's own 16px inset, and they sit outside the scroll
-   container, whose containment would trap a fixed child. */
+/* The narrow-screen thumb targets are not part of the xl design: they are
+   hidden, and the rail is the way to the top. */
 .wd-reader-actions {
   display: none;
-}
-
-@media (max-width: 1023px) {
-  .wd-reader-actions {
-    display: flex;
-    position: absolute;
-    z-index: 1;
-    /* 16px stays the minimum, so nothing moves without an inset. */
-    inset-inline-start: max(16px, env(safe-area-inset-left));
-    inset-inline-end: max(16px, env(safe-area-inset-right));
-    bottom: max(16px, env(safe-area-inset-bottom));
-    /* The way back is the shared Breadcrumb above the article now; only the
-       reach-to-top button is left, and it keeps the right corner. */
-    justify-content: flex-end;
-    pointer-events: none;
-  }
-
-  .wd-reader-action {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    border: 0;
-    border-radius: 999px;
-    background: var(--surface-container-low);
-    color: var(--on-surface);
-    font-size: var(--text-base);
-    line-height: 1;
-    text-decoration: none;
-    box-shadow: var(--shadow-card);
-    cursor: pointer;
-    pointer-events: auto;
-  }
-
-  /* The foot of the article clears both buttons. */
-  .wd-reader-column {
-    padding-bottom: 88px;
-  }
 }
 
 /* In the overlay the thumb buttons are part of the content, so they fade with
@@ -608,32 +563,30 @@
   overflow-wrap: anywhere;
 }
 
-/* Captions become sidenotes at 1024px and up. */
-@media (min-width: 1024px) {
-  .wd-caption-margin {
-    position: absolute;
-    top: 4px;
-    left: calc(100% + var(--reader-note-gap));
-    width: var(--reading-rail);
-    margin: 0;
-  }
+/* Captions become sidenotes in the xl margin. */
+.wd-caption-margin {
+  position: absolute;
+  top: 4px;
+  left: calc(100% + var(--reader-note-gap));
+  width: var(--reading-rail);
+  margin: 0;
 }
 
-/* Two figures break the column out to 880px on a wide enough panel. */
-@media (min-width: 768px) {
-  .wd-fig-wide {
-    left: 50%;
-    width: min(880px, calc(100cqi - var(--page-pad) * 3));
-    translate: -50% 0;
-  }
+/* Two figures break the column out to 880px in the xl design. */
+.wd-fig-wide {
+  left: 50%;
+  width: min(880px, calc(100cqi - var(--page-pad) * 3));
+  translate: -50% 0;
 }
 
 /* --------------------------------------------------------- margin notes ---- */
 
-/* `<Note>` in the body: an anchor that takes no height once the note sits in
-   the margin, so the note lands beside the paragraph it belongs to. */
+/* `<Note>` in the body: an anchor that takes no height in the xl margin, so the
+   note lands beside the paragraph it belongs to. */
 .wd-note {
-  margin-top: 12px;
+  position: relative;
+  height: 0;
+  margin: 0;
 }
 
 .wd-note-block {
@@ -664,20 +617,12 @@
   outline-offset: 2px;
 }
 
-@media (min-width: 1024px) {
-  .wd-note {
-    position: relative;
-    height: 0;
-    margin: 0;
-  }
-
-  .wd-margin-note {
-    position: absolute;
-    top: 2px;
-    left: calc(100% + var(--reader-note-gap));
-    width: var(--reading-rail);
-    margin: 0;
-  }
+.wd-margin-note {
+  position: absolute;
+  top: 2px;
+  left: calc(100% + var(--reader-note-gap));
+  width: var(--reading-rail);
+  margin: 0;
 }
 
 /* ------------------------------------------------------------ footnotes ---- */
@@ -955,12 +900,6 @@
 /* With a real manifest the sheet is one frame at the sheet's own ratio. */
 .wd-contact-single .wd-media {
   width: 100%;
-}
-
-@media (max-width: 559px) {
-  .wd-contact-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
 }
 
 /* ----------------------------------------------------------- next link ---- */

@@ -15,6 +15,7 @@ import type {
   VariantMeta,
   VariantSettings,
 } from "@/components/play/variants/settings";
+import "./play-lab.css";
 
 type Phase = "dawn" | "day" | "dusk" | "night";
 
@@ -225,7 +226,7 @@ export function PlayLab() {
 
   return (
     <main className="min-h-screen bg-surface px-6 py-8 text-on-surface">
-      <div className="mx-auto max-w-[1740px]">
+      <div className="play-lab-content mx-auto max-w-[1740px]">
         <header className="mb-6">
           <h1 className="text-2xl font-medium">Play card · fibre-optic fan</h1>
           <p className="mt-1 max-w-[70ch] text-sm text-on-surface-variant">
