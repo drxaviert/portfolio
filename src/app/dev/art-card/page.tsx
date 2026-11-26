@@ -29,8 +29,6 @@ type LabSample = {
   key: string;
   caption: string;
   note?: string;
-  /** Lab-only AIC dominant colour, used by the painting-tint variant. */
-  accent?: string;
   art: DailyArt;
 };
 
@@ -60,7 +58,6 @@ function samples(today: string): LabSample[] {
   return [
     {
       key: "portrait-ornate",
-      accent: "hsl(39 14% 53%)",
       caption:
         "Portrait · 0.79 · pre-1700 ornate gilt · The Music Lesson, 1665",
       art: baseArt(
@@ -134,7 +131,6 @@ function samples(today: string): LabSample[] {
     },
     {
       key: "landscape-walnut",
-      accent: "hsl(59 12% 52%)",
       caption:
         "Landscape · 1.49 · 1880–1945 walnut · A Sunday on La Grande Jatte, 1884",
       art: baseArt(
@@ -298,9 +294,7 @@ export default async function ArtCardLabPage() {
       <VariantGallery
         today={todayArt}
         portrait={portrait?.art ?? todayArt}
-        portraitAccent={portrait?.accent}
         landscape={landscape?.art ?? todayArt}
-        landscapeAccent={landscape?.accent}
       />
 
       {items.map((sample) => (

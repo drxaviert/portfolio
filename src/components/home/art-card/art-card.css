@@ -40,10 +40,11 @@
 }
 
 /*
- * The wall is a phase surface, not a painting tint. It takes the phase's
- * surface and horizon hues, so Day/ Dawn/ Dusk/ Night and live phase changes
- * flow through automatically. The three accents stay below 10% so the label's
- * phase ink keeps well over the WCAG AA ratio.
+ * The wall is a phase surface, not a painting tint. Day uses Plaster (Dat's
+ * pick from the lab): a near-white gallery wall with a hairline shadow and a
+ * soft daylight bloom. Dawn, Dusk and Night keep the phase horizon gradients,
+ * so their light still changes with the sky. Every accent stays below 10%, so
+ * the label's phase ink keeps well over the WCAG AA ratio.
  */
 .art-card-wall {
   position: absolute;
@@ -71,9 +72,9 @@
 }
 
 /*
- * The spotlight is the same phase gradient the nav orb paints, cut to a
- * pointer-following radial mask. It therefore changes hue with the phase and
- * with a live phase switch, while staying a light rather than a surface.
+ * The spotlight is a pointer-following radial light. Dawn, Dusk and Night use
+ * the nav orb gradient; Day uses Plaster's soft white bloom. Both stay a light
+ * rather than a surface, and both follow a live phase switch.
  */
 .art-card-light {
   position: absolute;
@@ -108,6 +109,63 @@
 
 [data-phase="night"] .art-card-vignette {
   box-shadow: inset 0 0 80px rgb(0 0 0 / 0.28);
+}
+
+/*
+ * Day: Plaster. The wall is nearly white, so the depth comes from a soft
+ * hairline inset and a white daylight bloom instead of the blue horizon.
+ * These rules sit after the night vignette so a lab day island inside a night
+ * page still reads as day.
+ */
+[data-phase="day"] .art-card-wall {
+  background-color: color-mix(
+    in oklab,
+    var(--surface-container-low) 94%,
+    var(--surface-container)
+  );
+  background-image:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-bright) 55%, transparent),
+      transparent 45%
+    ),
+    radial-gradient(
+      120% 90% at 18% 0%,
+      color-mix(in oklab, var(--horizon-1) 3%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      100% 80% at 88% 100%,
+      color-mix(in oklab, var(--horizon-2) 3%, transparent),
+      transparent 62%
+    );
+}
+
+[data-phase="day"] .art-card-vignette {
+  box-shadow: inset 0 0 60px
+    color-mix(in oklab, var(--on-surface) 5%, transparent);
+}
+
+[data-phase="day"] .art-card-light {
+  background-image: radial-gradient(
+    circle 340px at var(--art-light-x, 50%) var(--art-light-y, 40%),
+    color-mix(in oklab, var(--surface-bright) 78%, transparent),
+    transparent 72%
+  );
+  -webkit-mask-image: radial-gradient(
+    circle 340px at var(--art-light-x, 50%) var(--art-light-y, 40%),
+    #000 0%,
+    transparent 68%
+  );
+  mask-image: radial-gradient(
+    circle 340px at var(--art-light-x, 50%) var(--art-light-y, 40%),
+    #000 0%,
+    transparent 68%
+  );
+}
+
+[data-phase="day"] .art-card[data-spotlight="on"]:hover .art-card-light {
+  opacity: 0.45;
 }
 
 /* Body. One scene: the wall label on the left, the frame on the right. */
@@ -237,13 +295,16 @@
   color: var(--on-surface);
   font-size: var(--text-xs);
   line-height: 1.4;
+  text-wrap: pretty;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
 @container (min-width: 460px) {
   .art-card-synopsis {
-    line-height: 1.45;
+    max-width: 62ch;
+    font-size: var(--text-sm);
+    line-height: 1.5;
     -webkit-line-clamp: 3;
   }
 }
