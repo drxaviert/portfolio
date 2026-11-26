@@ -35,8 +35,8 @@ describe("parseFrontmatter", () => {
 });
 
 describe("listWork", () => {
-  it("returns the nineteen case studies", () => {
-    expect(listWork()).toHaveLength(19);
+  it("returns the sixteen case studies", () => {
+    expect(listWork()).toHaveLength(16);
   });
 
   it("gives every study a known cover", () => {
@@ -55,14 +55,11 @@ describe("listWork", () => {
       "tribeca-film-festival-deciem",
       "urban-decay",
       "niod-deciem",
-      "eroxon",
       "good-form-rebrand",
       "xylo-audio",
       "lullavibes",
-      "docebo-ai-capabilities",
       "cash-app-cash-flow",
       "metaview",
-      "2d-motion-design-introduction",
       "linksys",
       "london-public-library",
       "personal",

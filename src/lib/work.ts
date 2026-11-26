@@ -22,15 +22,12 @@ const WORK_ORDER = [
   "tribeca-film-festival-deciem",
   "urban-decay",
   "niod-deciem",
-  "eroxon",
   "good-form-rebrand",
   "xylo-audio",
   "lullavibes",
   // 2D work.
-  "docebo-ai-capabilities",
   "cash-app-cash-flow",
   "metaview",
-  "2d-motion-design-introduction",
   "linksys",
   "london-public-library",
   // The personal page.

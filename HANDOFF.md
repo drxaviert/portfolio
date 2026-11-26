@@ -81,10 +81,10 @@ Throwaway test branches with no worktree: `drxaviert/aquarium` (`8e9702e`, 2 ahe
    card) and T7-T12 (italic/`font-synthesis`, display leading, `::selection`, curly punctuation,
    tooltip overflow, long-title wrap) are next on `fix/typography-lows`, which has no commits yet.
    Brief: `docs/handoffs/2026-11-17-typography-audit.md`.
-2. **Real case-study content** - imported 19 live studies from dattran.design in
+2. **Real case-study content** - imported 16 live studies from dattran.design in
    `feat/import-live-projects`; media slots are listed in
    `docs/work-media-manifest.md`. The three written placeholders are gone; the About
-   page is not a study.
+   page, Eroxon, Docebo AI Capabilities and 2D Motion Design Introduction are not studies.
 3. **Design-system branch PR** - the parked procedural page needs a rebase, review and PR.
 4. **`viewport-fit=cover`** - Dat decision. Without it the safe-area insets from #40 are 0.
 

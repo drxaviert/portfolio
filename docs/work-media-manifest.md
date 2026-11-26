@@ -1,6 +1,6 @@
 # Work media manifest
 
-Every image and video slot imported from [dattran.design](https://dattran.design). Each MDX placeholder is a grey `<Figure>` with a stable id in the comment above it; the table below records the original asset that should fill that slot and how it is laid out (`full`, `2-up` or `3-up`; no study places copy beside media). No files were uploaded. There are 85 slots across 19 projects.
+Every image and video slot imported from [dattran.design](https://dattran.design). Each MDX placeholder is a grey `<Figure>` with a stable id in the comment above it; the table below records the original asset that should fill that slot and how it is laid out (`full`, `2-up` or `3-up`; no study places copy beside media). No files were uploaded. There are 77 slots across 16 projects.
 
 Video slots record the original video URL. Image slots record the original `src`. No embedded YouTube/Vimeo players were found on the imported pages.
 
@@ -93,14 +93,6 @@ Source: https://dattran.design/work/niod-deciem
 | `niod-deciem-05` | 2-up | Video (MP4) | Cell 03 animation. | https://dattran.design/wp-content/uploads/2024/06/NIOD_Cell03_Anim_v03_FINAL.mp4 |
 | `niod-deciem-06` | 2-up | Image (JPG) | CAIL still. | https://dattran.design/wp-content/uploads/2024/03/NIOD_CAIL_a01_DT_Front_1_0064_00000_00000.jpg |
 
-## EROXON — `/work/eroxon`
-
-Source: https://dattran.design/work/eroxon
-
-| Id | Layout | Image/video | What it shows | Original source URL |
-| --- | --- | --- | --- | --- |
-| `eroxon-hero` | full | Video (MP4) | 15-second Eroxon hero ad. | https://dattran.design/wp-content/uploads/2025/07/PUB_EROXON_15s_HERO.mp4 |
-
 ## Good Form Rebrand — `/work/good-form-rebrand`
 
 Source: https://dattran.design/work/good-form-rebrand
@@ -126,14 +118,6 @@ Source: https://dattran.design/work/lullavibes
 | `lullavibes-hero` | 2-up | Video (WebM) | Instrumental lullaby rendition of Feliz Navidad. | https://dattran.design/wp-content/uploads/2024/02/Lullavibes-Instrumental-Lullabies-｜-Rendition-of-Feliz-Navidad-xPyhQnASSLM.webm |
 | `lullavibes-01` | 2-up | Video (WebM) | Instrumental lullaby rendition of See You Again. | https://dattran.design/wp-content/uploads/2024/02/Lullavibes-Instrumental-Lullabies-｜-Rendition-of-Wiz-Khalifas-Charlie-Puths-＂See-You-Again＂-O6mFP_X87RY.webm |
 
-## AI CAPABILITIES | DOCEBO — `/work/docebo-ai-capabilities`
-
-Source: https://dattran.design/work/docebo-ai-capabilities
-
-| Id | Layout | Image/video | What it shows | Original source URL |
-| --- | --- | --- | --- | --- |
-| `docebo-ai-capabilities-hero` | full | Video (WebM) | July 2026 What's New product video. | https://dattran.design/wp-content/uploads/2026/07/July2026_Whats-New_optimized.webm |
-
 ## CASH FLOW | CASH APP — `/work/cash-app-cash-flow`
 
 Source: https://dattran.design/work/cash-app-cash-flow
@@ -151,19 +135,6 @@ Source: https://dattran.design/work/metaview
 | Id | Layout | Image/video | What it shows | Original source URL |
 | --- | --- | --- | --- | --- |
 | `metaview-hero` | full | Video (WebM) | Metaview keynote video. | https://dattran.design/wp-content/uploads/2026/10/Metaview_Keynote_Video_v02b.webm |
-
-## 2D MOTION DESIGN INTRODUCTION — `/work/2d-motion-design-introduction`
-
-Source: https://dattran.design/work/2d-motion-design-introduction
-
-| Id | Layout | Image/video | What it shows | Original source URL |
-| --- | --- | --- | --- | --- |
-| `2d-motion-design-introduction-hero` | full | Video (MP4) | Portfolio title animation. | https://dattran.design/wp-content/uploads/2025/08/Portfolio_Title_Alt.mp4 |
-| `2d-motion-design-introduction-01` | 2-up | Video (MP4) | Hi there. | https://dattran.design/wp-content/uploads/2025/08/Portfolio_hi-there.mp4 |
-| `2d-motion-design-introduction-02` | 2-up | Video (MP4) | Nice to meet you. | https://dattran.design/wp-content/uploads/2025/08/Portfolio_Nice-to-meet-you.mp4 |
-| `2d-motion-design-introduction-03` | 2-up | Video (MP4) | My name is Dat. | https://dattran.design/wp-content/uploads/2025/08/Portfolio_My-name-is-Dat_16x9-1.mp4 |
-| `2d-motion-design-introduction-04` | 2-up | Video (MP4) | I animate / I design. | https://dattran.design/wp-content/uploads/2025/08/Portfolio_i-animate-design.mp4 |
-| `2d-motion-design-introduction-05` | full | Video (MP4) | In 2D / 3D. | https://dattran.design/wp-content/uploads/2025/08/Portfolio_in-2D-3D-1.mp4 |
 
 ## LINKSYS — `/work/linksys`
 
