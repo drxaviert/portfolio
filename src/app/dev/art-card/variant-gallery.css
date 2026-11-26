@@ -1,19 +1,14 @@
 /*
- * Plaster preview, lab only.
+ * Surface comparison, lab only.
  *
- * The live card owns the wall, label ink, spotlight and typography. This file
- * only builds the local day island (including a day-composed orb gradient for
- * the music card controls) and the comparison layout.
+ * Each phase panel is a local data-phase island. The live card keeps its wall,
+ * ink, spotlight and typography; the standard stage removes the custom wall,
+ * tint, vignette and spotlight so the plain ring-host fill shows. The night
+ * stage mirrors the live night wall and orb light because a night island can
+ * sit inside a day page.
  */
 
 .art-variant-gallery {
-  --orb-gradient: linear-gradient(
-    45deg,
-    var(--orb-1) 0%,
-    var(--orb-2) var(--orb-2-at),
-    var(--orb-3) 100%
-  );
-
   margin: 8px 0 44px;
   padding: clamp(18px, 3vw, 34px);
   border-radius: 16px;
@@ -51,9 +46,47 @@
   line-height: 1.5;
 }
 
-.art-variant-row {
+.art-variant-phase-panel {
+  --orb-gradient: linear-gradient(
+    45deg,
+    var(--orb-1) 0%,
+    var(--orb-2) var(--orb-2-at),
+    var(--orb-3) 100%
+  );
+
   margin-top: clamp(26px, 3vw, 38px);
-  padding-top: 20px;
+  padding: clamp(16px, 2.4vw, 26px);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in oklab, var(--on-surface) 10%, transparent);
+  color: var(--on-surface);
+}
+
+.art-variant-phase-head {
+  max-width: 760px;
+  margin-bottom: 8px;
+}
+
+.art-variant-phase-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.art-variant-phase-note {
+  max-width: 72ch;
+  margin: 6px 0 0;
+  color: var(--on-surface-variant);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.art-variant-row {
+  margin-top: 24px;
+  padding-top: 18px;
   border-top: 1px solid color-mix(in oklab, var(--on-surface) 10%, transparent);
 }
 
@@ -156,17 +189,90 @@
   height: 276px;
 }
 
-/* The music reference must read in the same day palette as the live card. */
-.art-variant-gallery[data-phase="day"] .now-playing-card {
+/*
+ * The day panel is a light island, so a night page's music-card override must
+ * not leak into it. The night panel keeps the live night values.
+ */
+.art-variant-phase-panel[data-phase="day"] .now-playing-card {
   --now-playing-well: var(--surface-container);
   --now-playing-track: color-mix(in oklab, var(--on-surface) 14%, transparent);
   --now-playing-art-bg: var(--surface-container-low);
+}
+
+/*
+ * Standard surface: the plain ring-host fill, with no custom wall, tint,
+ * vignette or spotlight. The stage class is specific enough to beat the phase
+ * wall/light rules in both nesting directions. Label ink is untouched, so it
+ * stays the normal on-surface tokens.
+ */
+.art-variant-stage.art-card--standard-surface .art-card-wall {
+  background-color: transparent;
+  background-image: none;
+}
+
+.art-variant-stage.art-card--standard-surface .art-card-vignette,
+.art-variant-stage.art-card--standard-surface .art-card-light {
+  display: none;
+}
+
+/*
+ * The lab night reference mirrors the live night wall and orb spotlight from
+ * art-card.css. The stage class keeps it night even when the page or the
+ * gallery's day chrome is the nearest data-phase ancestor.
+ */
+.art-variant-stage.art-card--live-night .art-card-wall {
+  background-color: var(--surface-container-low);
+  background-image:
+    radial-gradient(
+      120% 90% at 18% 0%,
+      color-mix(in oklab, var(--horizon-1) 9%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      120% 100% at 84% 100%,
+      color-mix(in oklab, var(--horizon-2) 8%, transparent),
+      transparent 64%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--horizon-3) 9%, transparent),
+      transparent 58%
+    );
+}
+
+.art-variant-stage.art-card--live-night .art-card-vignette {
+  box-shadow: inset 0 0 80px rgb(0 0 0 / 0.28);
+}
+
+.art-variant-stage.art-card--live-night .art-card-light {
+  background-image: var(--orb-gradient);
+  -webkit-mask-image: radial-gradient(
+    circle 300px at var(--art-light-x, 50%) var(--art-light-y, 40%),
+    #000 0%,
+    transparent 68%
+  );
+  mask-image: radial-gradient(
+    circle 300px at var(--art-light-x, 50%) var(--art-light-y, 40%),
+    #000 0%,
+    transparent 68%
+  );
+}
+
+.art-variant-stage.art-card--live-night
+  .art-card[data-spotlight="on"]:hover
+  .art-card-light {
+  opacity: 0.16;
 }
 
 @media (max-width: 700px) {
   .art-variant-gallery {
     padding: 18px 14px;
     border-radius: 12px;
+  }
+
+  .art-variant-phase-panel {
+    padding: 14px;
+    border-radius: 10px;
   }
 
   .art-variant-row-head {
