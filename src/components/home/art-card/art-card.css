@@ -59,7 +59,7 @@
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   gap: clamp(8px, 1.8cqw, 18px);
   min-width: 0;
   height: 100%;
