@@ -92,8 +92,9 @@ function CardFrame({
 }) {
   return (
     <div
-      className="relative h-[276px] w-[849px] max-w-full overflow-hidden rounded-lg shadow-card"
+      className="relative w-[849px] max-w-full overflow-hidden rounded-lg shadow-card"
       style={{
+        aspectRatio: "849 / 276",
         background: variant === "silk-wave" ? "var(--surface)" : PLAY_GRADIENT,
       }}
     >
@@ -298,7 +299,7 @@ export function PlayLab() {
           aria-label="Preview"
           className="flex flex-wrap items-start gap-6"
         >
-          <figure>
+          <figure className="min-w-0 max-w-full">
             <figcaption className="mb-2 text-xs text-on-surface-variant">
               <span className="font-medium text-on-surface">
                 {active.label}
@@ -316,7 +317,7 @@ export function PlayLab() {
             )}
           </figure>
 
-          <figure>
+          <figure className="min-w-0 max-w-full">
             <figcaption className="mb-2 text-xs text-on-surface-variant">
               <span className="font-medium text-on-surface">Current</span> ·
               reference for comparison
