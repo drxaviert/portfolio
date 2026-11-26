@@ -20,6 +20,9 @@ const ERAS: readonly FrameEra[] = [
 
 const PHASES: readonly Phase[] = ["dawn", "day", "dusk", "night"];
 
+/** The dev panel writes the URL; listeners re-read the same override. */
+export const ART_OVERRIDE_EVENT = "art-override-change";
+
 export type ArtOverride = {
   artId: number | null;
   era: FrameEra | null;
@@ -44,4 +47,29 @@ export function parseArtOverride(search: string): ArtOverride {
     phase,
     frames: params.get("frames") === "current",
   };
+}
+
+/**
+ * Writes the override back to the query so the panel's state is shareable and
+ * survives a refresh. Auto/new/today are the absence of their param. The
+ * custom event makes the URL the live source of truth without a reload; other
+ * query keys are preserved.
+ */
+export function writeArtOverride(values: ArtOverride): void {
+  const url = new URL(window.location.href);
+
+  if (values.artId === null) url.searchParams.delete("art");
+  else url.searchParams.set("art", String(values.artId));
+
+  if (values.era === null) url.searchParams.delete("era");
+  else url.searchParams.set("era", values.era);
+
+  if (values.phase === null) url.searchParams.delete("phase");
+  else url.searchParams.set("phase", values.phase);
+
+  if (values.frames) url.searchParams.set("frames", "current");
+  else url.searchParams.delete("frames");
+
+  window.history.replaceState(window.history.state, "", url.toString());
+  window.dispatchEvent(new Event(ART_OVERRIDE_EVENT));
 }

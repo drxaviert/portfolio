@@ -2,18 +2,23 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { DailyArt } from "@/lib/daily-art";
-import { parseArtOverride } from "@/lib/art-override";
+import {
+  ART_OVERRIDE_EVENT,
+  parseArtOverride,
+  writeArtOverride,
+} from "@/lib/art-override";
 import { pinPhase, unpinPhase } from "@/lib/theme";
 import { ArtCard } from "./art-card";
+import { HomeArtControls } from "./home-art-controls";
 
 /**
  * The home card plus the dev-only `?art` / `?era` / `?phase` test hook.
  *
- * `/` stays server-rendered and static: the dev branch renders the cached
- * daily artwork first and only reads the URL after hydration. Production
- * returns `<ArtCard>` directly, so the cached pick and the static route are
- * untouched. The existing theme toggle still switches the phase; `?phase=` is
- * only a linkable starting point for a review.
+ * `page.tsx` imports this module only when NODE_ENV=development, so the
+ * floating panel and this whole file stay out of the production client graph.
+ * The URL is the single source of truth: the panel writes it, the store reads
+ * it, and the card/phase follow without a reload. The existing theme toggle
+ * still switches the phase; `?phase=` is only a linkable starting point.
  *
  * The URL is an external store (`useSyncExternalStore`) so the server can
  * render a stable card and the client can adopt the query without a
@@ -27,8 +32,12 @@ import { ArtCard } from "./art-card";
 
 function subscribeToLocation(onChange: () => void) {
   window.addEventListener("popstate", onChange);
+  window.addEventListener(ART_OVERRIDE_EVENT, onChange);
 
-  return () => window.removeEventListener("popstate", onChange);
+  return () => {
+    window.removeEventListener("popstate", onChange);
+    window.removeEventListener(ART_OVERRIDE_EVENT, onChange);
+  };
 }
 
 function readLocationSearch() {
@@ -39,19 +48,14 @@ function readServerSearch() {
   return "";
 }
 
-export function HomeArtCard({ art }: { art: DailyArt }) {
-  if (process.env.NODE_ENV === "production") return <ArtCard art={art} />;
-
-  return <DevArtCard art={art} />;
-}
-
-function DevArtCard({ art }: { art: DailyArt }) {
+export function HomeArtCardDev({ art }: { art: DailyArt }) {
   const search = useSyncExternalStore(
     subscribeToLocation,
     readLocationSearch,
     readServerSearch,
   );
-  const { artId, era, phase, frames } = parseArtOverride(search);
+  const override = parseArtOverride(search);
+  const { artId, era, phase, frames } = override;
   const [fetched, setFetched] = useState<{
     artId: number;
     art: DailyArt;
@@ -97,11 +101,14 @@ function DevArtCard({ art }: { art: DailyArt }) {
     artId !== null && fetched?.artId === artId ? fetched.art : art;
 
   return (
-    <ArtCard
-      art={current}
-      era={era ?? undefined}
-      mount={era === "scroll" ? "hanging" : undefined}
-      frames={frames ? "current" : undefined}
-    />
+    <>
+      <ArtCard
+        art={current}
+        era={era ?? undefined}
+        mount={era === "scroll" ? "hanging" : undefined}
+        frames={frames ? "current" : undefined}
+      />
+      <HomeArtControls override={override} onChange={writeArtOverride} />
+    </>
   );
 }
