@@ -16,15 +16,16 @@ import { RingHoverPointer } from "./ring-pointer";
 import "./ring-hover.css";
 
 /*
- * The frame hairlines keep main's full-length treatment: the verticals run
- * the full viewport height and the horizontals span the frame width (the
- * tablet also runs them the full viewport width), so they cross at the frame
- * corners. Their positions follow the active composition: the xl box is the
- * 910px ink frame (780px content + 64px bottom gap + 65px top gap including
- * the 1px line, plus 1px slack) and the tablet box is the 768x964 artboard.
- * `--frame-line-top` / `--frame-line-height` and `--frame-line-h-left` /
- * `--frame-line-h-width` place the horizontals; `--frame-line-v-top` /
- * `--frame-line-v-height` extend the verticals to the viewport.
+ * The frame hairlines keep main's full-length horizontal treatment, but the
+ * verticals now start on the top horizontal and stop on the bottom one, so
+ * they never pass the corner. The tablet horizontals run the full viewport
+ * width; the xl horizontals keep main's frame width. Positions follow the
+ * active composition: the xl box is the 910px ink frame (780px content + 64px
+ * bottom gap + 65px top gap including the 1px line, plus 1px slack) and the
+ * tablet box is the 768x964 artboard. `--frame-line-top` /
+ * `--frame-line-height` place and bound the verticals and place the
+ * horizontals; `--frame-line-h-left` / `--frame-line-h-width` size the
+ * horizontals.
  */
 
 /**
@@ -133,18 +134,18 @@ export function HomeLayout({
         data-home-frame=""
         className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-15"
       >
-        {/* The four frame hairlines keep main's full-length treatment: the
-            verticals run the whole viewport height and the horizontals span
-            the frame width, crossing at the frame corners. Only their
-            positions follow the composition: the tablet box is 768x964 and
-            the xl box is the 910px ink frame centred in the viewport. */}
+        {/* The four hairlines keep main's full-length horizontal treatment;
+            the verticals now start on the top horizontal and stop on the
+            bottom one, so they never pass the corner. The tablet horizontals
+            run the full viewport width; the xl horizontals keep main's frame
+            width. */}
         <span
           aria-hidden="true"
           data-frame-line="v"
           className="pointer-events-none absolute left-0 hidden w-px bg-frame-line md:block"
           style={{
-            top: "var(--frame-line-v-top)",
-            height: "var(--frame-line-v-height)",
+            top: "var(--frame-line-top)",
+            height: "var(--frame-line-height)",
           }}
         />
         <span
@@ -152,8 +153,8 @@ export function HomeLayout({
           data-frame-line="v"
           className="pointer-events-none absolute right-0 hidden w-px bg-frame-line md:block"
           style={{
-            top: "var(--frame-line-v-top)",
-            height: "var(--frame-line-v-height)",
+            top: "var(--frame-line-top)",
+            height: "var(--frame-line-height)",
           }}
         />
         <span

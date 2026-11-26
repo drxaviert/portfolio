@@ -9,13 +9,14 @@
 
 .frame-spot-root {
   position: absolute;
-  /* The lines keep main's full-length treatment; the root covers the same
-     viewport-width/high box so the host strips and pools are not clipped at
-     the frame edges when the tablet box is centred in a larger viewport. */
-  top: var(--frame-line-v-top, 0);
+  /* The lines keep main's full-length horizontals; the verticals stop on
+     them. The root covers that box (full viewport width on tablet, frame
+     width on xl) so the host strips and pools are not clipped at the frame
+     edges. */
+  top: var(--frame-line-top, 0);
   left: var(--frame-line-h-left, 0);
   width: var(--frame-line-h-width, 100%);
-  height: var(--frame-line-v-height, 100%);
+  height: var(--frame-line-height, 100%);
   display: none;
   overflow: hidden;
   pointer-events: none;
