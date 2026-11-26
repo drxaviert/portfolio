@@ -331,6 +331,7 @@ describe("ArtCard", () => {
     expect(container.querySelector(".ring-surface")).toHaveClass(
       "bg-surface-container-low",
     );
+    expect(container.querySelector(".art-card")).toHaveClass("rounded-lg");
     expect(container.querySelector(".art-card-wall")).toBeNull();
     expect(container.querySelector(".art-card-light")).toBeNull();
     expect(container.querySelector(".art-card-vignette")).toBeNull();

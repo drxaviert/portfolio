@@ -29,7 +29,10 @@ export function ArtCard({ art }: ArtCardProps) {
   const closeDialog = useCallback(() => setDialogOpen(false), []);
 
   return (
-    <article className="ring-host art-card flex-1" aria-label="Daily painting">
+    <article
+      className="ring-host art-card flex-1 rounded-lg"
+      aria-label="Daily painting"
+    >
       <RingLayers fill="bg-surface-container-low" />
 
       <div className="art-card-body">
