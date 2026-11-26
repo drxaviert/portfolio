@@ -351,6 +351,10 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
   --wd-nav-content-gap: 24px;
   --wd-phase-row-gap: 4px;
 
+  /* Home frame fit. Below 768 the mobile gate owns the layout, so the frame is
+     never zoomed and this stays 1. The desktop rules below set the real value. */
+  --fit: 1;
+
   /* Homepage edge blur (viewport-edge-blur.css): the fixed progressive blur at
      the top and bottom of `/`. The band's height, and the deepest band's blur;
      the ramp fades to zero at the band's inner edge. */
@@ -363,6 +367,48 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
     --wd-panel-inset: 16px;
     --wd-nav-inset: 28px;
     --wd-nav-content-gap: 32px;
+
+    /*
+     * The home frame is drawn at 1200 x 908: the 780px column plus one 64px
+     * gap above and below (home-layout.tsx). Scale it down uniformly on
+     * shorter or narrower desktop viewports, never up. Length/length division
+     * is the tan(atan2()) trick faux-ui.css uses; plain CSS cannot divide two
+     * lengths. The width ratio keeps the minimum 1280 layout from clipping the
+     * composition; the height ratio does the real work at 16:9.
+     */
+    --fit: min(
+      1,
+      calc(tan(atan2(100vw, 1280px))),
+      calc(tan(atan2(100dvh, 908px)))
+    );
+
+    /*
+     * Edge blur may only cover the empty margin around the frame's content,
+     * never a card or text. The margin is half of what the viewport has left
+     * after the content, so the band is clamped to it; on a tall screen it
+     * settles at the design 172px. The md column is 868px tall, lg 668px, xl
+     * 780px (tracker + gap + band + gap + nav); each breakpoint overrides the
+     * height below. The peak blur follows the frame's scale.
+     */
+    --edge-blur-height: min(172px, calc((100dvh - 868px * var(--fit)) / 2));
+    --edge-blur-max: calc(8px * var(--fit));
+  }
+
+  /* Zoom the frame, not body: the shared horizon stays full-bleed. */
+  [data-home-frame] {
+    zoom: var(--fit);
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --edge-blur-height: min(172px, calc((100dvh - 668px * var(--fit)) / 2));
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --edge-blur-height: min(172px, calc((100dvh - 780px * var(--fit)) / 2));
   }
 }
 

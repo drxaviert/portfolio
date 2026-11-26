@@ -39,6 +39,26 @@
     --wd-frame-pad: 32px;
     --wd-nav-offset: 804px;
   }
+
+  /*
+   * The home dock rides inside the frame's zoom so it matches the nav slot
+   * exactly. `zoom` scales its top/left/width once; 50dvh is read at painted
+   * size, so it is divided by --fit to put it back into the frame's coordinate
+   * space. Percentages already resolve against the pre-zoom containing block.
+   * In the reader the dock leaves this rule (data-nav-state), so the panel's
+   * nav stays at the viewport's own scale.
+   */
+  .wd-nav-dock[data-nav-state="home"] {
+    zoom: var(--fit);
+    top: max(
+      calc(var(--wd-frame-pad) + var(--wd-nav-offset)),
+      calc(50dvh / var(--fit) + var(--wd-nav-offset) / 2 - 2rem)
+    );
+    /* Percentages already resolve against the pre-zoom containing block, so
+       only the viewport unit above needs dividing by --fit. */
+    left: max(var(--wd-frame-pad), calc(50% - 568px));
+    width: min(1136px, 100% - var(--wd-frame-pad) * 2);
+  }
 }
 
 @media (min-width: 1024px) {

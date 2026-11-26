@@ -307,6 +307,20 @@ describe("NavDock", () => {
     render_.unmount();
   });
 
+  it("scales the home dock with the frame, in the frame's own space", () => {
+    const css = readFileSync(
+      join(process.cwd(), "src", "components", "nav", "nav-dock.css"),
+      "utf8",
+    );
+
+    expect(css).toMatch(
+      /\.wd-nav-dock\[data-nav-state="home"\]\s*\{[^}]*zoom:\s*var\(--fit\);/,
+    );
+    // 50dvh is not zoomed, so the dock divides it back into frame px.
+    expect(css).toMatch(/50dvh \/ var\(--fit\)/);
+    expect(css).toMatch(/calc\(50% - 568px\)/);
+  });
+
   it("hangs the phase row on one shared gap in both docks", () => {
     const read = (...parts: string[]) =>
       readFileSync(join(process.cwd(), ...parts), "utf8");

@@ -88,7 +88,9 @@
 
   --clear-blur: 20px;
   --clear-duration: 680ms;
-  --clear-feather: 25vh;
+  /* The home composition scales with --fit; keep the prototype's feather in
+     proportion to the frame instead of the raw viewport. */
+  --clear-feather: calc(25vh * var(--fit));
   --clear-delay: 0ms;
 
   --step-count: 3;

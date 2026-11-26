@@ -21,7 +21,7 @@ import "./ring-hover.css";
  * as 100dvh leaves room (1920x1080 is unchanged).
  */
 const frameGapStyle = {
-  "--frame-gap": "clamp(0px, calc((100dvh - 780px) / 2), 64px)",
+  "--frame-gap": "clamp(0px, calc((100dvh / var(--fit) - 780px) / 2), 64px)",
 } as CSSProperties;
 
 /**
@@ -116,6 +116,7 @@ export function HomeLayout({
       <RingHoverPointer />
 
       <div
+        data-home-frame=""
         className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-12 xl:py-15"
         style={frameGapStyle}
       >

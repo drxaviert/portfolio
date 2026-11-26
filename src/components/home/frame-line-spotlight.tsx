@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { rectZoom } from "./layout-zoom";
 import "./frame-line-spotlight.css";
 
 /**
@@ -103,6 +104,8 @@ export function FrameLineSpotlight() {
     let frame = 0;
     let measureFrame = 0;
     let reduced = reducedQuery.matches;
+    /** The frame's effective zoom at the last measure; layout px per screen px. */
+    let zoom = 1;
     /** Last opacity written to the root, so idle frames skip the style write. */
     let lastLight = "";
     /** True while the pools are promoted for the pointer. */
@@ -112,6 +115,7 @@ export function FrameLineSpotlight() {
       if (window.innerWidth < 1440) return;
 
       const rootRect = rootEl.getBoundingClientRect();
+      zoom = rectZoom(rootEl, rootRect);
       const originals = Array.from(
         scopeEl.querySelectorAll<HTMLElement>("[data-frame-line]"),
       );
@@ -143,10 +147,12 @@ export function FrameLineSpotlight() {
 
         line.originLeft = rect.left;
         line.originTop = rect.top;
-        line.host.style.left = `${rect.left - rootRect.left}px`;
-        line.host.style.top = `${rect.top - rootRect.top}px`;
-        line.host.style.width = `${rect.width}px`;
-        line.host.style.height = `${rect.height}px`;
+        // The hosts and pools are painted inside the zoomed frame, so their
+        // box is written in frame px.
+        line.host.style.left = `${(rect.left - rootRect.left) / zoom}px`;
+        line.host.style.top = `${(rect.top - rootRect.top) / zoom}px`;
+        line.host.style.width = `${rect.width / zoom}px`;
+        line.host.style.height = `${rect.height / zoom}px`;
       });
     }
 
@@ -312,8 +318,10 @@ export function FrameLineSpotlight() {
 
       for (const line of lines) {
         // Centre the fixed pool on the shared light; the strip clips the rest.
-        const poolX = (sx - line.originLeft - POOL_RADIUS).toFixed(2);
-        const poolY = (sy - line.originTop - POOL_RADIUS).toFixed(2);
+        // The light is in screen px and the pool in frame px, so the local
+        // offset is divided by the frame's zoom first.
+        const poolX = ((sx - line.originLeft) / zoom - POOL_RADIUS).toFixed(2);
+        const poolY = ((sy - line.originTop) / zoom - POOL_RADIUS).toFixed(2);
 
         line.pool.style.transform = `translate3d(${poolX}px, ${poolY}px, 0)`;
       }

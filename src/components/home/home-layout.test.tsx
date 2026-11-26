@@ -1,4 +1,6 @@
 import { render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_WORK_LABEL } from "./empty-work";
 import { HomeLayout } from "./home-layout";
@@ -34,5 +36,30 @@ describe("HomeLayout", () => {
     expect(
       screen.queryByRole("region", { name: "Selected work" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("scales the frame with --fit and keeps the gap in frame space", () => {
+    const { container } = render(<HomeLayout items={[]} />);
+    const frame = container.querySelector<HTMLElement>("[data-home-frame]");
+
+    expect(frame).not.toBeNull();
+    // Viewport units inside a zoomed element are not zoomed, so the gap is
+    // computed against the viewport divided by the fit.
+    expect(frame?.style.getPropertyValue("--frame-gap")).toContain(
+      "100dvh / var(--fit)",
+    );
+
+    const globals = readFileSync(
+      join(process.cwd(), "src", "app", "globals.css"),
+      "utf8",
+    );
+    const desktop = globals.slice(globals.indexOf("@media (min-width: 768px)"));
+
+    expect(globals).toMatch(/--fit:\s*1;/);
+    expect(globals).toMatch(/tan\(atan2\(100vw,\s*1280px\)\)/);
+    expect(globals).toMatch(/tan\(atan2\(100dvh,\s*908px\)\)/);
+    expect(desktop).toMatch(
+      /\[data-home-frame\]\s*\{[^}]*zoom:\s*var\(--fit\);/,
+    );
   });
 });
