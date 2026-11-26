@@ -62,7 +62,14 @@ describe("NowPlayingCard", () => {
     expect(
       screen.getByRole("button", { name: "Play Door to the Cosmos" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Chihei Hatakeyama")).toBeInTheDocument();
+    expect(screen.getByText("Door to the Cosmos")).toHaveAttribute(
+      "title",
+      "Door to the Cosmos",
+    );
+    expect(screen.getByText("Chihei Hatakeyama")).toHaveAttribute(
+      "title",
+      "Chihei Hatakeyama",
+    );
   });
 
   it("exposes a seek slider with aria values and keyboard steps", () => {
@@ -198,9 +205,7 @@ describe("NowPlayingCard", () => {
   it("labels the error-state button as a retry", async () => {
     store.play();
 
-    await vi.waitFor(() =>
-      expect(store.getSnapshot().status).toBe("error"),
-    );
+    await vi.waitFor(() => expect(store.getSnapshot().status).toBe("error"));
 
     render(<NowPlayingCard store={store} />);
 

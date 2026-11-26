@@ -122,7 +122,10 @@ export function NowPlayingCard({
 
         <div className="now-playing-row">
           <div className="now-playing-meta">
-            <p className="now-playing-title text-xs font-semibold xl:text-sm">
+            <p
+              className="now-playing-title text-xs font-medium xl:text-sm"
+              title={track.title}
+            >
               {track.title}
             </p>
             {status === "error" ? (
@@ -135,7 +138,9 @@ export function NowPlayingCard({
                 Open on YouTube <span aria-hidden="true">↗</span>
               </a>
             ) : (
-              <p className="now-playing-artist text-xs">{track.artist}</p>
+              <p className="now-playing-artist text-xs" title={track.artist}>
+                {track.artist}
+              </p>
             )}
           </div>
 

@@ -159,8 +159,12 @@ export function WorkSlivers({ items, entrance }: WorkSliversProps = {}) {
 }
 
 /**
- * Play card shell at its Figma size. The generative art is paused, so the card
- * renders as the empty ring surface (no src/components/play import).
+ * The empty Play card shell at its Figma size.
+ *
+ * The shell is deliberately data-free: HomeLayout is also imported by the
+ * client-side entrance harness, so it must stay safe in a browser graph. The
+ * shipped routes pass a server-rendered art card through HomeLayout's
+ * `playCard` slot; dev previews without data keep this placeholder.
  */
 export function PlayCard() {
   return (
