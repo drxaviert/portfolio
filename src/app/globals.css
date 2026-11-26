@@ -427,6 +427,10 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
   [data-home-frame] {
     --frame-gap-cap: 64px;
     --frame-line-bottom: calc(var(--frame-gap) * -1);
+    /* The xl frame is the 910px ink box, centred in the viewport: the vertical
+       hairlines span its 909px of ink, not the raw viewport height. */
+    --frame-line-top: calc((100% - 910px) / 2);
+    --frame-line-height: 909px;
 
     zoom: var(--home-fit);
   }
@@ -463,9 +467,12 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
     margin-block: auto;
 
     /* The 768 design's lines sit flush with the content column: the top line
-       1px above it and the bottom line immediately below it. */
+       1px above it and the bottom line immediately below it. The verticals run
+       the full 964px frame height, as in Paper 1Z5-0. */
     --frame-gap-cap: 0px;
     --frame-line-bottom: -1px;
+    --frame-line-top: 0px;
+    --frame-line-height: 964px;
   }
 }
 

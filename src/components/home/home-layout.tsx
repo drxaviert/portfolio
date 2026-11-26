@@ -139,17 +139,27 @@ export function HomeLayout({
         className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-15"
         style={frameGapStyle}
       >
-        {/* Vertical frame lines: 1px hairlines on the content-column edges,
-            full frame height (Figma 121:2009/121:2010). */}
+        {/* Vertical frame lines: 1px hairlines on the frame's edges. The 768
+            frame is 964 tall, so they run its full height; the xl frame is the
+            910px ink box centred in the viewport, so they follow that box
+            rather than the raw viewport (Figma 121:2009/121:2010). */}
         <span
           aria-hidden="true"
           data-frame-line="v"
-          className="pointer-events-none absolute inset-y-0 left-0 hidden w-px bg-frame-line md:block"
+          className="pointer-events-none absolute left-0 hidden w-px bg-frame-line md:block"
+          style={{
+            top: "var(--frame-line-top)",
+            height: "var(--frame-line-height)",
+          }}
         />
         <span
           aria-hidden="true"
           data-frame-line="v"
-          className="pointer-events-none absolute inset-y-0 right-0 hidden w-px bg-frame-line md:block"
+          className="pointer-events-none absolute right-0 hidden w-px bg-frame-line md:block"
+          style={{
+            top: "var(--frame-line-top)",
+            height: "var(--frame-line-height)",
+          }}
         />
 
         <div className="relative mx-auto my-auto flex w-full max-w-[1136px] flex-col gap-3">

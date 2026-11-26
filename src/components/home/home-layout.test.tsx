@@ -41,12 +41,23 @@ describe("HomeLayout", () => {
   it("scales the xl frame with --fit and the 768 frame with --home-fit", () => {
     const { container } = render(<HomeLayout items={[]} />);
     const frame = container.querySelector<HTMLElement>("[data-home-frame]");
+    const vertical = container.querySelector<HTMLElement>(
+      '[data-frame-line="v"]',
+    );
 
     expect(frame).not.toBeNull();
     // Viewport units inside a zoomed element are not zoomed, so the gap is
     // computed against the viewport divided by the fit.
     expect(frame?.style.getPropertyValue("--frame-gap")).toContain(
       "100dvh / var(--fit)",
+    );
+    // The verticals span the composition's own line box, never inset-y-0 on
+    // the raw viewport.
+    expect(vertical?.style.getPropertyValue("top")).toBe(
+      "var(--frame-line-top)",
+    );
+    expect(vertical?.style.getPropertyValue("height")).toBe(
+      "var(--frame-line-height)",
     );
 
     const globals = readFileSync(
@@ -64,6 +75,8 @@ describe("HomeLayout", () => {
     // The 768 frame is 768x964; its fit is capped at 1 so it never grows.
     expect(globals).toMatch(/tan\(atan2\(100vw,\s*768px\)\)/);
     expect(globals).toMatch(/tan\(atan2\(100dvh,\s*964px\)\)/);
+    expect(globals).toMatch(/--frame-line-height:\s*909px/);
+    expect(globals).toMatch(/--frame-line-height:\s*964px/);
     expect(desktop).toMatch(
       /\[data-home-frame\]\s*\{[^}]*zoom:\s*var\(--home-fit\);/,
     );
