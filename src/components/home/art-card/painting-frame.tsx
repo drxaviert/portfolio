@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { DailyArt } from "@/lib/daily-art";
 import { frameStyleFor } from "./frame-style";
-import type { FrameEra } from "./frame-style";
+import type { FrameEra, FrameMount } from "./frame-style";
 import "./painting-frame.css";
 
 /**
@@ -26,8 +26,10 @@ type PaintingFrameProps = {
   children: ReactNode;
   /** Card mode for the day view, full for the dialog stage. */
   variant?: "card" | "full";
-  /** Lab overrides: force an era to compare the frame tokens. */
+  /** Lab and dev overrides: force an era to compare the frame tokens. */
   era?: FrameEra;
+  /** Dev override: pair a forced era with a mount that suits it. */
+  mount?: FrameMount;
   className?: string;
 };
 
@@ -36,6 +38,7 @@ export function PaintingFrame({
   children,
   variant = "card",
   era,
+  mount,
   className = "",
 }: PaintingFrameProps) {
   const style = frameStyleFor(art);
@@ -51,7 +54,7 @@ export function PaintingFrame({
     <div
       className={`painting-frame ${className}`.trim()}
       data-era={era ?? style.era}
-      data-mount={style.mount}
+      data-mount={mount ?? style.mount}
       data-variant={variant}
       style={{ "--art-ratio": aspect } as CSSProperties}
     >

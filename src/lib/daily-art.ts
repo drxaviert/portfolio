@@ -21,6 +21,7 @@ export { hashDateKey, isValidDateKey, utcDateKey } from "./art-shared";
  */
 
 const AIC_SEARCH_URL = "https://api.artic.edu/api/v1/artworks/search";
+const AIC_ARTWORK_URL = "https://api.artic.edu/api/v1/artworks";
 /** Generic project name only; the AIC docs ask not to send an email address. */
 export const AIC_USER_AGENT = "Daily-Painting/1.0";
 const REQUEST_TIMEOUT_MS = 8_000;
@@ -263,7 +264,19 @@ function usableArtwork(item: AicArtwork): boolean {
   return isAcceptableAspect(width, height);
 }
 
-export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
+type ToDailyArtOptions = {
+  /**
+   * The daily pick requires museum text. A dev override may still show a work
+   * whose AIC record has no description; it uses an honest placeholder line.
+   */
+  requireSynopsis?: boolean;
+};
+
+export function toDailyArt(
+  item: AicArtwork,
+  dateKey: string,
+  { requireSynopsis = true }: ToDailyArtOptions = {},
+): DailyArt | null {
   if (!usableArtwork(item)) return null;
 
   const id = finiteNumber(item.id);
@@ -285,7 +298,7 @@ export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
   // The page scan re-checks museum text client-side, so an ignored server
   // filter cannot select an undescribed work. The bundled offline painting
   // remains for API failure.
-  if (!synopsis) return null;
+  if (!synopsis && requireSynopsis) return null;
 
   return {
     date: dateKey,
@@ -297,7 +310,7 @@ export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
     placeOfOrigin,
     styleTitle,
     medium,
-    synopsis,
+    synopsis: synopsis ?? "No museum description available for this work.",
     imageId,
     width,
     height,
@@ -455,6 +468,43 @@ export async function fetchDailyArt(
 
     return fallbackArt(dateKey);
   }
+}
+
+/**
+ * The uncached by-id loader behind the dev-only `?art=` homepage override.
+ *
+ * It uses the same search fields, timeout and `toDailyArt` mapping as the daily
+ * pick, but it never touches `getTodaysArt` or its day-keyed cache. A missing
+ * or unframable record returns null; a network failure throws so the route can
+ * distinguish "no such artwork" from "AIC unreachable".
+ */
+export async function fetchArtworkById(
+  id: number,
+  fetchImpl: FetchLike = fetch,
+): Promise<DailyArt | null> {
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+
+  const response = await fetchImpl(
+    `${AIC_ARTWORK_URL}/${id}?fields=${SEARCH_FIELDS.join(",")}`,
+    {
+      headers: {
+        "AIC-User-Agent": AIC_USER_AGENT,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    },
+  );
+
+  if (!response.ok) return null;
+
+  const payload = (await response.json()) as {
+    data?: AicArtwork | null;
+  };
+
+  return payload.data
+    ? toDailyArt(payload.data, utcDateKey(), { requireSynopsis: false })
+    : null;
 }
 
 /**

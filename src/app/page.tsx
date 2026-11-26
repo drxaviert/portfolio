@@ -1,4 +1,4 @@
-import { ArtCard } from "@/components/home/art-card/art-card";
+import { HomeArtCard } from "@/components/home/art-card/home-art-card";
 import { HomeScreen } from "@/components/home/home-screen";
 import { ViewportEdgeBlur } from "@/components/edge-blur/viewport-edge-blur";
 import { ART_DATA_VERSION, getTodaysArt } from "@/lib/daily-art";
@@ -20,7 +20,7 @@ export default async function Home() {
 
   return (
     <>
-      <HomeScreen playCard={<ArtCard art={art} />} />
+      <HomeScreen playCard={<HomeArtCard art={art} />} />
       <ViewportEdgeBlur />
     </>
   );

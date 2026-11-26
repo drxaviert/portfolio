@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ART_DATA_VERSION,
   type AicArtwork,
+  fetchArtworkById,
   fetchDailyArt,
   getTodaysArt,
   hashDateKey,
@@ -162,6 +163,18 @@ describe("toDailyArt", () => {
     expect(
       toDailyArt(artwork({ short_description: null, description: null }), DATE),
     ).toBeNull();
+  });
+
+  it("can map a dev override without museum text", () => {
+    expect(
+      toDailyArt(
+        artwork({ short_description: null, description: null }),
+        DATE,
+        {
+          requireSynopsis: false,
+        },
+      )?.synopsis,
+    ).toBe("No museum description available for this work.");
   });
 
   it("falls back to honest labels and never fabricates a medium", () => {
@@ -348,6 +361,81 @@ describe("fetchDailyArt", () => {
     expect(daily.imageId).toBeNull();
     expect(daily.title).toBeTruthy();
     expect(daily.synopsis).toContain("stand-in");
+  });
+
+  describe("fetchArtworkById", () => {
+    it("maps a by-id record through the same card shape", async () => {
+      const fetchMock = mockFetch([
+        Response.json({
+          data: artwork({ id: 512, title: "The Music Lesson" }),
+        }),
+      ]);
+
+      const art = await fetchArtworkById(512, fetchMock);
+
+      expect(art).toMatchObject({
+        id: 512,
+        title: "The Music Lesson",
+        dateStart: 1850,
+        synopsis: "A painted landscape.",
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      const [url, init] = fetchMock.mock.calls[0] ?? [];
+      const headers = (init as RequestInit).headers as Record<string, string>;
+
+      expect(String(url)).toContain("/artworks/512");
+      expect(headers["AIC-User-Agent"]).toBe("Daily-Painting/1.0");
+      expect((init as RequestInit).cache).toBe("no-store");
+    });
+
+    it("keeps an undescribed work with an honest placeholder line", async () => {
+      const art = await fetchArtworkById(
+        2169,
+        mockFetch([
+          Response.json({
+            data: artwork({
+              id: 2169,
+              short_description: null,
+              description: null,
+            }),
+          }),
+        ]),
+      );
+
+      expect(art?.id).toBe(2169);
+      expect(art?.synopsis).toBe(
+        "No museum description available for this work.",
+      );
+    });
+
+    it("returns null for a missing or unframable record", async () => {
+      expect(
+        await fetchArtworkById(
+          512,
+          mockFetch([new Response("", { status: 404 })]),
+        ),
+      ).toBeNull();
+
+      expect(
+        await fetchArtworkById(
+          512,
+          mockFetch([
+            Response.json({
+              data: artwork({ thumbnail: { width: 0, height: 0 } }),
+            }),
+          ]),
+        ),
+      ).toBeNull();
+    });
+
+    it("rejects non-positive ids without a request", async () => {
+      const fetchMock = vi.fn<typeof fetch>();
+
+      expect(await fetchArtworkById(0, fetchMock)).toBeNull();
+      expect(await fetchArtworkById(-1, fetchMock)).toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
   });
 
   const liveDescribe = process.env.LIVE_AIC === "1" ? describe : describe.skip;
