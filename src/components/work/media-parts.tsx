@@ -105,6 +105,25 @@ export function Figure({
   );
 }
 
+/**
+ * A row of 2 or 3 figures, matching a live page's two- or three-up grid.
+ * The row breaks out to the same 880px measure as a wide figure on desktop
+ * and stacks to one column below 768px.
+ */
+export function Row({
+  cols = 2,
+  children,
+}: {
+  cols?: 2 | 3;
+  children: ReactNode;
+}) {
+  return (
+    <div className="wd-fig-row" data-cols={cols}>
+      {children}
+    </div>
+  );
+}
+
 export function StepFigure({
   steps,
   media,

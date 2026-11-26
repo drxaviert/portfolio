@@ -589,6 +589,48 @@
   width: 100%;
 }
 
+/* -------------------------------------------------------------- media rows ---- */
+
+/*
+ * A two- or three-up media row. It breaks out to the same 880px measure as a
+ * wide figure on desktop and stacks to one column on a phone, so the live
+ * page's grids keep their order without shrinking the prose column.
+ */
+.wd-fig-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+  align-items: start;
+}
+
+.wd-fig-row[data-cols="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wd-fig-row > .wd-fig {
+  margin-top: 0;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .wd-fig-row {
+    position: relative;
+    left: 50%;
+    width: min(880px, 100cqi - 96px);
+    translate: -50% 0;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .wd-fig-row,
+  .wd-fig-row[data-cols="2"],
+  .wd-fig-row[data-cols="3"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .wd-caption {
   margin: 8px 0 0;
   color: var(--on-surface-variant);
