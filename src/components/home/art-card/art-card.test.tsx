@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DailyArt } from "@/lib/daily-art";
 import { ArtCard } from "./art-card";
 import { ArtImage, artImageSrc } from "./art-image";
@@ -30,31 +30,6 @@ function art(overrides: Partial<DailyArt> = {}): DailyArt {
     ...overrides,
   };
 }
-
-function matchMedia(matches: (query: string) => boolean) {
-  return (query: string) => ({
-    matches: matches(query),
-    media: query,
-    onchange: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  });
-}
-
-beforeEach(() => {
-  // Desktop is the default: a fine pointer, motion allowed.
-  vi.stubGlobal(
-    "matchMedia",
-    vi.fn(
-      matchMedia(
-        (query) => query.includes("hover") && query.includes("pointer"),
-      ),
-    ),
-  );
-});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -350,37 +325,17 @@ describe("ArtCard", () => {
     ).toContain("image service did not respond");
   });
 
-  it("keeps the spotlight off for a coarse pointer", () => {
-    vi.stubGlobal("matchMedia", vi.fn(matchMedia(() => false)));
-
+  it("uses the plain ring surface with no wall or spotlight layer", () => {
     const { container } = renderCard();
 
-    expect(container.querySelector(".art-card")).toHaveAttribute(
-      "data-spotlight",
-      "off",
+    expect(container.querySelector(".ring-surface")).toHaveClass(
+      "bg-surface-container-low",
     );
-  });
-
-  it("keeps the spotlight off for reduced motion", () => {
-    vi.stubGlobal(
-      "matchMedia",
-      vi.fn(matchMedia((query) => query.includes("prefers-reduced-motion"))),
-    );
-
-    const { container } = renderCard();
-
-    expect(container.querySelector(".art-card")).toHaveAttribute(
+    expect(container.querySelector(".art-card-wall")).toBeNull();
+    expect(container.querySelector(".art-card-light")).toBeNull();
+    expect(container.querySelector(".art-card-vignette")).toBeNull();
+    expect(container.querySelector(".art-card")).not.toHaveAttribute(
       "data-spotlight",
-      "off",
-    );
-  });
-
-  it("leaves the light on for a fine pointer when motion is allowed", () => {
-    const { container } = renderCard();
-
-    expect(container.querySelector(".art-card")).toHaveAttribute(
-      "data-spotlight",
-      "on",
     );
   });
 });

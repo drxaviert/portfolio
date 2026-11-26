@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { ArtCard } from "@/components/home/art-card/art-card";
-import { VariantGallery } from "./variant-gallery";
 import { ART_DATA_VERSION, fallbackArt, getTodaysArt } from "@/lib/daily-art";
 import type { DailyArt } from "@/lib/daily-art";
 import "./lab.css";
@@ -95,7 +94,7 @@ function samples(today: string): LabSample[] {
           placeOfOrigin: "England",
           styleTitle: "18th Century",
           medium: "Oil on canvas",
-          synopsis: "Oil on canvas, painted in England, 1745 — 18th Century.",
+          synopsis: "Painted in England — 18th Century.",
           imageId: "e8a4e4ed-13cf-901a-adc9-4a0e9bc47424",
           width: 3000,
           height: 1767,
@@ -268,11 +267,8 @@ export default async function ArtCardLabPage() {
     notFound();
   }
 
-  const todayArt = await getTodaysArt(ART_DATA_VERSION);
-  const today = todayArt.date;
+  const today = (await getTodaysArt(ART_DATA_VERSION)).date;
   const items = samples(today);
-  const portrait = items.find((item) => item.key === "portrait-ornate");
-  const landscape = items.find((item) => item.key === "landscape-walnut");
 
   return (
     <main className="art-lab">
@@ -281,7 +277,7 @@ export default async function ArtCardLabPage() {
         <h1 className="art-lab-title">Daily painting card</h1>
         <p className="art-lab-lede">
           Every pinned artwork at the three sizes the home gives the card. The
-          wall label sits left, the frame right; the frame takes its aspect from
+          text block sits left, the frame right; the frame takes its aspect from
           the source painting and the text column clamps first at 160px.
         </p>
         <p className="art-lab-note">
@@ -290,12 +286,6 @@ export default async function ArtCardLabPage() {
           1960 date because the public-domain set has no post-1945 paintings.
         </p>
       </header>
-
-      <VariantGallery
-        today={todayArt}
-        portrait={portrait?.art ?? todayArt}
-        landscape={landscape?.art ?? todayArt}
-      />
 
       {items.map((sample) => (
         <section className="art-lab-sample" key={sample.key}>
