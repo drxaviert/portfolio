@@ -64,4 +64,15 @@ describe("HomeLayout", () => {
       /\[data-home-frame\]\s*\{[^}]*zoom:\s*var\(--fit\);/,
     );
   });
+
+  it("renders a supplied Play card slot instead of the empty shell", () => {
+    render(
+      <HomeLayout
+        items={[]}
+        playCard={<div data-testid="play-card-slot">Daily painting</div>}
+      />,
+    );
+
+    expect(screen.getByTestId("play-card-slot")).toBeInTheDocument();
+  });
 });

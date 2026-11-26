@@ -13,6 +13,15 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+vi.mock("@/lib/daily-art", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/daily-art")>();
+
+  return {
+    ...actual,
+    getTodaysArt: vi.fn(async () => actual.fallbackArt("2026-11-25")),
+  };
+});
+
 beforeEach(() => {
   vi.stubGlobal(
     "matchMedia",
@@ -34,14 +43,9 @@ afterEach(() => {
 });
 
 describe("work layout", () => {
-  it("does not mount the homepage's edge blur over the drawer", () => {
-    const { container } = render(
-      <ThemeProvider>
-        <WorkLayout>
-          <p>study</p>
-        </WorkLayout>
-      </ThemeProvider>,
-    );
+  it("does not mount the homepage's edge blur over the drawer", async () => {
+    const layout = await WorkLayout({ children: <p>study</p> });
+    const { container } = render(<ThemeProvider>{layout}</ThemeProvider>);
 
     // The bands live on `/` alone: a direct load of a study shares the
     // homepage underneath but not its edge blur.

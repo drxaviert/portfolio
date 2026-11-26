@@ -857,6 +857,33 @@ The persistent player has two surfaces: the top-left card on `/`, and the satell
 - `src/components/player/player.css` — shared orb-gradient button press 0.95
 - `src/components/player/orb-player.css` — satellite dot/glyph/grow, pulse, 40px target, fine-pointer gate, reduced motion
 
+## Daily painting card (2026-11-26)
+
+The top-right card is a standard ring host. No pointer spotlight and no tilt remain; the motion is the image placeholder fade, the full-view dialog, the shared card hover ring, and the dialog close control. Tokens are from `src/app/globals.css`.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Painting bytes load | LQIP `opacity` | 400ms (`--duration-long-1`) | 0 | `linear` (`--ease-linear`) | 1 → 0 when `.art-image[data-loaded="true"]`; the LQIP keeps its static `blur(16px) saturate(0.9)` and `scale(1.08)`; the `<img>` itself has no opacity transition |
+| Card hover / leave | ring surface `inset`, `border-radius` | 800ms (`--duration-long-3`, `--ring-grow`) | 0 | `cubic-bezier(0.165, 0.84, 0.44, 1)` (`--ease-spring-grow`) | rest `inset: 0`, radius 12px → `inset: calc(var(--ring-grow) * -1 + 1px)`, radius 11px, and back |
+| Card hover / leave | ring frame `inset` | 800ms (`--duration-long-3`, `--ring-grow`) | 0 | `cubic-bezier(0.165, 0.84, 0.44, 1)` (`--ease-spring-grow`) | `-1px` → `-grow`, and back; the frame stays exactly 1px wider than the surface |
+| Card hover / leave | ring frame `opacity` | 100ms (`--duration-short-1`) | 0 | `linear` (`--ease-linear`) | 0 → 1 on entry, 1 → 0 on leave |
+| Fine pointer over the card | ring glow `opacity` | 250ms (`--duration-medium-2`, `--ring-fade`) | 0 | `linear` (`--ease-linear`) | 0 → 1 while the pointer is in the host |
+| Fine pointer over the card | ring glow `transform` | 1000ms (`--duration-long-4`, `--ring-follow`) | 0 | `cubic-bezier(0.16, 1, 0.3, 1)` (`--ease-spring-follow`) | follows the pointer's `--ring-mx` / `--ring-my` offset; the 614px glow is masked to the host |
+| Full view opens | dialog `opacity`, `transform` | 240ms (`--duration-medium-1`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) | opacity 0 + `translateY(10px)` → opacity 1 + `translateY(0)`; `animation-fill-mode: both` |
+| Full view opens | dialog backdrop `opacity` | 240ms (`--duration-medium-1`) | 0 | `linear` (`--ease-linear`) | 0 → 1; the `rgb(0 0 0 / 0.55)` fill and `blur(3px)` are static |
+| Full view closes | dialog and backdrop | 0ms | — | — | native `dialog.close()` plus unmount; there is no exit animation; focus returns to the frame button |
+| Close control hovered | `background-color` | 150ms (`--duration-short-3`) | 0 | `ease-out` (`--ease-decelerate`) | 88% `surface-container-low` → `surface-container-high` |
+| Close control pressed | `transform` | 150ms (`--duration-short-3`) | 0 | `ease-out` (`--ease-decelerate`) | `scale(1)` → `scale(0.94)` |
+
+The card has no spotlight, tilt, frame-button press scale or label motion. Its only hover motion is the shared ring above; its only press motion is the dialog close control.
+
+**Reduced motion.** The LQIP `transition` is removed, so the placeholder disappears on the loaded frame. The ring keeps the state change without growth: surface and frame snap to rest, frame `opacity` fades in 100ms (`--duration-short-1`) `linear`, and the glow fades in 250ms (`--duration-medium-2`) `linear` with no transform. The dialog open becomes `art-dialog-fade`, 150ms (`--duration-short-3`) `linear` `both`, opacity only; the backdrop animation is `none`; the close control has `transform: none` and `transition: none`. The dialog close is still immediate. Focus return and the native modal semantics are unchanged.
+
+- `src/components/home/art-card/art-card.css` — LQIP opacity, dialog open/backdrop, close-control hover/press, reduced-motion block
+- `src/components/home/art-card/art-card.tsx` — the dialog mounts only while open; the dialog close is native and unmounts
+- `src/components/home/art-card/art-dialog.tsx` — focus moves to Close on open and returns to the frame button on close
+- `src/components/home/ring-hover.css` — shared ring surface/frame/glow, pointer follow and reduced-motion path
+
 ## Drag canvas - Motion & Stills (2026-11-23)
 
 The live `/work/motion-and-stills` study is the approved canvas prototype inside the WorkDrawer, with the dev panel removed and the locked defaults fixed in `canvas-reader.tsx`. Source: `src/components/canvas/*` and `src/components/work/canvas-reader.tsx`.
