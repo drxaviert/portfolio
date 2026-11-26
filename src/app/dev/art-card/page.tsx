@@ -1,4 +1,4 @@
-﻿import { notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { ArtCard } from "@/components/home/art-card/art-card";
 import { VariantGallery } from "./variant-gallery";
 import { ART_DATA_VERSION, fallbackArt, getTodaysArt } from "@/lib/daily-art";
@@ -11,9 +11,9 @@ import "./lab.css";
  * Every sample is pinned to a real AIC id (except the bundled fallback) and
  * rendered at the three sizes the home actually gives the card:
  *
- *   1440 â†’ 849 Ã— 276
- *   1024 â†’ 728 Ã— 220
- *    375 â†’ 171 Ã— 160
+ *   1440 → 849 × 276
+ *   1024 → 728 × 220
+ *    375 → 171 × 160
  *
  * That covers portrait, landscape, square, panorama and hanging-scroll
  * aspects, plus the four dated frame eras. AIC's public-domain set currently
@@ -35,9 +35,9 @@ type LabSample = {
 };
 
 const CARD_SIZES = [
-  { label: "1440 Â· 849 Ã— 276", width: 849, height: 276 },
-  { label: "1024 Â· 728 Ã— 220", width: 728, height: 220 },
-  { label: "375 Â· 171 Ã— 160", width: 171, height: 160 },
+  { label: "1440 · 849 × 276", width: 849, height: 276 },
+  { label: "1024 · 728 × 220", width: 728, height: 220 },
+  { label: "375 · 171 × 160", width: 171, height: 160 },
 ] as const;
 
 function baseArt(
@@ -62,7 +62,7 @@ function samples(today: string): LabSample[] {
       key: "portrait-ornate",
       accent: "hsl(39 14% 53%)",
       caption:
-        "Portrait Â· 0.79 Â· pre-1700 ornate gilt Â· The Music Lesson, 1665",
+        "Portrait · 0.79 · pre-1700 ornate gilt · The Music Lesson, 1665",
       art: baseArt(
         {
           id: 512,
@@ -87,7 +87,7 @@ function samples(today: string): LabSample[] {
     {
       key: "landscape-carved",
       caption:
-        "Landscape Â· 1.70 Â· 1700â€“1880 carved gilt Â· John Thomlinson and His Family, 1745",
+        "Landscape · 1.70 · 1700–1880 carved gilt · John Thomlinson and His Family, 1745",
       art: baseArt(
         {
           id: 2169,
@@ -98,7 +98,7 @@ function samples(today: string): LabSample[] {
           placeOfOrigin: "England",
           styleTitle: "18th Century",
           medium: "Oil on canvas",
-          synopsis: "Oil on canvas, painted in England, 1745 â€” 18th Century.",
+          synopsis: "Oil on canvas, painted in England, 1745 — 18th Century.",
           imageId: "e8a4e4ed-13cf-901a-adc9-4a0e9bc47424",
           width: 3000,
           height: 1767,
@@ -110,7 +110,7 @@ function samples(today: string): LabSample[] {
     },
     {
       key: "square-walnut",
-      caption: "Square Â· 1.00 Â· 1880â€“1945 walnut Â· Irises, 1914",
+      caption: "Square · 1.00 · 1880–1945 walnut · Irises, 1914",
       art: baseArt(
         {
           id: 4887,
@@ -136,7 +136,7 @@ function samples(today: string): LabSample[] {
       key: "landscape-walnut",
       accent: "hsl(59 12% 52%)",
       caption:
-        "Landscape Â· 1.49 Â· 1880â€“1945 walnut Â· A Sunday on La Grande Jatte, 1884",
+        "Landscape · 1.49 · 1880–1945 walnut · A Sunday on La Grande Jatte, 1884",
       art: baseArt(
         {
           id: 27992,
@@ -161,7 +161,7 @@ function samples(today: string): LabSample[] {
     {
       key: "panorama",
       caption:
-        "Panorama Â· 3.04 Â· pre-1700 gilt Â· Landscape of the Four Seasons, c. 1560",
+        "Panorama · 3.04 · pre-1700 gilt · Landscape of the Four Seasons, c. 1560",
       art: baseArt(
         {
           id: 7634,
@@ -186,7 +186,7 @@ function samples(today: string): LabSample[] {
     {
       key: "scroll",
       caption:
-        "Hanging scroll Â· 0.41 Â· silk mount Â· Beauty Beneath a Willow Tree, c. 1780",
+        "Hanging scroll · 0.41 · silk mount · Beauty Beneath a Willow Tree, c. 1780",
       art: baseArt(
         {
           id: 8900,
@@ -211,7 +211,7 @@ function samples(today: string): LabSample[] {
     {
       key: "portrait-walnut",
       caption:
-        "Tall portrait Â· 0.53 Â· 1880â€“1945 walnut Â· Mrs. George Swinton, 1897",
+        "Tall portrait · 0.53 · 1880–1945 walnut · Mrs. George Swinton, 1897",
       art: baseArt(
         {
           id: 4749,
@@ -235,14 +235,14 @@ function samples(today: string): LabSample[] {
     },
     {
       key: "modern",
-      caption: "Square Â· post-1945 thin black float Â· Irises (frame study)",
+      caption: "Square · post-1945 thin black float · Irises (frame study)",
       note: "The date is forced to 1960 so this sample reaches the post-1945 frame; AIC has no CC0 paintings dated after 1945.",
       art: baseArt(
         {
           id: 4887,
           title: "Irises",
           artist: "Claude Monet",
-          dateDisplay: "1914-17 Â· frame study",
+          dateDisplay: "1914-17 · frame study",
           dateStart: 1960,
           placeOfOrigin: "France",
           styleTitle: "Impressionism",
@@ -260,7 +260,7 @@ function samples(today: string): LabSample[] {
     },
     {
       key: "fallback",
-      caption: "Bundled stand-in Â· API unavailable Â· 4:3",
+      caption: "Bundled stand-in · API unavailable · 4:3",
       note: "No AIC request or image: this is the card's fallback painting.",
       art: fallbackArt(today),
     },
@@ -281,7 +281,7 @@ export default async function ArtCardLabPage() {
   return (
     <main className="art-lab">
       <header className="art-lab-header">
-        <p className="art-lab-kicker">Dev lab Â· not shipped</p>
+        <p className="art-lab-kicker">Dev lab · not shipped</p>
         <h1 className="art-lab-title">Daily painting card</h1>
         <p className="art-lab-lede">
           Every pinned artwork at the three sizes the home gives the card. The
