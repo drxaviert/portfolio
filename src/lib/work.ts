@@ -33,9 +33,8 @@ const WORK_ORDER = [
   "2d-motion-design-introduction",
   "linksys",
   "london-public-library",
-  // The personal and about pages.
+  // The personal page.
   "personal",
-  "about-dat",
 ] as const;
 
 export type WorkSlug = (typeof WORK_ORDER)[number];
@@ -44,7 +43,8 @@ export type WorkMeta = {
   slug: WorkSlug;
   title: string;
   subtitle: string;
-  year: string;
+  /** Optional: the personal study has no year on the live site. */
+  year?: string;
   role: string;
   summary: string;
   cover: Cover;
@@ -97,7 +97,6 @@ function readWork(slug: WorkSlug): WorkMeta {
   const missing = [
     ["title", title],
     ["subtitle", subtitle],
-    ["year", year],
     ["role", role],
     ["summary", summary],
   ]
@@ -120,7 +119,7 @@ function readWork(slug: WorkSlug): WorkMeta {
     slug,
     title,
     subtitle,
-    year,
+    ...(year ? { year } : {}),
     role,
     summary,
     cover,

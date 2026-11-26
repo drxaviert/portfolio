@@ -35,5 +35,4 @@ export const WORK_BODIES: Record<WorkSlug, () => Promise<WorkBody>> = {
   "london-public-library": () =>
     import("../../content/work/london-public-library.mdx"),
   personal: () => import("../../content/work/personal.mdx"),
-  "about-dat": () => import("../../content/work/about-dat.mdx"),
 };

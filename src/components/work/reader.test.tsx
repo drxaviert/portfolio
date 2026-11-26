@@ -38,10 +38,20 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-function featured() {
-  const meta = getWork("ai-agents-google");
+function workMeta(slug = "ai-agents-google") {
+  const meta = getWork(slug);
   if (!meta) throw new Error("missing fixture");
   return meta;
+}
+
+function renderReader(children: ReactNode, meta = workMeta()) {
+  return render(
+    <ThemeProvider>
+      <DrawerActionsProvider close={close} stepBack={stepBack} exit={vi.fn()}>
+        <Reader meta={meta}>{children}</Reader>
+      </DrawerActionsProvider>
+    </ThemeProvider>,
+  );
 }
 
 beforeEach(() => {
@@ -68,16 +78,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderReader(children: ReactNode) {
-  return render(
-    <ThemeProvider>
-      <DrawerActionsProvider close={close} stepBack={stepBack} exit={vi.fn()}>
-        <Reader meta={featured()}>{children}</Reader>
-      </DrawerActionsProvider>
-    </ThemeProvider>,
-  );
-}
-
 describe("reader content", () => {
   it("is content only: the drawer's panel owns the dialog", () => {
     renderReader(<p>Case-study body</p>);
@@ -86,6 +86,15 @@ describe("reader content", () => {
     // fills it.
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(document.getElementById(READER_TITLE_ID)).toBeInTheDocument();
+  });
+
+  it("renders the role alone when the study has no year", () => {
+    renderReader(<p>Case-study body</p>, workMeta("personal"));
+
+    const meta = document.querySelector(".wd-intro-meta");
+
+    expect(meta).toHaveTextContent("—");
+    expect(meta?.textContent).not.toContain("·");
   });
 
   it("puts the shared Breadcrumb above the article, before the column", () => {

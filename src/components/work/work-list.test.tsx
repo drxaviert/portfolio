@@ -154,7 +154,7 @@ afterEach(() => {
 });
 
 describe("work list", () => {
-  it("renders one linked row per study with year, title, summary and role", () => {
+  it("renders one linked row per study with optional year, title, summary and role", () => {
     const { container } = renderList();
     const rows = [...container.querySelectorAll(".wd-work-row-item")];
 
@@ -167,15 +167,39 @@ describe("work list", () => {
       expect(row).toHaveAttribute("data-work-index", String(index));
       expect(link).toHaveAttribute("href", `/work/${work.slug}`);
       expect(link).toHaveAccessibleName(
-        `${work.title}, ${work.year}, ${work.role}`,
+        work.year
+          ? `${work.title}, ${work.year}, ${work.role}`
+          : `${work.title}, ${work.role}`,
       );
-      expect(row.querySelector(".wd-work-year")).toHaveTextContent(work.year);
+      if (work.year) {
+        expect(row.querySelector(".wd-work-year")).toHaveTextContent(work.year);
+        expect(link).not.toHaveAttribute("data-work-no-year");
+      } else {
+        expect(row.querySelector(".wd-work-year")).toBeNull();
+        expect(link).toHaveAttribute("data-work-no-year", "");
+      }
       expect(row.querySelector(".wd-work-title")).toHaveTextContent(work.title);
       expect(row.querySelector(".wd-work-summary")).toHaveTextContent(
         work.summary,
       );
       expect(row.querySelector(".wd-work-role")).toHaveTextContent(work.role);
     });
+  });
+
+  it("leaves no year cell or separator when a study has no year", () => {
+    const { container } = renderList();
+    const personal = works.find((work) => work.slug === "personal");
+
+    expect(personal).toBeDefined();
+    const link = container.querySelector<HTMLAnchorElement>(
+      'a.wd-work-row[href="/work/personal"]',
+    );
+
+    expect(link).not.toBeNull();
+    expect(link).toHaveAttribute("data-work-no-year", "");
+    expect(link).toHaveAccessibleName(`${personal!.title}, ${personal!.role}`);
+    expect(link?.querySelector(".wd-work-year")).toBeNull();
+    expect(link?.textContent).not.toContain("·");
   });
 
   it("keeps the drawer's scroll and title ids on the new list", () => {

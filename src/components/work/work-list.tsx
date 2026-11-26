@@ -76,7 +76,8 @@ const getServerSnapshot = () => false;
 /**
  * The /work index list with one shared hover thumbnail.
  *
- * The row is the shipped list's voice: an 80px year, a flexible main column,
+ * The row is the shipped list's voice: an 80px year when present, a flexible
+ * main column,
  * a 200px right-aligned role, 18x16 padding, a 12px radius and the
  * surface-container hover fill, with a hairline --outline-variant divider
  * between rows. While a row is current the others drop to 40%.
@@ -756,9 +757,16 @@ export function WorkList({
                     <Link
                       href={`/work/${work.slug}`}
                       className="wd-work-row"
-                      aria-label={`${work.title}, ${work.year}, ${work.role}`}
+                      data-work-no-year={work.year ? undefined : ""}
+                      aria-label={
+                        work.year
+                          ? `${work.title}, ${work.year}, ${work.role}`
+                          : `${work.title}, ${work.role}`
+                      }
                     >
-                      <span className="wd-work-year">{work.year}</span>
+                      {work.year ? (
+                        <span className="wd-work-year">{work.year}</span>
+                      ) : null}
                       <span className="wd-work-main">
                         <span className="wd-work-title">{work.title}</span>
                         <span className="wd-work-summary">{work.summary}</span>

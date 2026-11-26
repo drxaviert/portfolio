@@ -35,8 +35,8 @@ describe("parseFrontmatter", () => {
 });
 
 describe("listWork", () => {
-  it("returns the twenty case studies", () => {
-    expect(listWork()).toHaveLength(20);
+  it("returns the nineteen case studies", () => {
+    expect(listWork()).toHaveLength(19);
   });
 
   it("gives every study a known cover", () => {
@@ -66,7 +66,6 @@ describe("listWork", () => {
       "linksys",
       "london-public-library",
       "personal",
-      "about-dat",
     ]);
   });
 });
@@ -81,13 +80,26 @@ describe("getWork", () => {
   });
 });
 
+describe("year", () => {
+  it("keeps the year on dated studies", () => {
+    expect(getWork("klaris")?.year).toBe("2025");
+  });
+
+  it("omits the optional year when the study has none", () => {
+    const personal = getWork("personal");
+
+    expect(personal).not.toBeNull();
+    expect(personal && "year" in personal).toBe(false);
+  });
+});
+
 describe("nextWork", () => {
   it("returns the following study in reading order", () => {
     expect(nextWork("ai-agents-google").slug).toBe("klaris");
   });
 
   it("wraps from the last study back to the first", () => {
-    expect(nextWork("about-dat").slug).toBe("ai-agents-google");
+    expect(nextWork("personal").slug).toBe("ai-agents-google");
   });
 });
 

@@ -1,6 +1,6 @@
 # Work media manifest
 
-Every image and video slot imported from [dattran.design](https://dattran.design). Each MDX placeholder is a grey `<Figure>` with a stable id in the comment above it; the table below records the original asset that should fill that slot. No files were uploaded. There are 86 slots across 20 projects.
+Every image and video slot imported from [dattran.design](https://dattran.design). Each MDX placeholder is a grey `<Figure>` with a stable id in the comment above it; the table below records the original asset that should fill that slot. No files were uploaded. There are 85 slots across 19 projects.
 
 Video slots record the original video URL. Image slots record the original `src`. No embedded YouTube/Vimeo players were found on the imported pages.
 
@@ -221,12 +221,4 @@ Source: https://dattran.design/work/personal
 | `personal-24` | Image (GIF) | Cosmetics R&D loop, scene 05. | https://dattran.design/wp-content/uploads/2025/02/Comestic_RnD_01c_Scene_05-ezgif.com-video-to-gif-converter.gif |
 | `personal-25` | Image (PNG) | Cosmetics R&D still, scene 03. | https://dattran.design/wp-content/uploads/2025/02/Comestic_RnD_01a_Scene_03_00000.png |
 | `personal-26` | Image (GIF) | Flower loop. | https://dattran.design/wp-content/uploads/2024/02/FLower_Gif.gif |
-
-## About — `/work/about-dat`
-
-Source: https://dattran.design/about
-
-| Id | Image/video | What it shows | Original source URL |
-| --- | --- | --- | --- |
-| `about-dat-hero` | Image (PNG) | Portrait of Dat Tran. | https://dattran.design/wp-content/uploads/2024/02/Profile.png |
 

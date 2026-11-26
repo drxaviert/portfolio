@@ -52,6 +52,11 @@
   text-decoration: none;
 }
 
+/* A study with no year loses the 80px cell instead of leaving it empty. */
+.wd-work-row[data-work-no-year] {
+  grid-template-columns: minmax(0, 1fr) 200px;
+}
+
 .wd-work-year {
   font-size: var(--text-sm);
   line-height: 1.4;
@@ -222,6 +227,10 @@
 @media (max-width: 767.98px) {
   .wd-work-row {
     grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .wd-work-row[data-work-no-year] {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .wd-work-role {
