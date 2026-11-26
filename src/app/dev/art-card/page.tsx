@@ -70,6 +70,8 @@ function samples(today: string): LabSample[] {
           placeOfOrigin: "Netherlands",
           styleTitle: "17th Century",
           medium: "Oil on canvas",
+          synopsis:
+            "A woman plays the double-headed lute while her companion marks the tempo. The intimate interior and the bed behind them leave the precise relationship tantalizingly ambiguous.",
           imageId: "d55ad474-aa3c-6881-b10d-06a9ac6e05b7",
           width: 6218,
           height: 7855,
@@ -94,6 +96,7 @@ function samples(today: string): LabSample[] {
           placeOfOrigin: "England",
           styleTitle: "18th Century",
           medium: "Oil on canvas",
+          synopsis: "Oil on canvas, painted in England, 1745 — 18th Century.",
           imageId: "e8a4e4ed-13cf-901a-adc9-4a0e9bc47424",
           width: 3000,
           height: 1767,
@@ -117,6 +120,8 @@ function samples(today: string): LabSample[] {
           placeOfOrigin: "France",
           styleTitle: "Impressionism",
           medium: "Oil on canvas",
+          synopsis:
+            "Irises is one of a series of paintings Monet undertook during World War I, experimenting with familiar motifs on an ever-expanding scale. Lacking a horizon, the viewer is both on top of and submerged in its encrusted surface.",
           imageId: "1f925e43-ff81-5ad7-da75-b28ea651c09f",
           width: 5407,
           height: 5398,
@@ -141,6 +146,8 @@ function samples(today: string): LabSample[] {
           placeOfOrigin: "France",
           styleTitle: "Pointillism",
           medium: "Oil on canvas",
+          synopsis:
+            "Seurat depicted Parisians strolling, lounging, sailing and fishing in La Grande Jatte on the River Seine. He used Pointillism, applying tiny dabs of colour that viewers see as a single brilliant hue.",
           imageId: "2d484387-2509-5e8e-2c43-22f9981972eb",
           width: 9310,
           height: 6237,
@@ -165,6 +172,8 @@ function samples(today: string): LabSample[] {
           placeOfOrigin: "Japan",
           styleTitle: "Japanese (culture or style)",
           medium: "Pair of six-panel screens; ink and light color on paper",
+          synopsis:
+            "Sesson Shukei was a Zen Buddhist monk-painter who worked in eastern Japan without ever reaching Kyoto. His dreamlike Chinese landscape expands in spatial depth, with the seasons flowing from right to left.",
           imageId: "58d58cdf-ed3d-c641-1910-504ae64b8ce8",
           width: 3000,
           height: 987,
@@ -189,6 +198,8 @@ function samples(today: string): LabSample[] {
           placeOfOrigin: "Japan",
           styleTitle: "Japanese (culture or style)",
           medium: "Hanging scroll; ink on silk",
+          synopsis:
+            "A young woman strolls beneath a willow tree, lost in thought. Her black kimono, layered reds and phoenix-embroidered obi suggest she is on the way to an engagement.",
           imageId: "5708fdd8-40e3-3c68-41bb-454684981dc5",
           width: 924,
           height: 2250,
@@ -213,6 +224,8 @@ function samples(today: string): LabSample[] {
           placeOfOrigin: "London",
           styleTitle: "Impressionism",
           medium: "Oil on canvas",
+          synopsis:
+            "Sargent was one of the most fashionable portraitists of the late 19th century. Here he harmonized the realism of his sitter's face with impressionistic brushstrokes describing her shimmering gown.",
           imageId: "074c1b1b-fe92-01ce-9e62-cc99369142dd",
           width: 3330,
           height: 6269,
@@ -237,6 +250,8 @@ function samples(today: string): LabSample[] {
           placeOfOrigin: "France",
           styleTitle: "Impressionism",
           medium: "Oil on canvas",
+          synopsis:
+            "Monet's late Irises experiments with scale and a horizonless surface. This sample forces the post-1945 frame so the modern face can be compared.",
           imageId: "1f925e43-ff81-5ad7-da75-b28ea651c09f",
           width: 5407,
           height: 5398,
@@ -261,7 +276,7 @@ export default async function ArtCardLabPage() {
     notFound();
   }
 
-  const { today, oldest } = await getTodaysArt();
+  const today = (await getTodaysArt()).date;
   const items = samples(today);
 
   return (
@@ -271,8 +286,8 @@ export default async function ArtCardLabPage() {
         <h1 className="art-lab-title">Daily painting card</h1>
         <p className="art-lab-lede">
           Every pinned artwork at the three sizes the home gives the card. The
-          frame takes its aspect from the source painting; the wall label fills
-          the rest; below 768px the label gives way to the controls.
+          wall label sits left, the frame right; the frame takes its aspect from
+          the source painting and the text column clamps first at 160px.
         </p>
         <p className="art-lab-note">
           Artwork metadata is fixed by AIC id; image bytes still come from the
@@ -299,11 +314,7 @@ export default async function ArtCardLabPage() {
                   className="art-lab-stage"
                   style={{ width: size.width, height: size.height }}
                 >
-                  <ArtCard
-                    initialArt={sample.art}
-                    today={today}
-                    oldest={oldest}
-                  />
+                  <ArtCard art={sample.art} />
                 </div>
               </figure>
             ))}

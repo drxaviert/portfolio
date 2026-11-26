@@ -1,14 +1,9 @@
 /**
- * Pure UTC-day and date-hash helpers.
+ * Pure UTC-day and date-hash helpers for the daily data layer.
  *
- * Shared by the server data layer (`daily-art.ts`) and the client card
- * (`art-date.ts`, `tilt.ts`). Nothing here imports Next or touches the
- * network, so both graphs can use the same implementation and one change
- * cannot leave a copy stale.
+ * Kept out of daily-art.ts so the clock, validation and hash logic stay free of
+ * Next imports and can be read without the search/caching machinery.
  */
-
-/** The card browses the current day plus the 29 before it. */
-export const ART_HISTORY_DAYS = 30;
 
 /** `new Date()` in UTC, as the key every cached pick is stored under. */
 export function utcDateKey(now: Date = new Date()): string {
@@ -16,7 +11,7 @@ export function utcDateKey(now: Date = new Date()): string {
 }
 
 /** Parse a YYYY-MM-DD key to its UTC midnight, or null when it is not a day. */
-export function parseDateKey(key: string): Date | null {
+function parseDateKey(key: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return null;
 
   const [year, month, day] = key.split("-").map(Number);
@@ -35,29 +30,6 @@ export function parseDateKey(key: string): Date | null {
 
 export function isValidDateKey(key: string): boolean {
   return parseDateKey(key) !== null;
-}
-
-/** Step a valid key by whole days; month and year boundaries are handled. */
-export function shiftDateKey(key: string, days: number): string {
-  const date = parseDateKey(key);
-
-  if (!date) throw new RangeError(`Not a UTC date key: ${key}`);
-
-  date.setUTCDate(date.getUTCDate() + days);
-
-  return date.toISOString().slice(0, 10);
-}
-
-/** Oldest day the card may browse; today counts as day one. */
-export function historyStartDate(
-  today: string,
-  days = ART_HISTORY_DAYS,
-): string {
-  return shiftDateKey(today, -(days - 1));
-}
-
-export function isWithinHistory(date: string, today: string): boolean {
-  return date <= today && date >= historyStartDate(today);
 }
 
 /** FNV-1a, unsigned. Small and stable across runtimes. */

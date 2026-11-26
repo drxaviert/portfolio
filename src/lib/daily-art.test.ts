@@ -3,12 +3,9 @@ import {
   type AicArtwork,
   fetchDailyArt,
   hashDateKey,
-  historyStartDate,
   isAcceptableAspect,
   isValidDateKey,
-  isWithinHistory,
   pickArtwork,
-  shiftDateKey,
   toDailyArt,
   utcDateKey,
 } from "./daily-art";
@@ -33,6 +30,8 @@ function artwork(overrides: Partial<AicArtwork> = {}): AicArtwork {
     },
     color: { h: 30, s: 40, l: 50 },
     medium_display: "Oil on canvas",
+    short_description: "<p>A painted <em>landscape</em>.</p>",
+    description: null,
     ...overrides,
   };
 }
@@ -65,29 +64,12 @@ describe("UTC day keys", () => {
     );
   });
 
-  it("steps across months, years and leap days", () => {
-    expect(shiftDateKey("2026-11-25", -29)).toBe("2026-10-27");
-    expect(shiftDateKey("2024-02-28", 1)).toBe("2024-02-29");
-    expect(shiftDateKey("2024-02-29", 1)).toBe("2024-03-01");
-    expect(shiftDateKey("2024-12-31", 1)).toBe("2025-01-01");
-    expect(shiftDateKey("2026-01-01", -1)).toBe("2025-12-31");
-  });
-
   it("rejects impossible and malformed days", () => {
     expect(isValidDateKey("2026-11-25")).toBe(true);
     expect(isValidDateKey("2026-02-30")).toBe(false);
     expect(isValidDateKey("2026-13-01")).toBe(false);
     expect(isValidDateKey("2026-1-01")).toBe(false);
     expect(isValidDateKey("today")).toBe(false);
-    expect(() => shiftDateKey("nope", 1)).toThrow(RangeError);
-  });
-
-  it("keeps the browsable window at today plus the 29 before it", () => {
-    expect(historyStartDate("2026-11-25")).toBe("2026-10-27");
-    expect(isWithinHistory("2026-11-25", "2026-11-25")).toBe(true);
-    expect(isWithinHistory("2026-10-27", "2026-11-25")).toBe(true);
-    expect(isWithinHistory("2026-10-26", "2026-11-25")).toBe(false);
-    expect(isWithinHistory("2026-11-26", "2026-11-25")).toBe(false);
   });
 });
 
@@ -160,7 +142,7 @@ describe("deterministic pick", () => {
 });
 
 describe("toDailyArt", () => {
-  it("maps the AIC record and both IIIF widths", () => {
+  it("maps the AIC record, strips the synopsis HTML and keeps the image", () => {
     const daily = toDailyArt(artwork(), DATE);
 
     expect(daily).toMatchObject({
@@ -173,6 +155,7 @@ describe("toDailyArt", () => {
       placeOfOrigin: "France",
       styleTitle: "Realism",
       medium: "Oil on canvas",
+      synopsis: "A painted landscape.",
       imageId: "image-1",
       width: 1200,
       height: 900,
@@ -180,8 +163,91 @@ describe("toDailyArt", () => {
       articUrl: "https://www.artic.edu/artworks/1",
       fallback: false,
     });
+    expect(daily?.synopsis).not.toContain("<");
     expect(daily?.lqip).toMatch(/^data:image\//);
     expect(daily?.alt).toBe("A painted landscape with a river.");
+  });
+
+  it("falls back to description and trims it to three sentences", () => {
+    const daily = toDailyArt(
+      artwork({
+        short_description: null,
+        description:
+          "<p>First sentence. Second sentence &amp; detail. Third sentence? Fourth sentence.</p>",
+      }),
+      DATE,
+    );
+
+    expect(daily?.synopsis).toBe(
+      "First sentence. Second sentence & detail. Third sentence?",
+    );
+    expect(daily?.synopsis.length).toBeLessThanOrEqual(220);
+  });
+
+  it("cuts one oversized sentence at a word boundary with an ellipsis", () => {
+    const long = `${"Word ".repeat(60).trim()}.`;
+    const daily = toDailyArt(
+      artwork({ short_description: long, description: null }),
+      DATE,
+    );
+
+    expect(daily?.synopsis.endsWith("…")).toBe(true);
+    expect(daily?.synopsis.length).toBeLessThanOrEqual(220);
+  });
+
+  it("generates a factual line when AIC has no museum text", () => {
+    const daily = toDailyArt(
+      artwork({
+        short_description: null,
+        description: null,
+        medium_display: "Oil on canvas",
+        place_of_origin: "France",
+        style_title: "Post-Impressionism",
+        date_display: "1889",
+        date_start: 1889,
+      }),
+      DATE,
+    );
+
+    expect(daily?.synopsis).toBe(
+      "Oil on canvas, painted in France, 1889 — Post-Impressionism.",
+    );
+  });
+
+  it("generates from whichever facts exist, without inventing the rest", () => {
+    const daily = toDailyArt(
+      artwork({
+        short_description: null,
+        description: null,
+        medium_display: null,
+        place_of_origin: null,
+        style_title: "Realism",
+        date_display: null,
+        date_start: null,
+      }),
+      DATE,
+    );
+
+    expect(daily?.synopsis).toBe("Realism.");
+  });
+
+  it("uses a neutral line when every generated fact is missing", () => {
+    const daily = toDailyArt(
+      artwork({
+        short_description: null,
+        description: null,
+        medium_display: null,
+        place_of_origin: null,
+        style_title: null,
+        date_display: null,
+        date_start: null,
+      }),
+      DATE,
+    );
+
+    expect(daily?.synopsis).toBe(
+      "A painting from the Art Institute of Chicago.",
+    );
   });
 
   it("falls back to honest labels for missing metadata", () => {
@@ -192,6 +258,10 @@ describe("toDailyArt", () => {
         date_display: null,
         date_start: null,
         medium_display: null,
+        place_of_origin: null,
+        style_title: null,
+        short_description: null,
+        description: null,
         color: null,
         thumbnail: { width: 1200, height: 900, lqip: null },
       }),
@@ -202,6 +272,9 @@ describe("toDailyArt", () => {
     expect(daily?.artist).toBe("Unknown artist");
     expect(daily?.dateDisplay).toBe("Undated");
     expect(daily?.medium).toBe("Painting");
+    expect(daily?.synopsis).toBe(
+      "A painting from the Art Institute of Chicago.",
+    );
     expect(daily?.color).toBeNull();
     expect(daily?.lqip).toBeNull();
     expect(daily?.alt).toContain("by Unknown artist");
@@ -237,6 +310,7 @@ describe("fetchDailyArt", () => {
     expect(daily.fallback).toBe(false);
     expect(daily.date).toBe(DATE);
     expect(daily.id).toBeGreaterThanOrEqual(31);
+    expect(daily.synopsis).toBe("A painted landscape.");
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     for (const call of fetchMock.mock.calls) {
@@ -247,14 +321,18 @@ describe("fetchDailyArt", () => {
       expect(init.method).toBe("POST");
       expect(headers["AIC-User-Agent"]).toBe("Daily-Painting/1.0");
       expect(JSON.stringify(headers)).not.toContain("@");
-      expect(JSON.stringify(init.body)).toContain("is_public_domain");
-      expect(JSON.stringify(init.body)).toContain("Painting");
+      const body = JSON.stringify(init.body);
+
+      expect(body).toContain("is_public_domain");
+      expect(body).toContain("Painting");
     }
 
     // AIC rejects from + limit above 1,000 with a 403.
     const window = JSON.parse(fetchMock.mock.calls[1][1]?.body as string);
 
     expect(window.from + window.limit).toBeLessThanOrEqual(1000);
+    expect(window.fields).toContain("short_description");
+    expect(window.fields).toContain("description");
   });
 
   it("returns the same painting for the same date", async () => {
@@ -299,6 +377,7 @@ describe("fetchDailyArt", () => {
     expect(daily.date).toBe(DATE);
     expect(daily.imageId).toBeNull();
     expect(daily.title).toBeTruthy();
+    expect(daily.synopsis).toContain("stand-in");
   });
 
   it("retries a transient HTTP failure once, then falls back", async () => {

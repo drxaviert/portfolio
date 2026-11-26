@@ -26,8 +26,6 @@ type PaintingFrameProps = {
   children: ReactNode;
   /** Card mode for the day view, full for the dialog stage. */
   variant?: "card" | "full";
-  /** The day's seeded hang angle; 0 keeps it straight. */
-  tilt?: number;
   /** Lab overrides: force an era to compare the frame tokens. */
   era?: FrameEra;
   className?: string;
@@ -37,7 +35,6 @@ export function PaintingFrame({
   art,
   children,
   variant = "card",
-  tilt = 0,
   era,
   className = "",
 }: PaintingFrameProps) {
@@ -56,13 +53,7 @@ export function PaintingFrame({
       data-era={era ?? style.era}
       data-mount={style.mount}
       data-variant={variant}
-      data-tilt={tilt === 0 ? undefined : "true"}
-      style={
-        {
-          "--art-ratio": aspect,
-          "--art-tilt": `${tilt}deg`,
-        } as CSSProperties
-      }
+      style={{ "--art-ratio": aspect } as CSSProperties}
     >
       <span className="painting-frame-rod" data-edge="top" aria-hidden="true" />
       <div className="painting-frame-mount">

@@ -6,7 +6,6 @@ import { ArtCard } from "./art-card";
 import { ArtImage, artImageSrc } from "./art-image";
 
 const TODAY = "2026-11-25";
-const OLDEST = "2026-10-27";
 
 function art(overrides: Partial<DailyArt> = {}): DailyArt {
   return {
@@ -19,6 +18,8 @@ function art(overrides: Partial<DailyArt> = {}): DailyArt {
     placeOfOrigin: "France",
     styleTitle: "Realism",
     medium: "Oil on canvas",
+    synopsis:
+      "A painted landscape with a river, seen in the soft light of an afternoon.",
     imageId: "image-1",
     width: 1200,
     height: 900,
@@ -61,19 +62,55 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderCard(initial = art()) {
-  return render(<ArtCard initialArt={initial} today={TODAY} oldest={OLDEST} />);
+function renderCard(input = art()) {
+  return render(<ArtCard art={input} />);
+}
+
+function disableNativeDialog() {
+  const proto = window.HTMLDialogElement?.prototype;
+  const showModal = proto?.showModal;
+  const close = proto?.close;
+
+  if (proto) {
+    Object.defineProperty(proto, "showModal", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(proto, "close", {
+      configurable: true,
+      value: undefined,
+    });
+  }
+
+  return () => {
+    if (proto) {
+      Object.defineProperty(proto, "showModal", {
+        configurable: true,
+        value: showModal,
+      });
+      Object.defineProperty(proto, "close", {
+        configurable: true,
+        value: close,
+      });
+    }
+  };
 }
 
 describe("ArtCard", () => {
-  it("renders the wall label and the frame's accessible full-view button", () => {
+  it("renders today's label, synopsis and full-view button", () => {
     renderCard();
 
+    expect(screen.getByText("Today’s painting")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "A painting" }),
     ).toBeInTheDocument();
     expect(screen.getByText("An artist")).toBeInTheDocument();
     expect(screen.getByText(/1850 · Oil on canvas/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "A painted landscape with a river, seen in the soft light of an afternoon.",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: "View A painting by An artist in full",
@@ -81,98 +118,30 @@ describe("ArtCard", () => {
     ).toBeInTheDocument();
   });
 
-  it("disables Next on today and Previous on the oldest day", () => {
-    const view = renderCard();
-
-    expect(
-      screen.getByRole("button", { name: /Next painting, Nov 26/ }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: /Previous painting, Nov 24/ }),
-    ).toBeEnabled();
-
-    view.unmount();
-    renderCard(art({ date: OLDEST }));
-
-    expect(
-      screen.getByRole("button", { name: /Previous painting, Oct 26/ }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: /Next painting, Oct 28/ }),
-    ).toBeEnabled();
-  });
-
-  it("fetches the previous day and swaps the frame and label", async () => {
-    const user = userEvent.setup();
-    const next = art({
-      date: "2026-11-24",
-      id: 10,
-      title: "Earlier work",
-      artist: "Another artist",
-    });
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify(next), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+  it("places the label before the frame and has no browsing controls or tilt", () => {
+    const { container } = renderCard();
+    const scene = container.querySelector(".art-card-scene");
+    const order = Array.from(scene?.children ?? []).map(
+      (child) => child.className,
     );
 
-    vi.stubGlobal("fetch", fetchMock);
-    renderCard();
-
-    await user.click(
-      screen.getByRole("button", { name: /Previous painting, Nov 24/ }),
+    expect(order[0]).toContain("art-card-label");
+    expect(order[1]).toContain("art-card-frame-button");
+    expect(container.querySelector(".art-control")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Previous painting/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Next painting/ }),
+    ).not.toBeInTheDocument();
+    expect(container.querySelector(".painting-frame")).not.toHaveAttribute(
+      "data-tilt",
     );
-
-    expect(await screen.findByText("Earlier work")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/art/2026-11-24");
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({
-      headers: { Accept: "application/json" },
-    });
-    expect(
-      screen.getByRole("button", { name: /Next painting, Today/ }),
-    ).toBeEnabled();
-  });
-
-  it("keeps the old painting and explains when a day fails to load", async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockRejectedValue(new Error("offline"));
-
-    vi.stubGlobal("fetch", fetchMock);
-    renderCard();
-
-    await user.click(
-      screen.getByRole("button", { name: /Previous painting, Nov 24/ }),
-    );
-
-    expect(
-      await screen.findByText("That day’s painting didn’t load. Try again."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "A painting" }),
-    ).toBeInTheDocument();
   });
 
   it("opens the full view, traps Tab, closes on Escape and restores focus", async () => {
     const user = userEvent.setup();
-    const dialogProto = window.HTMLDialogElement?.prototype;
-    const showModal = dialogProto?.showModal;
-    const close = dialogProto?.close;
-
-    // Force the documented fallback path so the test is layout-independent.
-    if (dialogProto) {
-      Object.defineProperty(dialogProto, "showModal", {
-        configurable: true,
-        value: undefined,
-      });
-      Object.defineProperty(dialogProto, "close", {
-        configurable: true,
-        value: undefined,
-      });
-    }
+    const restoreDialog = disableNativeDialog();
 
     try {
       renderCard();
@@ -192,6 +161,11 @@ describe("ArtCard", () => {
       expect(closeButton).toHaveFocus();
       expect(
         within(dialog).getByRole("heading", { name: "A painting" }),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByText(
+          "A painted landscape with a river, seen in the soft light of an afternoon.",
+        ),
       ).toBeInTheDocument();
       expect(
         screen.getByRole("link", { name: /Art Institute/ }),
@@ -216,16 +190,7 @@ describe("ArtCard", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(trigger).toHaveFocus();
     } finally {
-      if (dialogProto) {
-        Object.defineProperty(dialogProto, "showModal", {
-          configurable: true,
-          value: showModal,
-        });
-        Object.defineProperty(dialogProto, "close", {
-          configurable: true,
-          value: close,
-        });
-      }
+      restoreDialog();
     }
   });
 
@@ -281,70 +246,9 @@ describe("ArtCard", () => {
     }
   });
 
-  it("clears the image-failure note when the art changes and returns", async () => {
-    const user = userEvent.setup();
-    const earlier = art({
-      date: "2026-11-24",
-      id: 10,
-      title: "Earlier work",
-      artist: "Another artist",
-    });
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(earlier), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(art()), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { container } = renderCard();
-    const image = container.querySelector(".art-image img");
-
-    fireEvent.error(image as HTMLImageElement);
-
-    expect(container.querySelector(".art-image-unavailable")).not.toBeNull();
-    expect(container.querySelector(".art-card-image-note")).not.toBeNull();
-
-    await user.click(
-      screen.getByRole("button", { name: /Previous painting, Nov 24/ }),
-    );
-    expect(await screen.findByText("Earlier work")).toBeInTheDocument();
-    expect(container.querySelector(".art-card-image-note")).toBeNull();
-    expect(container.querySelector(".art-image-unavailable")).toBeNull();
-
-    await user.click(
-      screen.getByRole("button", { name: /Next painting, Today/ }),
-    );
-    expect(await screen.findByText("A painting")).toBeInTheDocument();
-    expect(container.querySelector(".art-card-image-note")).toBeNull();
-    expect(container.querySelector(".art-image-unavailable")).toBeNull();
-  });
-
   it("clears the dialog image note when the dialog reopens", async () => {
     const user = userEvent.setup();
-    const dialogProto = window.HTMLDialogElement?.prototype;
-    const showModal = dialogProto?.showModal;
-    const close = dialogProto?.close;
-
-    if (dialogProto) {
-      Object.defineProperty(dialogProto, "showModal", {
-        configurable: true,
-        value: undefined,
-      });
-      Object.defineProperty(dialogProto, "close", {
-        configurable: true,
-        value: undefined,
-      });
-    }
+    const restoreDialog = disableNativeDialog();
 
     try {
       renderCard();
@@ -377,16 +281,7 @@ describe("ArtCard", () => {
       expect(reopened.querySelector(".art-image-unavailable")).toBeNull();
       expect(reopened.querySelector(".art-dialog-note")).toBeNull();
     } finally {
-      if (dialogProto) {
-        Object.defineProperty(dialogProto, "showModal", {
-          configurable: true,
-          value: showModal,
-        });
-        Object.defineProperty(dialogProto, "close", {
-          configurable: true,
-          value: close,
-        });
-      }
+      restoreDialog();
     }
   });
 

@@ -1,21 +1,7 @@
 import { cacheLife } from "next/cache";
-import {
-  hashDateKey,
-  historyStartDate,
-  isValidDateKey,
-  utcDateKey,
-} from "./art-shared";
+import { hashDateKey, isValidDateKey, utcDateKey } from "./art-shared";
 
-export {
-  ART_HISTORY_DAYS,
-  hashDateKey,
-  historyStartDate,
-  isWithinHistory,
-  isValidDateKey,
-  parseDateKey,
-  shiftDateKey,
-  utcDateKey,
-} from "./art-shared";
+export { hashDateKey, isValidDateKey, utcDateKey } from "./art-shared";
 
 /**
  * One public-domain painting per UTC day, from the Art Institute of Chicago.
@@ -61,7 +47,12 @@ const SEARCH_FIELDS = [
   "thumbnail",
   "color",
   "medium_display",
+  "short_description",
+  "description",
 ] as const;
+
+/** The card's synopsis target, cut at a sentence boundary. */
+const SYNOPSIS_LIMIT = 220;
 
 export type ArtColor = { h: number; s: number; l: number };
 
@@ -77,6 +68,8 @@ export type DailyArt = {
   placeOfOrigin: string | null;
   styleTitle: string | null;
   medium: string;
+  /** 1-3 stripped museum sentences, or one generated factual line. */
+  synopsis: string;
   imageId: string | null;
   /** Original pixel dimensions, for the frame's aspect ratio. */
   width: number;
@@ -115,6 +108,8 @@ export type AicArtwork = {
   thumbnail?: AicThumbnail | null;
   color?: AicColor | null;
   medium_display?: string | null;
+  short_description?: string | null;
+  description?: string | null;
 };
 
 type AicSearchResponse = {
@@ -146,6 +141,123 @@ function text(value: string | null | undefined): string | null {
 
 function finiteNumber(value: number | null | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&",
+  apos: "'",
+  gt: ">",
+  lt: "<",
+  nbsp: " ",
+  quot: '"',
+};
+
+function decodeHtml(value: string): string {
+  return value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (_, code: string) => {
+    if (code.startsWith("#")) {
+      const hex = code[1]?.toLowerCase() === "x";
+      const point = Number.parseInt(code.slice(hex ? 2 : 1), hex ? 16 : 10);
+
+      if (!Number.isFinite(point)) return " ";
+
+      try {
+        return String.fromCodePoint(point);
+      } catch {
+        return " ";
+      }
+    }
+
+    return NAMED_ENTITIES[code.toLowerCase()] ?? " ";
+  });
+}
+
+/** AIC descriptions arrive as HTML, sometimes with entities around tags. */
+function plainText(value: string | null | undefined): string | null {
+  if (!value) return null;
+
+  const decoded = decodeHtml(value);
+  const stripped = decoded
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.!?;:])/g, "$1")
+    .trim();
+  const again = decodeHtml(stripped)
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.!?;:])/g, "$1")
+    .trim();
+
+  return again || null;
+}
+
+/**
+ * Keep up to three sentences, stopping before the next sentence would pass the
+ * 220-character target. The first sentence is always kept; a single oversized
+ * sentence is cut at a word boundary with an ellipsis. Ends with punctuation
+ * even when AIC's short_description withheld its final period.
+ */
+function clipSynopsis(value: string | null | undefined): string | null {
+  const clean = plainText(value);
+
+  if (!clean) return null;
+
+  const sentences = clean
+    .split(/(?<=[.!?])\s+(?=[A-Z"“])/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+  let out = "";
+  let count = 0;
+
+  for (const sentence of sentences) {
+    const next = out ? `${out} ${sentence}` : sentence;
+
+    if (out && next.length > SYNOPSIS_LIMIT) break;
+
+    out = next;
+    count += 1;
+
+    if (count === 3 || out.length >= SYNOPSIS_LIMIT) break;
+  }
+
+  if (!out) return null;
+
+  if (out.length > SYNOPSIS_LIMIT) {
+    const clipped = out.slice(0, SYNOPSIS_LIMIT - 1);
+    const lastSpace = clipped.lastIndexOf(" ");
+
+    out = `${(lastSpace > 80 ? clipped.slice(0, lastSpace) : clipped).trimEnd()}…`;
+  }
+
+  if (!/[.!?…]["'”’)]*$/.test(out)) out = `${out}.`;
+
+  return out;
+}
+
+/** One factual line when AIC has no museum text. Never fills a missing fact. */
+function generatedSynopsis({
+  medium,
+  placeOfOrigin,
+  styleTitle,
+  dateDisplay,
+}: {
+  medium: string | null;
+  placeOfOrigin: string | null;
+  styleTitle: string | null;
+  dateDisplay: string | null;
+}): string {
+  const headParts = [
+    medium,
+    placeOfOrigin ? `painted in ${placeOfOrigin}` : null,
+    dateDisplay,
+  ].filter((part): part is string => Boolean(part));
+  let head = headParts.join(", ");
+
+  if (head) head = head.charAt(0).toUpperCase() + head.slice(1);
+
+  if (head && styleTitle) return `${head} — ${styleTitle}.`;
+  if (head) return `${head}.`;
+  if (styleTitle) return `${styleTitle}.`;
+
+  return "A painting from the Art Institute of Chicago.";
 }
 
 function usableArtwork(item: AicArtwork): boolean {
@@ -191,6 +303,11 @@ export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
   const title = text(item.title) ?? "Untitled";
   const artist = text(item.artist_title) ?? "Unknown artist";
   const dateStart = finiteNumber(item.date_start);
+  const rawDateDisplay =
+    text(item.date_display) ?? (dateStart ? String(dateStart) : null);
+  const placeOfOrigin = text(item.place_of_origin);
+  const styleTitle = text(item.style_title);
+  const medium = text(item.medium_display);
   const color = item.color;
   const lqip = text(item.thumbnail?.lqip);
   const colorValue =
@@ -200,18 +317,27 @@ export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
     finiteNumber(color.l) !== null
       ? { h: color.h as number, s: color.s as number, l: color.l as number }
       : null;
+  const synopsis =
+    clipSynopsis(item.short_description) ??
+    clipSynopsis(item.description) ??
+    generatedSynopsis({
+      medium,
+      placeOfOrigin,
+      styleTitle,
+      dateDisplay: rawDateDisplay,
+    });
 
   return {
     date: dateKey,
     id: id ?? 0,
     title,
     artist,
-    dateDisplay:
-      text(item.date_display) ?? (dateStart ? String(dateStart) : "Undated"),
+    dateDisplay: rawDateDisplay ?? "Undated",
     dateStart,
-    placeOfOrigin: text(item.place_of_origin),
-    styleTitle: text(item.style_title),
-    medium: text(item.medium_display) ?? "Painting",
+    placeOfOrigin,
+    styleTitle,
+    medium: medium ?? "Painting",
+    synopsis,
     imageId,
     width,
     height,
@@ -241,6 +367,8 @@ export function fallbackArt(dateKey: string): DailyArt {
     placeOfOrigin: null,
     styleTitle: null,
     medium: "Ink, light and a little patience",
+    synopsis:
+      "A bundled stand-in while the Art Institute of Chicago is unavailable.",
     imageId: null,
     width: 4,
     height: 3,
@@ -302,7 +430,7 @@ const BASE_QUERY = {
 /**
  * The uncached loader: two AIC calls (a count, then a window of candidates),
  * a deterministic pick and the fallback. Exported for the unit tests, which
- * inject a fetch; `getDailyArt` is the app-facing cached wrapper.
+ * inject a fetch; `getTodaysArt` is the app-facing cached wrapper.
  */
 export async function fetchDailyArt(
   dateKey: string,
@@ -372,12 +500,11 @@ export async function fetchDailyArt(
 }
 
 /**
- * The app-facing loader. The date is the cache key; `cacheLife("days")` keeps
- * the same painting for the whole UTC day and lets the static shell include it.
- * A fallback is retried on the minutes profile instead of being pinned for a
- * day.
+ * The day-keyed cache behind getTodaysArt. `cacheLife("days")` keeps the same
+ * painting for the whole UTC day and lets the static shell include it; a
+ * fallback is retried on the minutes profile instead of being pinned for a day.
  */
-export async function getDailyArt(dateKey: string): Promise<DailyArt> {
+async function getDailyArt(dateKey: string): Promise<DailyArt> {
   "use cache";
 
   const art = await fetchDailyArt(dateKey);
@@ -389,26 +516,16 @@ export async function getDailyArt(dateKey: string): Promise<DailyArt> {
 }
 
 /**
- * Today's painting plus the window the card may browse.
+ * Today's painting, the only card state.
  *
  * `new Date()` cannot be read in a prerendered component (Next 16 blocks it),
  * so the clock read lives inside this cached scope. The outer entry uses the
  * one-minute profile only to notice UTC midnight; the inner day-keyed entry
  * still does the real caching, so AIC sees the same handful of requests a day.
  */
-export async function getTodaysArt(): Promise<{
-  art: DailyArt;
-  today: string;
-  oldest: string;
-}> {
+export async function getTodaysArt(): Promise<DailyArt> {
   "use cache";
   cacheLife("minutes");
 
-  const today = utcDateKey();
-
-  return {
-    art: await getDailyArt(today),
-    today,
-    oldest: historyStartDate(today),
-  };
+  return getDailyArt(utcDateKey());
 }

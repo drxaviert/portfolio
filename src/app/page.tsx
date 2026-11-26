@@ -16,13 +16,11 @@ import { getTodaysArt } from "@/lib/daily-art";
  * with the drawer panel, which is what the bands' own comment promises.
  */
 export default async function Home() {
-  const { art, today, oldest } = await getTodaysArt();
+  const art = await getTodaysArt();
 
   return (
     <>
-      <HomeScreen
-        playCard={<ArtCard initialArt={art} today={today} oldest={oldest} />}
-      />
+      <HomeScreen playCard={<ArtCard art={art} />} />
       <ViewportEdgeBlur />
     </>
   );

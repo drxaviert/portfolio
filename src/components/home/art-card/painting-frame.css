@@ -32,7 +32,6 @@
     0 1px 1px color-mix(in oklab, var(--palette-neutral-800) 26%, transparent),
     0 12px 24px -16px
       color-mix(in oklab, var(--palette-neutral-800) 58%, transparent);
-  transform-origin: 50% 55%;
 }
 
 /* One inner lip, drawn above the frame face on every era. */
@@ -306,28 +305,4 @@
 
 .painting-frame[data-mount="hanging"] .painting-frame-rod[data-edge="bottom"] {
   bottom: max(2px, calc(clamp(10px, 7cqh, 24px) * 0.45));
-}
-
-/*
- * The day's hang angle. The frame rests crooked and settles straight under a
- * fine pointer; the transition is transform-only so retargeting a fast leave is
- * interruptible. Reduced motion gets no angle at all: the state change is the
- * painting, not the lean.
- */
-.painting-frame[data-tilt="true"] {
-  transform: rotate(var(--art-tilt, 0deg));
-  transition: transform var(--duration-medium-6) var(--ease-spring-follow);
-}
-
-@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .art-card:hover .painting-frame[data-tilt="true"] {
-    transform: rotate(0deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .painting-frame[data-tilt="true"] {
-    transform: none;
-    transition: none;
-  }
 }

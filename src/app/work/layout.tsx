@@ -21,13 +21,11 @@ export default async function WorkLayout({
 }: {
   children: ReactNode;
 }) {
-  const { art, today, oldest } = await getTodaysArt();
+  const art = await getTodaysArt();
 
   return (
     <>
-      <HomeScreen
-        playCard={<ArtCard initialArt={art} today={today} oldest={oldest} />}
-      />
+      <HomeScreen playCard={<ArtCard art={art} />} />
       <WorkDrawer>{children}</WorkDrawer>
     </>
   );

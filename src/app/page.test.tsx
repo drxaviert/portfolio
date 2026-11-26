@@ -8,11 +8,7 @@ vi.mock("@/lib/daily-art", async (importOriginal) => {
 
   return {
     ...actual,
-    getTodaysArt: vi.fn(async () => ({
-      art: actual.fallbackArt("2026-11-25"),
-      today: "2026-11-25",
-      oldest: "2026-10-27",
-    })),
+    getTodaysArt: vi.fn(async () => actual.fallbackArt("2026-11-25")),
   };
 });
 

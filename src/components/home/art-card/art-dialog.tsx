@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { DailyArt } from "@/lib/daily-art";
-import { artKicker, formatArtDate } from "./art-date";
 import { ArtImage, artImageSrc } from "./art-image";
 import { PaintingFrame } from "./painting-frame";
 
@@ -18,7 +17,6 @@ import { PaintingFrame } from "./painting-frame";
 
 type ArtDialogProps = {
   art: DailyArt;
-  today: string;
   open: boolean;
   onClose: () => void;
 };
@@ -26,7 +24,7 @@ type ArtDialogProps = {
 const FOCUSABLE =
   'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function ArtDialog({ art, today, open, onClose }: ArtDialogProps) {
+export function ArtDialog({ art, open, onClose }: ArtDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const closingRef = useRef(false);
@@ -190,11 +188,12 @@ export function ArtDialog({ art, today, open, onClose }: ArtDialogProps) {
         </div>
 
         <div className="art-dialog-copy">
-          <p className="art-dialog-kicker">{artKicker(art.date, today)}</p>
+          <p className="art-dialog-kicker">Today’s painting</p>
           <h2 id={titleId} className="art-dialog-title">
             {art.title}
           </h2>
           <p className="art-dialog-artist">{art.artist}</p>
+          <p className="art-dialog-synopsis">{art.synopsis}</p>
 
           {imageUnavailable ? (
             <p className="art-dialog-note" role="status">
@@ -247,9 +246,7 @@ export function ArtDialog({ art, today, open, onClose }: ArtDialogProps) {
           ) : null}
 
           <p className="art-dialog-day">
-            {art.date === today
-              ? "Chosen for today"
-              : `Chosen for ${formatArtDate(art.date, today)}`}
+            Chosen for today
             <span className="sr-only">. One painting per UTC day.</span>
           </p>
         </div>
