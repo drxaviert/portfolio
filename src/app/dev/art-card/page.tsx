@@ -349,7 +349,8 @@ export default async function ArtCardLabPage() {
           <p className="art-lab-caption-line">
             Every era against the same card surface in all four phases. Each
             frame sits in its own data-phase scope, so this is the matrix the
-            boundary contrast is measured from (WCAG 1.4.11, target ≥ 3:1).
+            face contrast is measured from (WCAG 1.4.11, target ≥ 3:1). The
+            frame face carries the shade itself; there is no keyline.
           </p>
         </div>
 

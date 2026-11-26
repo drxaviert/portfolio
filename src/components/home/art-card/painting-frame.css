@@ -9,10 +9,10 @@
  *
  * Every era is painted with layered gradients and inset shadows. The values
  * are scoped tokens (edge thickness, metal, liner, mat) so a new era is one
- * block, and the frame face never depends on a bitmap. One shared phase token
- * set owns the outer boundary: --frame-edge-line, --frame-lift and
- * --frame-face-tint (globals.css), so contrast against the card surface does
- * not depend on which era happens to be light or dark.
+ * block, and the frame face never depends on a bitmap. Each era's face colours
+ * are phase tokens (globals.css): deeper on the light surface, luminous on
+ * night, so the outer face itself holds the boundary without a keyline. The
+ * bevel and lift tokens flip with the surface too.
  */
 
 .painting-frame {
@@ -30,24 +30,8 @@
   height: var(--frame-h);
   padding: var(--frame-edge);
   border-radius: 2px;
-  background:
-    linear-gradient(var(--frame-face-tint), var(--frame-face-tint)), #58402a;
+  background: var(--frame-walnut-mid);
   box-shadow: var(--frame-lift);
-}
-
-/*
- * The shared boundary: one hairline on the frame's outermost pixel, in the
- * opposite direction of the phase surface, so no era can merge into it. The
- * mount is inset by at least one frame edge, so the ring only covers face.
- */
-.painting-frame::after {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  border: 1px solid var(--frame-edge-line);
-  border-radius: inherit;
-  content: "";
-  pointer-events: none;
 }
 
 /* One inner lip, drawn above the frame face on every era. */
@@ -98,26 +82,25 @@
   --frame-mount-pad: clamp(2px, 1.1cqh, 4px);
 
   background:
-    linear-gradient(var(--frame-face-tint), var(--frame-face-tint)),
     repeating-linear-gradient(
       90deg,
-      rgb(255 244 205 / 0.16) 0 1px,
+      var(--frame-grain-ornate) 0 1px,
       transparent 1px 5px
     ),
     linear-gradient(
       135deg,
-      #5a4117 0%,
-      #c79b48 12%,
-      #f3dfa4 21%,
-      #a97b32 38%,
-      #e9cf8d 55%,
-      #906823 72%,
-      #f0dca6 87%,
-      #5d4318 100%
+      var(--frame-ornate-deep) 0%,
+      var(--frame-ornate-mid) 12%,
+      var(--frame-ornate-light) 21%,
+      var(--frame-ornate-mid) 38%,
+      var(--frame-ornate-light) 55%,
+      var(--frame-ornate-edge) 72%,
+      var(--frame-ornate-light) 87%,
+      var(--frame-ornate-deep) 100%
     );
   box-shadow:
-    inset 0 1px 0 rgb(255 248 220 / 0.55),
-    inset 0 -2px 3px rgb(45 27 6 / 0.55),
+    inset 0 1px 0 var(--frame-bevel-top),
+    inset 0 -2px 3px var(--frame-bevel-bottom),
     var(--frame-lift);
 }
 
@@ -150,23 +133,22 @@
   --frame-mount-pad: clamp(2px, 1cqh, 4px);
 
   background:
-    linear-gradient(var(--frame-face-tint), var(--frame-face-tint)),
     repeating-linear-gradient(
       110deg,
-      rgb(72 46 12 / 0.22) 0 1.5px,
+      var(--frame-grain-carved) 0 1.5px,
       transparent 1.5px 4.5px
     ),
     linear-gradient(
       140deg,
-      #6b4c1c,
-      #c8a058 24%,
-      #96702f 46%,
-      #dcbd76 68%,
-      #5c3f14
+      var(--frame-carved-deep),
+      var(--frame-carved-mid) 24%,
+      var(--frame-carved-edge) 46%,
+      var(--frame-carved-light) 68%,
+      var(--frame-carved-deep)
     );
   box-shadow:
-    inset 0 1px 0 rgb(255 238 189 / 0.4),
-    inset 0 -2px 3px rgb(48 31 7 / 0.5),
+    inset 0 1px 0 var(--frame-bevel-top),
+    inset 0 -2px 3px var(--frame-bevel-bottom),
     var(--frame-lift);
 }
 
@@ -199,23 +181,22 @@
   --frame-mount-pad: clamp(1px, 0.8cqh, 3px);
 
   background:
-    linear-gradient(var(--frame-face-tint), var(--frame-face-tint)),
     repeating-linear-gradient(
       92deg,
-      rgb(0 0 0 / 0.14) 0 1px,
+      var(--frame-grain-walnut) 0 1px,
       transparent 1px 3.5px
     ),
     linear-gradient(
       135deg,
-      #2d1c12,
-      #603e29 32%,
-      #40281a 58%,
-      #6d4830 80%,
-      #24150d
+      var(--frame-walnut-deep),
+      var(--frame-walnut-mid) 32%,
+      var(--frame-walnut-edge) 58%,
+      var(--frame-walnut-light) 80%,
+      var(--frame-walnut-deep)
     );
   box-shadow:
-    inset 0 1px 0 rgb(255 231 190 / 0.18),
-    inset 0 -2px 3px rgb(0 0 0 / 0.55),
+    inset 0 1px 0 var(--frame-bevel-top),
+    inset 0 -2px 3px var(--frame-bevel-bottom),
     var(--frame-lift);
 }
 
@@ -233,12 +214,15 @@
   --frame-edge: clamp(2px, 1.9cqh, 6px);
   --frame-mount-pad: clamp(5px, 4.2cqh, 16px);
 
-  background:
-    linear-gradient(var(--frame-face-tint), var(--frame-face-tint)),
-    linear-gradient(135deg, #2b2b2b, #0a0a0a 45%, #1e1e1e);
+  background: linear-gradient(
+    135deg,
+    var(--frame-modern-light),
+    var(--frame-modern-deep) 45%,
+    var(--frame-modern-mid)
+  );
   border-radius: 1px;
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    inset 0 1px 0 var(--frame-bevel-top),
     var(--frame-lift);
 }
 
@@ -264,22 +248,21 @@
   padding-inline: clamp(3px, 1.1cqh, 6px);
   border-radius: 1px;
   background:
-    linear-gradient(var(--frame-face-tint), var(--frame-face-tint)),
     repeating-linear-gradient(
       90deg,
-      rgb(255 255 255 / 0.08) 0 1px,
+      var(--frame-grain-scroll) 0 1px,
       transparent 1px 3px
     ),
     linear-gradient(
       90deg,
-      #9d8756,
-      #dccb9d 16%,
-      #bfa974 48%,
-      #e2d3a8 80%,
-      #96804f
+      var(--frame-scroll-deep),
+      var(--frame-scroll-mid) 16%,
+      var(--frame-scroll-edge) 48%,
+      var(--frame-scroll-light) 80%,
+      var(--frame-scroll-deep)
     );
   box-shadow:
-    inset 0 0 0 1px rgb(90 71 37 / 0.45),
+    inset 0 0 4px 1px var(--frame-bevel-edge),
     var(--frame-lift);
 }
 
@@ -313,8 +296,13 @@
   display: block;
   height: clamp(4px, 2cqh, 7px);
   border-radius: 999px;
-  background: linear-gradient(180deg, #7b5730, #2f1d0d 52%, #5b3c1c);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
+  background: linear-gradient(
+    180deg,
+    var(--frame-rod-light),
+    var(--frame-rod-deep) 52%,
+    var(--frame-rod-mid)
+  );
+  box-shadow: var(--frame-rod-shadow);
 }
 
 .painting-frame[data-mount="hanging"] .painting-frame-rod[data-edge="top"] {

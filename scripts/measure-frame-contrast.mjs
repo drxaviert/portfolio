@@ -1,10 +1,13 @@
 /*
- * Measures the daily-painting frame boundary against the card surface.
+ * Measures the daily-painting frame face against the card surface.
  *
  * Reads the era × phase matrix on /dev/art-card, screenshots each stage at
- * device scale 2, and samples the outermost painted pixel of the frame at
- * eleven points along each edge. The surface colour is the stage's computed
- * background, which is the real card fill (--surface-container-low).
+ * device scale 2, and samples the outermost fully painted pixel along each
+ * edge, every device pixel, skipping the rounded corners. The layout box can
+ * land on a fraction, so the first fully painted pixel is ceil(edge); the
+ * sampler derives that from the box instead of adding a fixed offset. The
+ * surface colour is the stage's computed background, which is the real card
+ * fill (--surface-container-low).
  *
  * Usage: node scripts/measure-frame-contrast.mjs [url]
  *   URL defaults to http://localhost:3013/dev/art-card.
@@ -16,14 +19,16 @@ import { join } from "node:path";
 import { chromium } from "playwright";
 import sharp from "sharp";
 
-const URL = process.argv[2] ?? "http://localhost:3013/dev/art-card";
+const args = process.argv.slice(2);
+const URL =
+  args.find((argument) => !argument.startsWith("--")) ??
+  "http://localhost:3013/dev/art-card";
 const OUT_DIR = ".next/contrast";
 const DPR = 2;
 const THRESHOLD = 3;
 
 const PHASES = ["day", "dawn", "dusk", "night"];
 const ERAS = ["gilt-ornate", "gilt-carved", "walnut", "modern", "scroll"];
-const EDGE_STOPS = [0.06, 0.12, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.88, 0.94];
 
 function srgbToLinear(channel) {
   const value = channel / 255;
@@ -74,24 +79,32 @@ async function decode(buffer) {
 }
 
 function sampleEdges(image, left, top, width, height) {
-  // The second device pixel in from the boundary: the first may be an
-  // antialiased half-pixel when the layout box lands on a fraction, and a
-  // 1 CSS px hairline at DPR 2 covers the first two pixels.
-  const xLeft = Math.floor(left) + 1;
-  const xRight = Math.ceil(left + width) - 1;
-  const yTop = Math.floor(top) + 1;
-  const yBottom = Math.ceil(top + height) - 1;
+  // Device-space box. The outermost fully painted pixel is ceil(edge) on the
+  // left/top and floor(edge) - 1 on the right/bottom; that holds whether the
+  // layout edge lands on a whole pixel or a fraction.
+  const xLeft = Math.ceil(left);
+  const xRight = Math.floor(left + width) - 1;
+  const yTop = Math.ceil(top);
+  const yBottom = Math.floor(top + height) - 1;
+  // The corner radius is 2px; stay 4 CSS px in so no sample is surface.
+  const margin = Math.round(4 * DPR);
+  const xSpan = Math.max(1, xRight - xLeft);
+  const ySpan = Math.max(1, yBottom - yTop);
   const samples = [];
 
-  for (const stop of EDGE_STOPS) {
-    const x = Math.floor(left + stop * width);
-    const y = Math.floor(top + stop * height);
-
+  for (let x = xLeft + margin; x <= xRight - margin; x++) {
+    const at = (x - xLeft) / xSpan;
     samples.push(
-      { edge: "top", at: stop, rgb: pixel(image, x, yTop) },
-      { edge: "bottom", at: stop, rgb: pixel(image, x, yBottom) },
-      { edge: "left", at: stop, rgb: pixel(image, xLeft, y) },
-      { edge: "right", at: stop, rgb: pixel(image, xRight, y) },
+      { edge: "top", at, rgb: pixel(image, x, yTop) },
+      { edge: "bottom", at, rgb: pixel(image, x, yBottom) },
+    );
+  }
+
+  for (let y = yTop + margin; y <= yBottom - margin; y++) {
+    const at = (y - yTop) / ySpan;
+    samples.push(
+      { edge: "left", at, rgb: pixel(image, xLeft, y) },
+      { edge: "right", at, rgb: pixel(image, xRight, y) },
     );
   }
 
@@ -189,7 +202,7 @@ for (const era of ERAS) {
   console.log(`| ${era} | ${cells.join(" | ")} |`);
 }
 
-console.log("\nWorst edge sample per cell:\n");
+console.log("\nWorst face sample per cell:\n");
 console.log(`| Era | ${PHASES.join(" | ")} |`);
 console.log(`| --- | ${PHASES.map(() => "---").join(" | ")} |`);
 for (const era of ERAS) {

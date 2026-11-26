@@ -960,33 +960,113 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
 }
 
 /*
- * Painting-frame boundary.
+ * Painting-frame materials.
  *
- * The card surface flips white (Day, Dawn, Dusk) to #191919 (Night), so a
- * fixed frame material cannot hold a 3:1 boundary in both modes: gilt and silk
- * wash out on white, while walnut and the black float disappear on night. Every
- * era paints the same phase-aware outer hairline in the opposite direction of
- * the surface, and an elevation shadow that is grounded on light and lifted
- * with a warm halo on dark. The face tint subtly deepens the light materials
- * on light surfaces and lifts the dark ones on night; the painting sits in an
- * opaque mount above it, so its own pixels are untouched.
+ * The card surface flips white (Day, Dawn, Dusk) to #191919 (Night), so a fixed
+ * frame material cannot hold a 3:1 boundary in both modes: gilt and silk wash
+ * out on white, while walnut and the black float disappear on night. Each era
+ * therefore gets its own shade set per mode: deeper and richer on the light
+ * surface, lighter and more luminous on the dark one. The gradient shape,
+ * grain and proportions stay, so the frame is recognisably the same material;
+ * only the colours move. The shades sit on the face itself, so the outer face
+ * pixel does the contrast work and there is no keyline.
+ *
+ * Dawn and Dusk share Day's surface, so they share its shades. The bevel and
+ * lift tokens flip direction with the surface: dark bevels on light, light
+ * bevels on night, and one subtle elevation shadow in both.
  */
 :root,
 [data-phase="day"],
 [data-phase="dawn"],
 [data-phase="dusk"] {
-  --frame-edge-line: var(--palette-neutral-700);
-  --frame-face-tint: rgb(24 14 4 / 0.12);
+  /* Pre-1700 ornate: dark antique gilt. */
+  --frame-ornate-deep: #3b2a0e;
+  --frame-ornate-mid: #6a4c1a;
+  --frame-ornate-light: #9b7330;
+  --frame-ornate-edge: #5a4216;
+
+  /* 1700-1880 carved: warm, deeper gilt. */
+  --frame-carved-deep: #4a320f;
+  --frame-carved-mid: #7d5a22;
+  --frame-carved-light: #9a6f2d;
+  --frame-carved-edge: #5f4418;
+
+  /* 1880-1945 walnut: deep red-brown. */
+  --frame-walnut-deep: #24130c;
+  --frame-walnut-mid: #50311f;
+  --frame-walnut-light: #6b432b;
+  --frame-walnut-edge: #2c1a10;
+
+  /* Post-1945 float: black, still the black float. */
+  --frame-modern-deep: #0a0a0a;
+  --frame-modern-mid: #1a1a1a;
+  --frame-modern-light: #2e2e2e;
+
+  /* Silk scroll: deep tea silk and dark walnut rollers. */
+  --frame-scroll-deep: #5e4a26;
+  --frame-scroll-mid: #8a6f3f;
+  --frame-scroll-light: #9c7f4a;
+  --frame-scroll-edge: #6d5730;
+  --frame-rod-deep: #2f1d0d;
+  --frame-rod-mid: #5b3c1c;
+  --frame-rod-light: #7b5730;
+
+  --frame-grain-ornate: rgb(255 244 205 / 0.16);
+  --frame-grain-carved: rgb(72 46 12 / 0.22);
+  --frame-grain-walnut: rgb(0 0 0 / 0.14);
+  --frame-grain-scroll: rgb(255 255 255 / 0.08);
+  --frame-rod-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
+
+  --frame-bevel-top: rgb(0 0 0 / 0.24);
+  --frame-bevel-bottom: rgb(0 0 0 / 0.38);
+  --frame-bevel-edge: rgb(60 44 20 / 0.4);
   --frame-lift:
-    0 1px 2px rgb(0 0 0 / 0.12), 0 16px 30px -18px rgb(0 0 0 / 0.55);
+    0 1px 2px rgb(0 0 0 / 0.14), 0 12px 24px -18px rgb(0 0 0 / 0.45);
 }
 
 [data-phase="night"] {
-  --frame-edge-line: var(--palette-neutral-100);
-  --frame-face-tint: rgb(255 244 222 / 0.08);
-  --frame-lift:
-    0 1px 2px rgb(0 0 0 / 0.5), 0 20px 40px -18px rgb(0 0 0 / 0.9),
-    0 0 24px -10px rgb(255 241 214 / 0.24);
+  /* Pre-1700 ornate: luminous antique gilt. */
+  --frame-ornate-deep: #b3863a;
+  --frame-ornate-mid: #d4b46e;
+  --frame-ornate-light: #f3dfa4;
+  --frame-ornate-edge: #c79b48;
+
+  /* 1700-1880 carved: luminous, softer gilt. */
+  --frame-carved-deep: #b08a44;
+  --frame-carved-mid: #d4b46e;
+  --frame-carved-light: #e8cf95;
+  --frame-carved-edge: #c09a56;
+
+  /* 1880-1945 walnut: lighter oak so the wood still reads. */
+  --frame-walnut-deep: #9a7852;
+  --frame-walnut-mid: #b08a62;
+  --frame-walnut-light: #c7a67c;
+  --frame-walnut-edge: #a8835a;
+
+  /* Post-1945 float: warm pewter instead of black. */
+  --frame-modern-deep: #8a8178;
+  --frame-modern-mid: #948b81;
+  --frame-modern-light: #a39a8f;
+
+  /* Silk scroll: luminous silk and lighter wood rollers. */
+  --frame-scroll-deep: #a48a55;
+  --frame-scroll-mid: #c9b785;
+  --frame-scroll-light: #e2d3a8;
+  --frame-scroll-edge: #b49d6a;
+  --frame-rod-deep: #9a7852;
+  --frame-rod-mid: #b08a62;
+  --frame-rod-light: #c7a67c;
+
+  --frame-grain-ornate: rgb(255 244 205 / 0.16);
+  --frame-grain-carved: rgb(255 244 205 / 0.14);
+  --frame-grain-walnut: rgb(255 255 255 / 0.1);
+  --frame-grain-scroll: rgb(255 255 255 / 0.08);
+  --frame-rod-shadow: 0 1px 2px rgb(0 0 0 / 0.18);
+
+  --frame-bevel-top: rgb(255 255 255 / 0.2);
+  --frame-bevel-bottom: rgb(255 255 255 / 0.14);
+  --frame-bevel-edge: rgb(255 244 222 / 0.22);
+  --frame-lift: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 24px -18px rgb(0 0 0 / 0.7);
 }
 
 @theme inline {
