@@ -79,7 +79,7 @@ export type DailyArt = {
   styleTitle: string | null;
   /** AIC's medium, or null when the record has none. Never fabricated. */
   medium: string | null;
-  /** 1-3 stripped museum sentences, or one generated factual line. */
+  /** 1-3 stripped museum sentences, or one line from origin/style. */
   synopsis: string;
   imageId: string | null;
   /** Original pixel dimensions, for the frame's aspect ratio. */
@@ -287,10 +287,8 @@ export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
     clipSynopsis(item.short_description) ??
     clipSynopsis(item.description) ??
     factualSynopsis({
-      medium,
       placeOfOrigin,
       styleTitle,
-      dateDisplay: rawDateDisplay,
     });
 
   return {
@@ -480,10 +478,8 @@ function requireSynopsis(art: DailyArt): DailyArt {
   return {
     ...art,
     synopsis: factualSynopsis({
-      medium: art.medium,
       placeOfOrigin: art.placeOfOrigin,
       styleTitle: art.styleTitle,
-      dateDisplay: art.dateDisplay,
     }),
   };
 }

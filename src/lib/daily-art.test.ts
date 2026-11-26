@@ -211,9 +211,7 @@ describe("toDailyArt", () => {
       DATE,
     );
 
-    expect(daily?.synopsis).toBe(
-      "Oil on canvas, painted in France, 1889 — Post-Impressionism.",
-    );
+    expect(daily?.synopsis).toBe("Painted in France — Post-Impressionism.");
   });
 
   it("generates from whichever facts exist, without inventing the rest", () => {
@@ -294,10 +292,7 @@ describe("toDailyArt", () => {
 
 describe("getTodaysArt", () => {
   it("returns a non-empty synopsis from the public server entry", async () => {
-    const fetchMock = mockFetch([
-      countResponse(1),
-      itemsResponse([artwork()]),
-    ]);
+    const fetchMock = mockFetch([countResponse(1), itemsResponse([artwork()])]);
     vi.stubGlobal("fetch", fetchMock);
 
     try {
