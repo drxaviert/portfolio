@@ -43,32 +43,3 @@ export function hashDateKey(key: string): number {
 
   return hash >>> 0;
 }
-
-type SynopsisFacts = {
-  placeOfOrigin: string | null;
-  styleTitle: string | null;
-};
-
-/**
- * One factual line when AIC has no museum text. Uses only facts the card meta
- * does not already show (origin and style), so the fallback never repeats the
- * date or medium line above it. Never fills a missing fact.
- */
-export function factualSynopsis({
-  placeOfOrigin,
-  styleTitle,
-}: SynopsisFacts): string {
-  if (placeOfOrigin && styleTitle) {
-    return `Painted in ${placeOfOrigin} — ${styleTitle}.`;
-  }
-
-  if (placeOfOrigin) return `Painted in ${placeOfOrigin}.`;
-
-  if (styleTitle) {
-    const style = styleTitle.charAt(0).toUpperCase() + styleTitle.slice(1);
-
-    return `${style}.`;
-  }
-
-  return "A painting from the Art Institute of Chicago.";
-}

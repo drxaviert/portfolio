@@ -197,58 +197,10 @@ describe("toDailyArt", () => {
     expect(daily?.synopsis.length).toBeLessThanOrEqual(220);
   });
 
-  it("generates a factual line when AIC has no museum text", () => {
-    const daily = toDailyArt(
-      artwork({
-        short_description: null,
-        description: null,
-        medium_display: "Oil on canvas",
-        place_of_origin: "France",
-        style_title: "Post-Impressionism",
-        date_display: "1889",
-        date_start: 1889,
-      }),
-      DATE,
-    );
-
-    expect(daily?.synopsis).toBe("Painted in France — Post-Impressionism.");
-  });
-
-  it("generates from whichever facts exist, without inventing the rest", () => {
-    const daily = toDailyArt(
-      artwork({
-        short_description: null,
-        description: null,
-        medium_display: null,
-        place_of_origin: null,
-        style_title: "Realism",
-        date_display: null,
-        date_start: null,
-      }),
-      DATE,
-    );
-
-    expect(daily?.synopsis).toBe("Realism.");
-  });
-
-  it("uses a neutral line when every generated fact is missing", () => {
-    const daily = toDailyArt(
-      artwork({
-        short_description: null,
-        description: null,
-        medium_display: null,
-        place_of_origin: null,
-        style_title: null,
-        date_display: null,
-        date_start: null,
-      }),
-      DATE,
-    );
-
-    expect(daily?.synopsis).toBe(
-      "A painting from the Art Institute of Chicago.",
-    );
-    expect(daily?.synopsis.trim()).not.toBe("");
+  it("rejects a record without museum text", () => {
+    expect(
+      toDailyArt(artwork({ short_description: null, description: null }), DATE),
+    ).toBeNull();
   });
 
   it("falls back to honest labels and never fabricates a medium", () => {
@@ -261,7 +213,6 @@ describe("toDailyArt", () => {
         medium_display: null,
         place_of_origin: null,
         style_title: null,
-        short_description: null,
         description: null,
         thumbnail: { width: 1200, height: 900, lqip: null },
       }),
@@ -272,9 +223,7 @@ describe("toDailyArt", () => {
     expect(daily?.artist).toBe("Unknown artist");
     expect(daily?.dateDisplay).toBe("Undated");
     expect(daily?.medium).toBeNull();
-    expect(daily?.synopsis).toBe(
-      "A painting from the Art Institute of Chicago.",
-    );
+    expect(daily?.synopsis).toBe("A painted landscape.");
     expect(daily?.lqip).toBeNull();
     expect(daily?.alt).toContain("by Unknown artist");
   });
@@ -340,6 +289,14 @@ describe("fetchDailyArt", () => {
 
       expect(body).toContain("is_public_domain");
       expect(body).toContain("Painting");
+
+      const parsed = JSON.parse(init.body as string);
+
+      expect(parsed.query.bool.should).toEqual([
+        { exists: { field: "short_description" } },
+        { exists: { field: "description" } },
+      ]);
+      expect(parsed.query.bool.minimum_should_match).toBe(1);
     }
 
     // AIC rejects from + limit above 1,000 with a 403.

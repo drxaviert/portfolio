@@ -1,10 +1,5 @@
 import { cacheLife } from "next/cache";
-import {
-  factualSynopsis,
-  hashDateKey,
-  isValidDateKey,
-  utcDateKey,
-} from "./art-shared";
+import { hashDateKey, isValidDateKey, utcDateKey } from "./art-shared";
 
 export { hashDateKey, isValidDateKey, utcDateKey } from "./art-shared";
 
@@ -46,7 +41,7 @@ const MAX_ASPECT = 4;
  * it. This is what keeps a new field (the synopsis) from silently disappearing
  * for the rest of a cached day.
  */
-export const ART_DATA_VERSION = 2;
+export const ART_DATA_VERSION = 3;
 
 const SEARCH_FIELDS = [
   "id",
@@ -62,6 +57,25 @@ const SEARCH_FIELDS = [
   "short_description",
   "description",
 ] as const;
+
+/** A described-work query, so a normal daily pick always has museum text. */
+const BASE_QUERY = {
+  query: {
+    bool: {
+      must: [
+        { term: { is_public_domain: true } },
+        { term: { "artwork_type_title.keyword": "Painting" } },
+        { exists: { field: "image_id" } },
+      ],
+      should: [
+        { exists: { field: "short_description" } },
+        { exists: { field: "description" } },
+      ],
+      minimum_should_match: 1,
+    },
+  },
+  sort: [{ id: "asc" }],
+} as const;
 
 /** The card's synopsis target, cut at a sentence boundary. */
 const SYNOPSIS_LIMIT = 220;
@@ -284,12 +298,11 @@ export function toDailyArt(item: AicArtwork, dateKey: string): DailyArt | null {
   const medium = text(item.medium_display);
   const lqip = text(item.thumbnail?.lqip);
   const synopsis =
-    clipSynopsis(item.short_description) ??
-    clipSynopsis(item.description) ??
-    factualSynopsis({
-      placeOfOrigin,
-      styleTitle,
-    });
+    clipSynopsis(item.short_description) ?? clipSynopsis(item.description);
+
+  // The search only returns described works; a record without text is not a
+  // usable daily pick. The bundled offline painting remains for API failure.
+  if (!synopsis) return null;
 
   return {
     date: dateKey,
@@ -376,19 +389,6 @@ async function searchAic(
   return (await response.json()) as AicSearchResponse;
 }
 
-const BASE_QUERY = {
-  query: {
-    bool: {
-      must: [
-        { term: { is_public_domain: true } },
-        { term: { "artwork_type_title.keyword": "Painting" } },
-        { exists: { field: "image_id" } },
-      ],
-    },
-  },
-  sort: [{ id: "asc" }],
-} as const;
-
 /**
  * The uncached loader: two AIC calls (a count, then a window of candidates),
  * a deterministic pick and the fallback. Exported for the unit tests, which
@@ -462,11 +462,11 @@ export async function fetchDailyArt(
 }
 
 /**
- * The mapped record always carries a synopsis: museum text or the server-built
- * factual line. If a future mapping drops it, fail loudly in development and
- * repair the record in production rather than render a blank card.
+ * A normal mapped record always carries museum text. If a future mapping drops
+ * it, fail loudly in development; in production use the bundled offline
+ * painting rather than inventing a factual line.
  */
-function requireSynopsis(art: DailyArt): DailyArt {
+function requireSynopsis(art: DailyArt, dateKey: string): DailyArt {
   if (art.synopsis.trim()) return art;
 
   const message = `[daily-art] Missing synopsis for ${art.title} (id ${art.id})`;
@@ -475,13 +475,7 @@ function requireSynopsis(art: DailyArt): DailyArt {
 
   console.error(message);
 
-  return {
-    ...art,
-    synopsis: factualSynopsis({
-      placeOfOrigin: art.placeOfOrigin,
-      styleTitle: art.styleTitle,
-    }),
-  };
+  return fallbackArt(dateKey);
 }
 
 /**
@@ -498,7 +492,7 @@ async function getDailyArt(
   // The version is part of the cache key, not a branch in the body.
   void version;
 
-  const art = requireSynopsis(await fetchDailyArt(dateKey));
+  const art = requireSynopsis(await fetchDailyArt(dateKey), dateKey);
 
   if (art.fallback) cacheLife("minutes");
   else cacheLife("days");
