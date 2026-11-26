@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { HorizonLive } from "@/components/horizon/horizon-live";
 import { EntranceCell } from "./entrance-cell";
 import type { EntranceVariant } from "./entrance-cell";
@@ -16,21 +16,13 @@ import { RingHoverPointer } from "./ring-pointer";
 import "./ring-hover.css";
 
 /*
- * Nominal xl frame: 780px content, a 64px bottom gap, and a 65px top gap (the
- * 64px gap plus the 1px top line) = 909px of ink. Fit against 910px: the extra
- * pixel is the column's centring slack, which keeps the top line at y=0
- * instead of 1px above the viewport. A 900px-tall viewport is shorter than
- * that, so the whole frame scales rather than clipping the lines. The 64px
- * gaps are kept as soon as 100dvh / --fit leaves room (1920x1080 unchanged).
- *
- * At 768-1279 the tablet frame takes over: its lines sit flush with the 868px
- * content column, so `--frame-gap-cap` is 0 and the gap collapses to the 1px
- * top line / 1px bottom offset (see globals.css).
+ * The frame hairlines are one box on the active composition: the xl frame is
+ * the 910px ink box (780px content + 64px bottom gap + 65px top gap including
+ * the 1px top line, plus 1px of centring slack), and the tablet frame is the
+ * 768x964 artboard. `--frame-line-top` / `--frame-line-height` in globals.css
+ * place all four lines on that box, so the corners meet and the lines never
+ * run to the raw viewport.
  */
-const frameGapStyle = {
-  "--frame-gap":
-    "clamp(0px, calc((100dvh / var(--fit) - 780px) / 2), var(--frame-gap-cap, 64px))",
-} as CSSProperties;
 
 /**
  * The home page layout, shared by / and /dev/prototype so both routes render
@@ -137,12 +129,11 @@ export function HomeLayout({
       <div
         data-home-frame=""
         className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-15"
-        style={frameGapStyle}
       >
-        {/* Vertical frame lines: 1px hairlines on the frame's edges. The 768
-            frame is 964 tall, so they run its full height; the xl frame is the
-            910px ink box centred in the viewport, so they follow that box
-            rather than the raw viewport (Figma 121:2009/121:2010). */}
+        {/* The four frame hairlines are one box on the composition's edges.
+            The 768 frame is 768x964; the xl frame is the 910px ink box centred
+            in the viewport (909px of line ink). The lines meet at the corners
+            instead of running to the raw viewport. */}
         <span
           aria-hidden="true"
           data-frame-line="v"
@@ -161,23 +152,22 @@ export function HomeLayout({
             height: "var(--frame-line-height)",
           }}
         />
+        <span
+          aria-hidden="true"
+          data-frame-line="h"
+          className="pointer-events-none absolute inset-x-0 hidden h-px bg-frame-line md:block"
+          style={{ top: "var(--frame-line-top)" }}
+        />
+        <span
+          aria-hidden="true"
+          data-frame-line="h"
+          className="pointer-events-none absolute inset-x-0 hidden h-px bg-frame-line md:block"
+          style={{
+            top: "calc(var(--frame-line-top) + var(--frame-line-height) - 1px)",
+          }}
+        />
 
         <div className="relative mx-auto my-auto flex w-full max-w-[1136px] flex-col gap-3">
-          {/* Frame lines: the 1200-wide hairlines sit 65px above and 64px
-              below the content column (Figma 121:2007/121:2008). */}
-          <span
-            aria-hidden="true"
-            data-frame-line="h"
-            className="pointer-events-none absolute -inset-x-8 hidden h-px bg-frame-line md:block"
-            style={{ top: "calc(var(--frame-gap) * -1 - 1px)" }}
-          />
-          <span
-            aria-hidden="true"
-            data-frame-line="h"
-            className="pointer-events-none absolute -inset-x-8 hidden h-px bg-frame-line md:block"
-            style={{ bottom: "var(--frame-line-bottom)" }}
-          />
-
           {/* Top band. The xl frame pairs the music card with the Play card
               (275 + 12 + 849 at 1440); the 768 frame pairs the dot-grid tracker
               with it (220 + 12 + 472). Both are 220/276 tall, so the visible

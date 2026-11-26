@@ -44,20 +44,25 @@ describe("HomeLayout", () => {
     const vertical = container.querySelector<HTMLElement>(
       '[data-frame-line="v"]',
     );
+    const horizontals = container.querySelectorAll<HTMLElement>(
+      '[data-frame-line="h"]',
+    );
 
     expect(frame).not.toBeNull();
-    // Viewport units inside a zoomed element are not zoomed, so the gap is
-    // computed against the viewport divided by the fit.
-    expect(frame?.style.getPropertyValue("--frame-gap")).toContain(
-      "100dvh / var(--fit)",
-    );
-    // The verticals span the composition's own line box, never inset-y-0 on
-    // the raw viewport.
+    // The four lines span the composition's own line box, never inset-y-0 on
+    // the raw viewport. The bottom line is the box's last pixel, so the
+    // corners meet the verticals.
     expect(vertical?.style.getPropertyValue("top")).toBe(
       "var(--frame-line-top)",
     );
     expect(vertical?.style.getPropertyValue("height")).toBe(
       "var(--frame-line-height)",
+    );
+    expect(horizontals[0]?.style.getPropertyValue("top")).toBe(
+      "var(--frame-line-top)",
+    );
+    expect(horizontals[1]?.style.getPropertyValue("top")).toBe(
+      "calc(var(--frame-line-top) + var(--frame-line-height) - 1px)",
     );
 
     const globals = readFileSync(
