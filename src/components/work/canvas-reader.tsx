@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BreathSettings } from "@/components/canvas/breathing";
+import { CanvasEdgeBlur } from "@/components/canvas/canvas-edge-blur";
 import { FocusViewer } from "@/components/canvas/focus-viewer";
 import type { HoverSettings } from "@/components/canvas/hover";
 import { InfiniteCanvas } from "@/components/canvas/infinite-canvas";
@@ -56,9 +57,12 @@ type ViewerState = {
 export function CanvasReader({
   meta,
   items,
+  edgeBlur = true,
 }: {
   meta: WorkMeta;
   items: CanvasItem[];
+  /** `?edgeblur=off`: the prototype's A/B view without the overlay. */
+  edgeBlur?: boolean;
 }) {
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const [viewerClosing, setViewerClosing] = useState(false);
@@ -159,6 +163,8 @@ export function CanvasReader({
           onIntroStart={markIntroStarted}
         />
       </div>
+
+      {edgeBlur ? <CanvasEdgeBlur /> : null}
 
       <div className="cv-reader__pill cv-reader__bottom-bar">
         <Breadcrumb title={meta.title} />

@@ -139,13 +139,13 @@ function renderViewerReader() {
   return reader;
 }
 
-function renderReader() {
+function renderReader({ edgeBlur }: { edgeBlur?: boolean } = {}) {
   const close = vi.fn();
   const stepBack = vi.fn();
 
   render(
     <DrawerActionsProvider close={close} stepBack={stepBack} exit={vi.fn()}>
-      <CanvasReader meta={meta} items={items} />
+      <CanvasReader meta={meta} items={items} edgeBlur={edgeBlur} />
     </DrawerActionsProvider>,
   );
 
@@ -344,5 +344,30 @@ describe("CanvasReader bottom bar stacking", () => {
     );
 
     expect(barZ).toBeGreaterThan(viewerZ);
+  });
+});
+
+describe("CanvasReader edge blur", () => {
+  it("renders the blur over the stage and under the bottom chrome", () => {
+    renderReader();
+
+    const reader = document.querySelector<HTMLElement>(".cv-reader");
+    const stage = reader?.querySelector(".cv-reader__stage");
+    const overlay = reader?.querySelector(".cv-edge-blur");
+    const bar = reader?.querySelector(".cv-reader__bottom-bar");
+
+    expect(stage).not.toBeNull();
+    expect(overlay).not.toBeNull();
+    expect(overlay?.querySelectorAll(".cv-edge-blur__band")).toHaveLength(6);
+    expect(overlay).toHaveAttribute("aria-hidden", "true");
+    expect(stage?.nextElementSibling).toBe(overlay);
+    expect(overlay?.nextElementSibling).toBe(bar);
+  });
+
+  it("omits the blur for the edgeblur=off A/B view", () => {
+    renderReader({ edgeBlur: false });
+
+    expect(document.querySelector(".cv-edge-blur")).toBeNull();
+    expect(document.querySelector(".cv-reader__stage")).not.toBeNull();
   });
 });

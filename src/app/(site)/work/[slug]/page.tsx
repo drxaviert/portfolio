@@ -35,8 +35,10 @@ export async function generateMetadata({
  */
 export default async function WorkPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { slug } = await params;
   const meta = getWork(slug);
@@ -44,13 +46,20 @@ export default async function WorkPage({
   if (!meta) notFound();
 
   if (meta.layout === "canvas") {
+    const query = await searchParams;
     const items: CanvasItem[] = CANVAS_MEDIA.map((entry, index) => ({
       key: `${entry.id}--${index}`,
       project: entry.project,
       media: getMedia(entry.id),
     }));
 
-    return <CanvasReader meta={meta} items={items} />;
+    return (
+      <CanvasReader
+        meta={meta}
+        items={items}
+        edgeBlur={query.edgeblur !== "off"}
+      />
+    );
   }
 
   const { default: Body } = await WORK_BODIES[meta.slug]();
