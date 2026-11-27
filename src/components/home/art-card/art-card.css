@@ -145,10 +145,15 @@
 
 /*
  * Before the WAAPI descent starts (the effect runs after the commit paints),
- * the strips wait above the slot: no one-frame flash of the end state.
+ * the strip chain waits above the slot, straight: no one-frame flash of the
+ * end state.
  */
 .art-card-painting-button[data-shred-phase="shredding"] .shred-strip {
-  transform: translate3d(0, -100%, 0) rotate(0deg);
+  transform: translate3d(0, -100%, 0);
+}
+
+.art-card-painting-button[data-shred-phase="shredding"] .shred-strip-segment {
+  transform: rotate(0deg);
 }
 
 .art-card-painting-button[data-shred-phase="shredded"] .art-card-canvas,
@@ -176,9 +181,7 @@
  * stays at z-index 60, above both.
  */
 .art-card:has(.art-card-painting-button:not([data-shred-phase="idle"])),
-.entrance-cell:has(
-    .art-card-painting-button:not([data-shred-phase="idle"])
-  ) {
+.entrance-cell:has(.art-card-painting-button:not([data-shred-phase="idle"])) {
   z-index: 2;
 }
 
@@ -703,6 +706,30 @@
   .art-card-painting-button[data-shred-phase="shredding"] .shred-strip,
   .art-card-painting-button[data-shred-phase="restoring"] .shred-strip {
     will-change: auto;
+  }
+
+  /*
+   * Crossfade both halves of the state. The intact canvas fades out in place
+   * and only jumps to the halfway position once it is invisible; on restore it
+   * jumps back while still invisible, then fades in. So no movement is ever
+   * seen, only the 150ms dissolve the reduced-motion contract allows.
+   */
+  .art-card-canvas {
+    transition:
+      opacity 150ms linear,
+      transform 1ms linear 150ms;
+  }
+
+  .art-card-painting-button[data-shred-phase="restoring"] .art-card-canvas {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+    transition:
+      opacity 150ms linear,
+      transform 1ms linear 0s;
+  }
+
+  .art-card-painting-button[data-shred-phase="shredded"] .art-card-canvas {
+    opacity: 0;
   }
 
   .painting-frame-shred {

@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DailyArt } from "@/lib/daily-art";
 import { ArtCard } from "./art-card";
 import { ArtImage, artImageSrc } from "./art-image";
+import { SHRED_SEGMENTS, shredStripMotion } from "./shred-strips";
 
 const TODAY = "2026-11-25";
 const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
@@ -206,6 +207,50 @@ describe("ArtCard", () => {
         .querySelector(".painting-frame-shred")
         ?.getAttribute("aria-hidden"),
     ).toBe("true");
+  });
+
+  it("builds each strip as a nested chain that curls outward", async () => {
+    const user = userEvent.setup();
+    const { container } = renderCard();
+
+    loadPainting(container);
+
+    await user.click(
+      screen.getByRole("button", { name: "Shred the painting" }),
+    );
+
+    await waitFor(() => {
+      expect(container.querySelectorAll(".shred-strip")).toHaveLength(18);
+    });
+
+    const strips = Array.from(container.querySelectorAll(".shred-strip"));
+
+    for (const strip of strips) {
+      const segments = strip.querySelectorAll(".shred-strip-segment");
+
+      // The strip root is the first segment of the chain.
+      expect(1 + segments.length).toBe(SHRED_SEGMENTS);
+    }
+
+    // Left-half strips curl left (positive rotation, tip swings left), the
+    // right half curls right, and the centre stays nearly straight.
+    const total = (strip: Element) =>
+      Array.from(strip.querySelectorAll(".shred-strip-segment")).reduce(
+        (sum, segment) =>
+          sum +
+          Number.parseFloat(
+            (segment as HTMLElement).style.getPropertyValue("--seg-rotate"),
+          ),
+        0,
+      );
+    const left = total(strips[0]);
+    const right = total(strips.at(-1) as Element);
+
+    expect(left).toBeGreaterThan(10);
+    expect(left).toBeLessThan(30);
+    expect(right).toBeLessThan(-10);
+    expect(right).toBeGreaterThan(-30);
+    expect(Math.abs(total(strips[9]))).toBeLessThan(3);
   });
 
   it("restores the painting on a second click and removes the strips", async () => {
@@ -511,5 +556,36 @@ describe("ArtCard", () => {
     expect(container.querySelector(".art-card")).not.toHaveAttribute(
       "data-spotlight",
     );
+  });
+});
+
+describe("shredStripMotion", () => {
+  it("slices the painting continuously down the segment chain", () => {
+    const [strip] = shredStripMotion(1, SHRED_SEGMENTS);
+    const positions = strip.segments.map((segment) =>
+      Number.parseFloat(segment.positionY),
+    );
+
+    expect(strip.segments).toHaveLength(SHRED_SEGMENTS);
+    expect(positions[0]).toBeGreaterThan(50);
+    expect(positions.at(-1)).toBe(100);
+
+    for (let index = 1; index < positions.length; index += 1) {
+      expect(positions[index]).toBeGreaterThan(positions[index - 1]);
+    }
+  });
+
+  it("keeps the root flush in the slot and grows the bend towards the tip", () => {
+    const strips = shredStripMotion(18, SHRED_SEGMENTS);
+
+    for (const strip of strips) {
+      expect(strip.segments[0].rotate).toBe("0.00deg");
+
+      const joints = strip.segments
+        .slice(1)
+        .map((segment) => Math.abs(Number.parseFloat(segment.rotate)));
+
+      expect(joints.at(-1)).toBeGreaterThan(joints[0]);
+    }
   });
 });

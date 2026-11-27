@@ -330,9 +330,7 @@
   position: absolute;
   top: 100%;
   left: calc(var(--shred-lip) - var(--shred-bleed));
-  width: calc(
-    100% - var(--shred-lip) * 2 + var(--shred-bleed) * 2
-  );
+  width: calc(100% - var(--shred-lip) * 2 + var(--shred-bleed) * 2);
   height: calc((100% - var(--shred-lip) * 2) / 2 + 12px);
   overflow: hidden;
   pointer-events: none;
@@ -346,18 +344,61 @@
   height: 100%;
 }
 
+/*
+ * Each strip is a chain of nested segments. The root is the top segment and
+ * stays flush in the slot; every child hangs off its parent's bottom edge and
+ * rotates a little around its own top, so the rotations accumulate into a
+ * curve. The 2px overlap at every joint hides the sub-pixel seam that two
+ * antialiased edges would otherwise leave.
+ *
+ * The image is continuous because every segment shows the same painting at
+ * `segmentCount * 200%` height and a `background-position-y` that selects its
+ * own slice. Segment 0's slice is the top of the visible ribbon, the last
+ * child's slice is the tip.
+ */
+/*
+ * The image layers are identical on the root and every child: the painting
+ * slice plus a static darkened gradient whose stops are handed down per
+ * segment, so the shading ramps continuously towards the tip.
+ */
+.shred-strip,
+.shred-strip-segment {
+  background-image:
+    linear-gradient(
+      to bottom,
+      rgb(0 0 0 / var(--seg-shade-from, 0)),
+      rgb(0 0 0 / var(--seg-shade-to, 0))
+    ),
+    var(--shred-src);
+  background-position:
+    0 0,
+    var(--strip-offset) var(--seg-position-y, 100%);
+  background-repeat: no-repeat;
+  background-size:
+    100% 100%,
+    calc(var(--shred-count, 18) * 100%) calc(var(--shred-segments, 6) * 200%);
+}
+
 .shred-strip {
   position: absolute;
   top: 0;
   left: calc(var(--strip-index) * 100% / var(--shred-count, 18));
   width: calc(100% / var(--shred-count, 18));
-  height: calc(100% - 12px);
+  height: calc((100% - 12px) / var(--shred-segments, 6));
   background-color: #16120e;
-  background-image: var(--shred-src);
-  background-position-x: var(--strip-offset);
-  background-position-y: 100%;
-  background-repeat: no-repeat;
-  background-size: calc(var(--shred-count, 18) * 100%) 200%;
-  transform: translate3d(var(--strip-sway), 0, 0) rotate(var(--strip-rotate));
+  transform: translate3d(var(--strip-sway), 0, 0);
+  transform-origin: top center;
+}
+
+.shred-strip-segment {
+  position: absolute;
+  top: calc(100% - 2px);
+  left: 0;
+  width: 100%;
+  height: 100%;
+  /* No background colour here: the parent's image sits behind the antialiased
+     joint, so the seam cannot darken. */
+  background-color: transparent;
+  transform: rotate(var(--seg-rotate, 0deg));
   transform-origin: top center;
 }

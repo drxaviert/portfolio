@@ -11,6 +11,7 @@ import { PaintingFrame } from "./painting-frame";
 import {
   ShredStrips,
   shredStripMotion,
+  type ShredSegmentMotion,
   type ShredStripMotion,
 } from "./shred-strips";
 import "./art-card.css";
@@ -98,28 +99,47 @@ function stripShredKeyframes(strip: ShredStripMotion): Keyframe[] {
   return [
     {
       offset: 0,
-      transform: "translate3d(0, -100%, 0) rotate(0deg)",
+      transform: "translate3d(0, -100%, 0)",
       easing: CATCH_DOWN_EASE,
     },
     {
       offset: CATCH_DOWN_AT,
-      transform: "translate3d(0, calc(-100% + 3px), 0) rotate(0deg)",
+      transform: "translate3d(0, calc(-100% + 3px), 0)",
       easing: CATCH_UP_EASE,
     },
     {
       offset: CATCH_END_AT,
-      transform: "translate3d(0, -100%, 0) rotate(0deg)",
+      transform: "translate3d(0, -100%, 0)",
       easing: DESCENT_EASE,
     },
     {
       offset: DESCENT_END_AT,
-      transform: `translate3d(${strip.sway}, 4px, 0) rotate(${strip.rotate})`,
+      transform: `translate3d(${strip.sway}, 4px, 0)`,
       easing: JAM_EASE,
     },
     {
       offset: 1,
-      transform: `translate3d(${strip.sway}, 0, 0) rotate(${strip.rotate})`,
+      transform: `translate3d(${strip.sway}, 0, 0)`,
     },
+  ];
+}
+
+/*
+ * Each joint curls in during the descent, so the ribbon straightens out of the
+ * slot and bends more and more as the strip emerges. The tip's joints carry
+ * the largest increments, which is what turns the accumulated rotation into a
+ * curve rather than one rigid rotation.
+ */
+function segmentShredKeyframes(segment: ShredSegmentMotion): Keyframe[] {
+  return [
+    { offset: 0, transform: "rotate(0deg)" },
+    { offset: CATCH_END_AT, transform: "rotate(0deg)", easing: DESCENT_EASE },
+    {
+      offset: DESCENT_END_AT,
+      transform: `rotate(${segment.rotate})`,
+      easing: JAM_EASE,
+    },
+    { offset: 1, transform: `rotate(${segment.rotate})` },
   ];
 }
 
@@ -127,15 +147,27 @@ function stripRestoreKeyframes(strip: ShredStripMotion): Keyframe[] {
   return [
     {
       offset: 0,
-      transform: `translate3d(${strip.sway}, 0, 0) rotate(${strip.rotate})`,
+      transform: `translate3d(${strip.sway}, 0, 0)`,
       easing: RESTORE_EASE,
     },
     {
       offset: 0.4,
-      transform: "translate3d(0, -40%, 0) rotate(0deg)",
+      transform: "translate3d(0, -40%, 0)",
       easing: "linear",
     },
-    { offset: 1, transform: "translate3d(0, -100%, 0) rotate(0deg)" },
+    { offset: 1, transform: "translate3d(0, -100%, 0)" },
+  ];
+}
+
+function segmentRestoreKeyframes(segment: ShredSegmentMotion): Keyframe[] {
+  return [
+    {
+      offset: 0,
+      transform: `rotate(${segment.rotate})`,
+      easing: RESTORE_EASE,
+    },
+    { offset: 0.4, transform: "rotate(0deg)", easing: "linear" },
+    { offset: 1, transform: "rotate(0deg)" },
   ];
 }
 
@@ -253,15 +285,35 @@ function ArtScene({ art, onOpen }: { art: DailyArt; onOpen: () => void }) {
         shredding ? canvasShredKeyframes() : canvasRestoreKeyframes(),
         timing,
       ),
-      ...strips.map((strip, index) =>
+    ];
+
+    strips.forEach((strip, index) => {
+      const model = models[index];
+
+      animations.push(
         strip.animate(
-          shredding
-            ? stripShredKeyframes(models[index])
-            : stripRestoreKeyframes(models[index]),
+          shredding ? stripShredKeyframes(model) : stripRestoreKeyframes(model),
           timing,
         ),
-      ),
-    ];
+      );
+
+      const segments = Array.from(
+        strip.querySelectorAll(".shred-strip-segment"),
+      ) as HTMLElement[];
+
+      segments.forEach((segment, segmentIndex) => {
+        const segmentModel = model.segments[segmentIndex + 1];
+
+        animations.push(
+          segment.animate(
+            shredding
+              ? segmentShredKeyframes(segmentModel)
+              : segmentRestoreKeyframes(segmentModel),
+            timing,
+          ),
+        );
+      });
+    });
 
     let cancelled = false;
 
