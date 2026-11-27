@@ -275,6 +275,10 @@ Cost (headless Chromium trace of one 1440x900 hover, three runs): layout 0.7 to 
 
 Reduced motion is unchanged: the reduced path above reveals the ring inside the card with no growth.
 
+- `src/components/home/art-card/art-card.tsx` — shred state machine, WAAPI keyframes and timings, finish/exit, printer feed
+- `src/components/home/art-card/shred-strips.tsx` — strip/segment geometry, curl and exit drift
+- `src/components/home/art-card/use-ribbon-sway.ts` — hover sway springs
+- `src/components/home/art-card/painting-frame.css` — shredder slot, strip and segment layout
 - `src/components/home/ring-hover.css` — `.ring-frame`, `.ring-surface` rest geometry and the `inset` transitions; hover, focus and reduced-motion rules
 - `src/components/home/home-cards.tsx` — `.ring-card` is now only a marker on the featured card
 - `src/components/home/ring-pointer.tsx:6` — the glow's pointer-follow variables
@@ -873,13 +877,55 @@ The top-right card is a standard ring host. No pointer spotlight and no tilt rem
 | Fine pointer over the card | ring glow `transform` | 1000ms (`--duration-long-4`, `--ring-follow`) | 0 | `cubic-bezier(0.16, 1, 0.3, 1)` (`--ease-spring-follow`) | follows the pointer's `--ring-mx` / `--ring-my` offset; the 614px glow is masked to the host |
 | Full view opens | dialog `opacity`, `transform` | 240ms (`--duration-medium-1`) | 0 | `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-emphasized-decelerate`) | opacity 0 + `translateY(10px)` → opacity 1 + `translateY(0)`; `animation-fill-mode: both` |
 | Full view opens | dialog backdrop `opacity` | 240ms (`--duration-medium-1`) | 0 | `linear` (`--ease-linear`) | 0 → 1; the `rgb(0 0 0 / 0.55)` fill and `blur(3px)` are static |
-| Full view closes | dialog and backdrop | 0ms | — | — | native `dialog.close()` plus unmount; there is no exit animation; focus returns to the frame button |
+| Full view closes | dialog and backdrop | 0ms | — | — | native `dialog.close()` plus unmount; there is no exit animation; focus returns to the "View full screen" button |
 | Close control hovered | `background-color` | 150ms (`--duration-short-3`) | 0 | `ease-out` (`--ease-decelerate`) | 88% `surface-container-low` → `surface-container-high` |
 | Close control pressed | `transform` | 150ms (`--duration-short-3`) | 0 | `ease-out` (`--ease-decelerate`) | `scale(1)` → `scale(0.94)` |
 
 The card has no spotlight, tilt, frame-button press scale or label motion. Its only hover motion is the shared ring above; its only press motion is the dialog close control.
 
 **Reduced motion.** The LQIP `transition` is removed, so the placeholder disappears on the loaded frame. The ring keeps the state change without growth: surface and frame snap to rest, frame `opacity` fades in 100ms (`--duration-short-1`) `linear`, and the glow fades in 250ms (`--duration-medium-2`) `linear` with no transform. The dialog open becomes `art-dialog-fade`, 150ms (`--duration-short-3`) `linear` `both`, opacity only; the backdrop animation is `none`; the close control has `transform: none` and `transition: none`. The dialog close is still immediate. Focus return and the native modal semantics are unchanged.
+
+### Painting click: shred (2026-11-27, pf-enl.14)
+
+The painting button is the shredder; the card around it opens the full view. State machine `idle → shredding → shredded → exiting → idle`; clicks during `shredding` and `exiting` are ignored, and the button is disabled until the image has loaded. All motion is WAAPI (`fill: both`) with the end state also in CSS (`[data-shred-phase]`), so a re-render or a cancelled animation cannot undo it. Everything is `transform` only. `SHRED_MS` = 120 + 2400 + 200 = 2720ms; the canvas and every strip track share one timeline and are as tall as the whole painting, so the ribbon below the rod is exactly the part that has passed through.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Painting click: catch | canvas + strip tracks `transform` | 120ms (`CATCH_MS`; 40ms down, 80ms back) | 0 | down `cubic-bezier(0.23, 1, 0.32, 1)`, back `cubic-bezier(0.55, 0, 1, 0.45)` | `translateY(0)` → `3px` → `0` (tracks: `-100%` → `calc(-100% + 3px)` → `-100%`) |
+| Painting click: catch | `.painting-frame` `transform` | 600ms per cycle × 4 cycles | 120ms | `linear` | juddering `0` → `1.5px` → `0` → `-1.5px` → `0` (`art-card-shake`) |
+| Painting click: descent | canvas `transform` | 2400ms (`DESCENT_MS`) | 120ms | `linear` (a motor, not a spring) | `0` → `calc(50% + 4px)` |
+| Painting click: descent | strip track `transform` | 2400ms | 120ms | `linear` | `-100%` → `calc(-50% + 4px)`; the slot clips the top only |
+| Painting click: descent | each segment's `rotate` | 2400ms | 120ms | `linear`, then the jam ease | `0deg` → its joint angle (curls in as the strip emerges) |
+| Painting click: jam | canvas, track | 200ms (`JAM_MS`) | 2520ms | `cubic-bezier(0.23, 1, 0.32, 1)` | rebound `calc(50% + 4px)` → `50%` (tracks `calc(-50% + 4px)` → `-50%`); the jam holds at 50% |
+
+**Ribbon geometry** (`shredStripMotion`, `shred-strips.tsx`). 18 strips (`SHRED_STRIP_COUNT`), each a chain of 24 nested segments (`SHRED_SEGMENTS`) that together cover the painting's height; every segment hangs off its parent's bottom edge (1px overlap hides the seam) and rotates around its own top, so the rotations accumulate into a curve. Only the lower 12 segments (11 joints) are below the slot when the shred jams, so only they bend and darken; the upper half stays straight and is what comes out when the shred finishes. Curl is outward: left-half strips swing left, right-half right, growing with distance from the centre, to `MAX_OUTWARD_BEND` 21deg at the outermost tip (weights `(joint + 1)^0.15`, about 2deg per joint) plus seeded jitter (±1.2deg total, ±0.08deg per joint). Static outward drift up to `MAX_OUTWARD_SWAY` 3px (±0.8px jitter). Tip shade up to `MAX_TIP_SHADE` 0.13 black, blended continuously per segment. The slot is `--shred-bleed` 24px wider than the window each side so outer strips can curl past the painting edge. Ribbons take pointer events only in `shredded`.
+
+**Hover sway** (`use-ribbon-sway.ts`). Off under reduced motion and on `(hover: none)`. Pointer speed is low-passed (`POINTER_TAU` 60ms, EMA) and fades with an 80ms time constant (`POINTER_FADE_TAU`) once 60ms (`POINTER_IDLE`) pass without events. It is applied as a gaussian-weighted force over time, never a per-event kick: `force = −FORCE × tanh(speed / 1500) × exp(−½((i − pointerStrip) / σ)²)`, with `FORCE` 1200deg/s² and `SIGMA` 1.75 strips.
+
+| Part | Setting |
+| --- | --- |
+| Root spring (each strip) | stiffness 32 (`STIFFNESS`), ±15% seeded variation, damping ratio 0.42; about 0.9Hz, settles in about 2s |
+| Lower joints | each follows its parent's angle with stiffness 420 at the first joint → 720 at the tip (`FOLLOW_STIFFNESS_ROOT/TIP`), damping ratio 0.75 (`FOLLOW_RATIO`), `TIP_GAIN` 1.4 spread over the joints, so the wave travels to the tip with a lag |
+| Integration | fixed 1/120s step, catch-up capped at 1/30s (frame-rate independent) |
+| Limits | root angle soft-clamped by tanh at 14deg (`MAX_ANGLE`) |
+| Settle | rAF runs only while there is energy (\|angle\| > 0.01deg or \|velocity\| > 0.1deg/s); then inline `rotate` is cleared and the CSS joint angles resume |
+
+It writes only the `rotate` property (strip root and each lower segment); no React state per frame.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Second click: finish | canvas + strip track `transform` | 1000ms (`FINISH_MS`) | 0 | 12% ramp `cubic-bezier(0.5, 0, 1, 1)` then `linear` | canvas `50%` → `53%` → `100%`; track `-50%` → `-47%` → `0` |
+| Second click: ribbons fall | `.shred-strips` `transform`, `opacity` | 650ms (`FALL_MS`) | 1000ms | `cubic-bezier(0.55, 0, 1, 0.45)` | `translateY(0)`, 1 → `translateY(140%)`, 0 |
+| Second click: ribbons fall | each strip `transform` | 650ms | 1000ms + 0–60ms stagger from the centre out | `cubic-bezier(0.55, 0, 1, 0.45)` | its sway → extra seeded drift (±8px) and tilt (±6deg) (`shredExitDrift`) |
+| Second click: fresh copy | `.art-card-fresh` `transform` | 3150ms (`PRINT_MS`) | 1000ms | `linear` steady feed + `cubic-bezier(0.2, 0, 0, 1)` lurch | `translateY(-100%)` → `0`, ends exactly at 0 |
+
+**Printer feed.** `printFeedKeyframes()` is 21 line feeds (`PRINT_STEP_MS` 150ms). Each step starts 1.5px behind the steady line (`PRINT_PULSE_PX`), lurches onto it over 30% of the step (45ms, `PRINT_PULSE_SHARE`), then follows the linear feed to the next step. The pulse is zero at every step boundary, so the feed never drifts. The fresh copy is the same cached 843w file, then swaps for the real image with no visible change. The exit takes 1000 + 3150 = 4150ms before `idle`.
+
+**Card click.** Clicking the card (anywhere outside the painting button, which calls `stopPropagation`) opens the same full-view dialog as above (240ms open, no close animation). The keyboard path is the "View full screen" button, visible on focus only, which also receives focus when the dialog closes. The painting has `cursor: pointer`.
+
+**Reduced motion.** No catch shake, descent, curl, sway, fall or printer feed. The click is a 150ms (`REDUCED_CROSSFADE_MS`) `linear` opacity crossfade: the intact canvas fades out in place and jumps to the halfway position (1ms transform, delayed 150ms) once invisible while the jammed ribbons fade in (`art-card-shred-fade-in`, 150ms); the second click fades the ribbons out (150ms) and the canvas jumps back while invisible and fades in; there is no fresh-copy element. A shred already running when the preference flips lands on `shredded` immediately.
+
+**Persistent `will-change: transform`.** While the phase is anything but `idle` (`shredded` included), the canvas, every strip track and every segment (18 × 24 = 432 segments, about 216 in the lower half) keep `will-change: transform` (commit 2458b76). Dropping the promotion when the descent ends makes Chrome re-rasterise the painting and ribbons at pixel-snapped positions: a visible pop of sharpness and a sub-pixel shift exactly as the jam settles, although every transform value is identical. The cost is memory (about 76MB at 2x DPR); a follow-up issue tracks limiting it to the swaying lower-half joints. Under reduced motion `will-change` is `auto` for the animated phases. While a shred is out the card also lifts to `z-index: 2` (and its entrance cell) so the hanging ribbons paint above the rows below; the nav dock stays at 60.
 
 - `src/components/home/art-card/art-card.css` — LQIP opacity, dialog open/backdrop, close-control hover/press, reduced-motion block
 - `src/components/home/art-card/art-card.tsx` — the dialog mounts only while open; the dialog close is native and unmounts

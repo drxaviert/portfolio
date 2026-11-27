@@ -15,6 +15,7 @@
   container-type: size;
   min-width: 0;
   min-height: 0;
+  cursor: zoom-in;
 }
 
 /*
@@ -65,20 +66,147 @@
   height: 100%;
 }
 
-.art-card-frame-button {
+/*
+ * The painting itself is the shredder. The card around it is the full-view
+ * target, so the painting stops the click and gets its own pointer affordance.
+ */
+.art-card-painting-button {
   display: block;
   flex: none;
   padding: 0;
   border: 0;
   border-radius: 4px;
   background: none;
-  cursor: zoom-in;
+  cursor: pointer;
   line-height: 0;
 }
 
-.art-card-frame-button:focus-visible {
+.art-card-painting-button:disabled {
+  cursor: default;
+}
+
+.art-card-painting-button:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 4px;
+}
+
+/*
+ * Keyboard only: hidden until focused, then it joins the label as a normal
+ * control. This is the focusable path to the dialog and the element focus
+ * returns to when the dialog closes.
+ */
+.art-card-fullscreen {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  background: none;
+  color: var(--on-surface);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.art-card-fullscreen:focus-visible {
+  position: static;
+  width: auto;
+  height: auto;
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 2px 0;
+  overflow: visible;
+  clip-path: none;
+  border-radius: 2px;
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+/* The intact painting layer; the window clips it while it descends. */
+.art-card-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/*
+ * Shred states. The end state lives in CSS, not in the finished WAAPI
+ * animation, so a re-render or a cancelled animation cannot undo it.
+ */
+.art-card-painting-button[data-shred-phase="shredding"] .art-card-canvas {
+  transform: translate3d(0, 0, 0);
+}
+
+/*
+ * Before the WAAPI descent starts (the effect runs after the commit paints),
+ * the strip chain waits above the slot, straight: no one-frame flash of the
+ * end state.
+ */
+.art-card-painting-button[data-shred-phase="shredding"] .shred-strip-track {
+  transform: translate3d(0, -100%, 0);
+}
+
+.art-card-painting-button[data-shred-phase="shredding"] .shred-strip-segment {
+  transform: rotate(0deg);
+}
+
+.art-card-painting-button[data-shred-phase="shredded"] .art-card-canvas,
+.art-card-painting-button[data-shred-phase="exiting"] .art-card-canvas {
+  transform: translate3d(0, 50%, 0);
+}
+
+/*
+ * Promoted for the whole life of the shred, `shredded` included. Dropping the
+ * layer when the descent ends re-rasterises the painting and the ribbons at
+ * pixel-snapped positions: a visible pop of sharpness and a sub-pixel shift
+ * exactly as the jam settles, though every transform value is identical.
+ */
+.art-card-painting-button:not([data-shred-phase="idle"]) .art-card-canvas,
+.art-card-painting-button:not([data-shred-phase="idle"]) .shred-strip-track,
+.art-card-painting-button:not([data-shred-phase="idle"]) .shred-strip-segment {
+  will-change: transform;
+}
+
+/* The whole frame judders while the canvas is pulled through the rod. */
+.art-card-painting-button[data-shred-phase="shredding"] .painting-frame {
+  animation: art-card-shake 600ms linear 120ms 4;
+}
+
+/*
+ * The shred hangs past the card, so while it is out the card must paint above
+ * the rows below. The article is already a stacking context (ring-host
+ * isolation); the entrance body can become one during the first 1.7s, which
+ * would trap the article's z-index, so the cell is lifted too. The nav dock
+ * stays at z-index 60, above both.
+ */
+.art-card:has(.art-card-painting-button:not([data-shred-phase="idle"])),
+.entrance-cell:has(.art-card-painting-button:not([data-shred-phase="idle"])) {
+  z-index: 2;
+}
+
+@keyframes art-card-shake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  25% {
+    transform: translate3d(0, 1.5px, 0);
+  }
+
+  50% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  75% {
+    transform: translate3d(0, -1.5px, 0);
+  }
 }
 
 .art-card-label {
@@ -571,6 +699,66 @@
   .art-dialog-close:active {
     transform: none;
     transition: none;
+  }
+
+  /* Shred becomes a 150ms opacity crossfade into the halfway state. */
+  .art-card-painting-button[data-shred-phase="shredding"] .painting-frame {
+    animation: none;
+  }
+
+  .art-card-painting-button[data-shred-phase="shredding"] .art-card-canvas,
+  .art-card-painting-button[data-shred-phase="exiting"] .art-card-canvas,
+  .art-card-painting-button[data-shred-phase="shredding"] .shred-strip-track,
+  .art-card-painting-button[data-shred-phase="exiting"] .shred-strip-track {
+    will-change: auto;
+  }
+
+  /*
+   * Crossfade both halves of the state. The intact canvas fades out in place
+   * and only jumps to the halfway position once it is invisible; on restore it
+   * jumps back while still invisible, then fades in. So no movement is ever
+   * seen, only the 150ms dissolve the reduced-motion contract allows.
+   */
+  .art-card-canvas {
+    transition:
+      opacity 150ms linear,
+      transform 1ms linear 150ms;
+  }
+
+  .art-card-painting-button[data-shred-phase="exiting"] .art-card-canvas {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+    transition:
+      opacity 150ms linear,
+      transform 1ms linear 0s;
+  }
+
+  .art-card-painting-button[data-shred-phase="shredded"] .art-card-canvas {
+    opacity: 0;
+  }
+
+  .painting-frame-shred {
+    animation: art-card-shred-fade-in 150ms linear both;
+  }
+
+  .art-card-painting-button[data-shred-phase="exiting"] .painting-frame-shred {
+    animation: art-card-shred-fade-out 150ms linear both;
+  }
+}
+
+@keyframes art-card-shred-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes art-card-shred-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
   }
 }
 

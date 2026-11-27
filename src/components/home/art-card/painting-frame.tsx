@@ -24,13 +24,16 @@ type PaintingFrameProps = {
   art: Pick<DailyArt, "width" | "height">;
   children: ReactNode;
   className?: string;
+  /** Decorative strips rendered in the shred slot below the frame. */
+  shred?: ReactNode;
 };
 
 export function PaintingFrame({
   art,
   children,
   className = "",
-}: PaintingFrameProps) {
+  shred,
+}:PaintingFrameProps) {
   const aspect =
     Number.isFinite(art.width) &&
     Number.isFinite(art.height) &&
@@ -47,6 +50,11 @@ export function PaintingFrame({
       <div className="painting-frame-mount">
         <div className="painting-frame-window">{children}</div>
       </div>
+      {shred ? (
+        <div className="painting-frame-shred" aria-hidden="true">
+          {shred}
+        </div>
+      ) : null}
     </div>
   );
 }

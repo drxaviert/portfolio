@@ -65,9 +65,12 @@ export function ArtImage({
     (image: HTMLImageElement | null) => {
       if (!image || !src || !mountedRef.current) return;
       if (image.getAttribute("src") !== src) return;
-      if (image.complete && image.naturalWidth > 0) setLoadedSrc(src);
+      if (image.complete && image.naturalWidth > 0) {
+        setLoadedSrc(src);
+        onAvailable?.(src);
+      }
     },
-    [src],
+    [src, onAvailable],
   );
 
   if (!src) return <FallbackPainting />;
