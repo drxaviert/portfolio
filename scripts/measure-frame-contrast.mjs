@@ -1,7 +1,7 @@
-/*
+﻿/*
  * Measures the daily-painting frame face against the card surface.
  *
- * Reads the era × phase matrix on /dev/art-card, screenshots each stage at
+ * Reads the sample × phase matrix on /dev/art-card, screenshots each stage at
  * device scale 2, and samples the outermost fully painted pixel along each
  * edge, every device pixel, skipping the rounded corners. The layout box can
  * land on a fraction, so the first fully painted pixel is ceil(edge); the
@@ -28,7 +28,13 @@ const DPR = 2;
 const THRESHOLD = 3;
 
 const PHASES = ["day", "dawn", "dusk", "night"];
-const ERAS = ["gilt-ornate", "gilt-carved", "walnut", "modern", "scroll"];
+const SAMPLES = [
+  "portrait-ornate",
+  "landscape-carved",
+  "square-walnut",
+  "scroll",
+  "fallback",
+];
 
 function srgbToLinear(channel) {
   const value = channel / 255;
@@ -119,7 +125,7 @@ const page = await browser.newPage({
   deviceScaleFactor: DPR,
 });
 
-// The matrix uses a CSS canvas placeholder, not the remote IIIF images.
+// The sampler only needs the frame face; abort images for speed.
 await page.route("**/*", (route) =>
   route.request().resourceType() === "image" ? route.abort() : route.continue(),
 );
@@ -130,10 +136,10 @@ await page.evaluate(() => document.fonts.ready);
 
 const results = [];
 
-for (const era of ERAS) {
+for (const sampleKey of SAMPLES) {
   for (const phase of PHASES) {
     const cell = page.locator(
-      `.art-lab-frame-cell[data-phase-cell="${phase}"][data-era-cell="${era}"]`,
+      `.art-lab-frame-cell[data-phase-cell="${phase}"][data-sample-cell="${sampleKey}"]`,
     );
     const stage = cell.locator(".art-lab-frame-stage");
     const frame = cell.locator(".painting-frame");
@@ -141,7 +147,7 @@ for (const era of ERAS) {
     const stageBox = await stage.boundingBox();
     const frameBox = await frame.boundingBox();
     if (!stageBox || !frameBox)
-      throw new Error(`missing box for ${era}/${phase}`);
+      throw new Error(`missing box for ${sampleKey}/${phase}`);
 
     const surface = parseRgb(
       await stage.evaluate(
@@ -149,7 +155,7 @@ for (const era of ERAS) {
       ),
     );
 
-    const shotPath = join(OUT_DIR, `${era}-${phase}.png`);
+    const shotPath = join(OUT_DIR, `${sampleKey}-${phase}.png`);
     const shot = await stage.screenshot({ animations: "disabled" });
     await writeFile(shotPath, shot);
     const image = await decode(shot);
@@ -169,7 +175,7 @@ for (const era of ERAS) {
     }
 
     results.push({
-      era,
+      sample: sampleKey,
       phase,
       surface,
       surfaceHex: hex(surface),
@@ -187,32 +193,32 @@ await browser.close();
 console.log(`\nSource: ${URL}`);
 console.log(`Stage screenshots: ${OUT_DIR}/\n`);
 
-const header = `| Era | ${PHASES.join(" | ")} |`;
+const header = `| Sample | ${PHASES.join(" | ")} |`;
 const divider = `| --- | ${PHASES.map(() => "---:").join(" | ")} |`;
 console.log(header);
 console.log(divider);
 
-for (const era of ERAS) {
+for (const sampleKey of SAMPLES) {
   const cells = PHASES.map((phase) => {
     const row = results.find(
-      (item) => item.era === era && item.phase === phase,
+      (item) => item.sample === sampleKey && item.phase === phase,
     );
     return `${row.worst.toFixed(2)}:1${row.pass ? "" : " ❌"}`;
   });
-  console.log(`| ${era} | ${cells.join(" | ")} |`);
+  console.log(`| ${sampleKey} | ${cells.join(" | ")} |`);
 }
 
 console.log("\nWorst face sample per cell:\n");
-console.log(`| Era | ${PHASES.join(" | ")} |`);
+console.log(`| Sample | ${PHASES.join(" | ")} |`);
 console.log(`| --- | ${PHASES.map(() => "---").join(" | ")} |`);
-for (const era of ERAS) {
+for (const sampleKey of SAMPLES) {
   const cells = PHASES.map((phase) => {
     const row = results.find(
-      (item) => item.era === era && item.phase === phase,
+      (item) => item.sample === sampleKey && item.phase === phase,
     );
     return `${row.worstHex} (${row.worstEdge} ${Math.round(row.worstAt * 100)}%)`;
   });
-  console.log(`| ${era} | ${cells.join(" | ")} |`);
+  console.log(`| ${sampleKey} | ${cells.join(" | ")} |`);
 }
 
 const failures = results.filter((row) => !row.pass);
@@ -223,7 +229,7 @@ if (failures.length > 0) {
   console.log("Failures:");
   for (const row of failures) {
     console.log(
-      `  ${row.era} / ${row.phase}: ${row.worst.toFixed(2)}:1 (${row.worstHex} vs ${row.surfaceHex})`,
+      `  ${row.sample} / ${row.phase}: ${row.worst.toFixed(2)}:1 (${row.worstHex} vs ${row.surfaceHex})`,
     );
   }
   process.exitCode = 1;

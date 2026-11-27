@@ -14,26 +14,9 @@ import { ART_DATA_VERSION, getTodaysArt } from "@/lib/daily-art";
  * exists on `/` alone: `/work*` composes HomeScreen from its own layout and
  * therefore gets no bands. Opening a study from here still covers both bands
  * with the drawer panel, which is what the bands' own comment promises.
- *
- * The frame lab and the ?art/?era/?phase/?frames overrides are development
- * only. The dev module is imported behind the NODE_ENV check, so neither its
- * code nor its CSS enters the production client graph; production renders the
- * cached card directly.
  */
 export default async function Home() {
   const art = await getTodaysArt(ART_DATA_VERSION);
-
-  if (process.env.NODE_ENV === "development") {
-    const { HomeArtCardDev } =
-      await import("@/components/home/art-card/home-art-card-dev");
-
-    return (
-      <>
-        <HomeScreen playCard={<HomeArtCardDev art={art} />} />
-        <ViewportEdgeBlur />
-      </>
-    );
-  }
 
   return (
     <>

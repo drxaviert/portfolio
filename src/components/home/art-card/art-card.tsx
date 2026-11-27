@@ -6,7 +6,6 @@ import { RingLayers } from "../ring-hover";
 import { ArtDialog } from "./art-dialog";
 import { ArtImage, artImageSrc } from "./art-image";
 import { PaintingFrame } from "./painting-frame";
-import type { FrameEra, FrameMount } from "./frame-style";
 import "./art-card.css";
 
 /**
@@ -23,15 +22,9 @@ import "./art-card.css";
 
 type ArtCardProps = {
   art: DailyArt;
-  /** Dev override: force a frame era without changing the artwork. */
-  era?: FrameEra;
-  /** Dev override: force the mount to match a forced era. */
-  mount?: FrameMount;
-  /** TEMPORARY pf-ut4: render the origin/main frame treatment. */
-  frames?: "current";
 };
 
-export function ArtCard({ art, era, mount, frames }: ArtCardProps) {
+export function ArtCard({ art }: ArtCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const closeDialog = useCallback(() => setDialogOpen(false), []);
 
@@ -43,26 +36,10 @@ export function ArtCard({ art, era, mount, frames }: ArtCardProps) {
       <RingLayers fill="bg-surface-container-low" />
 
       <div className="art-card-body">
-        <ArtScene
-          key={art.date}
-          art={art}
-          era={era}
-          mount={mount}
-          frames={frames}
-          onOpen={() => setDialogOpen(true)}
-        />
+        <ArtScene key={art.date} art={art} onOpen={() => setDialogOpen(true)} />
       </div>
 
-      {dialogOpen ? (
-        <ArtDialog
-          art={art}
-          era={era}
-          mount={mount}
-          frames={frames}
-          open
-          onClose={closeDialog}
-        />
-      ) : null}
+      {dialogOpen ? <ArtDialog art={art} open onClose={closeDialog} /> : null}
     </article>
   );
 }
@@ -71,19 +48,7 @@ export function ArtCard({ art, era, mount, frames }: ArtCardProps) {
  * One artwork's label + frame. The image-failure state lives here so a scene
  * remount starts clean; the card itself has no changing art to reset.
  */
-function ArtScene({
-  art,
-  era,
-  mount,
-  frames,
-  onOpen,
-}: {
-  art: DailyArt;
-  era?: FrameEra;
-  mount?: FrameMount;
-  frames?: "current";
-  onOpen: () => void;
-}) {
+function ArtScene({ art, onOpen }: { art: DailyArt; onOpen: () => void }) {
   const [failureSrc, setFailureSrc] = useState<string | null>(null);
   const imageSrc = art.imageId ? artImageSrc(art.imageId, "card") : null;
   const imageUnavailable = imageSrc !== null && failureSrc === imageSrc;
@@ -111,7 +76,7 @@ function ArtScene({
         aria-describedby={imageUnavailable ? noteId : undefined}
         onClick={onOpen}
       >
-        <PaintingFrame art={art} era={era} mount={mount} frames={frames}>
+        <PaintingFrame art={art}>
           <ArtImage
             art={art}
             onUnavailable={(src) => {

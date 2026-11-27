@@ -960,113 +960,84 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
 }
 
 /*
- * Painting-frame materials.
+ * Painting-frame material by phase.
  *
- * The card surface flips white (Day, Dawn, Dusk) to #191919 (Night), so a fixed
- * frame material cannot hold a 3:1 boundary in both modes: gilt and silk wash
- * out on white, while walnut and the black float disappear on night. Each era
- * therefore gets its own shade set per mode: deeper and richer on the light
- * surface, lighter and more luminous on the dark one. The gradient shape,
- * grain and proportions stay, so the frame is recognisably the same material;
- * only the colours move. The shades sit on the face itself, so the outer face
- * pixel does the contrast work and there is no keyline.
- *
- * Dawn and Dusk share Day's surface, so they share its shades. The bevel and
- * lift tokens flip direction with the surface: dark bevels on light, light
- * bevels on night, and one subtle elevation shadow in both.
+ * Dat picked the origin/main materials: the ornate gilt on the light surface
+ * (Day, Dawn, Dusk) and walnut at Night. The frame reads these phase-scoped
+ * tokens, so the whole frame swaps live with the existing phase toggle and a
+ * nested phase scope (the dev lab) gets the right material without knowing the
+ * artwork's era. The values are the exact origin/main painting-frame.css
+ * values for those two frames.
  */
 :root,
 [data-phase="day"],
 [data-phase="dawn"],
 [data-phase="dusk"] {
-  /* Pre-1700 ornate: dark antique gilt. */
-  --frame-ornate-deep: #3b2a0e;
-  --frame-ornate-mid: #6a4c1a;
-  --frame-ornate-light: #9b7330;
-  --frame-ornate-edge: #5a4216;
-
-  /* 1700-1880 carved: warm, deeper gilt. */
-  --frame-carved-deep: #4a320f;
-  --frame-carved-mid: #7d5a22;
-  --frame-carved-light: #9a6f2d;
-  --frame-carved-edge: #5f4418;
-
-  /* 1880-1945 walnut: deep red-brown. */
-  --frame-walnut-deep: #24130c;
-  --frame-walnut-mid: #50311f;
-  --frame-walnut-light: #6b432b;
-  --frame-walnut-edge: #2c1a10;
-
-  /* Post-1945 float: black, still the black float. */
-  --frame-modern-deep: #0a0a0a;
-  --frame-modern-mid: #1a1a1a;
-  --frame-modern-light: #2e2e2e;
-
-  /* Silk scroll: deep tea silk and dark walnut rollers. */
-  --frame-scroll-deep: #5e4a26;
-  --frame-scroll-mid: #8a6f3f;
-  --frame-scroll-light: #9c7f4a;
-  --frame-scroll-edge: #6d5730;
-  --frame-rod-deep: #2f1d0d;
-  --frame-rod-mid: #5b3c1c;
-  --frame-rod-light: #7b5730;
-
-  --frame-grain-ornate: rgb(255 244 205 / 0.16);
-  --frame-grain-carved: rgb(72 46 12 / 0.22);
-  --frame-grain-walnut: rgb(0 0 0 / 0.14);
-  --frame-grain-scroll: rgb(255 255 255 / 0.08);
-  --frame-rod-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
-
-  --frame-bevel-top: rgb(0 0 0 / 0.24);
-  --frame-bevel-bottom: rgb(0 0 0 / 0.38);
-  --frame-bevel-edge: rgb(60 44 20 / 0.4);
-  --frame-lift:
-    0 1px 2px rgb(0 0 0 / 0.14), 0 12px 24px -18px rgb(0 0 0 / 0.45);
+  --frame-edge: clamp(5px, 5.6cqh, 16px);
+  --frame-mount-pad: clamp(2px, 1.1cqh, 4px);
+  --frame-face:
+    repeating-linear-gradient(
+      90deg,
+      rgb(255 244 205 / 0.16) 0 1px,
+      transparent 1px 5px
+    ),
+    linear-gradient(
+      135deg,
+      #5a4117 0%,
+      #c79b48 12%,
+      #f3dfa4 21%,
+      #a97b32 38%,
+      #e9cf8d 55%,
+      #906823 72%,
+      #f0dca6 87%,
+      #5d4318 100%
+    );
+  --frame-face-shadow:
+    inset 0 1px 0 rgb(255 248 220 / 0.55), inset 0 -2px 3px rgb(45 27 6 / 0.55),
+    0 2px 2px rgb(0 0 0 / 0.22), 0 18px 30px -18px rgb(0 0 0 / 0.6);
+  --frame-lip: 2px solid rgb(255 239 186 / 0.42);
+  --frame-lip-shadow:
+    inset 0 0 0 2px rgb(77 49 10 / 0.5), 0 0 0 2px rgb(255 240 190 / 0.25);
+  --frame-mount: linear-gradient(
+    135deg,
+    #8c6525,
+    #f0dfae 26%,
+    #a27934 55%,
+    #e8d195 76%,
+    #6f4d19
+  );
+  --frame-mount-shadow: none;
+  --frame-window-outline: 1px solid rgb(43 27 8 / 0.9);
 }
 
 [data-phase="night"] {
-  /* Pre-1700 ornate: luminous antique gilt. */
-  --frame-ornate-deep: #b3863a;
-  --frame-ornate-mid: #d4b46e;
-  --frame-ornate-light: #f3dfa4;
-  --frame-ornate-edge: #c79b48;
-
-  /* 1700-1880 carved: luminous, softer gilt. */
-  --frame-carved-deep: #b08a44;
-  --frame-carved-mid: #d4b46e;
-  --frame-carved-light: #e8cf95;
-  --frame-carved-edge: #c09a56;
-
-  /* 1880-1945 walnut: lighter oak so the wood still reads. */
-  --frame-walnut-deep: #9a7852;
-  --frame-walnut-mid: #b08a62;
-  --frame-walnut-light: #c7a67c;
-  --frame-walnut-edge: #a8835a;
-
-  /* Post-1945 float: warm pewter instead of black. */
-  --frame-modern-deep: #8a8178;
-  --frame-modern-mid: #948b81;
-  --frame-modern-light: #a39a8f;
-
-  /* Silk scroll: luminous silk and lighter wood rollers. */
-  --frame-scroll-deep: #a48a55;
-  --frame-scroll-mid: #c9b785;
-  --frame-scroll-light: #e2d3a8;
-  --frame-scroll-edge: #b49d6a;
-  --frame-rod-deep: #9a7852;
-  --frame-rod-mid: #b08a62;
-  --frame-rod-light: #c7a67c;
-
-  --frame-grain-ornate: rgb(255 244 205 / 0.16);
-  --frame-grain-carved: rgb(255 244 205 / 0.14);
-  --frame-grain-walnut: rgb(255 255 255 / 0.1);
-  --frame-grain-scroll: rgb(255 255 255 / 0.08);
-  --frame-rod-shadow: 0 1px 2px rgb(0 0 0 / 0.18);
-
-  --frame-bevel-top: rgb(255 255 255 / 0.2);
-  --frame-bevel-bottom: rgb(255 255 255 / 0.14);
-  --frame-bevel-edge: rgb(255 244 222 / 0.22);
-  --frame-lift: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 24px -18px rgb(0 0 0 / 0.7);
+  --frame-edge: clamp(4px, 4.2cqh, 13px);
+  --frame-mount-pad: clamp(1px, 0.8cqh, 3px);
+  --frame-face:
+    repeating-linear-gradient(
+      92deg,
+      rgb(0 0 0 / 0.14) 0 1px,
+      transparent 1px 3.5px
+    ),
+    linear-gradient(
+      135deg,
+      #2d1c12,
+      #603e29 32%,
+      #40281a 58%,
+      #6d4830 80%,
+      #24150d
+    );
+  --frame-face-shadow:
+    inset 0 1px 0 rgb(255 231 190 / 0.18), inset 0 -2px 3px rgb(0 0 0 / 0.55),
+    0 2px 2px rgb(0 0 0 / 0.2), 0 14px 26px -18px rgb(0 0 0 / 0.55);
+  --frame-lip: 1px solid rgb(255 233 194 / 0.16);
+  --frame-lip-shadow:
+    inset 0 0 0 1px
+      color-mix(in oklab, var(--palette-neutral-800) 30%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--palette-neutral-800) 16%, transparent);
+  --frame-mount: #21150e;
+  --frame-mount-shadow: inset 0 0 0 1px rgb(176 138 74 / 0.65);
+  --frame-window-outline: none;
 }
 
 @theme inline {

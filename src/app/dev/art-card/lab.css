@@ -59,7 +59,7 @@
   border-top: 1px solid color-mix(in oklab, var(--on-surface) 10%, transparent);
 }
 
-/* Era frame × phase contrast matrix. One stage per cell, each a size
+/* Frame material × phase contrast matrix. One stage per cell, each a size
    container scoped to its own data-phase so all four token sets coexist. */
 .art-lab-matrix-scroll {
   max-width: 100%;
@@ -91,20 +91,20 @@
   text-transform: uppercase;
 }
 
-.art-lab-matrix-era {
+.art-lab-matrix-sample {
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 2px;
 }
 
-.art-lab-matrix-era-name {
+.art-lab-matrix-sample-name {
   color: var(--on-surface);
   font-size: var(--text-sm);
   font-weight: 500;
 }
 
-.art-lab-matrix-era-note {
+.art-lab-matrix-sample-note {
   color: var(--on-surface-variant);
   font-size: var(--text-xs);
 }
@@ -123,13 +123,6 @@
 .art-lab-frame-stage .painting-frame {
   --art-frame-share: 100cqw;
   --art-frame-inset: 0px;
-}
-
-.art-lab-frame-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #796d57, #403a30 70%);
 }
 
 .art-lab-caption {

@@ -4,7 +4,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { DailyArt } from "@/lib/daily-art";
 import { ArtImage, artImageSrc } from "./art-image";
 import { PaintingFrame } from "./painting-frame";
-import type { FrameEra, FrameMount } from "./frame-style";
 
 /**
  * Full view: a native modal <dialog>.
@@ -18,11 +17,6 @@ import type { FrameEra, FrameMount } from "./frame-style";
 
 type ArtDialogProps = {
   art: DailyArt;
-  /** Dev override: keep the forced frame era in the full view. */
-  era?: FrameEra;
-  mount?: FrameMount;
-  /** TEMPORARY pf-ut4: keep the comparison frame treatment in full view. */
-  frames?: "current";
   open: boolean;
   onClose: () => void;
 };
@@ -30,14 +24,7 @@ type ArtDialogProps = {
 const FOCUSABLE =
   'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function ArtDialog({
-  art,
-  era,
-  mount,
-  frames,
-  open,
-  onClose,
-}: ArtDialogProps) {
+export function ArtDialog({ art, open, onClose }: ArtDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const closingRef = useRef(false);
@@ -186,13 +173,7 @@ export function ArtDialog({
         </button>
 
         <div className="art-dialog-stage">
-          <PaintingFrame
-            art={art}
-            variant="full"
-            era={era}
-            mount={mount}
-            frames={frames}
-          >
+          <PaintingFrame art={art}>
             <ArtImage
               art={art}
               variant="full"
