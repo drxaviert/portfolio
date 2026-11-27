@@ -11,7 +11,7 @@ import type { SkyTuning } from "./cosmic-sky";
  * panel hydrates a saved value.
  */
 
-export const SKY_STORAGE_KEY = "horizon-sky-tuning:v1";
+export const SKY_STORAGE_KEY = "horizon-sky-tuning:v2";
 
 type Listener = () => void;
 

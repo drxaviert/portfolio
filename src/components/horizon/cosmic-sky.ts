@@ -65,7 +65,7 @@ export type SkyTuning = {
 };
 
 export const SKY_TUNING_DEFAULTS: SkyTuning = {
-  starDensity: 1,
+  starDensity: 3.5,
   starBrightness: 1,
   auroraOpacity: 1,
   auroraSpeed: 1,
@@ -78,7 +78,7 @@ export const SKY_TUNING_DEFAULTS: SkyTuning = {
 };
 
 export const SKY_TUNING_RANGES = {
-  starDensity: { min: 0, max: 2.5, step: 0.05 },
+  starDensity: { min: 0, max: 8, step: 0.1 },
   starBrightness: { min: 0, max: 2, step: 0.05 },
   auroraOpacity: { min: 0, max: 2, step: 0.05 },
   auroraSpeed: { min: 0.25, max: 2.5, step: 0.05 },
@@ -257,7 +257,7 @@ export function mulberry32(seed: number): () => number {
 }
 
 /** Largest pool; the live count takes the first N, so density changes fade stars in and out. */
-export const STAR_POOL_SIZE = 320;
+export const STAR_POOL_SIZE = 1400;
 /** One star per this many CSS px2 at density 1. */
 export const STAR_AREA_PER_STAR = 9000;
 

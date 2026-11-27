@@ -59,10 +59,10 @@ const RIBBONS: readonly {
   phase: number;
   weight: number;
 }[] = [
-  { color: [92, 222, 182], y: 0.3, height: 0.5, rate: 0.31, fold: 2.2, phase: 0.4, weight: 1 },
-  { color: [104, 172, 252], y: 0.4, height: 0.46, rate: 0.42, fold: 2.9, phase: 2.1, weight: 0.9 },
-  { color: [168, 140, 248], y: 0.34, height: 0.42, rate: 0.36, fold: 3.4, phase: 4.0, weight: 0.8 },
-  { color: [252, 158, 204], y: 0.46, height: 0.34, rate: 0.5, fold: 2.5, phase: 5.3, weight: 0.5 },
+  { color: [92, 222, 182], y: -0.18, height: 0.85, rate: 0.31, fold: 2.2, phase: 0.4, weight: 1 },
+  { color: [104, 172, 252], y: -0.12, height: 0.8, rate: 0.42, fold: 2.9, phase: 2.1, weight: 0.9 },
+  { color: [168, 140, 248], y: -0.2, height: 0.75, rate: 0.36, fold: 3.4, phase: 4.0, weight: 0.8 },
+  { color: [252, 158, 204], y: -0.08, height: 0.65, rate: 0.5, fold: 2.5, phase: 5.3, weight: 0.5 },
 ];
 
 const STAR_COLORS: readonly Rgb[] = [
@@ -90,7 +90,7 @@ function makeSprite(color: Rgb): HTMLCanvasElement {
 
   for (let i = 0; i < 64; i += 1) {
     const v = i / 63;
-    const alpha = smooth(0, 0.7, v) * (1 - smooth(0.7, 1, v));
+    const alpha = smooth(0, 0.4, v) * (1 - smooth(0.5, 1, v));
 
     context.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha.toFixed(4)})`;
     context.fillRect(0, i, 1, 1);

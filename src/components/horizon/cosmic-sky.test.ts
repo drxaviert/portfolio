@@ -142,7 +142,7 @@ describe("settings", () => {
       JSON.stringify({ starDensity: 99, phaseOverride: "dusk", gainMid: "x" }),
     );
 
-    expect(parsed.starDensity).toBe(2.5);
+    expect(parsed.starDensity).toBe(8);
     expect(parsed.phaseOverride).toBe("dusk");
     expect(parsed.gainMid).toBe(SKY_TUNING_DEFAULTS.gainMid);
   });
