@@ -7,7 +7,7 @@ import "./viewport-edge-blur.css";
  * to it. Two fixed bands, blur only (no surface tint) so the horizon glow keeps
  * its colour, and never in the way of the pointer.
  *
- * Mounted by `/` itself (app/page.tsx), not by the root layout or this
+ * Mounted by `/` itself (app/(site)/page.tsx), not by the root layout or this
  * component's own pathname check: `/work*` builds its homepage from its own
  * layout, so a study's direct load renders the page without these bands. A
  * study opened from `/` has the drawer panel over them, which covers the bands

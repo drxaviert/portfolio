@@ -23,7 +23,7 @@ vi.mock("next/navigation", () => ({
 
 // Vitest has no MDX transform; the body is a placeholder here. The page test
 // checks the article's wiring, not the compiled prose.
-vi.mock("../../../../content/work/systems-in-motion.mdx", () => ({
+vi.mock("../../../../../content/work/systems-in-motion.mdx", () => ({
   default: () => <p>Case-study body</p>,
 }));
 
@@ -76,7 +76,7 @@ describe("work page", () => {
   it("is content only: the drawer's layout owns the panel and the homepage", async () => {
     await renderStudy();
 
-    // Both belong to app/work/layout.tsx, so the page is just the article and a
+    // Both belong to app/(site)/work/layout.tsx, so the page is just the article and a
     // study-to-study step swaps it inside the same open drawer.
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(document.querySelector("[data-work-card]")).not.toBeInTheDocument();
