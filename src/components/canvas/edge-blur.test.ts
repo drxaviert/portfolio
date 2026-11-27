@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   EDGE_BLUR,
+  EDGE_MASK,
+  EDGE_MASK_GLSL,
   edgeBlurDepthPx,
   edgeBlurMask,
   edgeBlurRadiusPx,
@@ -31,6 +33,20 @@ describe("edgeBlurRadiusPx", () => {
 
   it("is zero for a missing device scale", () => {
     expect(edgeBlurRadiusPx(16, 0)).toBe(0);
+  });
+});
+
+describe("EDGE_MASK_GLSL parity", () => {
+  it("is built from the same epsilon edgeBlurMask() uses", () => {
+    expect(EDGE_MASK_GLSL).toContain(
+      `max(depth, vec2(${EDGE_MASK.depthEpsilon.toFixed(6)}))`,
+    );
+    expect(EDGE_MASK_GLSL).toContain("edge * edge * (3.0 - 2.0 * edge)");
+  });
+
+  it("treats a zero depth as a sharp band, like the GLSL epsilon floor", () => {
+    expect(edgeBlurMask(0.5, 0.5, 0, 0)).toBe(0);
+    expect(edgeBlurMask(0, 0.5, 0, 0)).toBe(1);
   });
 });
 
