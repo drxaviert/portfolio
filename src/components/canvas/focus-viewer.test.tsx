@@ -134,8 +134,8 @@ describe("FocusViewer open wait", () => {
   });
 });
 
-describe("FocusViewer caption anchor", () => {
-  it("publishes the fit width for CSS and leaves the caption free of an inline top", () => {
+describe("FocusViewer caption placement", () => {
+  it("leaves the caption free of inline geometry, so CSS owns its centre", () => {
     const { container } = render(
       <FocusViewer
         items={[item]}
@@ -144,17 +144,14 @@ describe("FocusViewer caption anchor", () => {
         onClosed={() => undefined}
       />,
     );
-    const stage = container.querySelector(
-      ".cv-viewer__stage",
-    ) as HTMLElement | null;
     const caption = container.querySelector(
       ".cv-viewer__caption",
     ) as HTMLElement | null;
 
-    expect(stage?.style.getPropertyValue("--cv-viewer-frame-width")).not.toBe(
-      "",
-    );
     expect(caption?.style.top).toBe("");
+    expect(caption?.style.left).toBe("");
+    expect(caption?.style.bottom).toBe("");
+    expect(caption?.style.transform).toBe("");
   });
 });
 
