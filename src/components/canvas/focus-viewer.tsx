@@ -809,6 +809,7 @@ export function FocusViewer({
   );
   const label = media.caption || media.alt || "Media viewer";
   const chromeVisible = !pending && (reduce || ready);
+  const captionIn = open && !closing && (reduce || ready);
 
   return (
     <div
@@ -907,10 +908,6 @@ export function FocusViewer({
             }}
             transition={{
               duration: closing ? 0.15 : reduce ? 0 : 0.18,
-              delay:
-                closing || !chromeVisible || reduce
-                  ? 0
-                  : TRANSITION.captionDelayMs / 1000,
               ease: "easeOut",
             }}
           >
@@ -920,14 +917,18 @@ export function FocusViewer({
           <p
             className="cv-viewer__caption"
             style={{
-              opacity: closing ? 0 : chromeVisible ? 1 : 0,
-              transitionProperty: "opacity",
-              transitionDuration: reduce ? "0ms" : `${closing ? 150 : 180}ms`,
+              // The WebGL open owns this branch. The chip rides it: it starts
+              // with the grow and lands with the tile, so it ignores the
+              // `pending` gate that holds the close button back.
+              opacity: captionIn ? 1 : 0,
+              translate: captionIn || reduce ? "0 0" : "0 6px",
+              transitionProperty: "opacity, translate",
+              transitionDuration: reduce
+                ? "0ms"
+                : `${closing ? TRANSITION.closeCaptionMs : TRANSITION.growMs}ms`,
               transitionTimingFunction: "var(--ease-decelerate)",
               transitionDelay:
-                closing || !chromeVisible || reduce
-                  ? "0ms"
-                  : `${TRANSITION.captionDelayMs}ms`,
+                closing || reduce ? "0ms" : `${TRANSITION.growDelayMs}ms`,
             }}
           >
             {projectLabel(item.project)}
