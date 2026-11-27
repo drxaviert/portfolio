@@ -5,9 +5,11 @@ import type { CSSProperties, Ref } from "react";
 export const SHRED_STRIP_COUNT = 18;
 /**
  * Segments per strip, including the strip root. Together they are the whole
- * painting's height: segment `s` shows the `s`-th eighth of the image.
+ * painting's height: segment `s` shows the `s`-th slice of the image. The
+ * lower half carries the curl, so a full curl of ~22deg over 11 joints leaves
+ * about 2deg per joint: too small to read as a kink, even at 2x DPR.
  */
-export const SHRED_SEGMENTS = 8;
+export const SHRED_SEGMENTS = 24;
 
 export type ShredSegmentMotion = {
   /** The segment's slice of the painting, as a background-position-y percentage. */
@@ -64,7 +66,7 @@ export function shredStripMotion(
   const half = Math.floor(segmentCount / 2);
   const joints = Math.max(1, segmentCount - half - 1);
   const weights = Array.from({ length: joints }, (_, joint) =>
-    Math.pow(joint + 1, 1.35),
+    Math.pow(joint + 1, 0.15),
   );
   const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
   const lower = Math.max(1, segmentCount - half);
@@ -82,7 +84,7 @@ export function shredStripMotion(
         joint < 0
           ? 0
           : (bend * weights[joint]) / weightSum +
-            (seeded(index, 10 + joint) * 2 - 1) * 0.22;
+            (seeded(index, 10 + joint) * 2 - 1) * 0.08;
 
       return {
         positionY: `${((segment / Math.max(1, segmentCount - 1)) * 100).toFixed(3)}%`,

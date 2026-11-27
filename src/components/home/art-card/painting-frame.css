@@ -404,14 +404,14 @@
   background-repeat: no-repeat;
   background-size:
     100% 100%,
-    calc(var(--shred-count, 18) * 100%) calc(var(--shred-segments, 8) * 100%);
+    calc(var(--shred-count, 18) * 100%) calc(var(--shred-segments, 24) * 100%);
   transform: rotate(var(--seg-rotate, 0deg));
   transform-origin: top center;
 }
 
 .shred-strip-segment[data-root] {
   top: 0;
-  height: calc(100% / var(--shred-segments, 8));
+  height: calc(100% / var(--shred-segments, 24));
   background-color: #16120e;
 }
 

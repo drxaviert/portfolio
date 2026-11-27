@@ -50,7 +50,14 @@ const SHRED_MS = CATCH_MS + DESCENT_MS + JAM_MS;
 const FINISH_MS = 1000;
 const FINISH_RAMP_AT = 0.12;
 const FALL_MS = 650;
-const FRESH_MS = 700;
+/** The fresh painting is "printed" in: an even feed with a line-feed pulse every step. */
+export const PRINT_MS = 3150;
+export const PRINT_STEP_MS = 150;
+/** Each line feed lurches this far past the steady feed, then the feed lags back. */
+const PRINT_PULSE_PX = 1.5;
+/** The lurch takes this share of a step; the rest is the steady, slightly slower feed. */
+const PRINT_PULSE_SHARE = 0.3;
+const PRINT_LURCH_EASE = "cubic-bezier(0.2, 0, 0, 1)";
 const REDUCED_CROSSFADE_MS = 150;
 
 const CATCH_DOWN_EASE = "cubic-bezier(0.23, 1, 0.32, 1)";
@@ -58,7 +65,6 @@ const CATCH_UP_EASE = "cubic-bezier(0.55, 0, 1, 0.45)";
 const JAM_EASE = "cubic-bezier(0.23, 1, 0.32, 1)";
 const FINISH_RAMP_EASE = "cubic-bezier(0.5, 0, 1, 1)";
 const FALL_EASE = "cubic-bezier(0.55, 0, 1, 0.45)";
-const FRESH_EASE = "cubic-bezier(0.23, 1, 0.32, 1)";
 
 /*
  * One timeline: a short catch judder, the long mechanical descent (linear, a
@@ -182,6 +188,38 @@ function stripFallKeyframes(strip: ShredStripMotion): Keyframe[] {
       transform: `translate3d(calc(${strip.sway} + ${drift.drift.toFixed(2)}px), 0, 0) rotate(${drift.rotate.toFixed(2)}deg)`,
     },
   ];
+}
+
+/*
+ * The printer feed: the fresh copy moves from -100% to 0 at a steady speed, and
+ * every PRINT_STEP_MS a line feed pulls it PRINT_PULSE_PX ahead of the steady
+ * line, after which it lags back, so it reads as a mechanism, not an ease. The
+ * pulse is zero at every step boundary, so the feed never drifts from the
+ * steady line, and it ends exactly at 0. Transform only.
+ */
+export function printFeedKeyframes(): Keyframe[] {
+  const steps = Math.round(PRINT_MS / PRINT_STEP_MS);
+  const at = (progress: number, px: number) =>
+    `translate3d(0, calc(${(-100 + 100 * progress).toFixed(4)}% + ${px}px), 0)`;
+  const frames: Keyframe[] = [];
+
+  for (let step = 0; step < steps; step += 1) {
+    const start = step / steps;
+    const lurch = start + PRINT_PULSE_SHARE / steps;
+
+    frames.push(
+      {
+        offset: start,
+        transform: at(start, -PRINT_PULSE_PX),
+        easing: PRINT_LURCH_EASE,
+      },
+      { offset: lurch, transform: at(lurch, 0), easing: "linear" },
+    );
+  }
+
+  frames.push({ offset: 1, transform: at(1, 0) });
+
+  return frames;
 }
 
 export function ArtCard({ art }: ArtCardProps) {
@@ -361,11 +399,8 @@ function ArtScene({ art, onOpen }: { art: DailyArt; onOpen: () => void }) {
       if (fresh) {
         animations.push(
           fresh.animate(
-            [
-              { transform: "translate3d(0, -100%, 0)" },
-              { transform: "translate3d(0, 0, 0)" },
-            ],
-            timing(FRESH_MS, FRESH_EASE, FINISH_MS),
+            printFeedKeyframes(),
+            timing(PRINT_MS, "linear", FINISH_MS),
           ),
         );
       }

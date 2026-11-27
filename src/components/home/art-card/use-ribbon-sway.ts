@@ -23,11 +23,15 @@ const FORCE = 1200;
 const SIGMA = 1.75;
 /** Soft ceiling for any written angle (deg). */
 const MAX_ANGLE = 14;
-/** Lower joints chase their parent's angle: stiffer, lighter, slightly larger. */
-const LOWER_SEGMENTS = 3;
-const FOLLOW_STIFFNESS = [60, 78, 96];
-const FOLLOW_RATIO = 0.5;
-const FOLLOW_GAIN = 1.12;
+/**
+ * Lower joints chase their parent's angle: stiffer toward the tip, slightly
+ * larger each. The tip ends up at TIP_GAIN x the root angle, spread over every
+ * joint of the lower half so each one bends by only a degree or so.
+ */
+const FOLLOW_STIFFNESS_ROOT = 420;
+const FOLLOW_STIFFNESS_TIP = 720;
+const FOLLOW_RATIO = 0.75;
+const TIP_GAIN = 1.4;
 const REST_ANGLE = 0.01;
 const REST_SPEED = 0.1;
 
@@ -62,14 +66,25 @@ export function useRibbonSway(
 
     const strips = Array.from(layer.children) as HTMLElement[];
     const count = strips.length;
-    const lower = strips.map((strip) =>
+    const chains = strips.map((strip) =>
       Array.from(
         strip.querySelectorAll<HTMLElement>(
           ".shred-strip-segment:not([data-root])",
         ),
-      ).slice(-LOWER_SEGMENTS),
+      ),
     );
-    const joints = LOWER_SEGMENTS + 1;
+    // Every joint of the lower half sways; the upper half is above the slot.
+    const lowerCount = Math.max(1, Math.floor((chains[0]?.length ?? 0) / 2));
+    const lower = chains.map((chain) => chain.slice(-lowerCount));
+    const joints = lowerCount + 1;
+    const followGain = Math.pow(TIP_GAIN, 1 / lowerCount);
+    const followK = Array.from(
+      { length: lowerCount },
+      (_, j) =>
+        FOLLOW_STIFFNESS_ROOT +
+        ((FOLLOW_STIFFNESS_TIP - FOLLOW_STIFFNESS_ROOT) * j) /
+          Math.max(1, lowerCount - 1),
+    );
     /** Absolute angle and velocity per strip joint (0 = strip root). */
     const angle = new Float32Array(count * joints);
     const velocity = new Float32Array(count * joints);
@@ -135,8 +150,8 @@ export function useRibbonSway(
         angle[base] += velocity[base] * seconds;
 
         for (let j = 1; j < joints; j += 1) {
-          const own = FOLLOW_STIFFNESS[j - 1] * (rootK[i] / STIFFNESS);
-          const target = angle[base + j - 1] * FOLLOW_GAIN;
+          const own = followK[j - 1] * (rootK[i] / STIFFNESS);
+          const target = angle[base + j - 1] * followGain;
           const at = base + j;
 
           velocity[at] +=

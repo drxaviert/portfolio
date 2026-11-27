@@ -11,6 +11,11 @@ import type { DailyArt } from "@/lib/daily-art";
 import { ArtCard } from "./art-card";
 import { ArtImage, artImageSrc } from "./art-image";
 import { SHRED_SEGMENTS, shredStripMotion } from "./shred-strips";
+import {
+  PRINT_MS,
+  PRINT_STEP_MS,
+  printFeedKeyframes,
+} from "./art-card";
 
 const TODAY = "2026-11-25";
 const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
@@ -266,8 +271,11 @@ describe("ArtCard", () => {
     const resolvers: Array<() => void> = [];
     let animateCalls = 0;
 
-    vi.spyOn(Element.prototype, "animate").mockImplementation(() => {
+    const animateOptions: KeyframeAnimationOptions[] = [];
+
+    vi.spyOn(Element.prototype, "animate").mockImplementation((_k, options) => {
       animateCalls += 1;
+      animateOptions.push(options as KeyframeAnimationOptions);
 
       return {
         finished: new Promise<void>((resolve) => resolvers.push(resolve)),
@@ -293,6 +301,7 @@ describe("ArtCard", () => {
     expect(painting).toHaveAccessibleName("Finish the shred");
 
     animateCalls = 0;
+    animateOptions.length = 0;
     await user.click(painting);
 
     expect(painting).toHaveAttribute("data-shred-phase", "exiting");
@@ -300,6 +309,12 @@ describe("ArtCard", () => {
     expect(container.querySelectorAll(".shred-strip")).toHaveLength(18);
     // Canvas + tracks + 18 strip falls + strips layer + fresh copy.
     expect(animateCalls).toBe(1 + 18 + 18 + 1 + 1);
+    // The fresh copy prints in slowly, starting as the ribbons fall.
+    const fresh = animateOptions.find((o) => o.duration === PRINT_MS);
+    const fall = animateOptions.find((o) => o.duration !== PRINT_MS && o.delay === 1000);
+
+    expect(fresh).toMatchObject({ easing: "linear", delay: 1000 });
+    expect(fall?.delay).toBe(fresh?.delay);
 
     // Clicks during the exit are ignored.
     fireEvent.click(painting);
@@ -725,6 +740,55 @@ describe("shredStripMotion", () => {
         .map((segment) => Math.abs(Number.parseFloat(segment.rotate)));
 
       expect(joints.at(-1)).toBeGreaterThan(joints[0]);
+    }
+  });
+  it("keeps every joint under 2.5deg so the ribbons read as smooth curves", () => {
+    for (const strip of shredStripMotion(18, SHRED_SEGMENTS)) {
+      for (const segment of strip.segments) {
+        expect(Math.abs(Number.parseFloat(segment.rotate))).toBeLessThan(2.5);
+      }
+    }
+  });
+});
+
+describe("printFeedKeyframes", () => {
+  const offsetOf = (transform: unknown) =>
+    Number.parseFloat(
+      (/calc\((-?[\d.]+)%/.exec(String(transform)) as RegExpExecArray)[1],
+    );
+
+  it("feeds linearly from fully above the window to exactly 0", () => {
+    const frames = printFeedKeyframes();
+
+    expect(PRINT_MS).toBeGreaterThanOrEqual(3000);
+    expect(PRINT_MS).toBeLessThanOrEqual(3500);
+    expect(frames[0].offset).toBe(0);
+    expect(offsetOf(frames[0].transform)).toBe(-100);
+    expect(frames.at(-1)?.offset).toBe(1);
+    expect(frames.at(-1)?.transform).toBe(
+      "translate3d(0, calc(0.0000% + 0px), 0)",
+    );
+
+    const positions = frames.map((f) => offsetOf(f.transform));
+
+    positions.forEach((p, i) => {
+      if (i > 0) expect(p).toBeGreaterThan(positions[i - 1]);
+    });
+  });
+
+  it("pulses a line feed every step with transform only", () => {
+    const frames = printFeedKeyframes();
+
+    // Two keyframes per step (lag, lurch) plus the final rest.
+    expect(frames).toHaveLength((PRINT_MS / PRINT_STEP_MS) * 2 + 1);
+    expect(PRINT_STEP_MS).toBeGreaterThanOrEqual(120);
+    expect(PRINT_STEP_MS).toBeLessThanOrEqual(180);
+
+    for (const frame of frames) {
+      expect(Object.keys(frame).sort()).toEqual(
+        expect.arrayContaining(["offset", "transform"]),
+      );
+      expect(frame).not.toHaveProperty("top");
     }
   });
 });
