@@ -65,8 +65,8 @@ describe("listening tuning", () => {
     expect(effective.breathePeriod).toBe(6);
     expect(effective.intensityAmp).toBe(0.5);
     expect(effective.inDuration).toBe(0);
-    expect(effective.edgeBlurMax).toBe(8);
-    expect(effective.edgeBlurHeight).toBe(172);
+    expect(effective.edgeBlurMax).toBe(32);
+    expect(effective.edgeBlurHeight).toBe(400);
   });
 
   it("keeps the idle 6s breathe speed while listening", () => {
@@ -189,8 +189,8 @@ describe("listening tuning", () => {
     expect(snippet).toContain("blobScale: 1.8,");
     expect(snippet).toContain("blobLift: 12.6,");
     expect(snippet).toContain("blurScale: 1.5,");
-    expect(snippet).toContain("edgeBlurMax: 8,");
-    expect(snippet).toContain("edgeBlurHeight: 172,");
+    expect(snippet).toContain("edgeBlurMax: 32,");
+    expect(snippet).toContain("edgeBlurHeight: 400,");
     expect(snippet).toContain("inDuration: 3.5,");
   });
 

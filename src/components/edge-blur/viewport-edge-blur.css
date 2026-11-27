@@ -2,9 +2,16 @@
  * Progressive blur at the viewport's top and bottom edges, on the homepage.
  * Each band renders a BlurStack with no surface tint: only the blur is
  * painted, so the horizon glow behind it keeps its colour. Height and peak
- * blur are root tokens (globals.css, next to the reader's nav geometry), and
- * the ramp is pure CSS — no scroll listener, nothing measured, nothing
- * animated.
+ * blur are root tokens (globals.css, next to the reader's nav geometry).
+ *
+ * Listening is a real ramp of the blur radius and band height, not an opacity
+ * crossfade. Chrome gives a `backdrop-filter` inside an opacity group an empty
+ * backdrop: every band paints nothing while the group's opacity is between 0
+ * and 1, then the full blur appears in one frame when opacity reaches 1. The
+ * computed opacity transition looked correct (0.32 at 1s, 0.85 at 2s) but the
+ * visual ramp stayed flat for 3.5s and popped at the end. Registering the two
+ * frame properties as `<length>` lets the browser interpolate them, and the
+ * bands' `backdrop-filter` follows the interpolated value on every frame.
  *
  * Layer: z-index 40. Above the content and the entrance veil (10), below the
  * reader layer (50, drawer-shell.css) and the nav dock (60, nav-dock.css). The
@@ -12,12 +19,31 @@
  * study's panel covers both bands instead of stacking under them.
  */
 
+@property --edge-blur-frame-max {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 8px;
+}
+
+@property --edge-blur-frame-height {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 172px;
+}
+
 .wd-edge-blur {
   position: fixed;
   inset-inline: 0;
   z-index: 40;
-  height: var(--edge-blur-height, 172px);
+  /* The two values the ramp drives. Idle is the root token, which already
+     clamps to the empty content margin; listening overrides them below. */
+  --edge-blur-frame-max: var(--edge-blur-max, 8px);
+  --edge-blur-frame-height: var(--edge-blur-height, 172px);
+  height: var(--edge-blur-frame-height, 172px);
   pointer-events: none;
+  transition:
+    --edge-blur-frame-max 1200ms var(--ease-calm),
+    --edge-blur-frame-height 1200ms var(--ease-calm);
 }
 
 .wd-edge-blur--top {
@@ -28,90 +54,65 @@
   bottom: 0;
   /* Reaches through the home-indicator strip on iOS. */
   height: calc(
-    var(--edge-blur-height, 172px) + env(safe-area-inset-bottom, 0px)
+    var(--edge-blur-frame-height, 172px) + env(safe-area-inset-bottom, 0px)
   );
 }
 
 /*
- * Listening stack: its radii and height are static, pre-set from the tuner.
- * The idle stack keeps the root tokens, so the default 8/172 is unchanged.
- * The height still stops at --edge-blur-margin: the band may only cover the
- * empty content margin, never a card or text.
+ * Listening target: the tuned peak (scaled by the same --edge-blur-fit as the
+ * idle peak) and the tuned height, clamped to the empty content margin so the
+ * band can never cover a card or text. The base rule owns the 1.2s out; this
+ * override owns the 3.5s in. A CSS transition retargets from the current
+ * computed value, so pausing mid-ramp reverses with no jump.
  */
-.wd-edge-blur[data-edge-stack="listen"] {
-  --edge-blur-max: calc(
+:root[data-listening="true"] .wd-edge-blur {
+  --edge-blur-frame-max: calc(
     var(--edge-blur-tune-max, 8px) * var(--edge-blur-fit, 1)
   );
-  --edge-blur-height: min(
+  --edge-blur-frame-height: min(
     var(--edge-blur-tune-height, 172px),
     var(--edge-blur-margin, 172px)
   );
-}
-
-/*
- * Two-stack crossfade: only opacity moves. The idle stack is the current look;
- * the listening stack is the tuned target. The in/out durations match the
- * shader's listening ramp; the reduced-motion media query collapses both to
- * the same 400ms standard crossfade.
- */
-.wd-edge-blur[data-edge-stack="idle"] {
-  opacity: 1;
-  transition: opacity 1200ms var(--ease-calm);
-}
-
-.wd-edge-blur[data-edge-stack="listen"] {
-  opacity: 0;
-  transition: opacity 1200ms var(--ease-calm);
-}
-
-:root[data-listening="true"] .wd-edge-blur[data-edge-stack="idle"] {
-  opacity: 0;
-  transition-duration: 3500ms;
-}
-
-:root[data-listening="true"] .wd-edge-blur[data-edge-stack="listen"] {
-  opacity: 1;
   transition-duration: 3500ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wd-edge-blur[data-edge-stack="idle"],
-  .wd-edge-blur[data-edge-stack="listen"],
-  :root[data-listening="true"] .wd-edge-blur[data-edge-stack="idle"],
-  :root[data-listening="true"] .wd-edge-blur[data-edge-stack="listen"] {
+  .wd-edge-blur,
+  :root[data-listening="true"] .wd-edge-blur {
     transition-duration: 400ms;
     transition-timing-function: var(--ease-standard);
   }
 }
 
 /*
- * A shallower ramp than the reader's: 0.5/1/2/4/6/8px at --edge-blur-max: 8px,
- * weakest first, so each band blurs the result of the one under it. The last
- * mask lands on transparent at the band's inner edge, so the blur reaches zero
- * with no seam where the band stops.
+ * A shallower ramp than the reader's: 0.5/1/2/4/6/8px at 8px, weakest first,
+ * so each band blurs the result of the one under it. The last mask lands on
+ * transparent at the band's inner edge, so the blur reaches zero with no seam
+ * where the band stops. Every band reads the interpolated peak, so the whole
+ * ramp follows one curve.
  */
 .wd-edge-blur .wd-blur-band:nth-child(1) {
-  --wd-band-blur: calc(var(--edge-blur-max, 8px) * 0.0625);
+  --wd-band-blur: calc(var(--edge-blur-frame-max, 8px) * 0.0625);
 }
 
 .wd-edge-blur .wd-blur-band:nth-child(2) {
-  --wd-band-blur: calc(var(--edge-blur-max, 8px) * 0.125);
+  --wd-band-blur: calc(var(--edge-blur-frame-max, 8px) * 0.125);
 }
 
 .wd-edge-blur .wd-blur-band:nth-child(3) {
-  --wd-band-blur: calc(var(--edge-blur-max, 8px) * 0.25);
+  --wd-band-blur: calc(var(--edge-blur-frame-max, 8px) * 0.25);
 }
 
 .wd-edge-blur .wd-blur-band:nth-child(4) {
-  --wd-band-blur: calc(var(--edge-blur-max, 8px) * 0.5);
+  --wd-band-blur: calc(var(--edge-blur-frame-max, 8px) * 0.5);
 }
 
 .wd-edge-blur .wd-blur-band:nth-child(5) {
-  --wd-band-blur: calc(var(--edge-blur-max, 8px) * 0.75);
+  --wd-band-blur: calc(var(--edge-blur-frame-max, 8px) * 0.75);
 }
 
 .wd-edge-blur .wd-blur-band:nth-child(6) {
-  --wd-band-blur: var(--edge-blur-max, 8px);
+  --wd-band-blur: var(--edge-blur-frame-max, 8px);
 }
 
 /* Without backdrop-filter the bands would be invisible anyway; drop the boxes

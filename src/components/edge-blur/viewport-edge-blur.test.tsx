@@ -4,30 +4,22 @@ import { BlurStack } from "@/components/work/blur-stack";
 import { ViewportEdgeBlur } from "./viewport-edge-blur";
 
 describe("ViewportEdgeBlur", () => {
-  it("renders an idle and a listening stack at each viewport edge", () => {
+  it("renders one decorative band at each viewport edge", () => {
     const { container } = render(<ViewportEdgeBlur />);
     const boxes = Array.from(
       container.querySelectorAll<HTMLElement>(".wd-edge-blur"),
     );
 
-    expect(boxes).toHaveLength(4);
-    expect(boxes.map((box) => box.dataset.edgeStack)).toEqual([
-      "idle",
-      "listen",
-      "idle",
-      "listen",
-    ]);
+    expect(boxes).toHaveLength(2);
     expect(boxes[0]).toHaveClass("wd-edge-blur--top");
-    expect(boxes[1]).toHaveClass("wd-edge-blur--top");
-    expect(boxes[2]).toHaveClass("wd-edge-blur--bottom");
-    expect(boxes[3]).toHaveClass("wd-edge-blur--bottom");
-    expect(container.querySelectorAll(".wd-blur-band")).toHaveLength(24);
+    expect(boxes[1]).toHaveClass("wd-edge-blur--bottom");
+    expect(container.querySelectorAll(".wd-blur-band")).toHaveLength(12);
     for (const box of boxes) {
       expect(box).toHaveAttribute("aria-hidden", "true");
     }
   });
 
-  it("paints blur only, mirrors the bottom edge, and pre-styles the listen stack", () => {
+  it("paints blur only, mirrors the bottom edge, and carries the listening target", () => {
     const { container } = render(<ViewportEdgeBlur />);
     const stacks = Array.from(
       container.querySelectorAll<HTMLElement>(".wd-blur-stack"),
@@ -38,18 +30,17 @@ describe("ViewportEdgeBlur", () => {
       expect(stack.style.height).toBe("");
     }
     expect(stacks[0]).not.toHaveAttribute("data-edge");
-    expect(stacks[1]).not.toHaveAttribute("data-edge");
-    expect(stacks[2]).toHaveAttribute("data-edge", "bottom");
-    expect(stacks[3]).toHaveAttribute("data-edge", "bottom");
+    expect(stacks[1]).toHaveAttribute("data-edge", "bottom");
 
     const boxes = Array.from(
       container.querySelectorAll<HTMLElement>(".wd-edge-blur"),
     );
-    expect(boxes[1].style.getPropertyValue("--edge-blur-tune-max")).toBe("8px");
-    expect(boxes[1].style.getPropertyValue("--edge-blur-tune-height")).toBe(
-      "172px",
-    );
-    expect(boxes[3].style.getPropertyValue("--edge-blur-tune-max")).toBe("8px");
+    for (const box of boxes) {
+      expect(box.style.getPropertyValue("--edge-blur-tune-max")).toBe("32px");
+      expect(box.style.getPropertyValue("--edge-blur-tune-height")).toBe(
+        "400px",
+      );
+    }
   });
 });
 

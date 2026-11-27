@@ -1,7 +1,6 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import type { HorizonListeningTuning } from "@/components/horizon/horizon-background";
 import { HORIZON_HOME_LISTENING } from "@/components/horizon/horizon-preset";
 import { useLiveListeningTuning } from "@/components/horizon/listening-tuning";
 import { BlurStack } from "@/components/work/blur-stack";
@@ -10,17 +9,18 @@ import "./viewport-edge-blur.css";
 /**
  * The labs-style progressive blur at the viewport's top and bottom edges, on
  * the homepage: content scrolling under an edge blurs more the closer it gets
- * to it. Two fixed bands per edge, blur only (no surface tint) so the horizon
+ * to it. One fixed band per edge, blur only (no surface tint) so the horizon
  * glow keeps its colour, and never in the way of the pointer.
  *
- * Two static stacks per edge, not one animated stack. The listening state
- * crossfades the tuned stack over the idle one with opacity only: changing a
- * backdrop-filter radius every frame across six bands measured 18.3ms frames
- * (50 of 273 over 16ms) on a 165Hz display, while the two static stacks stay
- * compositor-only. The idle stack is the current look; the listening stack is
- * pre-styled from the tuner (or the shipping preset) and the two opacities
- * trade places over the same 3.5s/1.2s listening ramp. Reduced motion uses the
- * 400ms crossfade.
+ * The listening ramp drives the blur radius and band height directly, as
+ * registered `<length>` custom properties (viewport-edge-blur.css). It cannot
+ * be an opacity crossfade between an idle and a listening stack: a
+ * `backdrop-filter` inside an opacity group has an empty backdrop in Chrome,
+ * so the listening bands paint nothing for the whole transition and the full
+ * blur pops in on the frame opacity reaches 1. Interpolating the radius keeps
+ * the six band filters re-evaluated on the same 3.5s/1.2s curve as the
+ * horizon, and a CSS transition reverses from the current value mid-ramp.
+ * Reduced motion uses the 400ms standard transition.
  *
  * Mounted by `/` itself (app/(site)/page.tsx), not by the root layout or this
  * component's own pathname check: `/work*` builds its homepage from its own
@@ -33,29 +33,22 @@ import "./viewport-edge-blur.css";
  */
 
 type Edge = "top" | "bottom";
-type StackKind = "idle" | "listen";
 
 function EdgeBlurStack({
   edge,
-  kind,
   tuning,
 }: {
   edge: Edge;
-  kind: StackKind;
-  tuning?: HorizonListeningTuning;
+  tuning: { edgeBlurMax: number; edgeBlurHeight: number };
 }) {
-  const style =
-    kind === "listen" && tuning
-      ? ({
-          "--edge-blur-tune-max": `${tuning.edgeBlurMax}px`,
-          "--edge-blur-tune-height": `${tuning.edgeBlurHeight}px`,
-        } as CSSProperties)
-      : undefined;
+  const style = {
+    "--edge-blur-tune-max": `${tuning.edgeBlurMax}px`,
+    "--edge-blur-tune-height": `${tuning.edgeBlurHeight}px`,
+  } as CSSProperties;
 
   return (
     <div
       className={`wd-edge-blur wd-edge-blur--${edge}`}
-      data-edge-stack={kind}
       style={style}
       aria-hidden="true"
     >
@@ -65,16 +58,14 @@ function EdgeBlurStack({
 }
 
 export function ViewportEdgeBlur() {
-  // Null in production/no tuner: the shipping preset is the current 8/172.
+  // Null in production/no tuner: the shipping preset is the listening target.
   const live = useLiveListeningTuning();
   const tuning = live ?? HORIZON_HOME_LISTENING;
 
   return (
     <>
-      <EdgeBlurStack edge="top" kind="idle" />
-      <EdgeBlurStack edge="top" kind="listen" tuning={tuning} />
-      <EdgeBlurStack edge="bottom" kind="idle" />
-      <EdgeBlurStack edge="bottom" kind="listen" tuning={tuning} />
+      <EdgeBlurStack edge="top" tuning={tuning} />
+      <EdgeBlurStack edge="bottom" tuning={tuning} />
     </>
   );
 }
