@@ -17,7 +17,14 @@ export const SKY_PHASES: readonly SkyPhase[] = [
   "night",
 ];
 
-export type SkyStrengths = { stars: number; aurora: number };
+export type SkyStrengths = {
+  stars: number;
+  aurora: number;
+  /** Extra star brightness for a light sky; 1 when omitted. */
+  starGain?: number;
+  /** How far the aurora tokens are washed toward white, 0..1; the layer default when omitted. */
+  wash?: number;
+};
 
 /**
  * How strong each layer is per phase. Night is stars, day is aurora; dusk
@@ -26,9 +33,9 @@ export type SkyStrengths = { stars: number; aurora: number };
  */
 export const SKY_PHASE_PRESET: Record<SkyPhase, SkyStrengths> = {
   night: { stars: 1, aurora: 0 },
-  dusk: { stars: 0.6, aurora: 0 },
+  dusk: { stars: 0.9, aurora: 1.5, starGain: 1.8, wash: 0 },
   dawn: { stars: 0, aurora: 0.6 },
-  day: { stars: 0, aurora: 1 },
+  day: { stars: 0, aurora: 0.7, wash: 0.66 },
 };
 
 export function parsePhase(value: string | null | undefined): SkyPhase {

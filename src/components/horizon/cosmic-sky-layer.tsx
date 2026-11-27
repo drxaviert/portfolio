@@ -101,7 +101,7 @@ const mixRgb = (a: Rgb, b: Rgb, t: number): Rgb => [
 /** How far the phase colours are washed toward white, so they read pastel. */
 const PASTEL = 0.45;
 
-const pastel = (c: Rgb): Rgb => mixRgb(c, [255, 255, 255], PASTEL);
+const pastel = (c: Rgb, wash: number): Rgb => mixRgb(c, [255, 255, 255], wash);
 
 let probe: CanvasRenderingContext2D | null = null;
 
@@ -133,7 +133,7 @@ function toRgb(value: string): Rgb | null {
  * Nothing is copied here, so a token edit carries through. Washed toward white
  * so day stays bright.
  */
-function readPalette(): readonly Colors[] | null {
+function readPalette(wash: number): readonly Colors[] | null {
   const style = getComputedStyle(document.documentElement);
   const read = (name: string) => toRgb(style.getPropertyValue(name));
   const a = read("--orb-1") ?? read("--horizon-1");
@@ -141,7 +141,7 @@ function readPalette(): readonly Colors[] | null {
 
   if (!a || !b) return null;
 
-  const [pa, pb] = [pastel(a), pastel(b)];
+  const [pa, pb] = [pastel(a, wash), pastel(b, wash)];
 
   return [
     { base: pa, mid: mixRgb(pa, pb, 0.5), top: pb },
@@ -488,7 +488,7 @@ export function CosmicSky() {
       const key = `${html.dataset.phase ?? ""}`;
 
       if (key !== paletteKey || curtainSprites.length === 0) {
-        const palette = readPalette();
+        const palette = readPalette(target.wash ?? PASTEL);
 
         if (palette) {
           curtainSprites = palette.map(makeCurtainSprite);
@@ -512,7 +512,7 @@ export function CosmicSky() {
       const t = reduced ? REDUCED_T : clock;
       const bands = reduced ? null : audioBands.getBands();
       const react = bands ? mapBands(bands, tuning) : REST_REACTIVITY;
-      const starAlpha = stars;
+      const starAlpha = stars * (target.starGain ?? 1);
       const auroraAlpha = aurora;
 
       if (starAlpha > 0.003) {
