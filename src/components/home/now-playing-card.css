@@ -12,12 +12,13 @@
  * shadow or halo (the shared .player-orb-button carries the gradient, glyph,
  * press and focus states).
  *
- * The Paper card is 275×276 with 12px padding. The body is 251×252; the art
- * takes the height left by the 16px timebar row, the scaled control row and
- * two 8px gaps. Container units are used on the body's children, never on the
- * body's own gap, because a container cannot query itself. All card text is DS
- * classes (text-xs / md:text-sm, normal or semibold, tabular-nums); no free cqw
- * or px type sizes.
+ * The Paper card is 275×276 with 12px padding; the 768 tablet frame keeps the
+ * same card at 220×220. The body is 251×252 at the xl size; the art takes the
+ * height left by the 16px timebar row, the scaled control row and two 8px gaps.
+ * Container units are used on the body's children, never on the body's own gap,
+ * because a container cannot query itself. All card text is DS classes
+ * (text-xs / md:text-sm, normal or semibold, tabular-nums); no free cqw or px
+ * type sizes.
  */
 
 .now-playing-card {

@@ -85,10 +85,29 @@ describe("HomeLayout", () => {
     expect(globals).toMatch(
       /--frame-line-v-height:\s*calc\(100dvh \/ var\(--home-fit\)\)/,
     );
-    expect(globals).toMatch(/--frame-line-v-top:\s*calc\(\(100% - 100dvh \/ var\(--home-fit\)\) \/ 2\)/);
+    expect(globals).toMatch(
+      /--frame-line-v-top:\s*calc\(\(100% - 100dvh \/ var\(--home-fit\)\) \/ 2\)/,
+    );
     expect(desktop).toMatch(
       /\[data-home-frame\]\s*\{[^}]*zoom:\s*var\(--home-fit\);/,
     );
+  });
+
+  it("keeps the now-playing card in the top band at every width", () => {
+    render(<HomeLayout items={[]} />);
+
+    const player = screen.getByRole("group", { name: "Now playing" });
+
+    // The breakpoints resize the one card (160 / 220 / 275x276); none of them
+    // swaps the slot to the tracker.
+    expect(player).toHaveClass(
+      "md:size-[220px]",
+      "xl:h-[276px]",
+      "xl:w-[275px]",
+    );
+    expect(
+      screen.queryByRole("img", { name: /Contribution tracker/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders a supplied Play card slot instead of the empty shell", () => {

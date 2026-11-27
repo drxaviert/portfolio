@@ -11,7 +11,6 @@ import { EMPTY_WORK_LABEL } from "./empty-work";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
 import { NowPlayingCard } from "./now-playing-card";
-import { TrackerWidget } from "./tracker-widget";
 import { RingHoverPointer } from "./ring-pointer";
 import "./ring-hover.css";
 
@@ -32,10 +31,10 @@ import "./ring-hover.css";
  * around this component and nothing else.
  *
  * Mirrors the final Figma frames (Day 121:2003, Night 121:3243): a 1200-wide
- * frame with 1px hairlines, a tracker card plus the Play card shell, the
+ * frame with 1px hairlines, the now-playing card plus the Play card shell, the
  * 753/180/83/84 main band and the nav bar. From 768 to 1279 the 768 frame
  * (Home / Dawn / 768) replaces it: a 768x964 portrait frame with a 220px top
- * band (the dot-grid tracker), a 444/120/52/52 band and the same nav.
+ * band (the now-playing card at 220), a 444/120/52/52 band and the same nav.
  *
  * Hover is the promoted "Ring + nav bar" language: every card and the nav bar
  * is one ring surface that grows into its own box and is lit by a glow in the
@@ -171,10 +170,10 @@ export function HomeLayout({
         />
 
         <div className="relative mx-auto my-auto flex w-full max-w-[1136px] flex-col gap-3">
-          {/* Top band. The xl frame pairs the music card with the Play card
-              (275 + 12 + 849 at 1440); the 768 frame pairs the dot-grid tracker
-              with it (220 + 12 + 472). Both are 220/276 tall, so the visible
-              card drives the row. */}
+          {/* Top band. The xl frame pairs the now-playing card with the Play
+              card (275 + 12 + 849 at 1440); the 768 frame pairs the same card
+              at 220 with it (220 + 12 + 472). Both are 220/276 tall, so the
+              visible card drives the row. */}
           <div className="flex gap-3">
             <EntranceCell
               variant={entrance}
@@ -182,12 +181,7 @@ export function HomeLayout({
               row={1}
               className="shrink-0"
             >
-              <div className="hidden shrink-0 max-md:block xl:block">
-                <NowPlayingCard />
-              </div>
-              <div className="hidden shrink-0 md:block xl:hidden">
-                <TrackerWidget />
-              </div>
+              <NowPlayingCard />
             </EntranceCell>
             <EntranceCell
               variant={entrance}
