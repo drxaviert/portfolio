@@ -7,7 +7,6 @@ import {
   STAR_POOL_SIZE,
   edgeSoften,
   createStarPool,
-  easeCalm,
   edgeBlurAt,
   mapBands,
   maskGradient,
@@ -16,7 +15,6 @@ import {
   parseSkyTuning,
   resolvePhase,
   starCount,
-  stepRamp,
   twinkle,
 } from "./cosmic-sky";
 
@@ -66,29 +64,6 @@ describe("band mapping", () => {
     const reacted = mapBands({ ...zero, high: 0.05 }, SKY_TUNING_DEFAULTS);
 
     expect(reacted.shimmer).toBeCloseTo(0.15);
-  });
-});
-
-describe("listening ramp", () => {
-  it("takes 3.5s in and 1.2s out, and reverses from where it is", () => {
-    expect(stepRamp(0, true, 3.5, 3.5, 1.2)).toBe(1);
-    expect(stepRamp(1, false, 1.2, 3.5, 1.2)).toBe(0);
-    expect(stepRamp(0.5, false, 0.6, 3.5, 1.2)).toBeCloseTo(0, 5);
-    expect(stepRamp(0.5, true, 0.1, 3.5, 1.2)).toBeGreaterThan(0.5);
-  });
-
-  it("eases monotonically between 0 and 1", () => {
-    let previous = 0;
-
-    for (let i = 1; i <= 20; i += 1) {
-      const value = easeCalm(i / 20);
-
-      expect(value).toBeGreaterThanOrEqual(previous);
-      previous = value;
-    }
-
-    expect(easeCalm(0)).toBeCloseTo(0, 5);
-    expect(easeCalm(1)).toBeCloseTo(1, 3);
   });
 });
 

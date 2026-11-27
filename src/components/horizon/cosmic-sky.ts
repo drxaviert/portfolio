@@ -187,49 +187,6 @@ export const REST_REACTIVITY: SkyReactivity = {
   shimmer: 0,
 };
 
-/** cubic-bezier(0.4, 0, 0.2, 1), the --ease-calm the listening swell uses. */
-export function easeCalm(t: number): number {
-  const x = clamp(t, 0, 1);
-  const [x1, y1, x2, y2] = [0.4, 0, 0.2, 1];
-  const axis = (a: number, b: number, s: number) =>
-    3 * a * (1 - s) * (1 - s) * s + 3 * b * (1 - s) * s * s + s * s * s;
-  let lo = 0;
-  let hi = 1;
-
-  for (let i = 0; i < 18; i += 1) {
-    const mid = (lo + hi) / 2;
-
-    if (axis(x1, x2, mid) < x) lo = mid;
-    else hi = mid;
-  }
-
-  return axis(y1, y2, (lo + hi) / 2);
-}
-
-/**
- * Move the listening progress toward its target at the preset's durations.
- * Progress is linear in time, so a reversal mid-swell retargets from where it
- * is with no jump; the eased value is what drives the picture.
- */
-export function stepRamp(
-  progress: number,
-  listening: boolean,
-  dt: number,
-  inDuration: number,
-  outDuration: number,
-): number {
-  const rate = listening ? 1 / inDuration : -1 / outDuration;
-
-  return clamp(progress + rate * dt, 0, 1);
-}
-
-/** Same timings as the horizon listening swell (motion.md). */
-export const SKY_RAMP = {
-  inDuration: 3.5,
-  outDuration: 1.2,
-  reducedDuration: 0.4,
-};
-
 export type Star = {
   /** 0..1 across the layer; scaled by the layer's size, so a resize never re-seeds. */
   x: number;

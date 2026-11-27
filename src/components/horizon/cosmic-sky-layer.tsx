@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { audioBands } from "@/components/player/audio-bands";
+import { HORIZON_HOME_LISTENING } from "./horizon-preset";
 import {
   REST_REACTIVITY,
   SKY_PHASE_PRESET,
-  SKY_RAMP,
   STAR_DRIFT_PER_SECOND,
   createStarPool,
-  easeCalm,
   edgeBlurAt,
   edgeSoften,
   layerDrift,
@@ -18,7 +18,6 @@ import {
   parsePhase,
   resolvePhase,
   starCount,
-  stepRamp,
   twinkle,
 } from "./cosmic-sky";
 import type { EdgeBlur } from "./cosmic-sky";
@@ -49,8 +48,6 @@ import "./cosmic-sky.css";
 
 const DPR_CAP = 1.5;
 const FRAME_MS = 30;
-/** Seconds the phase strengths take to follow a phase change. */
-const PHASE_TAU = 0.8;
 const AURORA_PEAK = 0.5;
 /** Frozen clock under reduced motion, so the still frame is a good one. */
 const REDUCED_T = 11;
@@ -63,10 +60,6 @@ type Curtain = {
   hem: number;
   /** How far above the layer top the rays extend, as a fraction of height. */
   reach: number;
-  /** Colour from the tops (v = 0) down to the hem (v = 1). */
-  top: Rgb;
-  mid: Rgb;
-  base: Rgb;
   /** Radians per second of the fold; 0.31 is a 20s cycle. */
   rate: number;
   folds: number;
@@ -76,14 +69,10 @@ type Curtain = {
   pulse: number;
 };
 
-/** Pastel daylight: mint at the hem shading to sky and on to rose / lilac. */
 const CURTAINS: readonly Curtain[] = [
   {
     hem: 0.62,
     reach: 0.32,
-    top: [246, 170, 212],
-    mid: [150, 186, 250],
-    base: [96, 224, 184],
     rate: 0.33,
     folds: 1.3,
     phase: 0.6,
@@ -93,9 +82,6 @@ const CURTAINS: readonly Curtain[] = [
   {
     hem: 0.42,
     reach: 0.3,
-    top: [196, 160, 248],
-    mid: [160, 196, 252],
-    base: [128, 226, 206],
     rate: 0.45,
     folds: 1.9,
     phase: 3.1,
@@ -103,6 +89,65 @@ const CURTAINS: readonly Curtain[] = [
     pulse: 23,
   },
 ];
+
+type Colors = { top: Rgb; mid: Rgb; base: Rgb };
+
+const mixRgb = (a: Rgb, b: Rgb, t: number): Rgb => [
+  a[0] + (b[0] - a[0]) * t,
+  a[1] + (b[1] - a[1]) * t,
+  a[2] + (b[2] - a[2]) * t,
+];
+
+/** How far the phase colours are washed toward white, so they read pastel. */
+const PASTEL = 0.45;
+
+const pastel = (c: Rgb): Rgb => mixRgb(c, [255, 255, 255], PASTEL);
+
+let probe: CanvasRenderingContext2D | null = null;
+
+/** Resolve any CSS colour string (rgb, color(), oklch) to sRGB bytes. */
+function toRgb(value: string): Rgb | null {
+  if (!value.trim()) return null;
+
+  probe ??= Object.assign(document.createElement("canvas"), {
+    width: 1,
+    height: 1,
+  }).getContext("2d", { willReadFrequently: true });
+
+  if (!probe) return null;
+
+  probe.clearRect(0, 0, 1, 1);
+  probe.fillStyle = "#000";
+  probe.fillStyle = value;
+  probe.fillRect(0, 0, 1, 1);
+
+  const d = probe.getImageData(0, 0, 1, 1).data;
+
+  return d[3] ? [d[0], d[1], d[2]] : null;
+}
+
+/**
+ * The aurora palette for the current phase, read live from the same tokens the
+ * horizon and the nav orb use: --orb-1 and --orb-3 are the ends of
+ * --orb-gradient (day: #60a8e2 and #0071c1), --horizon-1 is the blob hue.
+ * Nothing is copied here, so a token edit carries through. Washed toward white
+ * so day stays bright.
+ */
+function readPalette(): readonly Colors[] | null {
+  const style = getComputedStyle(document.documentElement);
+  const read = (name: string) => toRgb(style.getPropertyValue(name));
+  const a = read("--orb-1") ?? read("--horizon-1");
+  const b = read("--orb-3") ?? read("--horizon-2") ?? a;
+
+  if (!a || !b) return null;
+
+  const [pa, pb] = [pastel(a), pastel(b)];
+
+  return [
+    { base: pa, mid: mixRgb(pa, pb, 0.5), top: pb },
+    { base: mixRgb(pa, pb, 0.3), mid: pa, top: mixRgb(pa, pb, 0.7) },
+  ];
+}
 
 const STAR_COLORS: readonly Rgb[] = [
   [196, 212, 255],
@@ -120,7 +165,7 @@ const smooth = (edge0: number, edge1: number, x: number) => {
  * One ray, top to bottom: the pastel gradient with a faint haze up top, rising
  * toward a bright, sharp lower edge. Pre-rendered once per curtain.
  */
-function makeCurtainSprite(curtain: Curtain): HTMLCanvasElement {
+function makeCurtainSprite(curtain: Colors): HTMLCanvasElement {
   const sprite = document.createElement("canvas");
 
   sprite.width = 1;
@@ -130,18 +175,12 @@ function makeCurtainSprite(curtain: Curtain): HTMLCanvasElement {
 
   if (!context) return sprite;
 
-  const mix = (a: Rgb, b: Rgb, t: number): Rgb => [
-    a[0] + (b[0] - a[0]) * t,
-    a[1] + (b[1] - a[1]) * t,
-    a[2] + (b[2] - a[2]) * t,
-  ];
-
   for (let i = 0; i < SPRITE_ROWS; i += 1) {
     const v = i / (SPRITE_ROWS - 1);
     const color =
       v < 0.55
-        ? mix(curtain.top, curtain.mid, v / 0.55)
-        : mix(curtain.mid, curtain.base, (v - 0.55) / 0.45);
+        ? mixRgb(curtain.top, curtain.mid, v / 0.55)
+        : mixRgb(curtain.mid, curtain.base, (v - 0.55) / 0.45);
     const body = 0.22 + 0.78 * Math.pow(v, 1.7);
     const hem = 1 - smooth(0.955, 1, v);
     const alpha = body * hem;
@@ -219,6 +258,7 @@ export function CosmicSky() {
       return;
     }
 
+    const rootEl: HTMLDivElement = root;
     const starsCanvas: HTMLCanvasElement = starsCanvasMaybe;
     const auroraCanvas: HTMLCanvasElement = auroraCanvasMaybe;
     const topCanvas: HTMLCanvasElement = topCanvasMaybe;
@@ -229,7 +269,8 @@ export function CosmicSky() {
     const html = document.documentElement;
     const reducedQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const pool = createStarPool();
-    const curtainSprites = CURTAINS.map(makeCurtainSprite);
+    let curtainSprites: HTMLCanvasElement[] = [];
+    let paletteKey = "";
     const glowSprites = STAR_COLORS.map(makeGlowSprite);
     let edgeEl: Element | null = null;
 
@@ -257,11 +298,8 @@ export function CosmicSky() {
     let frame = 0;
     let clock = 0;
     let last = 0;
-    let progress = html.dataset.listening === "true" ? 1 : 0;
     let stars = 0;
     let aurora = 0;
-    let dirty = true;
-    let snap = true;
     let shooting: Shooting | null = null;
     let nextShot = 25 + Math.random() * 20;
     let cleared = true;
@@ -279,7 +317,6 @@ export function CosmicSky() {
       topCanvas.height = starsCanvas.height;
       auroraCanvas.width = Math.max(2, Math.round(width / auroraScale));
       auroraCanvas.height = Math.max(2, Math.round(height / auroraScale));
-      dirty = true;
       cleared = false;
       // A resize clears the canvases, so repaint in the same frame.
       draw(0);
@@ -441,27 +478,32 @@ export function CosmicSky() {
       const listening = html.dataset.listening === "true";
       const phase = resolvePhase(parsePhase(html.dataset.phase), tuning.phaseOverride);
       const target = SKY_PHASE_PRESET[phase];
-      const ease = 1 - Math.exp(-dt / (reduced ? 0.15 : PHASE_TAU));
-      // Snap on first paint and while fully hidden; ease phase changes otherwise.
-      const follow = snap || (!listening && progress <= 0) ? 1 : ease;
 
-      snap = false;
-      stars += (target.stars - stars) * follow;
-      aurora += (target.aurora - aurora) * follow;
-      progress = stepRamp(
-        progress,
-        listening,
-        dt,
-        reduced ? SKY_RAMP.reducedDuration : SKY_RAMP.inDuration,
-        reduced ? SKY_RAMP.reducedDuration : SKY_RAMP.outDuration,
-      );
+      // A phase change is a snap: the theme switch is one view-transition
+      // crossfade of the whole page (150ms), so the sky just has to repaint in
+      // the new phase inside it. Colours are re-read from the new phase tokens.
+      stars = target.stars;
+      aurora = target.aurora;
 
-      const level = easeCalm(progress);
+      const key = `${html.dataset.phase ?? ""}`;
 
-      if (level <= 0.001) {
+      if (key !== paletteKey || curtainSprites.length === 0) {
+        const palette = readPalette();
+
+        if (palette) {
+          curtainSprites = palette.map(makeCurtainSprite);
+          paletteKey = key;
+        }
+      }
+
+      // The fade is the CSS opacity transition on the layer roots (same tokens
+      // and curve as the horizon swell), read here only to know when to stop.
+      const opacity = parseFloat(getComputedStyle(rootEl).opacity);
+      const visible = opacity > 0.001;
+
+      if (!visible) {
         clear();
-        // Idle only when nothing is listening; a swell-in starts at level 0.
-        return listening || progress > 0;
+        return listening;
       }
 
       cleared = false;
@@ -470,8 +512,8 @@ export function CosmicSky() {
       const t = reduced ? REDUCED_T : clock;
       const bands = reduced ? null : audioBands.getBands();
       const react = bands ? mapBands(bands, tuning) : REST_REACTIVITY;
-      const starAlpha = stars * level;
-      const auroraAlpha = aurora * level;
+      const starAlpha = stars;
+      const auroraAlpha = aurora;
 
       if (starAlpha > 0.003) {
         if (!reduced && !shooting && starAlpha > 0.4 && clock >= nextShot) {
@@ -510,14 +552,8 @@ export function CosmicSky() {
         auroraCtx.clearRect(0, 0, auroraCanvas.width, auroraCanvas.height);
       }
 
-      const settled =
-        Math.abs(stars - target.stars) < 0.002 &&
-        Math.abs(aurora - target.aurora) < 0.002 &&
-        (listening ? progress >= 1 : progress <= 0);
-
-      dirty = false;
-      // Under reduced motion the picture is still once it has settled.
-      return !(reduced && settled);
+      // Under reduced motion the picture is still once the fade has finished.
+      return !(reduced && listening && opacity >= 0.999);
     }
 
     const tick = (now: number) => {
@@ -548,7 +584,9 @@ export function CosmicSky() {
     }
 
     const onChange = () => {
-      dirty = true;
+      // Repaint synchronously so a phase change lands inside the theme
+      // view-transition's snapshot instead of a frame after it.
+      draw(0);
       wake();
     };
 
@@ -582,6 +620,12 @@ export function CosmicSky() {
   }, []);
 
   const mask = maskGradient();
+  /* The same timing tokens the horizon fallback layer carries, from the same preset. */
+  const timing = {
+    "--horizon-listen-in": `${HORIZON_HOME_LISTENING.inDuration}s`,
+    "--horizon-listen-out": `${HORIZON_HOME_LISTENING.outDuration}s`,
+    "--horizon-listen-reduced": `${HORIZON_HOME_LISTENING.reducedDuration}s`,
+  } as CSSProperties;
 
   return (
     <>
@@ -591,7 +635,7 @@ export function CosmicSky() {
         data-cosmic-sky=""
         data-fallback={fallback ? "" : undefined}
         className="cosmic-sky pointer-events-none fixed inset-x-0 top-0"
-        style={{ maskImage: mask, WebkitMaskImage: mask }}
+        style={{ ...timing, maskImage: mask, WebkitMaskImage: mask }}
       >
         <canvas ref={auroraRef} className="cosmic-sky-canvas" />
         <canvas ref={starsRef} className="cosmic-sky-canvas" />
@@ -601,7 +645,7 @@ export function CosmicSky() {
         aria-hidden="true"
         data-cosmic-sky-top=""
         className="cosmic-sky cosmic-sky--top pointer-events-none fixed inset-x-0 top-0"
-        style={{ maskImage: mask, WebkitMaskImage: mask }}
+        style={{ ...timing, maskImage: mask, WebkitMaskImage: mask }}
       >
         <canvas ref={topStarsRef} className="cosmic-sky-canvas" />
       </div>

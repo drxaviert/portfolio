@@ -6,6 +6,19 @@
 .cosmic-sky {
   height: 50vh;
   contain: strict;
+  /*
+   * The one fade. Both sky layers (this one and the z-41 star canvas) fade on
+   * the same CSS transition as the horizon fallback layer, with the same
+   * --horizon-listen-* durations and --ease-calm, so they cannot drift from
+   * the swell. The canvases draw at full strength; nothing inside ramps.
+   */
+  opacity: 0;
+  transition: opacity var(--horizon-listen-out, 1.2s) var(--ease-calm);
+}
+
+:root[data-listening="true"] .cosmic-sky {
+  opacity: 1;
+  transition-duration: var(--horizon-listen-in, 3.5s);
 }
 
 /*
@@ -27,22 +40,15 @@
 .cosmic-sky-fallback {
   position: absolute;
   inset: 0;
-  opacity: 0;
-  transition: opacity 1200ms var(--ease-calm, cubic-bezier(0.4, 0, 0.2, 1));
-}
-
-:root[data-listening="true"] .cosmic-sky-fallback {
-  opacity: 1;
-  transition-duration: 3500ms;
 }
 
 /* Day and dawn: wide pastel curtains at low alpha, no darkening. */
 :root:not([data-phase="night"]):not([data-phase="dusk"])
   .cosmic-sky-fallback {
   background:
-    radial-gradient(60% 55% at 25% 30%, rgb(126 214 190 / 0.22), transparent),
-    radial-gradient(55% 50% at 60% 40%, rgb(140 188 245 / 0.2), transparent),
-    radial-gradient(45% 45% at 85% 30%, rgb(182 164 242 / 0.16), transparent);
+    radial-gradient(60% 55% at 25% 30%, color-mix(in srgb, color-mix(in srgb, var(--orb-1) 55%, white) 22%, transparent), transparent),
+    radial-gradient(55% 50% at 60% 40%, color-mix(in srgb, color-mix(in srgb, var(--orb-3) 55%, white) 20%, transparent), transparent),
+    radial-gradient(45% 45% at 85% 30%, color-mix(in srgb, color-mix(in srgb, var(--orb-1) 55%, white) 16%, transparent), transparent);
 }
 
 /* Night and dusk: a few faint points. */
@@ -62,7 +68,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cosmic-sky-fallback {
-    transition-duration: 400ms !important;
+  .cosmic-sky,
+  :root[data-listening="true"] .cosmic-sky {
+    transition-duration: var(--horizon-listen-reduced, 400ms);
+    transition-timing-function: var(--ease-standard);
   }
 }
