@@ -52,6 +52,12 @@ const AURORA_PEAK = 0.5;
 /** Frozen clock under reduced motion, so the still frame is a good one. */
 const REDUCED_T = 11;
 const SPRITE_ROWS = 128;
+/** Blur levels blended by the vertical ramp; adjacent levels crossfade, so there is no step. */
+const BLUR_LEVELS = 5;
+/** Edge-extension margin around the blurred picture, in aurora-canvas px. */
+const BLUR_PAD = 48;
+/** Where the lowest hem sits, as a fraction of the layer height: the ramp's zero. */
+const BLUR_HEM = 0.62;
 
 type Rgb = readonly [number, number, number];
 
@@ -90,7 +96,7 @@ const CURTAINS: readonly Curtain[] = [
   },
 ];
 
-type Colors = { top: Rgb; mid: Rgb; base: Rgb };
+type Colors = { top: Rgb; mid: Rgb; base: Rgb; lab?: boolean };
 
 const mixRgb = (a: Rgb, b: Rgb, t: number): Rgb => [
   a[0] + (b[0] - a[0]) * t,
@@ -102,6 +108,44 @@ const mixRgb = (a: Rgb, b: Rgb, t: number): Rgb => [
 const PASTEL = 0.45;
 
 const pastel = (c: Rgb, wash: number): Rgb => mixRgb(c, [255, 255, 255], wash);
+
+const toLinear = (v: number) => {
+  const c = v / 255;
+
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+};
+const fromLinear = (v: number) =>
+  255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055);
+
+const toLab = (c: Rgb): Rgb => {
+  const [r, g, b] = [toLinear(c[0]), toLinear(c[1]), toLinear(c[2])];
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+
+  return [
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  ];
+};
+
+const fromLab = (c: Rgb): Rgb => {
+  const l = (c[0] + 0.3963377774 * c[1] + 0.2158037573 * c[2]) ** 3;
+  const m = (c[0] - 0.1055613458 * c[1] - 0.0638541728 * c[2]) ** 3;
+  const s = (c[0] - 0.0894841775 * c[1] - 1.291485548 * c[2]) ** 3;
+  const clip = (v: number) => Math.min(255, Math.max(0, fromLinear(v)));
+
+  return [
+    clip(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+    clip(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+    clip(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s),
+  ];
+};
+
+/** Mix in OKLab: the midpoint of two hues keeps its chroma instead of greying. */
+const mixLab = (a: Rgb, b: Rgb, t: number): Rgb =>
+  fromLab(mixRgb(toLab(a), toLab(b), t));
 
 let probe: CanvasRenderingContext2D | null = null;
 
@@ -133,7 +177,7 @@ function toRgb(value: string): Rgb | null {
  * Nothing is copied here, so a token edit carries through. Washed toward white
  * so day stays bright.
  */
-function readPalette(wash: number): readonly Colors[] | null {
+function readPalette(wash: number, lab: boolean): readonly Colors[] | null {
   const style = getComputedStyle(document.documentElement);
   const read = (name: string) => toRgb(style.getPropertyValue(name));
   const a = read("--orb-1") ?? read("--horizon-1");
@@ -142,6 +186,24 @@ function readPalette(wash: number): readonly Colors[] | null {
   if (!a || !b) return null;
 
   const [pa, pb] = [pastel(a, wash), pastel(b, wash)];
+
+  if (lab) {
+    // Dusk: the orb gradient runs blue, rose, amber. Warm amber at the hem
+    // shading through its rose stop to a lavender top (rose toward the blue
+    // end, in OKLab). The old blue-to-amber straight blend passed through a
+    // grey beige.
+    const rose = read("--orb-2");
+
+    if (rose) {
+      const pr = pastel(rose, wash);
+      const lav = mixLab(pr, pa, 0.55);
+
+      return [
+        { base: pb, mid: pr, top: lav, lab: true },
+        { base: mixLab(pb, pr, 0.5), mid: mixLab(pr, lav, 0.5), top: lav, lab: true },
+      ];
+    }
+  }
 
   return [
     { base: pa, mid: mixRgb(pa, pb, 0.5), top: pb },
@@ -177,10 +239,11 @@ function makeCurtainSprite(curtain: Colors): HTMLCanvasElement {
 
   for (let i = 0; i < SPRITE_ROWS; i += 1) {
     const v = i / (SPRITE_ROWS - 1);
+    const blend = curtain.lab ? mixLab : mixRgb;
     const color =
       v < 0.55
-        ? mixRgb(curtain.top, curtain.mid, v / 0.55)
-        : mixRgb(curtain.mid, curtain.base, (v - 0.55) / 0.45);
+        ? blend(curtain.top, curtain.mid, v / 0.55)
+        : blend(curtain.mid, curtain.base, (v - 0.55) / 0.45);
     const body = 0.22 + 0.78 * Math.pow(v, 1.7);
     const hem = 1 - smooth(0.955, 1, v);
     const alpha = body * hem;
@@ -269,6 +332,17 @@ export function CosmicSky() {
     const html = document.documentElement;
     const reducedQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const pool = createStarPool();
+    // The aurora is drawn sharp into rawCanvas, then composed into auroraCanvas
+    // through the progressive blur. padCanvas is the raw picture with its edges
+    // extended so blurring never fades the left, right or top rim.
+    const makeLayer = () => {
+      const canvas = document.createElement("canvas");
+
+      return { canvas, ctx: canvas.getContext("2d") };
+    };
+    const raw = makeLayer();
+    const padded = makeLayer();
+    const level = makeLayer();
     let curtainSprites: HTMLCanvasElement[] = [];
     let paletteKey = "";
     const glowSprites = STAR_COLORS.map(makeGlowSprite);
@@ -317,6 +391,12 @@ export function CosmicSky() {
       topCanvas.height = starsCanvas.height;
       auroraCanvas.width = Math.max(2, Math.round(width / auroraScale));
       auroraCanvas.height = Math.max(2, Math.round(height / auroraScale));
+      raw.canvas.width = auroraCanvas.width;
+      raw.canvas.height = auroraCanvas.height;
+      level.canvas.width = auroraCanvas.width;
+      level.canvas.height = auroraCanvas.height;
+      padded.canvas.width = auroraCanvas.width + BLUR_PAD * 2;
+      padded.canvas.height = auroraCanvas.height + BLUR_PAD;
       cleared = false;
       // A resize clears the canvases, so repaint in the same frame.
       draw(0);
@@ -352,10 +432,14 @@ export function CosmicSky() {
       bright: number,
       shimmer: number,
     ) => {
-      const w = auroraCanvas.width;
-      const h = auroraCanvas.height;
+      const rawCtx = raw.ctx;
 
-      auroraCtx.clearRect(0, 0, w, h);
+      if (!rawCtx) return;
+
+      const w = raw.canvas.width;
+      const h = raw.canvas.height;
+
+      rawCtx.clearRect(0, 0, w, h);
 
       CURTAINS.forEach((curtain, index) => {
         const sprite = curtainSprites[index];
@@ -382,12 +466,79 @@ export function CosmicSky() {
 
           const length = (edge + curtain.reach * h) * (1 + 0.05 * swell);
 
-          auroraCtx.globalAlpha = Math.min(1, a);
-          auroraCtx.drawImage(sprite, 0, 0, 1, SPRITE_ROWS, x, edge - length, 1, length);
+          rawCtx.globalAlpha = Math.min(1, a);
+          rawCtx.drawImage(sprite, 0, 0, 1, SPRITE_ROWS, x, edge - length, 1, length);
         }
       });
 
-      auroraCtx.globalAlpha = 1;
+      rawCtx.globalAlpha = 1;
+    };
+
+    /**
+     * The aurora blur: lightest at the bright hem, heavier toward the top. The
+     * picture is blurred at a few fixed radii, and each copy is weighted by a
+     * vertical gradient so neighbouring radii crossfade (premultiplied,
+     * additive), which reads as one continuous focus falloff. The stars are
+     * separate canvases and are never blurred.
+     */
+    const composeAurora = (blurMin: number, blurMax: number, curve: number) => {
+      const w = auroraCanvas.width;
+      const h = auroraCanvas.height;
+      const rawCtx = raw.ctx;
+      const padCtx = padded.ctx;
+      const levelCtx = level.ctx;
+
+      auroraCtx.clearRect(0, 0, w, h);
+
+      if (!rawCtx || !padCtx || !levelCtx || !("filter" in levelCtx) || blurMax <= 0.05) {
+        auroraCtx.drawImage(raw.canvas, 0, 0);
+        return;
+      }
+
+      const p = BLUR_PAD;
+
+      padCtx.clearRect(0, 0, w + p * 2, h + p);
+      padCtx.drawImage(raw.canvas, p, p);
+      padCtx.drawImage(raw.canvas, 0, 0, 1, h, 0, p, p, h);
+      padCtx.drawImage(raw.canvas, w - 1, 0, 1, h, w + p, p, p, h);
+      padCtx.drawImage(padded.canvas, 0, p, w + p * 2, 1, 0, 0, w + p * 2, p);
+
+      const lo = Math.min(blurMin, blurMax) / auroraScale;
+      const hi = blurMax / auroraScale;
+      const hemY = BLUR_HEM * h;
+      const steps = 16;
+
+      auroraCtx.globalCompositeOperation = "lighter";
+
+      for (let k = 0; k < BLUR_LEVELS; k += 1) {
+        const gradient = levelCtx.createLinearGradient(0, 0, 0, h);
+        let used = false;
+
+        for (let i = 0; i <= steps; i += 1) {
+          const y = (i / steps) * h;
+          const f = Math.pow(Math.min(1, Math.max(0, (hemY - y) / hemY)), curve);
+          const weight = Math.max(0, 1 - Math.abs(f * (BLUR_LEVELS - 1) - k));
+
+          if (weight > 0) used = true;
+          gradient.addColorStop(i / steps, `rgba(0,0,0,${weight.toFixed(4)})`);
+        }
+
+        if (!used) continue;
+
+        const radius = lo + (hi - lo) * (k / (BLUR_LEVELS - 1));
+
+        levelCtx.globalCompositeOperation = "source-over";
+        levelCtx.clearRect(0, 0, w, h);
+        levelCtx.filter = radius > 0.05 ? `blur(${radius.toFixed(2)}px)` : "none";
+        levelCtx.drawImage(padded.canvas, -p, -p);
+        levelCtx.filter = "none";
+        levelCtx.globalCompositeOperation = "destination-in";
+        levelCtx.fillStyle = gradient;
+        levelCtx.fillRect(0, 0, w, h);
+        auroraCtx.drawImage(level.canvas, 0, 0);
+      }
+
+      auroraCtx.globalCompositeOperation = "source-over";
     };
 
     const drawStars = (
@@ -488,7 +639,7 @@ export function CosmicSky() {
       const key = `${html.dataset.phase ?? ""}`;
 
       if (key !== paletteKey || curtainSprites.length === 0) {
-        const palette = readPalette(target.wash ?? PASTEL);
+        const palette = readPalette(target.wash ?? PASTEL, target.lab ?? false);
 
         if (palette) {
           curtainSprites = palette.map(makeCurtainSprite);
@@ -548,6 +699,7 @@ export function CosmicSky() {
           react.auroraBright,
           react.shimmer,
         );
+        composeAurora(tuning.blurMin, tuning.blurMax, tuning.blurCurve);
       } else {
         auroraCtx.clearRect(0, 0, auroraCanvas.width, auroraCanvas.height);
       }

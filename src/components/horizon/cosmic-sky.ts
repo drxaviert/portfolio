@@ -24,6 +24,8 @@ export type SkyStrengths = {
   starGain?: number;
   /** How far the aurora tokens are washed toward white, 0..1; the layer default when omitted. */
   wash?: number;
+  /** Interpolate the aurora colours in OKLab, so a warm-to-cool blend never turns grey. */
+  lab?: boolean;
 };
 
 /**
@@ -33,7 +35,7 @@ export type SkyStrengths = {
  */
 export const SKY_PHASE_PRESET: Record<SkyPhase, SkyStrengths> = {
   night: { stars: 1, aurora: 0 },
-  dusk: { stars: 0.9, aurora: 1.5, starGain: 1.8, wash: 0 },
+  dusk: { stars: 0.9, aurora: 1.25, starGain: 1.8, wash: 0, lab: true },
   dawn: { stars: 0, aurora: 0.6 },
   day: { stars: 0, aurora: 0.7, wash: 0.66 },
 };
@@ -64,6 +66,12 @@ export type SkyTuning = {
   auroraOpacity: number;
   /** Multiplier on aurora sway / fold speed. */
   auroraSpeed: number;
+  /** Aurora blur next to the bright hem, in CSS px. */
+  blurMin: number;
+  /** Aurora blur at the top of the curtain, in CSS px. */
+  blurMax: number;
+  /** Exponent on the hem-to-top blur ramp; above 1 holds the blur back near the hem. */
+  blurCurve: number;
   gainBass: number;
   gainMid: number;
   gainHigh: number;
@@ -76,6 +84,9 @@ export const SKY_TUNING_DEFAULTS: SkyTuning = {
   starBrightness: 1,
   auroraOpacity: 1,
   auroraSpeed: 1,
+  blurMin: 1,
+  blurMax: 28,
+  blurCurve: 1.4,
   gainBass: 1,
   gainMid: 1,
   // The drone track barely reaches the high band, so lift it.
@@ -89,6 +100,9 @@ export const SKY_TUNING_RANGES = {
   starBrightness: { min: 0, max: 2, step: 0.05 },
   auroraOpacity: { min: 0, max: 2, step: 0.05 },
   auroraSpeed: { min: 0.25, max: 2.5, step: 0.05 },
+  blurMin: { min: 0, max: 24, step: 0.5 },
+  blurMax: { min: 0, max: 80, step: 1 },
+  blurCurve: { min: 0.4, max: 3, step: 0.05 },
   gainBass: { min: 0, max: 3, step: 0.05 },
   gainMid: { min: 0, max: 3, step: 0.05 },
   gainHigh: { min: 0, max: 6, step: 0.1 },
