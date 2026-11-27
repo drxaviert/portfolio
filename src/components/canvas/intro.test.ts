@@ -69,11 +69,24 @@ describe("intro plane values", () => {
     expect(introPlaneOpacity(2500, 500)).toBe(1);
   });
 
-  it("takes grayscale from 1 to 0 from 2.25s to 4.25s", () => {
-    expect(introGray(0)).toBe(1);
-    expect(introGray(INTRO.grayDelayMs)).toBe(1);
-    expect(introGray(3250)).toBeCloseTo(0.125, 6);
-    expect(introGray(INTRO.endMs)).toBe(0);
+  it("takes each tile from grayscale to colour over 900ms from its own delay", () => {
+    expect(introGray(0, 500)).toBe(1);
+    expect(introGray(500, 500)).toBe(1);
+    // Halfway through power3.out is 1 - .5^3 = .875 of the way to colour.
+    expect(introGray(950, 500)).toBeCloseTo(0.125, 6);
+    expect(introGray(1400, 500)).toBe(0);
+    expect(introGray(950, 1250)).toBe(1);
+    expect(introGray(1700, 1250)).toBeCloseTo(0.125, 6);
+  });
+
+  it("ends after the last tween, now the 3.5s texture zoom", () => {
+    expect(INTRO.endMs).toBe(INTRO.zoomDelayMs + INTRO.zoomDurationMs);
+    expect(INTRO.endMs).toBeGreaterThanOrEqual(
+      INTRO.gapDelayMs + INTRO.gapDurationMs,
+    );
+    expect(INTRO.endMs).toBeGreaterThanOrEqual(
+      INTRO.opacityDelayMaxMs + INTRO.opacityDurationMs,
+    );
   });
 
   it("settles the texture zoom from 1.3 to 1", () => {
