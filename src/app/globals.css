@@ -695,7 +695,7 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
   --horizon-1-alpha: 0.06;
   --horizon-2: var(--palette-blue-800);
   --horizon-2-alpha: 0.06;
-  /* Ring hover: the same blob hues at 60% over 3 stops, like Night, so they survive on a 1px ring.
+  /* Ring hover: the same blob hues at 60% over 3 stops (Night's 3-stop shape, Night at .55), so they survive on a 1px ring.
      Literal rgb() keeps it valid below Safari 18; it mirrors
      --palette-blue-600 and --palette-blue-800. */
   --horizon-ring-glow: linear-gradient(
@@ -780,7 +780,7 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
   --horizon-1-alpha: 0.06;
   --horizon-2: var(--palette-violet-550);
   --horizon-2-alpha: 0.06;
-  /* Ring hover: the same blob hues at 60% over 3 stops, like Night, so they survive on a 1px ring.
+  /* Ring hover: the same blob hues at 60% over 3 stops (Night's 3-stop shape, Night at .55), so they survive on a 1px ring.
      Literal rgb() keeps it valid below Safari 18; it mirrors
      --palette-rose-200 and --palette-violet-550. */
   --horizon-ring-glow: linear-gradient(
@@ -861,7 +861,7 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
   --horizon-2: var(--palette-amber-650);
   --horizon-2-alpha: 0.06;
   /* Ring hover: Dusk's accent into a deeper amber, not the horizon blobs, so
-     the 1px ring keeps real contrast on the pale surface; 60% over 3 stops like Night. Literal rgb() keeps
+     the 1px ring keeps real contrast on the pale surface; 60% over 3 stops (Night's 3-stop shape, Night at .55). Literal rgb() keeps
      it valid below Safari 18; it mirrors --palette-amber-700 and
      --palette-amber-800. */
   --horizon-ring-glow: linear-gradient(
