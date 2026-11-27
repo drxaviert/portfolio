@@ -246,6 +246,24 @@ function nearestExit(g: Geometry, pose: Pose): Pose {
   return pose.x + pose.w / 2 < g.rowWidth / 2 ? exitLeft(g) : offRight(g);
 }
 
+/**
+ * The copy of an item that lands it on its new slot when an interrupt catches
+ * two of them drawn. A copy already leaving through the left end has given up
+ * its place in the ring (a seam copy is standing in for it), so it cannot lead
+ * even when its old pose happens to be nearer the destination: pulling it back
+ * in would drag it across the cards still in the row. The copy that is not
+ * leaving leads; otherwise the nearest one does.
+ */
+function landingEntity(a: Entity, b: Entity, destPose: Pose, k: number): Entity {
+  if (k > 0) {
+    if (a.edgeLeft && !b.edgeLeft) return b;
+    if (b.edgeLeft && !a.edgeLeft) return a;
+  }
+  return Math.abs(a.from.x - destPose.x) <= Math.abs(b.from.x - destPose.x)
+    ? a
+    : b;
+}
+
 // -------------------------------------------------------------- entities
 
 /**
@@ -331,17 +349,22 @@ export function retarget(
       const destPose = slotPose(g, dest);
       if (ents.length >= 2) {
         const [a, b] = ents;
-        const aLeads =
-          Math.abs(a.from.x - destPose.x) <= Math.abs(b.from.x - destPose.x);
-        const lead = aLeads ? a : b;
+        const lead = landingEntity(a, b, destPose, k);
         // A seam copy taking the slot joins the entry chain from where it is
-        // drawn; the card it came from leaves through an end.
+        // drawn; the card it came from leaves through an end. The lead of the
+        // whole chain keeps its drawn pose even when it is already inside the
+        // row (a far step's clicked card starts where it is drawn, not in the
+        // waiting column past the last slot).
         if (lead.ghost) {
-          slotEntry.set(dest, {
-            item,
-            w: lead.from.w,
-            current: lead.from,
-          });
+          if (dest === 0 && lead.from.x < g.rowWidth) {
+            slotFrom[dest] = lead.from;
+          } else {
+            slotEntry.set(dest, {
+              item,
+              w: lead.from.w,
+              current: lead.from,
+            });
+          }
         } else {
           slotFrom[dest] = lead.from;
         }
@@ -404,12 +427,16 @@ export function retarget(
   // and the slim ones behind it travelled different distances in the same time,
   // so the slim ones caught up and slid over the wide one, which read as cards
   // cut off midway. A step of one has one leaving card, so it is unchanged.
+  // An item interrupted mid-wrap has two copies: the one already leaving keeps
+  // its width and joins this group too, so the copy that is landing can come
+  // past it without either sliding over the other.
   const pushOut =
     k > 0
       ? Math.max(
           0,
           ...current
             .filter((e) => {
+              if (e.edgeLeft) return true;
               if (current.filter((o) => o.item === e.item).length !== 1)
                 return false;
               const unwrapped = slotOf(e.item, prevOffset, n) - k;
@@ -431,12 +458,31 @@ export function retarget(
     if (ents.length >= 2) {
       const [a, b] = ents;
       if (!visible) {
-        out.push(retargetTo(a, nearestExit(g, a.from)));
-        out.push(retargetTo(b, nearestExit(g, b.from)));
+        // Neither copy lands in a slot: the one already leaving keeps leaving
+        // with its width (no shrink across the row). A seam copy is a stand-in
+        // and has no slot to stand in for now, so it retires at once instead of
+        // being driven back across the card that lands in front of it.
+        for (const e of [a, b]) {
+          if (k > 0 && e.edgeLeft) {
+            out.push({
+              ...retargetTo(e, { x: e.from.x - pushOut, w: e.from.w }),
+              edgeLeft: true,
+            });
+          } else if (k > 0 && e.ghost) {
+            continue;
+          } else {
+            const exitPose = nearestExit(g, e.from);
+            out.push(
+              retargetTo(
+                { ...e, edgeLeft: exitPose.x < 0 ? true : undefined },
+                exitPose,
+              ),
+            );
+          }
+        }
       } else {
-        const aLeads =
-          Math.abs(a.from.x - destPose.x) <= Math.abs(b.from.x - destPose.x);
-        const [lead, other] = aLeads ? [a, b] : [b, a];
+        const lead = landingEntity(a, b, destPose, k);
+        const other = lead === a ? b : a;
         const chained = chainFrom.get(item);
         // Only move a copy that is drawn left of its place in the chain; one
         // already at or behind it keeps its exact pose (no snap).
@@ -452,13 +498,25 @@ export function retarget(
             destPose,
           ),
         );
-        const exitPose = nearestExit(g, other.from);
-        out.push(
-          retargetTo(
-            { ...other, edgeLeft: exitPose.x < 0 ? true : undefined },
-            exitPose,
-          ),
-        );
+        if (k > 0 && other.edgeLeft) {
+          // The copy that was already leaving finishes with the leaving group
+          // instead of being pulled back across the cards still in the row.
+          out.push({
+            ...retargetTo(other, {
+              x: other.from.x - pushOut,
+              w: other.from.w,
+            }),
+            edgeLeft: true,
+          });
+        } else {
+          const exitPose = nearestExit(g, other.from);
+          out.push(
+            retargetTo(
+              { ...other, edgeLeft: exitPose.x < 0 ? true : undefined },
+              exitPose,
+            ),
+          );
+        }
       }
       continue;
     }
