@@ -42,6 +42,13 @@ export const HORIZON_HOME_MOTION: Required<HorizonMotionTuning> = {
  * The listening swell: while "Door to the Cosmos" plays, the glow grows upward
  * and outward, softens, brightens and breathes slower and deeper.
  *
+ * These are the effective shipping values at the tuning panel's default
+ * Immersion of 1.5. The panel's per-parameter sliders store the base values at
+ * Immersion 1; the master scales their deltas from the resting horizon, then
+ * clamps them so the extreme end stays a glow instead of clipping to a flat
+ * white shape. "Copy values" in the panel writes these effective values back in
+ * this shape.
+ *
  * The shader runs these on its own rAF clock with an asymmetric ramp: a long
  * 3.5s swell in on --ease-calm, then a 1.2s settle out so a pause feels
  * immediate. A pause mid-swell retargets from the current value, so it reverses
@@ -52,12 +59,12 @@ export const HORIZON_HOME_MOTION: Required<HorizonMotionTuning> = {
  * blur uses blurScale, and its static geometry uses blobScale / blobLift.
  */
 export const HORIZON_HOME_LISTENING: HorizonListeningTuning = {
-  intensityBoost: 1.35,
-  breathePeriod: 10,
-  intensityAmp: 0.8,
-  blobScale: 1.25,
-  blobLift: 8,
-  blurScale: 1.3,
+  intensityBoost: 1.6,
+  breathePeriod: 12,
+  intensityAmp: 0.95,
+  blobScale: 1.4,
+  blobLift: 14,
+  blurScale: 1.5,
   inDuration: 3.5,
   outDuration: 1.2,
   reducedDuration: 0.4,

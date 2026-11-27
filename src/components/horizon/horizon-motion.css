@@ -216,6 +216,15 @@
   }
 }
 
+/*
+ * The home page already has a ?tune=1 carousel panel pinned to the bottom-right
+ * corner. When it is mounted, the horizon tuner sits just to its left so both
+ * remain usable; everywhere else the horizon tuner takes the corner itself.
+ */
+html:has([aria-label="Carousel tuner"]) {
+  --horizon-tuner-right: 17.25rem;
+}
+
 @keyframes horizon-drift-a {
   from {
     transform: translate3d(0, 0, 0);

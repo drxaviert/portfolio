@@ -12,6 +12,10 @@ import {
   baseStrength,
   breatheIntensity,
 } from "./horizon-intensity";
+import {
+  getLiveListeningTuning,
+  subscribeLiveListeningTuning,
+} from "./listening-tuning";
 import "./horizon-motion.css";
 
 /**
@@ -828,6 +832,13 @@ export function HorizonShader({
     const baseBreathePeriod =
       paramsRef.current.tuning?.breathePeriod ?? DEFAULT_TUNING.breathePeriod;
 
+    // The tuner's mutable values are read each frame; the prop is the static
+    // fallback when no tuning panel is mounted.
+    const currentListening = () =>
+      getLiveListeningTuning() ?? paramsRef.current.listening;
+    let bakedBlurScale = currentListening()?.blurScale ?? 1;
+    let scheduledBlurScale = bakedBlurScale;
+
     /*
      * The listening swell's 0..1 value. It starts at the current attribute so a
      * remount while music plays does not replay the swell; the observer below
@@ -835,7 +846,7 @@ export function HorizonShader({
      * retargets from wherever it is, so there is never a jump.
      */
     let listen =
-      paramsRef.current.listening && root.dataset.listening === "true" ? 1 : 0;
+      currentListening() && root.dataset.listening === "true" ? 1 : 0;
     let listenTarget = listen;
     let listenFrom = listen;
     let listenRamp = 1;
@@ -849,12 +860,13 @@ export function HorizonShader({
     const rebuildTexture = () => {
       tokens = readTokens();
 
+      const blurScale = currentListening()?.blurScale ?? 1;
       const next = buildBlurTexture(
         gl,
         tokens,
         window.innerWidth,
         window.innerHeight,
-        paramsRef.current.listening?.blurScale ?? 1,
+        blurScale,
       );
 
       if ("error" in next) {
@@ -868,19 +880,26 @@ export function HorizonShader({
       }
 
       blurTexture = next;
+      bakedBlurScale = blurScale;
+      scheduledBlurScale = blurScale;
       dirty = true;
     };
 
     rebuildTextureRef.current = rebuildTexture;
 
-    const scheduleTexture = () => {
+    /**
+     * Rebuild the coverage texture after a quiet period. The tuner's blur
+     * slider calls this every frame while it moves, so the timer keeps sliding
+     * until the drag stops (200ms); a resize keeps its shorter 120ms.
+     */
+    const scheduleTexture = (delay = 120) => {
       if (textureTimer !== null) window.clearTimeout(textureTimer);
 
       textureTimer = window.setTimeout(() => {
         textureTimer = null;
         rebuildTexture();
         requestFrame();
-      }, 120);
+      }, delay);
     };
 
     // The canvas CSS size, refreshed by a ResizeObserver. tick() calls
@@ -929,10 +948,26 @@ export function HorizonShader({
       const height = canvas.height;
       const dpr = width / Math.max(window.innerWidth, 1);
       const params = paramsRef.current;
+      const listeningNow = currentListening();
+      const liveBlur = listeningNow?.blurScale ?? 1;
+
+      // The tuner changes the baked coverage texture; debounce the re-bake so a
+      // drag never rebuilds it per frame. Only a *new* target resets the timer,
+      // otherwise the 200ms would never elapse while the draw loop keeps
+      // seeing the same pending value. The geometry and strength uniforms
+      // below still update live on every frame.
+      if (
+        Math.abs(liveBlur - bakedBlurScale) > 0.001 &&
+        Math.abs(liveBlur - scheduledBlurScale) > 0.001
+      ) {
+        scheduledBlurScale = liveBlur;
+        scheduleTexture(200);
+      }
+
       const animated = motionUniforms(
         params.motion,
         params.tuning,
-        params.listening,
+        listeningNow,
         listen,
         clock,
         breatheCycle,
@@ -1010,11 +1045,11 @@ export function HorizonShader({
 
       // Listening transform, derived from the same 0..1 value as the texture
       // crossfade. The lift is in device pixels because the shader's UVs are.
-      const listenScale = params.listening
-        ? 1 + listen * (params.listening.blobScale - 1)
+      const listenScale = listeningNow
+        ? 1 + listen * (listeningNow.blobScale - 1)
         : 1;
-      const listenLift = params.listening
-        ? listen * (params.listening.blobLift / 100) * window.innerHeight * dpr
+      const listenLift = listeningNow
+        ? listen * (listeningNow.blobLift / 100) * window.innerHeight * dpr
         : 0;
 
       gl.uniform1f(uniforms.listen, listen);
@@ -1073,7 +1108,7 @@ export function HorizonShader({
             dt /
             effectiveBreathePeriod(
               paramsRef.current.tuning,
-              paramsRef.current.listening,
+              currentListening(),
               listen,
             );
         }
@@ -1116,7 +1151,7 @@ export function HorizonShader({
      * jump.
      */
     const startListenRamp = (next: number, force = false) => {
-      const config = paramsRef.current.listening;
+      const config = currentListening();
 
       if (!config) return;
       if (!force && next === listenTarget) return;
@@ -1140,12 +1175,21 @@ export function HorizonShader({
     };
 
     const syncListen = () => {
-      if (!paramsRef.current.listening) return;
+      if (!currentListening()) return;
 
       const next = root.dataset.listening === "true" ? 1 : 0;
 
       if (next !== listenTarget) startListenRamp(next);
     };
+
+    /*
+     * A tuning change must draw even when reduced motion has the ambient loop
+     * stopped. The next frame reads the live values and schedules a debounced
+     * texture bake if the blur moved.
+     */
+    const unsubscribeLiveTuning = subscribeLiveListeningTuning(() => {
+      requestFrame();
+    });
 
     /**
      * Soft focus: the stylesheet animates `--soft-softness` on this layer for
@@ -1272,6 +1316,7 @@ export function HorizonShader({
       disposed = true;
       requestFrameRef.current = () => {};
       rebuildTextureRef.current = () => {};
+      unsubscribeLiveTuning();
 
       if (frame) cancelAnimationFrame(frame);
       if (textureTimer !== null) window.clearTimeout(textureTimer);

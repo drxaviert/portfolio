@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { CSSProperties, RefObject } from "react";
 import type { HorizonIntensityPeak } from "./horizon-intensity";
 import { HorizonPauseScope } from "./horizon-pause-scope";
+import { useLiveListeningTuning } from "./listening-tuning";
 import "./horizon-motion.css";
 
 /**
@@ -416,6 +417,8 @@ export function HorizonBackground({
   const placement = position === "fixed" ? "fixed" : "absolute";
   const grain = { ...HORIZON_DITHER_DEFAULTS, ...dither };
   const { baseIntensity, nightBaseIntensity } = withDefaults(tuning);
+  // The dev tuner's live values beat the static preset; null in production.
+  const liveListening = useLiveListeningTuning() ?? listening;
 
   const blobs = (
     <>
@@ -423,13 +426,13 @@ export function HorizonBackground({
         blob={1}
         motion={motion}
         tuning={tuning}
-        listening={listening}
+        listening={liveListening}
       />
       <HorizonBlob
         blob={2}
         motion={motion}
         tuning={tuning}
-        listening={listening}
+        listening={liveListening}
       />
     </>
   );
