@@ -8,6 +8,7 @@ import {
   closeFadeProgress,
   closeScrollOffset,
   closeShrinkProgress,
+  closeSiblingFadeProgress,
   fadeOutProgress,
   fitBox,
   glideProgress,
@@ -118,7 +119,7 @@ describe("transition timeline", () => {
     expect(closeComplete(TRANSITION.closeTotalMs)).toBe(true);
   });
 
-  it("ends the shrink, fade, scroll and close on the same frame", () => {
+  it("ends the shrink, lens, scroll and close on the same frame", () => {
     const landing =
       TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs;
 
@@ -131,6 +132,31 @@ describe("transition timeline", () => {
     expect(closeShrinkProgress(landing)).toBe(1);
     expect(closeFadeProgress(landing)).toBe(1);
     expect(closeScrollOffset(120, 940, landing)).toBe(120);
+  });
+});
+
+describe("close sibling fade", () => {
+  it("starts with the close and finishes before the featured tile lands", () => {
+    expect(closeSiblingFadeProgress(0)).toBe(0);
+    expect(closeSiblingFadeProgress(50)).toBeGreaterThan(0);
+    expect(closeSiblingFadeProgress(150)).toBeCloseTo(0.5, 6);
+    // At the first shrink frame the siblings are already 85% back, not half.
+    expect(closeSiblingFadeProgress(TRANSITION.closeCrossFadeMs)).toBeGreaterThan(
+      0.8,
+    );
+    expect(
+      closeSiblingFadeProgress(
+        TRANSITION.closeSiblingFadeDelayMs + TRANSITION.closeSiblingFadeMs,
+      ),
+    ).toBe(1);
+    // Fully opaque well before the tile is halfway home (500ms) and before
+    // the 800ms landing, so the shrink never reveals a half-faded grid.
+    expect(
+      TRANSITION.closeSiblingFadeDelayMs + TRANSITION.closeSiblingFadeMs,
+    ).toBeLessThan(
+      TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs / 2,
+    );
+    expect(closeSiblingFadeProgress(TRANSITION.closeTotalMs)).toBe(1);
   });
 });
 

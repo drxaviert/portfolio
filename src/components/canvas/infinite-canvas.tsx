@@ -49,6 +49,7 @@ import {
   closeFadeProgress,
   closeScrollOffset,
   closeShrinkProgress,
+  closeSiblingFadeProgress,
   fadeOutProgress,
   fitBox,
   glideProgress,
@@ -3139,7 +3140,7 @@ export const InfiniteCanvas = forwardRef<
         const fade = transition.prepared
           ? reduced
             ? reducedOpacity(elapsed)
-            : closeFadeProgress(elapsed)
+            : closeSiblingFadeProgress(elapsed)
           : 0;
 
         for (const plane of planes) {
@@ -4435,7 +4436,7 @@ export const InfiniteCanvas = forwardRef<
       } else if (t.phase === "closing" && !t.viewerOwned) {
         const elapsed = performance.now() - t.startedAt;
         const shrink = closeShrinkProgress(elapsed);
-        const fade = closeFadeProgress(elapsed);
+        const fade = closeSiblingFadeProgress(elapsed);
         const target = t.target ?? t.plane;
         loadingIndex = null;
 
