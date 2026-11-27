@@ -32,7 +32,8 @@ constants that own timings and geometry (`carousel-settings.ts`, `carousel-math.
 
 - Shipped UI only. The `/dev/*` prototype routes and their CSS (`src/app/dev/proto/…`) are not
   recorded.
-- WebGL/GLSL is out of scope. The only shader source is the inline `FRAGMENT_SOURCE` in
+- WebGL/GLSL is out of scope, except the Motion & Stills edge-blur pass recorded in `motion.md`.
+  The horizon shader source is the inline `FRAGMENT_SOURCE` in
   `src/components/horizon/horizon-shader.tsx:75`; the CSS fallback it sits over is recorded in
   `color.md` (horizon tokens) and `spacing-layout.md` (blob geometry).
 - `tokens.md` came from Figma and `motion.md` from an earlier reading of the code. Where either
