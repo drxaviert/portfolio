@@ -736,8 +736,7 @@
     animation: art-card-shred-fade-in 150ms linear both;
   }
 
-  .art-card-painting-button[data-shred-phase="exiting"]
-    .painting-frame-shred {
+  .art-card-painting-button[data-shred-phase="exiting"] .painting-frame-shred {
     animation: art-card-shred-fade-out 150ms linear both;
   }
 }
