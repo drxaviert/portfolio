@@ -35,7 +35,7 @@ export type SkyStrengths = {
  */
 export const SKY_PHASE_PRESET: Record<SkyPhase, SkyStrengths> = {
   night: { stars: 1, aurora: 0 },
-  dusk: { stars: 0.9, aurora: 0.8, starGain: 1.8, wash: 0, lab: true },
+  dusk: { stars: 0.9, aurora: 0.58, starGain: 1.8, wash: 0, lab: true },
   dawn: { stars: 0, aurora: 0.6 },
   day: { stars: 0, aurora: 0.75, wash: 0.58 },
 };
