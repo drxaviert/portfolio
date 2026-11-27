@@ -380,6 +380,10 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
      the ramp fades to zero at the band's inner edge. */
   --edge-blur-height: 172px;
   --edge-blur-max: 8px;
+  /* Listening edge-blur scaling: same fit as the idle peak, and the empty
+     content margin the band height may occupy before it reaches text. */
+  --edge-blur-fit: 1;
+  --edge-blur-margin: 172px;
 }
 
 @media (min-width: 768px) {
@@ -414,6 +418,8 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
      */
     --edge-blur-height: min(172px, calc((100dvh - 780px * var(--fit)) / 2));
     --edge-blur-max: calc(8px * var(--fit));
+    --edge-blur-fit: var(--fit);
+    --edge-blur-margin: calc((100dvh - 780px * var(--fit)) / 2);
 
     /* Desktop reading geometry: the xl values, scaled by --fit. */
     --page-pad: 32px;
@@ -455,8 +461,13 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
     );
 
     /* The 768 frame's content column is 868 tall (964 - 2 * 48). */
-    --edge-blur-height: min(172px, calc((100dvh - 868px * var(--home-fit)) / 2));
+    --edge-blur-height: min(
+      172px,
+      calc((100dvh - 868px * var(--home-fit)) / 2)
+    );
     --edge-blur-max: calc(8px * var(--home-fit));
+    --edge-blur-fit: var(--home-fit);
+    --edge-blur-margin: calc((100dvh - 868px * var(--home-fit)) / 2);
   }
 
   [data-home-frame] {

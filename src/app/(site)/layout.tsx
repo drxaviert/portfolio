@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { ListeningSync } from "@/components/horizon/listening-sync";
+import { ListeningTuner } from "@/components/horizon/listening-tuner";
 import { SharedHorizon } from "@/components/horizon/shared-horizon";
 
 /**
@@ -20,6 +22,8 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <SharedHorizon />
+      <ListeningSync />
+      <ListeningTuner />
       {children}
     </>
   );

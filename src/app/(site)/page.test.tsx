@@ -74,7 +74,8 @@ describe("home page", () => {
 
     // The bands are homepage-scoped by where they mount
     // (app/(site)/page.tsx); a study's direct load comes from
-    // app/(site)/work/layout.tsx and has none.
+    // app/(site)/work/layout.tsx and has none. One stack per edge: the
+    // listening ramp interpolates its radius and height directly.
     expect(container.querySelectorAll(".wd-edge-blur")).toHaveLength(2);
     expect(container.querySelector(".wd-edge-blur--top")).not.toBeNull();
     expect(container.querySelector(".wd-edge-blur--bottom")).not.toBeNull();

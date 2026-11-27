@@ -4,9 +4,11 @@ import { BlurStack } from "@/components/work/blur-stack";
 import { ViewportEdgeBlur } from "./viewport-edge-blur";
 
 describe("ViewportEdgeBlur", () => {
-  it("renders a decorative band at each viewport edge", () => {
+  it("renders one decorative band at each viewport edge", () => {
     const { container } = render(<ViewportEdgeBlur />);
-    const boxes = container.querySelectorAll(".wd-edge-blur");
+    const boxes = Array.from(
+      container.querySelectorAll<HTMLElement>(".wd-edge-blur"),
+    );
 
     expect(boxes).toHaveLength(2);
     expect(boxes[0]).toHaveClass("wd-edge-blur--top");
@@ -17,7 +19,7 @@ describe("ViewportEdgeBlur", () => {
     }
   });
 
-  it("paints blur only, and mirrors the bottom edge", () => {
+  it("paints blur only, mirrors the bottom edge, and carries the listening target", () => {
     const { container } = render(<ViewportEdgeBlur />);
     const stacks = Array.from(
       container.querySelectorAll<HTMLElement>(".wd-blur-stack"),
@@ -29,6 +31,16 @@ describe("ViewportEdgeBlur", () => {
     }
     expect(stacks[0]).not.toHaveAttribute("data-edge");
     expect(stacks[1]).toHaveAttribute("data-edge", "bottom");
+
+    const boxes = Array.from(
+      container.querySelectorAll<HTMLElement>(".wd-edge-blur"),
+    );
+    for (const box of boxes) {
+      expect(box.style.getPropertyValue("--edge-blur-tune-max")).toBe("32px");
+      expect(box.style.getPropertyValue("--edge-blur-tune-height")).toBe(
+        "400px",
+      );
+    }
   });
 });
 
