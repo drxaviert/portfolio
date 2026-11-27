@@ -70,6 +70,7 @@ import {
 import type { BreathSettings } from "./breathing";
 import { hoverValue, retargetHover } from "./hover";
 import type { HoverSettings, HoverTween } from "./hover";
+import { adjacentCell, keyboardGlideProgress } from "./keyboard-nav";
 import { usePan } from "./use-pan";
 import { centrePlaneScroll, planePosition } from "./wrap";
 import {
@@ -916,6 +917,25 @@ export const InfiniteCanvas = forwardRef<
     let hoverDirty = false;
     let hoverWasAllowed = false;
     let hoveredPlane: Plane | null = null;
+    /**
+     * The keyboard's tile selection. The canvas is one focusable region, so
+     * the selection is visual only: the focused plane takes the hover lift,
+     * arrows step it, Enter opens it and Escape clears it. A pointer press or
+     * pointer move hands the surface back to continuous pan and pointer hover.
+     */
+    let lastInput: "keyboard" | "pointer" = "pointer";
+    let keyboardFocused = false;
+    let focusedPlane: Plane | null = null;
+    /** The tile a viewer close should focus when the surface takes focus back. */
+    let focusCandidate: Plane | null = null;
+    /** The 700ms power3.inOut scroll step between adjacent focused tiles. */
+    let keyGlide: {
+      fromX: number;
+      fromY: number;
+      toX: number;
+      toY: number;
+      startedAt: number;
+    } | null = null;
     let renderedFrames = 0;
     /** A queued hi-res focus texture upgrade, cancelled on close/unmount. */
     let focusUpgrade: { id: number; idle: boolean } | null = null;
@@ -2629,6 +2649,7 @@ export const InfiniteCanvas = forwardRef<
       // chrome mounts immediately but stays hidden; no DOM media or full-res
       // decode runs on this path.
       panHalt();
+      keyGlide = null;
       canvasOwnedRef.current = true;
 
       const focus = fitBox(media.width, media.height, width, height);
@@ -2822,7 +2843,7 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function openCentred(): void {
-      const plane = centrePlane();
+      const plane = keyboardFocused && focusedPlane ? focusedPlane : centrePlane();
       if (plane) void openPlane(plane);
     }
 
@@ -3255,13 +3276,120 @@ export const InfiniteCanvas = forwardRef<
       else delete surface.dataset.hover;
     }
 
+    function setTileFocusAttribute(active: boolean): void {
+      const surface = containerRef.current;
+
+      if (!surface) return;
+
+      if (active) surface.dataset.tileFocus = "true";
+      else delete surface.dataset.tileFocus;
+    }
+
+    function clearKeyboardFocus(): void {
+      if (!keyboardFocused && !focusedPlane && !keyGlide) return;
+
+      keyboardFocused = false;
+      focusedPlane = null;
+      keyGlide = null;
+      setTileFocusAttribute(false);
+      hoverDirty = true;
+      wake();
+    }
+
+    function focusTileFromCentre(): void {
+      if (pausedRef.current || !introEndedFlag) return;
+
+      const plane =
+        focusCandidate && planes.includes(focusCandidate)
+          ? focusCandidate
+          : centrePlane();
+
+      focusCandidate = null;
+      if (!plane) return;
+
+      keyboardFocused = true;
+      focusedPlane = plane;
+      setTileFocusAttribute(true);
+      hoverDirty = true;
+      wake();
+    }
+
+    function startKeyGlide(dx: number, dy: number): void {
+      if (!focusedPlane) return;
+
+      const cell = adjacentCell(
+        { col: focusedPlane.col, row: focusedPlane.row },
+        dx,
+        dy,
+        cols,
+        rows,
+      );
+      const next =
+        planes.find(
+          (plane) => plane.col === cell.col && plane.row === cell.row,
+        ) ?? null;
+
+      if (!next) return;
+
+      // The key step owns the scroll while it runs; a held arrow must not add
+      // pan velocity on top of it.
+      panHalt();
+
+      const scroll = scrollRef.current;
+      const toX = centrePlaneScroll(next.baseX, scroll.x, halfX);
+      const toY = centrePlaneScroll(next.baseY, scroll.y, halfY);
+
+      focusedPlane = next;
+      hoverDirty = true;
+
+      if (reduced) {
+        scroll.x = toX;
+        scroll.y = toY;
+        keyGlide = null;
+        wake();
+        return;
+      }
+
+      keyGlide = {
+        fromX: scroll.x,
+        fromY: scroll.y,
+        toX,
+        toY,
+        startedAt: performance.now(),
+      };
+      wake();
+    }
+
+    function updateKeyGlide(now: number): boolean {
+      if (!keyGlide) return false;
+
+      const progress = keyboardGlideProgress(keyGlide.startedAt, now);
+      scrollRef.current.x =
+        keyGlide.fromX + (keyGlide.toX - keyGlide.fromX) * progress;
+      scrollRef.current.y =
+        keyGlide.fromY + (keyGlide.toY - keyGlide.fromY) * progress;
+
+      if (progress >= 1) keyGlide = null;
+
+      return true;
+    }
+
     /**
      * One raycast per frame at the last pointer position, through the inverse
      * lens. Only the idle state hovers; each plane's tween retargets from its
-     * current value so fast passes and interruptions never jump.
+     * current value so fast passes and interruptions never jump. Keyboard
+     * focus borrows the same lift, so the selected tile is the lifted one.
      */
     function updateHover(now: number, moving: boolean): boolean {
+      const keyboard =
+        keyboardFocused &&
+        focusedPlane !== null &&
+        introEndedFlag &&
+        transition.phase === "idle" &&
+        !pausedRef.current;
       const allowed =
+        !keyboard &&
+        !keyGlide &&
         introEndedFlag &&
         transition.phase === "idle" &&
         !pausedRef.current &&
@@ -3275,8 +3403,11 @@ export const InfiniteCanvas = forwardRef<
       if (hoverDirty) {
         hoverDirty = false;
 
-        const next =
-          allowed && hoverPoint ? planeAt(hoverPoint.x, hoverPoint.y) : null;
+        const next = keyboard
+          ? focusedPlane
+          : allowed && hoverPoint
+            ? planeAt(hoverPoint.x, hoverPoint.y)
+            : null;
 
         if (next !== hoveredPlane) {
           if (hoveredPlane) {
@@ -3294,7 +3425,7 @@ export const InfiniteCanvas = forwardRef<
           if (perfEnabled) {
             markPerf("cursor-change", { hover: Boolean(next) });
           }
-          setHoverCursor(Boolean(next));
+          setHoverCursor(Boolean(next) && !keyboard);
         }
       }
 
@@ -3330,6 +3461,10 @@ export const InfiniteCanvas = forwardRef<
       hoverDirty = false;
       hoverWasAllowed = false;
       hoveredPlane = null;
+      keyboardFocused = false;
+      focusedPlane = null;
+      keyGlide = null;
+      setTileFocusAttribute(false);
       setHoverCursor(false);
 
       for (const plane of planes) {
@@ -3882,6 +4017,11 @@ export const InfiniteCanvas = forwardRef<
       closeRun += 1;
       const target = t.target;
 
+      // The viewer returns focus to the canvas surface. The tile that was
+      // open is the one to continue from, so a keyboard close lands on it
+      // instead of whichever tile happens to sit at the centre.
+      focusCandidate = target;
+
       // The tile is already at its resting transform; show it before the DOM
       // viewer unmounts so the hand-back has no blank frame.
       for (const plane of planes) {
@@ -3993,12 +4133,14 @@ export const InfiniteCanvas = forwardRef<
 
       const introActive = updateIntro(now, dtMs);
       const transitionRunning = updateTransition(now);
+      const gliding = updateKeyGlide(now);
       const moving = panTick(now);
       const zooming = updateCamera(dt);
       const fading = updatePlanes(dt, now);
       const videosActive = syncVideos(now);
       const lensActive = updateLens(dt, now);
-      const breathMoving = panIsDragging() || panSpeed() > BREATH.settleSpeed;
+      const breathMoving =
+        gliding || panIsDragging() || panSpeed() > BREATH.settleSpeed;
       const hovering = updateHover(now, breathMoving);
       const breathing = updateBreathing(now, breathMoving, dtMs);
 
@@ -4011,6 +4153,7 @@ export const InfiniteCanvas = forwardRef<
       }
 
       const otherActive =
+        gliding ||
         moving ||
         zooming ||
         fading ||
@@ -4407,7 +4550,7 @@ export const InfiniteCanvas = forwardRef<
     // centred (or hovered) before Enter can open it.
     const onPreloadFocus = () => {
       if (pausedRef.current || !introEndedFlag) return;
-      const plane = hoveredPlane ?? centrePlane();
+      const plane = focusCandidate ?? hoveredPlane ?? centrePlane();
       if (plane) {
         void preloadItem(plane.itemIndex);
         warmFocusVideo(plane.itemIndex);
@@ -4417,6 +4560,10 @@ export const InfiniteCanvas = forwardRef<
 
     const onHoverPointerMove = (event: PointerEvent) => {
       if (event.pointerType !== "mouse") return;
+
+      // A moving pointer means pointer mode: the keyboard selection hands the
+      // surface back to continuous pan and pointer hover.
+      clearKeyboardFocus();
 
       hoverPoint = { x: event.clientX, y: event.clientY };
       hoverDirty = true;
@@ -4428,12 +4575,95 @@ export const InfiniteCanvas = forwardRef<
       wake();
     };
 
+    const onSurfacePointerDown = () => {
+      clearKeyboardFocus();
+    };
+
+    const onSurfaceWheel = () => {
+      clearKeyboardFocus();
+    };
+
+    const onSurfaceFocus = () => {
+      if (lastInput === "keyboard") focusTileFromCentre();
+    };
+
+    const onSurfaceBlur = () => {
+      clearKeyboardFocus();
+    };
+
+    // Capture before usePan's React handler: while a tile is focused, arrows
+    // step the selection and Escape clears it. With no tile focused, the same
+    // keys fall through to the continuous pan.
+    const onGridKeyDown = (event: KeyboardEvent) => {
+      if (!keyboardFocused || pausedRef.current) return;
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        clearKeyboardFocus();
+        return;
+      }
+
+      if (
+        event.key !== "ArrowLeft" &&
+        event.key !== "ArrowRight" &&
+        event.key !== "ArrowUp" &&
+        event.key !== "ArrowDown"
+      ) {
+        return;
+      }
+
+      if (!introEndedFlag || transition.phase !== "idle") return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (event.repeat) return;
+
+      const dx =
+        event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+      const dy =
+        event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+
+      startKeyGlide(dx, dy);
+    };
+
+    // Focus follows the input that asked for it. A Tab focus selects a tile;
+    // a click focus leaves the surface in continuous pan.
+    const onWindowPointerDown = () => {
+      lastInput = "pointer";
+    };
+    const onWindowKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key === "Tab" ||
+        event.key === "Enter" ||
+        event.key === "Escape" ||
+        event.key === "ArrowLeft" ||
+        event.key === "ArrowRight" ||
+        event.key === "ArrowUp" ||
+        event.key === "ArrowDown"
+      ) {
+        lastInput = "keyboard";
+      }
+    };
+
+    window.addEventListener("pointerdown", onWindowPointerDown, true);
+    window.addEventListener("keydown", onWindowKeyDown, true);
+    surface?.addEventListener("pointerdown", onSurfacePointerDown, true);
+    surface?.addEventListener("wheel", onSurfaceWheel, {
+      capture: true,
+      passive: true,
+    });
     surface?.addEventListener("pointermove", onHoverPointerMove, {
       passive: true,
     });
     surface?.addEventListener("pointerleave", onHoverPointerLeave, {
       passive: true,
     });
+    surface?.addEventListener("focus", onSurfaceFocus);
+    surface?.addEventListener("blur", onSurfaceBlur);
+    surface?.addEventListener("keydown", onGridKeyDown, true);
 
     wakeRef.current = wake;
     pickRef.current = pick;
@@ -4465,6 +4695,13 @@ export const InfiniteCanvas = forwardRef<
       surface?.removeEventListener("focus", onPreloadFocus);
       surface?.removeEventListener("pointermove", onHoverPointerMove);
       surface?.removeEventListener("pointerleave", onHoverPointerLeave);
+      surface?.removeEventListener("pointerdown", onSurfacePointerDown, true);
+      surface?.removeEventListener("wheel", onSurfaceWheel, true);
+      surface?.removeEventListener("focus", onSurfaceFocus);
+      surface?.removeEventListener("blur", onSurfaceBlur);
+      surface?.removeEventListener("keydown", onGridKeyDown, true);
+      window.removeEventListener("pointerdown", onWindowPointerDown, true);
+      window.removeEventListener("keydown", onWindowKeyDown, true);
 
       wakeRef.current = () => {};
       pickRef.current = () => {};
@@ -4531,7 +4768,7 @@ export const InfiniteCanvas = forwardRef<
       data-canvas-surface
       tabIndex={0}
       role="region"
-      aria-label="WebGL media canvas. Drag or scroll to move, hold the arrow keys to pan, and press Enter to open the centred media."
+      aria-label="WebGL media canvas. Drag or scroll to move, hold the arrow keys to pan, and press Enter to open the centred media. Tab focuses a tile; the arrow keys then move between tiles, Enter opens the focused tile and Escape clears the focus."
       inert={paused}
       {...handlers}
       onDragStart={(event) => event.preventDefault()}
