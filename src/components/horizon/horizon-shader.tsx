@@ -118,6 +118,12 @@ uniform float uListenLift;
  */
 uniform vec2 uSoftUv;
 
+/* max(x, 0) with its corner rounded over +-w: C1, and equal to x past w. */
+float rampSoft(float x, float w) {
+  float t = clamp(x + w, 0.0, 2.0 * w);
+  return x >= w ? x : t * t / (4.0 * w);
+}
+
 float hash21(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
   p += dot(p, p + 45.32);
@@ -144,14 +150,19 @@ void main() {
   // The blob boxes are top-down CSS pixels; gl_FragCoord is bottom-up.
   vec2 world = vec2(frag.x, uRes.y - frag.y);
 
-  vec3 color = uBase;
-  if (v > 0.7) {
-    float t = clamp((v - 0.7) / max(uMidAt - 0.7, 0.0001), 0.0, 1.0);
-    color = mix(uBase, uMid, t);
-    if (v > uMidAt) {
-      color = mix(uMid, uHorizon3, clamp((v - uMidAt) / max(1.0 - uMidAt, 0.0001), 0.0, 1.0));
-    }
-  }
+  /*
+   * The vertical ramp is base -> mid from 0.7 to uMidAt, then mid -> horizon3 to
+   * the bottom. As plain mixes the slope jumps at each stop, and the eye turns
+   * that kink in a smooth gradient into a visible band edge
+   * (a Mach band), whatever the bit depth. Write it as the base colour plus a
+   * slope change at each stop, and round each slope change with a quadratic
+   * blend (rampSoft), so the slope is continuous through the stops.
+   */
+  vec3 slope1 = (uMid - uBase) / max(uMidAt - 0.7, 0.0001);
+  vec3 slope2 = (uHorizon3 - uMid) / max(1.0 - uMidAt, 0.0001);
+  vec3 color = uBase
+    + slope1 * rampSoft(v - 0.7, 0.08)
+    + (slope2 - slope1) * rampSoft(v - uMidAt, 0.08);
 
   vec2 uv = listenUv(world, uScale1, uDrift1, uListenScale, uListenLift);
   vec2 blurred = texture2D(uBlurTex, uv).rg;
