@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { HOVER, hoverValue, retargetHover } from "./hover";
+import {
+  HOVER,
+  hoverIntentReady,
+  hoverValue,
+  retargetHover,
+} from "./hover";
 import type { HoverTween } from "./hover";
 
 const LIFT: HoverTween = {
@@ -33,6 +38,16 @@ describe("hoverValue", () => {
     expect(
       hoverValue(lowered, HOVER.inMs + HOVER.outMs),
     ).toBe(0);
+  });
+});
+
+describe("hover intent", () => {
+  it("waits 200ms before the cursor/label commit", () => {
+    expect(HOVER.intentMs).toBe(200);
+    expect(hoverIntentReady(null, 1000)).toBe(false);
+    expect(hoverIntentReady(1000, 1199)).toBe(false);
+    expect(hoverIntentReady(1000, 1200)).toBe(true);
+    expect(hoverIntentReady(1000, 1400)).toBe(true);
   });
 });
 

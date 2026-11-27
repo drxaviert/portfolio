@@ -68,7 +68,7 @@ import {
   easeBreathLevel,
 } from "./breathing";
 import type { BreathSettings } from "./breathing";
-import { hoverValue, retargetHover } from "./hover";
+import { hoverIntentReady, hoverValue, retargetHover } from "./hover";
 import type { HoverSettings, HoverTween } from "./hover";
 import { adjacentCell, keyboardGlideProgress } from "./keyboard-nav";
 import { usePan } from "./use-pan";
@@ -639,6 +639,7 @@ export const InfiniteCanvas = forwardRef<
     ref,
   ) {
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
+  const hoverLabelRef = useRef<HTMLSpanElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const [introReady, setIntroReady] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
@@ -917,6 +918,9 @@ export const InfiniteCanvas = forwardRef<
     let hoverDirty = false;
     let hoverWasAllowed = false;
     let hoveredPlane: Plane | null = null;
+    /** The tile the pointer is resting on, waiting out the 200ms intent. */
+    let hoverIntentPlane: Plane | null = null;
+    let hoverIntentAt = 0;
     /**
      * The keyboard's tile selection. The canvas is one focusable region, so
      * the selection is visual only: the focused plane takes the hover lift,
@@ -3285,6 +3289,42 @@ export const InfiniteCanvas = forwardRef<
       else delete surface.dataset.tileFocus;
     }
 
+    function setHoverLabel(visible: boolean): void {
+      const label = hoverLabelRef.current;
+
+      if (!label) return;
+
+      if (visible) label.dataset.visible = "true";
+      else delete label.dataset.visible;
+    }
+
+    /** Move the label with the pointer, clamped inside the canvas surface. */
+    function positionHoverLabel(clientX: number, clientY: number): void {
+      const surface = containerRef.current;
+      const label = hoverLabelRef.current;
+
+      if (!surface || !label) return;
+
+      const rect = surface.getBoundingClientRect();
+      const x = Math.min(
+        Math.max(0, clientX - rect.left + 14),
+        Math.max(0, rect.width - 56),
+      );
+      const y = Math.min(
+        Math.max(0, clientY - rect.top + 18),
+        Math.max(0, rect.height - 36),
+      );
+
+      label.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    }
+
+    /** Leaving or changing tiles cancels a pending intent immediately. */
+    function cancelHoverIntent(): void {
+      hoverIntentPlane = null;
+      setHoverLabel(false);
+      setHoverCursor(false);
+    }
+
     function clearKeyboardFocus(): void {
       if (!keyboardFocused && !focusedPlane && !keyGlide) return;
 
@@ -3310,6 +3350,7 @@ export const InfiniteCanvas = forwardRef<
       keyboardFocused = true;
       focusedPlane = plane;
       setTileFocusAttribute(true);
+      cancelHoverIntent();
       hoverDirty = true;
       wake();
     }
@@ -3420,15 +3461,39 @@ export const InfiniteCanvas = forwardRef<
             next.hover = retargetHover(next.hover, 1, now);
             void preloadItem(next.itemIndex);
             warmFocusVideo(next.itemIndex);
-          }
 
-          if (perfEnabled) {
-            markPerf("cursor-change", { hover: Boolean(next) });
+            // The lift starts now; the cursor and label wait out the intent.
+            if (!keyboard) {
+              hoverIntentPlane = next;
+              hoverIntentAt = now;
+            }
+            setHoverLabel(false);
+            setHoverCursor(false);
+          } else {
+            cancelHoverIntent();
           }
-          setHoverCursor(Boolean(next) && !keyboard);
         }
       }
 
+      if (hoverIntentPlane) {
+        if (
+          !allowed ||
+          keyboard ||
+          hoverIntentPlane !== hoveredPlane
+        ) {
+          cancelHoverIntent();
+        } else if (hoverIntentReady(hoverIntentAt, now)) {
+          hoverIntentPlane = null;
+          setHoverCursor(true);
+          setHoverLabel(true);
+
+          if (perfEnabled) {
+            markPerf("cursor-change", { hover: true });
+          }
+        }
+      }
+
+      const intentPending = hoverIntentPlane !== null;
       let active = false;
 
       for (const plane of planes) {
@@ -3452,7 +3517,7 @@ export const InfiniteCanvas = forwardRef<
           plane === hoveredPlane || plane.hoverLevel > 0.001 ? 1 : 0;
       }
 
-      return active;
+      return active || intentPending;
     }
 
     function clearHoverNow(): void {
@@ -3464,7 +3529,9 @@ export const InfiniteCanvas = forwardRef<
       keyboardFocused = false;
       focusedPlane = null;
       keyGlide = null;
+      hoverIntentPlane = null;
       setTileFocusAttribute(false);
+      setHoverLabel(false);
       setHoverCursor(false);
 
       for (const plane of planes) {
@@ -4566,11 +4633,13 @@ export const InfiniteCanvas = forwardRef<
       clearKeyboardFocus();
 
       hoverPoint = { x: event.clientX, y: event.clientY };
+      positionHoverLabel(event.clientX, event.clientY);
       hoverDirty = true;
       wake();
     };
     const onHoverPointerLeave = () => {
       hoverPoint = null;
+      cancelHoverIntent();
       hoverDirty = true;
       wake();
     };
@@ -4775,6 +4844,10 @@ export const InfiniteCanvas = forwardRef<
       onContextMenu={(event) => event.preventDefault()}
     >
       <div ref={canvasHostRef} className="cv-webgl-host" aria-hidden="true" />
+
+      <span ref={hoverLabelRef} className="cv-hover-label" aria-hidden="true">
+        View
+      </span>
 
       {webglFailed ? <StaticFallback items={items} /> : null}
 

@@ -26,7 +26,22 @@ export const HOVER = {
   inMs: 280,
   /** Ease-in-out for the return. */
   outMs: 400,
+  /**
+   * The cursor and label wait this long before they commit to a tile. A
+   * pointer crossing the grid must not flicker through every cursor state or
+   * label on the way; the lift still starts at once, because it is the tile's
+   * own response, not a pointer decoration.
+   */
+  intentMs: 200,
 } as const;
+
+/** True once a pointer has stayed on one tile for the intent delay. */
+export function hoverIntentReady(
+  startedAt: number | null,
+  now: number,
+): boolean {
+  return startedAt !== null && now - startedAt >= HOVER.intentMs;
+}
 
 export function hoverValue(tween: HoverTween, now: number): number {
   if (tween.durationMs <= 0) return tween.to;
