@@ -1,0 +1,10 @@
+/*
+ * The play lab is a fixed 1440-ish tool, like the rest of the desktop site:
+ * one composition, scaled by the shared --fit zoom. Below 768 the dev route is
+ * outside the mobile gate, so it keeps the old unscaled tool.
+ */
+@media (min-width: 768px) {
+  .play-lab-content {
+    zoom: var(--fit);
+  }
+}

@@ -1,6 +1,7 @@
 import type {
   HorizonDither,
   HorizonGradientMode,
+  HorizonListeningTuning,
   HorizonMotionTuning,
 } from "./horizon-background";
 
@@ -35,6 +36,51 @@ export const HORIZON_HOME_MOTION: Required<HorizonMotionTuning> = {
   baseIntensity: 4,
   /** Rest strength at night. */
   nightBaseIntensity: 2.5,
+};
+
+/**
+ * The listening swell: while "Door to the Cosmos" plays, the glow grows upward
+ * and outward, softens, brightens and breathes deeper without changing its
+ * speed.
+ *
+ * These are the effective shipping values at the tuning panel's default
+ * Immersion of 1.5. The panel's per-parameter sliders store the base values at
+ * Immersion 1; the master scales their deltas from the resting horizon, then
+ * clamps them so the extreme end stays a glow instead of clipping to a flat
+ * white shape. "Copy values" in the panel writes these effective values back in
+ * this shape.
+ *
+ * The shader runs these on its own rAF clock with an asymmetric ramp: a long
+ * 3.5s swell in on --ease-calm, then a 1.2s settle out so a pause feels
+ * immediate. A pause mid-swell retargets from the current value, so it reverses
+ * without a jump. Reduced motion keeps the brighter, larger state but only
+ * crossfades it over 400ms and freezes the breathe exactly where it was.
+ *
+ * The breathing period is deliberately the idle 6s, so the period ramp is a
+ * no-op and the breathe phase continues uninterrupted; only the amplitude
+ * deepens. A manually raised period in the tuner still ramps normally.
+ *
+ * Keep the CSS fallback in step: its extra tint uses intensityBoost - 1, its
+ * blur uses blurScale, and its static geometry uses blobScale / blobLift.
+ *
+ * The edge-blur fields are absolute px targets for the single viewport stack,
+ * which ramps the radius and height directly (not an opacity crossfade). The
+ * master Immersion slider deliberately does not scale them: they are a
+ * readability budget over the chrome, not part of the horizon's visual
+ * strength, so changing Immersion cannot quietly move the safe limit.
+ */
+export const HORIZON_HOME_LISTENING: HorizonListeningTuning = {
+  intensityBoost: 1.9,
+  breathePeriod: 6,
+  intensityAmp: 0.95,
+  blobScale: 1.8,
+  blobLift: 12.6,
+  blurScale: 1.5,
+  edgeBlurMax: 32,
+  edgeBlurHeight: 400,
+  inDuration: 3.5,
+  outDuration: 1.2,
+  reducedDuration: 0.4,
 };
 
 /** CSS fallback grain: enough to break 8-bit steps, invisible as texture. */

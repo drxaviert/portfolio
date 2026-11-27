@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { BreathSettings } from "@/components/canvas/breathing";
 import { FocusViewer } from "@/components/canvas/focus-viewer";
 import type { HoverSettings } from "@/components/canvas/hover";
@@ -56,14 +56,18 @@ type ViewerState = {
 export function CanvasReader({
   meta,
   items,
+  edgeBlur = true,
 }: {
   meta: WorkMeta;
   items: CanvasItem[];
+  /** `?edgeblur=off`: the prototype's A/B view without the effect. */
+  edgeBlur?: boolean;
 }) {
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const [viewerClosing, setViewerClosing] = useState(false);
   const [viewerStepped, setViewerStepped] = useState(false);
   const [canvasPending, setCanvasPending] = useState(false);
+  const [chromeIn, setChromeIn] = useState(false);
   const canvasRef = useRef<InfiniteCanvasHandle | null>(null);
   const pathname = usePathname();
   const active = pathname === `/work/${meta.slug}`;
@@ -71,9 +75,17 @@ export function CanvasReader({
   const canvasViewing = Boolean(shownViewer?.canvasOwned) && !viewerStepped;
 
   const openViewer = useCallback(
-    (index: number, startAt?: number, openRect?: Box, canvasOwned?: boolean) => {
+    (
+      index: number,
+      startAt?: number,
+      openRect?: Box,
+      canvasOwned?: boolean,
+    ) => {
       if (perfEnabled) {
-        markPerf("react-open-state", { index, canvasOwned: Boolean(canvasOwned) });
+        markPerf("react-open-state", {
+          index,
+          canvasOwned: Boolean(canvasOwned),
+        });
       }
       setViewerClosing(false);
       setViewerStepped(false);
@@ -93,6 +105,18 @@ export function CanvasReader({
   const markCanvasOpened = useCallback(() => {
     if (perfEnabled) markPerf("chrome-visible");
     setCanvasPending(false);
+  }, []);
+
+  const markIntroStarted = useCallback(() => {
+    setChromeIn(true);
+  }, []);
+
+  // A canvas that cannot start its clock (no WebGL, or a failed effect) still
+  // needs its chrome. The intro start arrives by 2.5s at the latest; this is
+  // the no-intro fallback, not a second entrance beat.
+  useEffect(() => {
+    const timer = window.setTimeout(() => setChromeIn(true), 3000);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const markViewerClosing = useCallback(
@@ -125,6 +149,7 @@ export function CanvasReader({
       data-viewing={shownViewer && !viewerClosing ? "" : undefined}
       data-canvas-viewing={canvasViewing ? "" : undefined}
       data-closing={viewerClosing || undefined}
+      data-chrome={items.length === 0 ? undefined : chromeIn ? "in" : "pending"}
     >
       <h1 id={READER_TITLE_ID} tabIndex={-1} className="cv-reader__title">
         {meta.title}
@@ -138,8 +163,11 @@ export function CanvasReader({
           lens={LOCKED_LENS}
           breath={LOCKED_BREATH}
           hover={LOCKED_HOVER}
+          edgeBlur={edgeBlur}
+          edgeBlurSuppressed={shownViewer !== null}
           onOpen={openViewer}
           onCanvasOpened={markCanvasOpened}
+          onIntroStart={markIntroStarted}
         />
       </div>
 

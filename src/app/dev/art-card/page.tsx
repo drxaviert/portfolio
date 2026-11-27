@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { ArtCard } from "@/components/home/art-card/art-card";
+import { ArtImage } from "@/components/home/art-card/art-image";
+import { PaintingFrame } from "@/components/home/art-card/painting-frame";
 import { ART_DATA_VERSION, fallbackArt, getTodaysArt } from "@/lib/daily-art";
 import type { DailyArt } from "@/lib/daily-art";
 import "./lab.css";
@@ -14,10 +16,11 @@ import "./lab.css";
  *   1024 → 728 × 220
  *    375 → 171 × 160
  *
- * That covers portrait, landscape, square, panorama and hanging-scroll
- * aspects, plus the four dated frame eras. AIC's public-domain set currently
- * has no post-1945 paintings, so the modern frame sample forces a 1960 date
- * and says so in its caption; the image is still a real AIC work.
+ * That covers portrait, landscape, square, panorama and tall-scroll aspects.
+ * The frame material follows the phase, not the artwork: ornate gilt on the
+ * light surface and the same ornate gilt with the walnut palette at night.
+ * The top row shows the live day and night materials side by side; the matrix
+ * shows them on several paintings, and the samples below keep the real cards.
  */
 export const metadata = {
   title: "Daily painting card lab",
@@ -35,6 +38,47 @@ const CARD_SIZES = [
   { label: "1440 · 849 × 276", width: 849, height: 276 },
   { label: "1024 · 728 × 220", width: 728, height: 220 },
   { label: "375 · 171 × 160", width: 171, height: 160 },
+] as const;
+
+/**
+ * Contrast matrix instrumentation: several paintings on the real card surface
+ * in every phase. Nested data-phase blocks re-declare the phase tokens for
+ * their subtree, so one page can show all four side by side. The material is
+ * phase-driven, not era-driven; the samples below keep the real cards.
+ */
+const PHASE_COLUMNS = [
+  { id: "day", label: "Day" },
+  { id: "dawn", label: "Dawn" },
+  { id: "dusk", label: "Dusk" },
+  { id: "night", label: "Night" },
+] as const;
+
+const SAMPLE_ROWS = [
+  {
+    sampleKey: "portrait-ornate",
+    label: "Portrait",
+    note: "0.79 · The Music Lesson",
+  },
+  {
+    sampleKey: "landscape-carved",
+    label: "Landscape",
+    note: "1.70 · John Thomlinson",
+  },
+  {
+    sampleKey: "square-walnut",
+    label: "Square",
+    note: "1.00 · Irises",
+  },
+  {
+    sampleKey: "scroll",
+    label: "Tall scroll",
+    note: "0.41 · Beauty Beneath a Willow Tree",
+  },
+  {
+    sampleKey: "fallback",
+    label: "Bundled stand-in",
+    note: "4:3 · no image",
+  },
 ] as const;
 
 function baseArt(
@@ -57,8 +101,7 @@ function samples(today: string): LabSample[] {
   return [
     {
       key: "portrait-ornate",
-      caption:
-        "Portrait · 0.79 · pre-1700 ornate gilt · The Music Lesson, 1665",
+      caption: "Portrait · 0.79 · The Music Lesson, 1665",
       art: baseArt(
         {
           id: 512,
@@ -82,8 +125,7 @@ function samples(today: string): LabSample[] {
     },
     {
       key: "landscape-carved",
-      caption:
-        "Landscape · 1.70 · 1700–1880 carved gilt · John Thomlinson and His Family, 1745",
+      caption: "Landscape · 1.70 · John Thomlinson and His Family, 1745",
       art: baseArt(
         {
           id: 2169,
@@ -106,7 +148,7 @@ function samples(today: string): LabSample[] {
     },
     {
       key: "square-walnut",
-      caption: "Square · 1.00 · 1880–1945 walnut · Irises, 1914",
+      caption: "Square · 1.00 · Irises, 1914",
       art: baseArt(
         {
           id: 4887,
@@ -130,8 +172,7 @@ function samples(today: string): LabSample[] {
     },
     {
       key: "landscape-walnut",
-      caption:
-        "Landscape · 1.49 · 1880–1945 walnut · A Sunday on La Grande Jatte, 1884",
+      caption: "Landscape · 1.49 · A Sunday on La Grande Jatte, 1884",
       art: baseArt(
         {
           id: 27992,
@@ -155,8 +196,7 @@ function samples(today: string): LabSample[] {
     },
     {
       key: "panorama",
-      caption:
-        "Panorama · 3.04 · pre-1700 gilt · Landscape of the Four Seasons, c. 1560",
+      caption: "Panorama · 3.04 · Landscape of the Four Seasons, c. 1560",
       art: baseArt(
         {
           id: 7634,
@@ -180,8 +220,7 @@ function samples(today: string): LabSample[] {
     },
     {
       key: "scroll",
-      caption:
-        "Hanging scroll · 0.41 · silk mount · Beauty Beneath a Willow Tree, c. 1780",
+      caption: "Tall scroll · 0.41 · Beauty Beneath a Willow Tree, c. 1780",
       art: baseArt(
         {
           id: 8900,
@@ -205,8 +244,7 @@ function samples(today: string): LabSample[] {
     },
     {
       key: "portrait-walnut",
-      caption:
-        "Tall portrait · 0.53 · 1880–1945 walnut · Mrs. George Swinton, 1897",
+      caption: "Tall portrait · 0.53 · Mrs. George Swinton, 1897",
       art: baseArt(
         {
           id: 4749,
@@ -229,31 +267,6 @@ function samples(today: string): LabSample[] {
       ),
     },
     {
-      key: "modern",
-      caption: "Square · post-1945 thin black float · Irises (frame study)",
-      note: "The date is forced to 1960 so this sample reaches the post-1945 frame; AIC has no CC0 paintings dated after 1945.",
-      art: baseArt(
-        {
-          id: 4887,
-          title: "Irises",
-          artist: "Claude Monet",
-          dateDisplay: "1914-17 · frame study",
-          dateStart: 1960,
-          placeOfOrigin: "France",
-          styleTitle: "Impressionism",
-          medium: "Oil on canvas",
-          synopsis:
-            "Monet's late Irises experiments with scale and a horizonless surface. This sample forces the post-1945 frame so the modern face can be compared.",
-          imageId: "1f925e43-ff81-5ad7-da75-b28ea651c09f",
-          width: 5407,
-          height: 5398,
-          alt: "A work made of oil on canvas.",
-          ...common,
-        },
-        today,
-      ),
-    },
-    {
       key: "fallback",
       caption: "Bundled stand-in · API unavailable · 4:3",
       note: "No AIC request or image: this is the card's fallback painting.",
@@ -269,6 +282,8 @@ export default async function ArtCardLabPage() {
 
   const today = (await getTodaysArt(ART_DATA_VERSION)).date;
   const items = samples(today);
+  const artByKey = new Map(items.map((item) => [item.key, item.art]));
+  const nightGiltArt = artByKey.get("portrait-ornate");
 
   return (
     <main className="art-lab">
@@ -282,10 +297,135 @@ export default async function ArtCardLabPage() {
         </p>
         <p className="art-lab-note">
           Artwork metadata is fixed by AIC id; image bytes still come from the
-          Art Institute&apos;s IIIF service. The modern frame is forced with a
-          1960 date because the public-domain set has no post-1945 paintings.
+          Art Institute&apos;s IIIF service. The frame material follows the
+          phase: ornate gilt on the light surface, the same ornate gilt with the
+          walnut palette at night.
         </p>
       </header>
+
+      {nightGiltArt ? (
+        <section
+          className="art-lab-section"
+          aria-labelledby="night-frame-title"
+        >
+          <div className="art-lab-caption">
+            <h2 className="art-lab-sample-title" id="night-frame-title">
+              Night frame material
+            </h2>
+            <p className="art-lab-caption-line">
+              One ornate gilt structure in both phases: the day frame on its
+              light card surface, then the same frame at night with the walnut
+              palette applied. Edge, bevels, grain layers, lip and mount
+              structure are unchanged; only the colours differ.
+            </p>
+            <p className="art-lab-caption-note">
+              This is the live night material — no variants.
+            </p>
+          </div>
+
+          <div className="art-lab-matrix-scroll">
+            <div className="art-lab-frame-compare">
+              <figure className="art-lab-frame-figure">
+                <div
+                  className="art-lab-frame-stage art-lab-frame-stage-lg"
+                  data-phase="day"
+                >
+                  <PaintingFrame art={nightGiltArt}>
+                    <ArtImage art={nightGiltArt} />
+                  </PaintingFrame>
+                </div>
+                <figcaption>
+                  <p className="art-lab-frame-label">Day · ornate gilt</p>
+                  <p className="art-lab-frame-note">
+                    The light-surface reference.
+                  </p>
+                </figcaption>
+              </figure>
+
+              <figure className="art-lab-frame-figure">
+                <div
+                  className="art-lab-frame-stage art-lab-frame-stage-lg"
+                  data-phase="night"
+                >
+                  <PaintingFrame art={nightGiltArt}>
+                    <ArtImage art={nightGiltArt} />
+                  </PaintingFrame>
+                </div>
+                <figcaption>
+                  <p className="art-lab-frame-label">
+                    Night · walnut palette on gilt
+                  </p>
+                  <p className="art-lab-frame-note">
+                    The same structure with the walnut colours; live now.
+                  </p>
+                </figcaption>
+              </figure>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="art-lab-section" aria-labelledby="frame-matrix-title">
+        <div className="art-lab-caption">
+          <h2 className="art-lab-sample-title" id="frame-matrix-title">
+            Frame material by phase
+          </h2>
+          <p className="art-lab-caption-line">
+            The same material for every painting: ornate gilt on the light
+            surface and the walnut palette on that same gilt at night. Each
+            frame sits in its own data-phase scope, so this is the matrix the
+            face contrast is measured from (WCAG 1.4.11, target ≥ 3:1).
+          </p>
+        </div>
+
+        <div className="art-lab-matrix-scroll">
+          <div className="art-lab-matrix">
+            <div className="art-lab-matrix-head">
+              <span className="art-lab-matrix-corner">Painting</span>
+              {PHASE_COLUMNS.map((phase) => (
+                <span className="art-lab-matrix-phase" key={phase.id}>
+                  {phase.label}
+                </span>
+              ))}
+            </div>
+
+            {SAMPLE_ROWS.map((row) => {
+              const art = artByKey.get(row.sampleKey);
+              if (!art) return null;
+
+              return (
+                <div className="art-lab-matrix-row" key={row.sampleKey}>
+                  <div className="art-lab-matrix-sample">
+                    <span className="art-lab-matrix-sample-name">
+                      {row.label}
+                    </span>
+                    <span className="art-lab-matrix-sample-note">
+                      {row.note}
+                    </span>
+                  </div>
+                  {PHASE_COLUMNS.map((phase) => (
+                    <div
+                      className="art-lab-frame-cell"
+                      data-phase-cell={phase.id}
+                      data-sample-cell={row.sampleKey}
+                      key={phase.id}
+                    >
+                      <div
+                        className="art-lab-frame-stage"
+                        data-phase={phase.id}
+                      >
+                        <PaintingFrame art={art}>
+                          <ArtImage art={art} />
+                        </PaintingFrame>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
       {items.map((sample) => (
         <section className="art-lab-sample" key={sample.key}>

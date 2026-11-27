@@ -7,9 +7,11 @@
  * starts at the frame's padding" and "column is centred in the viewport".
  *
  * Keep --wd-nav-offset in step with src/components/home/home-layout.tsx: the
- * tracker (h-40/md 220/xl 276px), the 12px gap, the card band (420px below md,
- * md 560, lg 360, xl 416) and the 12px gap again. NavDock also corrects any
- * drift from [data-nav-slot] at runtime.
+ * xl tracker (276px), the 12px gap, the xl card band (416px) and the 12px gap
+ * again. At >=1280 that is the xl layout; 768-1279 uses the tablet frame's own
+ * slot (the rule below). The home dock takes the frame's fit; the reader keeps
+ * the xl --fit, because the drawer is still the xl composition. NavDock also
+ * corrects any drift from [data-nav-slot] at runtime.
  */
 
 .wd-nav-dock {
@@ -36,21 +38,42 @@
 
 @media (min-width: 768px) {
   .wd-nav-dock {
-    --wd-frame-pad: 32px;
-    --wd-nav-offset: 804px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .wd-nav-dock {
-    --wd-nav-offset: 604px;
-  }
-}
-
-@media (min-width: 1280px) {
-  .wd-nav-dock {
     --wd-frame-pad: 60px;
     --wd-nav-offset: 716px;
+    zoom: var(--fit);
+  }
+
+  /*
+   * The dock rides inside the frame's zoom in both states: at >=768 the xl
+   * composition is the only one, and the whole page scales by --fit. `zoom`
+   * scales its top/left/width once; 50dvh is read at painted size, so the home
+   * top divides it by --fit to put it back into the frame's coordinate space.
+   * Percentages already resolve against the pre-zoom containing block.
+   */
+  .wd-nav-dock[data-nav-state="home"] {
+    top: max(
+      calc(var(--wd-frame-pad) + var(--wd-nav-offset)),
+      calc(50dvh / var(--fit) + var(--wd-nav-offset) / 2 - 2rem)
+    );
+    left: max(var(--wd-frame-pad), calc(50% - 568px));
+    width: min(1136px, 100% - var(--wd-frame-pad) * 2);
+  }
+}
+
+/*
+ * Home / Dawn / 768: the home frame is the 768x964 tablet composition,
+ * centred. Its nav slot is the frame's 48px top inset plus the 220px top band,
+ * the 12px gap, the 560px card band and the 12px gap again: 852px from the
+ * frame's top, or 370px below the viewport centre at fit 1. The dock takes the
+ * frame's own --home-fit so it stays on that slot while the composition scales;
+ * the reader keeps --fit because the drawer is still the xl composition.
+ */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .wd-nav-dock[data-nav-state="home"] {
+    zoom: var(--home-fit);
+    top: calc(50dvh / var(--home-fit) + 370px);
+    left: max(32px, calc(50% - 352px));
+    width: min(704px, 100% - 64px);
   }
 }
 

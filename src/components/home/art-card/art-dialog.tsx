@@ -139,6 +139,7 @@ export function ArtDialog({ art, open, onClose }: ArtDialogProps) {
     <dialog
       ref={dialogRef}
       className="art-dialog"
+      data-lenis-prevent
       aria-labelledby={titleId}
       aria-modal="true"
       onClose={handleNativeClose}
@@ -175,7 +176,7 @@ export function ArtDialog({ art, open, onClose }: ArtDialogProps) {
         </button>
 
         <div className="art-dialog-stage">
-          <PaintingFrame art={art} variant="full">
+          <PaintingFrame art={art}>
             <ArtImage
               art={art}
               variant="full"

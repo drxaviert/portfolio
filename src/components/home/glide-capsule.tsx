@@ -346,5 +346,39 @@ export function GlideCapsule({
     };
   }, []);
 
+  // A resize changes the item boxes without changing the hover target. Re-place
+  // the capsule on its current item, or its clip would keep the pre-resize
+  // geometry until the next pointer move.
+  useEffect(() => {
+    const onResize = () => {
+      const st = stateRef.current;
+      const el = capsuleRef.current;
+
+      if (!el || !st.inside || st.breaking || st.target < 0) return;
+
+      const node = items.current[st.target];
+
+      if (!node || node.offsetWidth === 0) return;
+
+      if (st.raf) {
+        window.cancelAnimationFrame(st.raf);
+        st.raf = 0;
+      }
+
+      const left = node.offsetLeft;
+      const right = left + node.offsetWidth;
+
+      st.left = createEdge(left);
+      st.right = createEdge(right);
+      st.settled = true;
+      st.trailHoldUntil = 0;
+      el.style.clipPath = `inset(0 calc(100% - ${right}px) 0 ${left}px round var(--radius-md, 6px))`;
+    };
+
+    window.addEventListener("resize", onResize);
+
+    return () => window.removeEventListener("resize", onResize);
+  }, [items]);
+
   return <span ref={capsuleRef} aria-hidden="true" className="nav-glide" />;
 }

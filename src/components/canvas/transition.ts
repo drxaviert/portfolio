@@ -27,21 +27,35 @@ export const TRANSITION = {
   growMs: 600,
   /** The canvas plane cross-fades with the DOM viewer at the grown size. */
   handoffMs: 200,
-  captionDelayMs: 200,
   /** Close: caption/controls out, then the same 200ms handoff reversed. */
   closeCaptionMs: 150,
   closeCrossFadeMs: 200,
   /** The reverse grow: 600ms, same as the open. */
   closeShrinkMs: 600,
   /**
-   * The grid, lens and scroll come back with the shrink, not after it. Any
-   * delay here leaves the landed tile static before the idle handoff, which
-   * reads as a freeze followed by a snap.
+   * The lens returns with the shrink, not after it. Any delay here leaves the
+   * landed tile static before the idle handoff, which reads as a freeze
+   * followed by a snap. Sibling plane opacity is on its own, later clock
+   * (`closeSiblingFadeDelayMs`): the grid is still hidden while the tile lands
+   * and fills in behind it after.
    */
   closeFadeDelayMs: 0,
   closeFadeMs: 600,
-  /** 200ms cross-fade + 600ms return; ends with the shrink. */
-  closeTotalMs: 800,
+  /**
+   * The sibling planes stay hidden for the whole shrink. Their return starts
+   * at 85% of the shrink (200ms hold + 0.85 * 600ms = 710ms), when the
+   * featured tile is within 1.4% of its grid slot, and runs for 300ms. The
+   * featured tile lands first at 800ms with only the first 10.8% of that fade
+   * visible; the grid then fills in behind it until 1010ms.
+   */
+  closeSiblingFadeDelayMs: 710,
+  closeSiblingFadeMs: 300,
+  /**
+   * The tile lands at 800ms, but the close is not finished until the sibling
+   * fade tail ends at 1010ms. The viewer chrome waits for this, so the grid is
+   * fully back when the close hands control back to idle.
+   */
+  closeTotalMs: 1010,
   reducedFadeMs: 200,
 } as const;
 
@@ -159,6 +173,21 @@ export function closeFadeProgress(elapsedMs: number): number {
     clamp01(
       (elapsedMs - TRANSITION.closeCrossFadeMs - TRANSITION.closeFadeDelayMs) /
         TRANSITION.closeFadeMs,
+    ),
+  );
+}
+
+/**
+ * The non-featured planes' return. They stay hidden until the featured tile
+ * is nearly home, then fade in behind it; by the time this ends the tile has
+ * already landed. The close's total includes this tail.
+ */
+export function closeSiblingFadeProgress(elapsedMs: number): number {
+  return power3InOut(
+    clamp01(
+      (elapsedMs -
+        TRANSITION.closeSiblingFadeDelayMs) /
+        TRANSITION.closeSiblingFadeMs,
     ),
   );
 }

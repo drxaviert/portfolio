@@ -1,6 +1,6 @@
 # Design system motion — 2026-11-13
 
-The shipped motion of the theme toggle, the Day phase row, the home nav's Glide capsule and the Work drawer, recorded from the code (toggle and nav from PR #12, `5bbfba9` / `d574d89`; drawer at `98b6429`; the shipped drawer, its close rules and the index layout switch approved at `cb6785a`, 2026-11-19; the /work hover-thumbnail list approved 2026-11-22; the canvas open/close approved 2026-11-25 in PR #121 (`f0bc21a`) and the Human Contact embed <-> live route on the same motion in PR #119 (`1faa998`), both in the last two sections; the drawer close was later retuned to 300ms on `ease` in PR #80, and the nav motion blur added in PR #68). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
+The shipped motion of the theme toggle, the Day phase row, the home nav's Glide capsule and the Work drawer, recorded from the code (toggle and nav from PR #12, `5bbfba9` / `d574d89`; drawer at `98b6429`; the shipped drawer, its close rules and the index layout switch approved at `cb6785a`, 2026-11-19; the /work hover-thumbnail list approved 2026-11-22; the canvas open/close approved 2026-11-25 in PR #121 (`f0bc21a`) and the Human Contact embed <-> live route on the same motion in PR #119 (`1faa998`), both in the last two sections; the work reader's Lenis smooth scroll approved 2026-11-27 in PR #133; the drawer close was later retuned to 300ms on `ease` in PR #80, and the nav motion blur added in PR #68). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
 
 ## Principles
 
@@ -109,6 +109,7 @@ Details that keep it one piece:
 - **The page is a snapshot for the fade.** The live document is not painted (and stops receiving hit tests) for the crossfade, so anything that starts animating on the same click would play invisibly. The row's entrance therefore waits for the crossfade (`--phase-enter-delay`), and the two hover surfaces ignore the phantom pointer-leave it causes (`isPhaseSwitching()`), so the nav capsule and the row keep their state and recover on the next real pointer event.
 - **No per-element colour transitions.** The old blanket rule (`:root[data-phase-switching] *`) and the twelve inherited `--horizon-*` / `--orb-*` token transitions were removed. Measured on the 1440x900 home page they cost 9-10ms of style recalc *per frame* and 8-11 dropped frames per switch; the crossfade measures 0.
 - **The glow switches in the same frame as the snapshot.** The shader reads the tokens on the `data-phase` mutation, so it draws once with the new palette inside the rendering update that the browser snapshots — no late glow, no texture rebuild, no per-frame token read.
+- **The painting frame's material is in the same snapshot.** The frame follows the phase (ornate gilt on Day/Dawn/Dusk, the walnut palette on that same gilt at Night) through phase tokens; it crossfades with the page and has no separate frame transition.
 - **The selection capsule crossfades with the page** when the theme changes, instead of flying: a snapshot cannot contain live motion. It still runs the full stretch & snap on every selection change that is not a theme change (the Day phase row, and Day/Night/Auto when the theme is already that mode).
 - `data-phase-switching` stays on `<html>` for the length of the crossfade and carries the kind (`click` / `auto`), which is what selects the duration in CSS.
 
@@ -118,6 +119,7 @@ Details that keep it one piece:
 - `src/app/globals.css:16` — why the tokens are no longer transitioned
 - `src/components/theme/theme-toggle.css:49` — `--phase-enter-delay` holds the row entrance
 - `src/components/horizon/horizon-shader.tsx:621` — one draw per token mutation
+- `src/components/home/art-card/painting-frame.css` — the frame reads the phase material tokens; the swap is part of the same snapshot
 - `src/components/home/nav-items.tsx:397` — hover kept through the crossfade
 
 ## Selection feedback
@@ -957,19 +959,54 @@ Times are from the first frame with posters ready. The eases are the power curve
 | Camera push | 1300ms | 2000ms | power4.inOut | z `700 -> 500` |
 | Grid spread | 1500ms | 2000ms | power4.inOut | gap `8 ->` measured pitch |
 | Plane opacity | 500-1250ms stagger | 2000ms | power3.out | 0 -> 1 |
-| Gray out | 2250ms | 2000ms | power3.out | 1 -> 0 |
+| Gray to colour | per-plane opacity delay (500-1250ms) | 900ms | power3.out | `uGray 1 -> 0` |
 | Texture zoom | 1250ms | 2250ms | power3.inOut | `1.3 -> 1` |
-| Intro end | - | 4250ms | - | - |
+| Intro end | - | 3500ms | - | - |
 | Videos join | 3250ms | - | - | - |
 | Reduced motion | - | 200ms | - | opacity only |
 
-### Open and close (retuned 2026-11-25)
+The gray reveal is per plane: it starts on that plane's opacity delay, so a tile is grey when it first becomes visible and colourises over 900ms power3.out while the 2s fade is still running. The last tile finishes at 2150ms. With the global 2s gray gone, the intro ends at the last remaining tween, the 3.5s texture zoom. Reduced motion pins `uGray` to 0.
+
+- `src/components/canvas/intro.ts:19` — `grayDurationMs` 900
+- `src/components/canvas/intro.ts:25` — `endMs` 3500 (was 4250)
+- `src/components/canvas/intro.ts:112` — `introGray(elapsed, delay)` per plane
+- `src/components/canvas/infinite-canvas.tsx:3053` — each plane writes its own `uGray`
+
+### Chrome entrance (approved 2026-11-27)
+
+The bottom chrome (the breadcrumb and hint pill) waits for the canvas intro clock, so it never appears over a grid that has not started. It enters from `translateY(4px)`, `opacity: 0` and `blur(4px)` to rest over **700ms** on `cubic-bezier(0.45, 0, 0.55, 1)`; only transform, opacity and filter animate. This surface has one chrome cluster, so the 40ms stagger has nothing to stagger. Reduced motion keeps a **160ms** opacity-only fade. A 3s fallback reveals it if WebGL cannot start. It runs once per canvas mount with the intro, not on tile opens or viewer closes.
+
+| Trigger | Property | Duration | Delay | Easing | From -> to |
+| --- | --- | --- | --- | --- | --- |
+| Intro clock starts | chrome pill `opacity`, `transform`, `filter` | 700ms | 0 | `cubic-bezier(0.45, 0, 0.55, 1)` | `0`, `translateY(4px)`, `blur(4px)` -> `1`, none, none |
+| Reduced motion | chrome pill `opacity` | 160ms | 0 | `--ease-decelerate` | 0 -> 1 |
+
+- `src/components/work/canvas-reader.css:123` — `cv-chrome-in`, the 700ms rise and defocus
+- `src/components/work/canvas-reader.css:212` — reduced-motion `cv-chrome-fade`, 160ms opacity only
+- `src/components/work/canvas-reader.tsx:99` — `markIntroStarted`
+- `src/components/work/canvas-reader.tsx:141` — `data-chrome` pending/in
+- `src/components/canvas/infinite-canvas.tsx:690` — `onIntroStart` fires when the intro clock starts
+
+### Keyboard (approved 2026-11-27)
+
+The canvas is one focusable region, not one tab stop per tile. A Tab focus, or the focus returned by a keyboard viewer close, selects the centre tile (or the tile the viewer closed on) and gives it the same 1.08x hover lift. While a tile is selected, ArrowLeft/Right/Up/Down glide the selection one grid cell at **700ms power3.inOut** (`cubic-bezier(0.65, 0, 0.35, 1)`), wrapping at both edges and retargeting from the current scroll if another key lands mid-glide. Enter opens the selected tile. Escape clears the selection and returns the surface to continuous pan; a pointer press, wheel or pointer move also clears it. With no tile selected, held arrows keep the existing acceleration/cruise pan (`3.4` px/frame per 60fps frame, cruise `25`). The viewer's own ArrowLeft/ArrowRight slide stepping is unchanged because it runs on the open viewer, not the grid. Reduced motion snaps the scroll and ticks the selection with no glide.
+
+- `src/components/canvas/keyboard-nav.ts:17` — `KEYBOARD_GLIDE_MS` 700 and the power3.inOut progress
+- `src/components/canvas/infinite-canvas.tsx:4697` — `onGridKeyDown`, the capture handler for the focused tile
+- `src/components/canvas/infinite-canvas.tsx:3448` — `updateHover`, which gives the focused tile the lift
+- `src/components/canvas/infinite-canvas.tsx:3521` — `closeTarget`, which keeps the closed tile above siblings
+
+### Open and close (retuned 2026-11-27)
 
 Open and close are each one timeline, owned by `TRANSITION` in `transition.ts`; the DOM viewer is chrome around a WebGL plane, so the media is not swapped mid-flight. On the live study the canvas-owned open still starts from the hover/breath-lifted mesh, so the click does not snap the tile down. The canvas-owned close lands on the resting tile (`plane.tileWidth`/`tileHeight`), not on that lifted mesh: the idle handoff clears hover and starts the breath at 0, so a snapshot of the lifted size would leave the tile a few percent too big until the first idle frame.
 
-Open: the clicked plane's periodic copy glides to the centre for **1000ms power3.inOut** (`glideMs` / `glideProgress`). `centrePlaneScroll` targets `nearestPeriodic(-base, scroll, 2 × halfPeriod)`, so a panned canvas opens the copy nearest the current scroll instead of flying back to the first-load slot. The camera travels to `CAMERA_Z` on the same progress, and the other planes fade over **900ms power3.inOut** (`fadeOutMs` / `fadeOutProgress`). The grow starts **150ms before the glide ends** (`growDelayMs` 850ms) and runs **600ms power3.out** (`growMs` / `growProgress`) to the `fitBox` focus rect (0.88 × 0.8 of the viewport), while the crop goes `1.06 -> 1` (`TEXTURE_ZOOM`). The canvas reports opened at **1450ms** (`growDelayMs + growMs`); the viewer chrome joins 200ms later (`captionDelayMs`) and fades in over 180ms.
+Open: the clicked plane's periodic copy glides to the centre for **1000ms power3.inOut** (`glideMs` / `glideProgress`). `centrePlaneScroll` targets `nearestPeriodic(-base, scroll, 2 × halfPeriod)`, so a panned canvas opens the copy nearest the current scroll instead of flying back to the first-load slot. The camera travels to `CAMERA_Z` on the same progress, and the other planes fade over **900ms power3.inOut** (`fadeOutMs` / `fadeOutProgress`). The grow starts **150ms before the glide ends** (`growDelayMs` 850ms) and runs **600ms power3.out** (`growMs` / `growProgress`) to the `fitBox` focus rect (0.88 × 0.8 of the viewport), while the crop goes `1.06 -> 1` (`TEXTURE_ZOOM`). The canvas reports opened at **1450ms** (`growDelayMs + growMs`); the close button joins 200ms later and fades in over 180ms. The title chip does not wait for that: it starts with the grow (`growDelayMs` 850ms) and lands with the tile over `growMs` 600ms, `opacity` + a 6px `translate` rise on `--ease-decelerate` (reduced motion: no transition).
 
-Close: the viewer holds the focus rect through the **200ms cross-fade window** (`closeCrossFadeMs`) while its caption and close button leave over **150ms** (`closeCaptionMs`; the CSS uses the same literal on `opacity` with `--ease-decelerate`). After that hold, four returns share one **600ms power3.inOut** timeline and end on the same frame at **800ms** (`closeTotalMs`): the target plane shrinks focus -> resting tile (`closeShrinkMs` / `closeShrinkProgress`), the grid scroll reverses to the pre-open offset (`closeScrollOffset`), the lens warp returns to its resting strength (`closeFadeProgress` on `uStrength`), and the other planes fade in (`closeFadeMs` / `closeFadeProgress`). `closeFadeDelayMs` is **0** on purpose: any delay leaves the landed tile static before the idle handoff, which reads as a freeze followed by a snap. `closeTotalMs` is exactly `closeCrossFadeMs + closeShrinkMs` = 800ms, so the viewer unmounts on the landing frame, not after a hold.
+Close, first the tile: the viewer holds the focus rect through the **200ms cross-fade window** (`closeCrossFadeMs`) while its caption and close button leave over **150ms** (`closeCaptionMs`; the CSS uses the same literal on `opacity` with `--ease-decelerate`). The featured plane then shrinks focus -> resting tile over **600ms power3.inOut** (`closeShrinkMs` / `closeShrinkProgress`), 200-800ms. Every other plane stays at **opacity 0 until 710ms**, so the grid is not visible under the shrinking media. The grid scroll (`closeScrollOffset`) and lens warp (`closeFadeProgress` on `uStrength`) return on that same 200-800ms clock.
+
+Close, then the grid: the sibling planes are the tail. Their fade starts at **710ms** (`closeSiblingFadeDelayMs`, 85% of the shrink; the featured plane is at 109.5x71 against its 97x64 resting slot) and runs **300ms** (`closeSiblingFadeMs` / `closeSiblingFadeProgress`). The featured tile lands at **800ms** with only the first **10.8%** of the sibling fade visible, and the grid finishes at **1010ms** (`closeTotalMs`). The viewer chrome waits for that tail, so the close hands back an idle, fully painted grid.
+
+The featured plane holds `renderOrder = 2` for the whole close while every sibling stays at 0, so a sibling whose plane overlaps the large focus rect can never paint over the media being closed. The 0/1 hover ordering only applies when idle. `closeTotalMs` is 1010ms, not 800ms: the shrink, scroll and lens all land at 800ms, and the 210ms after that is the intentional sibling fade behind the landed tile. The viewer-owned Arrow close is unchanged.
 
 | Trigger | Property | Duration | Delay | Easing | From -> to |
 | --- | --- | --- | --- | --- | --- |
@@ -981,49 +1018,57 @@ Close: the viewer holds the focus rect through the **200ms cross-fade window** (
 | Close | target plane `scale` | 600ms (`closeShrinkMs`) | 200ms (`closeCrossFadeMs`) | power3.inOut (`closeShrinkProgress`) | focus -> `restWidth` × `restHeight`, crop `1 -> 1.06` |
 | Close | grid `scroll` | 600ms (same) | 200ms (`closeCrossFadeMs`) | power3.inOut (`closeScrollOffset`) | focus offset -> pre-open `fromScrollX`/`fromScrollY` |
 | Close | lens `uStrength` | 600ms (`closeFadeMs`) | 200ms (`closeCrossFadeMs`) | power3.inOut (`closeFadeProgress`) | 0 -> resting warp (0.23) |
-| Close | other planes `opacity` | 600ms (`closeFadeMs`) | 200ms (`closeCrossFadeMs`) + `closeFadeDelayMs` 0 | power3.inOut (`closeFadeProgress`) | 0 -> 1 |
-| Close lands | viewer unmount, tile revealed | 0 | 0 | - | tile at rest on the last frame (`closeTotalMs` 800ms) |
+| Close | other planes `opacity` | 300ms (`closeSiblingFadeMs`) | 710ms (`closeSiblingFadeDelayMs`) | power3.inOut (`closeSiblingFadeProgress`) | 0 -> 1 |
+| Close | featured plane `renderOrder` | instant | 0 | - | 2 for the whole close; siblings 0 |
+| Close, tile lands | target plane at rest | 0 | 0 | - | `tileWidth` x `tileHeight` at 800ms; siblings at 10.8% |
+| Close completes | viewer unmount, grid tail done | 0 | 0 | - | sibling fade 1 at `closeTotalMs` 1010ms |
 | Reduced motion, open | scroll + plane pose | 0 | 0 | - | one frame: focus pose, canonical `-base` scroll, other planes 0 |
 | Reduced motion, close | other planes `opacity` | 200ms (`reducedFadeMs`) | 0 | linear (`reducedOpacity`) | 0 -> 1, then the target is restored at rest on the same 200ms |
 
 After an Arrow step the DOM viewer owns the media and the frame, not the WebGL plane. That close still uses `closeShrinkMs` **600ms**, but it is a WAAPI FLIP from the frame's current transform to the landing tile rect on `cubic-bezier(0, 0, 0.58, 1)`, starting immediately (no 200ms hold); the canvas grid stays hidden and `landClose` reveals the target tile when both the FLIP and the media prep finish. That path's easing is not power3.inOut.
 
-Reduced motion lands directly. The open writes the focus pose, the canonical `-base` scroll, and the other planes at 0 in one frame (`openPlane` reduced branch), with no glide or grow. The close writes the pre-open scroll in one frame, fades the other planes in over **200ms** (`reducedFadeMs` / `reducedOpacity`, linear), and puts the target tile back at rest when that fade ends; there is no shrink, scroll-reverse or lens animation, so the canvas-owned close takes 200ms instead of 800ms.
+Reduced motion lands directly. The open writes the focus pose, the canonical `-base` scroll, and the other planes at 0 in one frame (`openPlane` reduced branch), with no glide or grow. The close writes the pre-open scroll in one frame, puts the target tile back at rest immediately, and fades the other planes in over **200ms** (`reducedFadeMs` / `reducedOpacity`, linear); there is no shrink, scroll-reverse or lens animation, so the canvas-owned close takes 200ms instead of 1010ms.
 
-### Close invariant (2026-11-25)
+### Close invariant (2026-11-25, retimed 2026-11-27)
 
-Dat approved this on 2026-11-25 (bd pf-9cv.13, PR #121).
+Dat approved the original invariant on 2026-11-25 (bd pf-9cv.13, PR #121); the 800ms landing and 1010ms grid tail were approved on 2026-11-27 (bd pf-9cv.19, PR #132, `6763810`).
 
-- **Same frame.** At `closeTotalMs` the shrink, scroll, lens restore and grid fade all read 1, and the target plane is already at `tileWidth` × `tileHeight`; the viewer unmounts there. There is no static tail and no post-close snap.
-- **Within 0.5px.** The target plane's projected rect on the last close frame equals the tile's resting rect within **0.5px**, and it holds that rect on the first idle frame and after. Measured: canvas-owned paths **0.0px** (Escape, close button, outside click; video and image; after a resize); the viewer-owned Arrow path **0.5px** on x, **0** on y.
+- **Landing then tail.** At **800ms** the shrink, scroll and lens restore all read 1, the target plane is at `tileWidth` x `tileHeight`, and the sibling fade is 10.8% through. At `closeTotalMs` **1010ms** the sibling fade also reads 1, every plane is at rest, and the viewer unmounts. The 210ms between them is the intentional grid tail, not a frozen landing.
+- **Within 0.5px.** The target plane's projected rect at the **800ms** landing frame equals the tile's resting rect within **0.5px**, and it holds that rect on the first idle frame and after. Measured: canvas-owned paths **0.0px** (Escape, close button, outside click; video and image; after a resize); the viewer-owned Arrow path **0.5px** on x, **0** on y.
 - **Breathing clock.** `landClose` resets `breathIdleSince` to 0 and clears `breathLevel`/`breathActive`/`breathAmplitude`, so the first idle frame restarts the 1s delay and 1.2s fade instead of applying the pre-open idle time in one frame. The canvas-owned close never pauses, so its non-idle frames already reset the clock.
 
-- `src/components/canvas/transition.ts:22` — `TRANSITION`: `glideMs` 1000, `fadeOutMs` 900, `growDelayMs` 850, `growMs` 600, `captionDelayMs` 200, `closeCaptionMs` 150, `closeCrossFadeMs` 200, `closeShrinkMs` 600, `closeFadeDelayMs` 0, `closeFadeMs` 600, `closeTotalMs` 800, `reducedFadeMs` 200
+- `src/components/canvas/transition.ts:22` — `TRANSITION`: `glideMs` 1000, `fadeOutMs` 900, `growDelayMs` 850, `growMs` 600, `closeCaptionMs` 150, `closeCrossFadeMs` 200, `closeShrinkMs` 600, `closeFadeDelayMs` 0, `closeFadeMs` 600, `closeSiblingFadeDelayMs` 710, `closeSiblingFadeMs` 300, `closeTotalMs` 1010, `reducedFadeMs` 200
 - `src/components/canvas/transition.ts:139` — `glideProgress`, power3.inOut over `glideMs`
 - `src/components/canvas/transition.ts:147` — `growProgress`, power3.out after `growDelayMs`
-- `src/components/canvas/transition.ts:157` — `closeFadeProgress`
-- `src/components/canvas/transition.ts:166` — `closeShrinkProgress`
-- `src/components/canvas/transition.ts:182` — `closeScrollOffset`, the open's scroll run in reverse
-- `src/components/canvas/transition.ts:210` — `resizeOpenScroll`, the retarget used when the grid is rebuilt
-- `src/components/canvas/transition.ts:246` — `closeComplete` at `closeTotalMs`
+- `src/components/canvas/transition.ts:171` — `closeFadeProgress`, the lens return on the 200-800ms shrink clock
+- `src/components/canvas/transition.ts:185` — `closeSiblingFadeProgress`, 710-1010ms
+- `src/components/canvas/transition.ts:195` — `closeShrinkProgress`
+- `src/components/canvas/transition.ts:211` — `closeScrollOffset`, the open's scroll run in reverse
+- `src/components/canvas/transition.ts:239` — `resizeOpenScroll`, the retarget used when the grid is rebuilt
+- `src/components/canvas/transition.ts:275` — `closeComplete` at `closeTotalMs`
 - `src/components/canvas/wrap.ts:43` — `nearestPeriodic`
 - `src/components/canvas/wrap.ts:62` — `centrePlaneScroll`
-- `src/components/canvas/infinite-canvas.tsx:2627` — the open targets `centrePlaneScroll(...)`
-- `src/components/canvas/infinite-canvas.tsx:2634` — `restWidth`/`restHeight` from `plane.tileWidth`/`tileHeight`; `tileWidth`/`tileHeight` from the lifted mesh
-- `src/components/canvas/infinite-canvas.tsx:2667` — reduced open writes the focus pose in one frame
-- `src/components/canvas/infinite-canvas.tsx:2922` — the lens returns on `closeFadeProgress`
-- `src/components/canvas/infinite-canvas.tsx:3079` — the close's shrink and reduced fade
-- `src/components/canvas/infinite-canvas.tsx:3089` — the close lands on `restWidth`/`restHeight`
-- `src/components/canvas/infinite-canvas.tsx:3479` — the scroll reverse on the shrink timeline
-- `src/components/canvas/infinite-canvas.tsx:3499` — the close completes at `closeTotalMs`
-- `src/components/canvas/infinite-canvas.tsx:3861` — `landClose`
-- `src/components/canvas/infinite-canvas.tsx:3884` — the breathing clock reset after a DOM close
-- `src/components/canvas/infinite-canvas.tsx:4046` — `rebindTransitionAfterResize`
+- `src/components/canvas/infinite-canvas.tsx:2677` — the open targets `centrePlaneScroll(...)`
+- `src/components/canvas/infinite-canvas.tsx:2684` — `restWidth`/`restHeight` from `plane.tileWidth`/`tileHeight`; `tileWidth`/`tileHeight` from the lifted mesh
+- `src/components/canvas/infinite-canvas.tsx:2717` — reduced open writes the focus pose in one frame
+- `src/components/canvas/infinite-canvas.tsx:223` — `CLOSE_TARGET_RENDER_ORDER` 2
+- `src/components/canvas/infinite-canvas.tsx:2973` — the lens returns on `closeFadeProgress`
+- `src/components/canvas/infinite-canvas.tsx:3145` — the close's shrink and reduced fade
+- `src/components/canvas/infinite-canvas.tsx:3149` — siblings fade on `closeSiblingFadeProgress`
+- `src/components/canvas/infinite-canvas.tsx:3157` — the close lands on `restWidth`/`restHeight`
+- `src/components/canvas/infinite-canvas.tsx:3522` — `closeTarget` for the close's render order
+- `src/components/canvas/infinite-canvas.tsx:3545` — target `renderOrder` 2, every sibling 0 while closing
+- `src/components/canvas/infinite-canvas.tsx:3740` — the scroll reverse on the shrink timeline
+- `src/components/canvas/infinite-canvas.tsx:3752` — the close completes at `closeTotalMs`
+- `src/components/canvas/infinite-canvas.tsx:4114` — `landClose`
+- `src/components/canvas/infinite-canvas.tsx:4142` — the breathing clock reset after a DOM close
+- `src/components/canvas/infinite-canvas.tsx:4311` — `rebindTransitionAfterResize`
+- `src/components/canvas/infinite-canvas.tsx:4455` — the rebuilt-grid close also uses the sibling fade
 - `src/components/canvas/focus-viewer.tsx:508` — a canvas-owned close waits `closeTotalMs` before unmounting
 - `src/components/canvas/focus-viewer.tsx:585` — the viewer-owned FLIP, `closeShrinkMs` 600ms
 - `src/components/canvas/focus-viewer.tsx:599` — that FLIP's `cubic-bezier(0, 0, 0.58, 1)`, not power3.inOut
 - `src/components/canvas/focus-viewer.css:174` — chrome out 150ms `--ease-decelerate`
-- `src/components/canvas/focus-viewer.css:185` — chrome in 180ms after `captionDelayMs` 200ms
+- `src/components/canvas/focus-viewer.css:185` — close button in 180ms after a 200ms delay; the title chip is inline in `focus-viewer.tsx`, on `growDelayMs`/`growMs`
 
 ### Breathing
 
@@ -1050,9 +1095,15 @@ The amplitude is 0 during the intro, open/close transitions, the viewer and redu
 | Out | **400ms**, power3.inOut |
 | Retarget | each plane's tween restarts from the value it had reached, so fast passes and interruptions never jump |
 | Pick | one inverse-lens raycast per frame at the last pointer position, idle only (not intro, drag/glide, transition or viewer) |
-| Cursor | pointer over a tile, grab in the gaps, grabbing while dragging; no hover on touch |
-| Order | the hovered/tweening plane raises `renderOrder` to 1 |
-| Reduced motion | cursor change only, no scale |
+| Intent | the cursor and the `View` chip wait **200ms** on the same tile; leaving or changing tiles cancels the wait. The 1.08x lift is not delayed |
+| Label | a pointer-following `View` chip, clamped inside the canvas; `opacity` 150ms, reduced motion 0ms |
+| Cursor | pointer over a tile after the intent, grab in the gaps, grabbing while dragging; no hover on touch |
+| Order | idle only: the hovered/tweening plane raises `renderOrder` to 1; the closing featured plane takes 2 above every sibling |
+| Reduced motion | cursor change after the same intent, no scale; the label appears without a fade |
+
+- `src/components/canvas/hover.ts:35` — `intentMs` 200
+- `src/components/canvas/infinite-canvas.tsx:3448` — `updateHover`, the intent clock and the cursor/label commit
+- `src/components/canvas/infinite-canvas.css:39` — `.cv-hover-label`, the `View` chip
 
 ### Globe lens
 
@@ -1109,3 +1160,108 @@ Reduced motion returns the children with no `<ViewTransition>` at all when the p
 - `src/app/globals.css:244` — the close's root fade-in, 600ms
 - `src/app/globals.css:262` — reduced motion forces every view-transition pseudo to 0s
 
+## Work reader — Lenis smooth scroll (2026-11-27)
+
+Approved 2026-11-27 (bd pf-9cv.18; trial merged in PR #133). The case-study reader inside the work drawer is the only surface with Lenis. The window, the index, the canvas and every overlay keep native scrolling. One `SmoothScroll` component is mounted in the root layout, but it binds a single Lenis to the live `#wd-reader-scroll` element: `wrapper`, `content` (`.wd-reader-column`) and `eventsTarget` are all the reader, so Lenis never sees a wheel outside it. The classes land on the reader, not `<html>`.
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Version | `lenis` 1.3.29 | the current stable 1.3.x |
+| `lerp` | 0.1 | the reference's smoothing; same value in the trial |
+| `autoRaf` | true | Lenis owns one rAF loop; no second clock |
+| `wheelMultiplier` | 1 | raw wheel delta, no acceleration |
+| `syncTouch` | false | touch is the browser's; no touch preventDefault path |
+| `allowNestedScroll` | false | never discover or adopt another nested scroll box |
+| Reduced motion | no instance; `.lenis` absent | native scrolling, not a slower lerp |
+
+- **Scope and binding.** `READER_SELECTOR` is `.wd-expand-layer:not([data-phase="closed"]) .wd-drawer-view:not([data-leave]) #wd-reader-scroll`. A `MutationObserver` watches child-list changes and the `data-phase` / `data-leave` attributes, then rebinds: a study swap destroys the old instance and binds the new reader; the index (`#wd-index-scroll`, not matched), the canvas (no `#wd-reader-scroll`) and a closing shell (phase `closed`) get no instance. This is the fix for the trial's `allowNestedScroll: "smooth"` caveat, which auto-adopted the index if it ever overflowed.
+- **Exclusions.** The WebGL canvas, its focus viewer and the art dialog carry `data-lenis-prevent` and sit outside this scoped instance. The attributes keep the exclusion explicit if a page-level instance is ever added. Drag, wheel zoom and pan in the canvas keep their own handlers.
+- **Native scroll wins.** A pointerdown or keydown inside the reader stops Lenis inertia before its next write (`scrollTo(actualScroll, { immediate: true, force: true })`). A native `scroll` event whose position leaves Lenis' last written value by 2px or more also yields. Without this, the reader's "↑ Top" clicked 120ms into a wheel was pulled back to the wheel's target; measured after the fix it lands at 0.
+- **Reduced motion.** The instance is destroyed and `.lenis` is removed; the reader keeps the browser's native scroll. The effect reads `matchMedia("(prefers-reduced-motion: reduce)")` directly as well as the `useReducedMotion` hook, so a reduced-motion load never constructs Lenis while the hook is still on its server snapshot.
+- **Hydration.** The first bind is deferred one animation frame and the live preference is checked first. Lenis adds its class to a server-rendered element; doing that during hydration produced an attribute mismatch before the deferral.
+- **Rebind evidence.** Live at 1440x900: reader 632 → 1398 over 17 sampled frames; an index forced to 2400px scrolls natively in one frame with no `.lenis`; the injected unrelated scroller never gets `.lenis`; reduced motion jumps 607 in one frame; a study swap leaves the new reader `.lenis` and top 0; the nav top stays 43.52px.
+- **Trial history.** The draft trial (PR #133, `fe51dec`) used `allowNestedScroll: "smooth"` on a window instance; reviewer pf-9cv.18 caught that it could adopt any nested scroller. This section records the shipped scoped form.
+
+- `src/components/motion/smooth-scroll.tsx` — the reader selector, one-frame first bind, MutationObserver rebind, the Lenis options, native-scroll yield and pointer/key inertia stop
+- `src/components/motion/smooth-scroll.css` — the standard Lenis rules and the `html.lenis` overscroll lock
+- `src/components/work/reader.tsx` — the reader scroller and `.wd-reader-column` the instance binds to
+- `src/components/canvas/infinite-canvas.tsx` / `focus-viewer.tsx`, `src/components/home/art-card/art-dialog.tsx` — `data-lenis-prevent` on the excluded surfaces
+- `src/app/layout.tsx` — the single `SmoothScroll` mount
+- `src/components/motion/smooth-scroll.test.tsx` — scope, rebind, reduced-motion, pointer/key stop, native-yield, CSS and exclusion coverage
+
+## Horizon listening swell (2026-11-27)
+
+While "Door to the Cosmos" plays, the home horizon swells and the viewport edge blur deepens; pausing settles both back. `ListeningSync` mirrors the player onto `<html data-listening="true">` when `usePlayerStatus()` is `playing`, and both renderers read that attribute. A dev-only `?listen=1` seeds the same force store without playback; the `?tune=1` tuning panel is a dev tool (dev builds show it by default, production opens it only on that query), and production ships the preset below.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Playback starts | horizon listening value, edge blur radius and height | 3500ms (`--horizon-listen-in`) | 0 | `cubic-bezier(0.4, 0, 0.2, 1)` (`--ease-calm`) | resting horizon → the listening target |
+| Playback pauses | same | 1200ms (`--horizon-listen-out`) | 0 | same | current value → the resting horizon |
+| Pause mid-ramp | same | remaining travel | not re-armed | same | retargeted from the current value, no jump |
+| Reduced motion | the same states, one crossfade | 400ms (`--horizon-listen-reduced`) | 0 | `ease-in-out` (`--ease-standard`) | resting ↔ listening, no per-frame ramp |
+
+The ramp is deliberately asymmetric: the 3.5s in is the calm swell, the 1.2s out makes a pause feel immediate. Both ends rebase from the value on screen, so a pause mid-swell reverses continuously instead of restarting. Reduced motion keeps the brighter state and only crossfades it.
+
+Final `HORIZON_HOME_LISTENING` values (the shipping preset at the panel's default Immersion 1.5):
+
+| Field | Value |
+| --- | --- |
+| `intensityBoost` | 1.9 |
+| `breathePeriod` | 6 |
+| `intensityAmp` | 0.95 |
+| `blobScale` | 1.8 |
+| `blobLift` | 12.6 |
+| `blurScale` | 1.5 |
+| `edgeBlurMax` | 32 |
+| `edgeBlurHeight` | 400 |
+| `inDuration` | 3.5 |
+| `outDuration` | 1.2 |
+| `reducedDuration` | 0.4 |
+
+- **The shader owns the ramp.** A 0..1 `listen` value chases its target on the shader's rAF clock, on `inDuration` / `outDuration` with `--ease-calm` (or one `reducedDuration` crossfade with `--ease-standard`). Nothing transitions a `--horizon-*` token in CSS: the shader observes the attribute and integrates its own clock, so the swell survives a route change and a retarget keeps the current value.
+- **The blob blur is a crossfade, not a rebuild.** A second coverage texture is baked once at `blurScale` (`softTexture`); each frame mixes the two samples by `uListen`. The per-frame cost is one extra texture sample, not a filter over the viewport.
+- **The edge blur animates the radius.** `--edge-blur-frame-max` and `--edge-blur-frame-height` are registered `<length>` properties, transitioned 3.5s in / 1.2s out on `--ease-calm` (400ms under reduced motion). Do not crossfade two edge stacks: Chrome renders a `backdrop-filter` inside an opacity group against an empty backdrop, so the incoming stack paints nothing until opacity reaches 1 and the blur pops in at the end of the ramp. Interpolating the registered lengths keeps all six band filters live on every frame.
+- **The CSS fallback agrees.** `HorizonBackground` paints a second pre-styled blob layer and transitions only its `opacity`; its in/out/reduced durations come from the same preset (`--horizon-listen-in/out/reduced`), so the fallback and the shader match without a token transition.
+
+- `src/components/horizon/listening-sync.tsx:34` — mirrors the player status onto `<html data-listening="true">`
+- `src/components/horizon/listening-sync.tsx:27` — dev-only `?listen=1` override
+- `src/components/horizon/horizon-shader.tsx:1159` — the in/out ramp: curve, duration and re-base from the current value
+- `src/components/horizon/horizon-shader.tsx:1183` — reads the `data-listening` attribute
+- `src/components/horizon/horizon-shader.tsx:193` — mixes the two coverage samples by `uListen`
+- `src/components/horizon/horizon-shader.tsx:692` — bakes the second coverage at `blurScale`
+- `src/components/horizon/horizon-preset.ts:72` — `HORIZON_HOME_LISTENING`
+- `src/components/horizon/horizon-motion.css:203` — the CSS fallback's opacity crossfade and preset durations
+- `src/components/edge-blur/viewport-edge-blur.css:22` — the registered `<length>` properties
+- `src/components/edge-blur/viewport-edge-blur.css:68` — 3.5s in / 1.2s out on the edge stack
+- `src/components/edge-blur/viewport-edge-blur.css:79` — 400ms reduced-motion edge transition
+
+
+## Motion & Stills - canvas edge blur (2026-11-27)
+
+Approved 2026-11-27 (bd pf-9cv.20; PR #137). The Motion & Stills drag canvas blurs progressively toward its four edges: the centre stays fully sharp and the rim reaches a 16px CSS blur. It lives inside the canvas's three.js render, not in a CSS `backdrop-filter` overlay. The lens pass draws into a linear screen-space target; a half-resolution horizontal Gaussian pass feeds the vertical half in the composite; the composite mixes the blurred copy back by an eased screen-space mask, adds the theme tint, then does the one sRGB encode and the vignette. That is two extra draws, and no compositor layer is added over the WebGL surface.
+
+| Tunable | Value | Uniform |
+| --- | --- | --- |
+| Band depth | `clamp(56px, 9vw, 160px)`, the same on all four edges | `uEdgeDepth` |
+| Peak blur | 16px CSS at the very edge, DPR-aware | `uEdgeRadius` |
+| Tint | 8% of `--surface`, in linear space | `uEdgeTint` / `uEdgeTintStrength` |
+| Viewer fade | 200ms out while a tile is open or closing, back after the close lands | `uEdgeAmount` |
+
+- The mask is a smoothstep of the normalized distance to the nearest edge, so it is 1 on every edge and corner and 0 at the inner boundary. `edge-blur.test.ts` pins the centre, edges, corners and half-depth values.
+- Reduced motion: the blur is static and stays; the 200ms viewer dip snaps with no fade instead.
+- `?edgeblur=off`: the work page reads the query and passes `edgeBlur={false}`; the canvas draws the lens straight to the canvas and skips the screen and blur targets. The A/B view is a real no-effect path, not a zeroed uniform.
+- Resize and DPR: the screen target is canvas device pixels, the blur target is half of that, the depth is in screen UV and the radius is in blur-target pixels. All re-derive in the resize handler, so a live window resize needs no JS measuring.
+- Performance: at 165Hz on the RTX 4090, p50/p95 is 6.1/6.2ms with and without the effect at 1920x1080, 2560x1440 and 2560x1440 DPR2. With Chrome CPU 4x and live video at 2560 DPR2, it is 24.3/42.5ms on vs 24.2/42.5ms off; the 165Hz CPU4 frozen runs are frame-pacing limited and sit within one 6ms cadence step.
+
+- `src/components/canvas/edge-blur.ts:16` - `EDGE_BLUR`: depth clamp, 16px peak, 8% tint, 200ms fade
+- `src/components/canvas/edge-blur.ts:32` - `edgeBlurDepthPx`, the band depth
+- `src/components/canvas/edge-blur.ts:42` - `edgeBlurRadiusPx`, the DPR-aware peak radius
+- `src/components/canvas/edge-blur.ts:52` - `edgeBlurMask`, the eased mask the shaders mirror
+- `src/components/canvas/infinite-canvas.tsx:362` - `EDGE_H_FRAGMENT_SHADER`, the horizontal half and the 2x2 downsample
+- `src/components/canvas/infinite-canvas.tsx:405` - `COMPOSITE_FRAGMENT_SHADER`, vertical half, mask, tint, sRGB encode and vignette
+- `src/components/canvas/infinite-canvas.tsx:1119` - `renderScene`: scene, screen target, horizontal pass, composite
+- `src/components/canvas/infinite-canvas.tsx:4512` - `edgeBlurTarget` and the viewer suppression
+- `src/components/canvas/infinite-canvas.tsx:4521` - `updateEdgeBlur`, the 200ms fade and the reduced-motion snap
+- `src/components/canvas/infinite-canvas.tsx:4881` - `resize`: screen and blur target sizes, depth and radius
+- `src/components/work/canvas-reader.tsx:166` - passes `edgeBlur` / `edgeBlurSuppressed` to the canvas
+- `src/app/(site)/work/[slug]/page.tsx:60` - `?edgeblur=off` maps to `edgeBlur={false}`

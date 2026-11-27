@@ -8,6 +8,7 @@ import {
   HORIZON_HOME_DITHER_LSB,
   HORIZON_HOME_DPR_CAP,
   HORIZON_HOME_GRADIENT,
+  HORIZON_HOME_LISTENING,
   HORIZON_HOME_MOTION,
 } from "./horizon-preset";
 
@@ -33,6 +34,7 @@ export function HorizonLive() {
         position="fixed"
         motion="drift-breathe"
         tuning={HORIZON_HOME_MOTION}
+        listening={HORIZON_HOME_LISTENING}
         dither={HORIZON_HOME_DITHER}
         gradient={HORIZON_HOME_GRADIENT}
       />
@@ -41,6 +43,7 @@ export function HorizonLive() {
         <HorizonShader
           motion="drift-breathe"
           tuning={HORIZON_HOME_MOTION}
+          listening={HORIZON_HOME_LISTENING}
           ditherLsb={HORIZON_HOME_DITHER_LSB}
           dprCap={HORIZON_HOME_DPR_CAP}
           onFallback={() => setWebglFailed(true)}

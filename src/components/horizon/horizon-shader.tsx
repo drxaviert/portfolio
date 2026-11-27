@@ -2,14 +2,20 @@
 
 import { useEffect, useRef } from "react";
 import type {
+  HorizonListeningTuning,
   HorizonMotionTuning,
   HorizonMotionVariant,
 } from "./horizon-background";
 import {
+  alternateCycle,
   alternateProgress,
   baseStrength,
   breatheIntensity,
 } from "./horizon-intensity";
+import {
+  getLiveListeningTuning,
+  subscribeLiveListeningTuning,
+} from "./listening-tuning";
 import "./horizon-motion.css";
 
 /**
@@ -40,6 +46,13 @@ import "./horizon-motion.css";
  * The rAF loop is demand-driven: it runs while a motion variant is active, is
  * cancelled while the tab is hidden, and in static mode only renders when a
  * token, resize or parameter change asks for a frame.
+ *
+ * The listening swell runs on the same clock. A 0..1 value chases its target
+ * with an asymmetric ramp (the preset's in/out durations on --ease-calm, or one
+ * short crossfade under reduced motion); a pause mid-ramp retargets from the
+ * current value, so it reverses without a jump. The value feeds the strength,
+ * the breathe period and amplitude, and a second coverage texture baked at the
+ * preset's blur factor, which is crossfaded instead of rebuilt per frame.
  */
 
 const DEFAULT_TUNING: Required<HorizonMotionTuning> = {
@@ -81,6 +94,7 @@ uniform vec3 uMid;
 uniform vec3 uHorizon3;
 uniform float uMidAt;
 uniform sampler2D uBlurTex;
+uniform sampler2D uBlurSoftTex;
 uniform vec2 uBlobUvScale;
 uniform vec2 uBlobUvOffset;
 uniform vec3 uBlobColor1;
@@ -94,10 +108,13 @@ uniform float uScale2;
 uniform float uOpacity1;
 uniform float uOpacity2;
 uniform float uDither;
+uniform float uListen;
+uniform float uListenScale;
+uniform float uListenLift;
 /*
  * Soft-focus radius, in UV units of the coverage texture. 0 is the default on
- * every route and the branch below is skipped entirely, so the output is
- * bit-identical to the shader before this uniform existed.
+ * every route and the branch below is skipped entirely, so the default picture
+ * keeps its single-fetch path.
  */
 uniform vec2 uSoftUv;
 
@@ -107,9 +124,17 @@ float hash21(vec2 p) {
   return fract(p.x * p.y);
 }
 
-vec2 blobUv(vec2 world, float scale, vec2 drift) {
+/*
+ * The listening transform is a second scale + lift on top of the breathe:
+ * the scale is anchored to the bottom centre so the glow climbs the page, and
+ * the lift is added after the scale (screen space), matching the CSS layer's
+ * translateY(...) scale(...) with transform-origin 50% 100%.
+ */
+vec2 listenUv(vec2 world, float scale, vec2 drift, float listenScale, float lift) {
   vec2 center = uRes * 0.5;
-  vec2 local = center + (world - drift - center) / max(scale, 0.0001);
+  vec2 q = center + (world - drift - center) / max(scale, 0.0001);
+  vec2 origin = vec2(center.x, uRes.y);
+  vec2 local = origin + (q + vec2(0.0, lift) - origin) / max(listenScale, 0.0001);
   return local * uBlobUvScale + uBlobUvOffset;
 }
 
@@ -128,7 +153,16 @@ void main() {
     }
   }
 
-  vec2 blurred = texture2D(uBlurTex, blobUv(world, uScale1, uDrift1)).rg;
+  vec2 uv = listenUv(world, uScale1, uDrift1, uListenScale, uListenLift);
+  vec2 blurred = texture2D(uBlurTex, uv).rg;
+  /*
+   * The listening texture is the same coverage baked once at the preset's blur
+   * factor. Crossfade the two samples instead of rebuilding the texture while
+   * the swell runs; at uListen 0 the second sample is skipped entirely, so the
+   * default picture keeps its single fetch.
+   */
+  vec2 blurredSoft =
+    uListen > 0.0 ? texture2D(uBlurSoftTex, uv).rg : vec2(0.0);
 
   /*
    * Soft focus: a four-tap box on the coverage texture, scaled by the radius.
@@ -138,7 +172,6 @@ void main() {
    * afterwards, so the grain that hides banding survives the softening.
    */
   if (uSoftUv.x > 0.0 || uSoftUv.y > 0.0) {
-    vec2 uv = blobUv(world, uScale1, uDrift1);
     vec2 dx = vec2(uSoftUv.x, 0.0);
     vec2 dy = vec2(0.0, uSoftUv.y);
 
@@ -147,7 +180,17 @@ void main() {
       + texture2D(uBlurTex, uv - dx).rg
       + texture2D(uBlurTex, uv + dy).rg
       + texture2D(uBlurTex, uv - dy).rg) / 6.0;
+
+    if (uListen > 0.0) {
+      blurredSoft = (blurredSoft * 2.0
+        + texture2D(uBlurSoftTex, uv + dx).rg
+        + texture2D(uBlurSoftTex, uv - dx).rg
+        + texture2D(uBlurSoftTex, uv + dy).rg
+        + texture2D(uBlurSoftTex, uv - dy).rg) / 6.0;
+    }
   }
+
+  if (uListen > 0.0) blurred = mix(blurred, blurredSoft, uListen);
 
   color = mix(color, uBlobColor1, uAlpha1 * uOpacity1 * blurred.r);
   color = mix(color, uBlobColor2, uAlpha2 * uOpacity2 * blurred.g);
@@ -269,21 +312,49 @@ type MotionUniforms = {
   base: number;
 };
 
+/**
+ * The breathe period at a listen amount. The shader integrates the phase with
+ * its own accumulator, so the period can stretch 6s -> 10s without the phase
+ * jumping when the divisor changes.
+ */
+function effectiveBreathePeriod(
+  tuning: HorizonMotionTuning | undefined,
+  listening: HorizonListeningTuning | undefined,
+  listen: number,
+): number {
+  const base = Math.max(
+    0.001,
+    tuning?.breathePeriod ?? DEFAULT_TUNING.breathePeriod,
+  );
+
+  if (!listening) return base;
+
+  const amount = Math.min(1, Math.max(0, listen));
+
+  // The shipped listening period is the idle 6s, so this is constant and the
+  // accumulator keeps its phase. The floor also keeps a malformed zero from
+  // turning the cycle advance into an Infinity/NaN phase.
+  return Math.max(0.001, base + (listening.breathePeriod - base) * amount);
+}
+
 function motionUniforms(
   motion: HorizonMotionVariant,
   tuning: HorizonMotionTuning | undefined,
+  listening: HorizonListeningTuning | undefined,
+  listen: number,
   time: number,
+  breatheCycle: number,
   width: number,
   height: number,
   nightBlend: number,
   reducedMotion: boolean,
 ): MotionUniforms {
   const t = { ...DEFAULT_TUNING, ...tuning };
+  const listenAmount = listening ? Math.min(1, Math.max(0, listen)) : 0;
   const driftOn = motion === "drift" || motion === "drift-breathe";
   const breatheOn = motion === "breathe" || motion === "drift-breathe";
   const driftPeriod2 = t.driftPeriod * SECOND_BLOB_PERIOD_RATIO;
   const driftDelay2 = -driftPeriod2 * SECOND_BLOB_DELAY_RATIO;
-  const breatheDelay2 = -t.breathePeriod / 2;
 
   const travelX = (t.driftTravelX / 100) * width;
   const travelY = (t.driftTravelY / 100) * height;
@@ -292,10 +363,17 @@ function motionUniforms(
   const drift2 = driftOn
     ? alternateProgress(time, driftPeriod2, driftDelay2)
     : 0;
-  const breathe1 = breatheOn ? alternateProgress(time, t.breathePeriod, 0) : 0;
-  const breathe2 = breatheOn
-    ? alternateProgress(time, t.breathePeriod, breatheDelay2)
-    : 0;
+  // Blob 2 still runs half a cycle behind. The cycle accumulator (advanced in
+  // tick) carries the listening period change, so the pair never jumps.
+  const breathe1 = breatheOn ? alternateCycle(breatheCycle) : 0;
+  const breathe2 = breatheOn ? alternateCycle(breatheCycle + 0.5) : 0;
+
+  // The listening preset slows and deepens the breath. The scale/depth of the
+  // breath itself stay put; only the period (in tick) and the strength swing
+  // move, so the swell reads as the same breath taken deeper.
+  const amp = listening
+    ? t.intensityAmp + (listening.intensityAmp - t.intensityAmp) * listenAmount
+    : t.intensityAmp;
 
   // One envelope per blob, from that blob's own breathe progress, so a blob's
   // strength peaks with its own breath even though the two run half a cycle
@@ -304,13 +382,22 @@ function motionUniforms(
     breatheOn
       ? breatheIntensity({
           progress,
-          amp: t.intensityAmp,
+          amp,
           nightScale: t.nightIntensityScale,
           nightBlend,
           peak: t.intensityPeak,
           reducedMotion,
         })
       : 1;
+
+  const rest = baseStrength({
+    base: t.baseIntensity,
+    nightBase: t.nightBaseIntensity,
+    nightBlend,
+  });
+  const boost = listening
+    ? 1 + listenAmount * (listening.intensityBoost - 1)
+    : 1;
 
   return {
     drift1: [travelX * drift1, -travelY * drift1],
@@ -321,11 +408,7 @@ function motionUniforms(
     opacity2: 1 - (t.breatheDepth / 100) * breathe2,
     intensity1: intensity(breathe1),
     intensity2: intensity(breathe2),
-    base: baseStrength({
-      base: t.baseIntensity,
-      nightBase: t.nightBaseIntensity,
-      nightBlend,
-    }),
+    base: rest * boost,
   };
 }
 
@@ -400,6 +483,25 @@ function parseTimingFunction(value: string): BezierCurve {
   ];
 }
 
+/** The shipped values, used only if a token is missing from the cascade. */
+const CALM_CURVE: BezierCurve = [0.4, 0, 0.2, 1];
+const STANDARD_CURVE: BezierCurve = [0.42, 0, 0.58, 1];
+
+/**
+ * A timing token, read once at mount. The listening ramp runs on the shader's
+ * own clock, but it still uses the site's curves: --ease-calm for the swell and
+ * --ease-standard for the reduced-motion crossfade.
+ */
+function readEasingToken(
+  element: HTMLElement,
+  name: string,
+  fallback: BezierCurve,
+): BezierCurve {
+  const value = getComputedStyle(element).getPropertyValue(name).trim();
+
+  return value ? parseTimingFunction(value) : fallback;
+}
+
 /** y for a given x on a cubic-bezier timing curve (bisection, ~10 steps). */
 function bezierProgress(x: number, curve: BezierCurve): number {
   if (x <= 0) return 0;
@@ -452,6 +554,12 @@ function readCssMotionOffset(): number {
 
 type BlurTexture = {
   texture: WebGLTexture;
+  /**
+   * The same coverage at the listening preset's blur factor. Null when the
+   * shader is mounted without a listening preset. It shares the world box,
+   * margin and UV mapping, so the shader can crossfade the two samples.
+   */
+  softTexture: WebGLTexture | null;
   worldWidth: number;
   worldHeight: number;
   margin: number;
@@ -509,77 +617,100 @@ function buildBlurTexture(
   tokens: Tokens,
   width: number,
   height: number,
+  blurScale = 1,
 ): BlurTexture | { error: string } {
   if (!supportsCanvasBlur()) {
     return { error: "Canvas blur is not applied by this browser." };
   }
 
-  const margin = Math.ceil(tokens.blur * TEXTURE_MARGIN_SIGMAS);
+  // Both textures share one world box, sized by the softest margin, so they
+  // share the shader's UV scale/offset and can be crossfaded directly.
+  const margin = Math.ceil(
+    tokens.blur * Math.max(1, blurScale) * TEXTURE_MARGIN_SIGMAS,
+  );
   const worldWidth = width + margin * 2;
   const worldHeight = height + margin * 2;
   const canvasWidth = Math.max(8, Math.round(worldWidth * TEXTURE_SCALE));
   const canvasHeight = Math.max(8, Math.round(worldHeight * TEXTURE_SCALE));
-  const canvas = document.createElement("canvas");
-
-  canvas.width = canvasWidth;
-  canvas.height = canvasHeight;
-
-  const ctx = canvas.getContext("2d");
-
-  if (!ctx) return { error: "A 2D canvas is not available." };
-
-  ctx.fillStyle = "#000000";
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-  ctx.globalCompositeOperation = "lighter";
-
   const scaleX = canvasWidth / worldWidth;
   const scaleY = canvasHeight / worldHeight;
 
-  const drawBlob = (box: BlobBox, color: string) => {
-    ctx.save();
-    ctx.filter = `blur(${tokens.blur * scaleX}px)`;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.ellipse(
-      (box.cx + margin) * scaleX,
-      (box.cy + margin) * scaleY,
-      box.hw * scaleX,
-      box.hh * scaleY,
-      0,
-      0,
-      Math.PI * 2,
-    );
-    ctx.fill();
-    ctx.restore();
+  const makeTexture = (blur: number): WebGLTexture | null => {
+    const canvas = document.createElement("canvas");
+
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) return null;
+
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    ctx.globalCompositeOperation = "lighter";
+
+    const drawBlob = (box: BlobBox, color: string) => {
+      ctx.save();
+      ctx.filter = `blur(${blur * scaleX}px)`;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.ellipse(
+        (box.cx + margin) * scaleX,
+        (box.cy + margin) * scaleY,
+        box.hw * scaleX,
+        box.hh * scaleY,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+      ctx.restore();
+    };
+
+    drawBlob(tokens.blob1, "#ff0000");
+    drawBlob(tokens.blob2, "#00ff00");
+
+    const texture = gl.createTexture();
+
+    if (!texture) return null;
+
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    return texture;
   };
 
-  drawBlob(tokens.blob1, "#ff0000");
-  drawBlob(tokens.blob2, "#00ff00");
-
-  const texture = gl.createTexture();
+  const texture = makeTexture(tokens.blur);
 
   if (!texture) return { error: "Could not create the blur texture." };
 
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const softTexture =
+    blurScale > 1 ? makeTexture(tokens.blur * blurScale) : null;
 
-  return { texture, worldWidth, worldHeight, margin };
+  if (blurScale > 1 && !softTexture) {
+    gl.deleteTexture(texture);
+    return { error: "Could not create the listening blur texture." };
+  }
+
+  return { texture, softTexture, worldWidth, worldHeight, margin };
 }
 
 export function HorizonShader({
   motion,
   tuning,
+  listening,
   ditherLsb = 1,
   dprCap = 1.5,
   onFallback,
 }: {
   motion: HorizonMotionVariant;
   tuning?: HorizonMotionTuning;
+  listening?: HorizonListeningTuning;
   ditherLsb?: number;
   dprCap?: number;
   onFallback?: (reason: string) => void;
@@ -587,7 +718,8 @@ export function HorizonShader({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
   const requestFrameRef = useRef<() => void>(() => {});
-  const paramsRef = useRef({ motion, tuning, ditherLsb, dprCap });
+  const rebuildTextureRef = useRef<() => void>(() => {});
+  const paramsRef = useRef({ motion, tuning, listening, ditherLsb, dprCap });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -662,6 +794,7 @@ export function HorizonShader({
       horizon3: uniform("uHorizon3"),
       midAt: uniform("uMidAt"),
       blurTex: uniform("uBlurTex"),
+      blurSoftTex: uniform("uBlurSoftTex"),
       uvScale: uniform("uBlobUvScale"),
       uvOffset: uniform("uBlobUvOffset"),
       color1: uniform("uBlobColor1"),
@@ -675,6 +808,9 @@ export function HorizonShader({
       opacity1: uniform("uOpacity1"),
       opacity2: uniform("uOpacity2"),
       dither: uniform("uDither"),
+      listen: uniform("uListen"),
+      listenScale: uniform("uListenScale"),
+      listenLift: uniform("uListenLift"),
       softUv: uniform("uSoftUv"),
     };
 
@@ -693,14 +829,50 @@ export function HorizonShader({
     let clock = readCssMotionOffset();
     let lastTimestamp: number | null = null;
 
+    const calmCurve = readEasingToken(root, "--ease-calm", CALM_CURVE);
+    const standardCurve = readEasingToken(
+      root,
+      "--ease-standard",
+      STANDARD_CURVE,
+    );
+    const baseBreathePeriod =
+      paramsRef.current.tuning?.breathePeriod ?? DEFAULT_TUNING.breathePeriod;
+
+    // The tuner's mutable values are read each frame; the prop is the static
+    // fallback when no tuning panel is mounted.
+    const currentListening = () =>
+      getLiveListeningTuning() ?? paramsRef.current.listening;
+    let bakedBlurScale = currentListening()?.blurScale ?? 1;
+    let scheduledBlurScale = bakedBlurScale;
+
+    /*
+     * The listening swell's 0..1 value. It starts at the current attribute so a
+     * remount while music plays does not replay the swell; the observer below
+     * retargets it when ListeningSync flips the attribute. A pause mid-ramp
+     * retargets from wherever it is, so there is never a jump.
+     */
+    let listen =
+      currentListening() && root.dataset.listening === "true" ? 1 : 0;
+    let listenTarget = listen;
+    let listenFrom = listen;
+    let listenRamp = 1;
+    let listenDuration = 1;
+    let listenCurve: BezierCurve = calmCurve;
+
+    // The breathe phase is integrated, not derived from absolute time, so the
+    // period can stretch from 6s to 10s while the swell runs.
+    let breatheCycle = Math.max(0, clock) / baseBreathePeriod;
+
     const rebuildTexture = () => {
       tokens = readTokens();
 
+      const blurScale = currentListening()?.blurScale ?? 1;
       const next = buildBlurTexture(
         gl,
         tokens,
         window.innerWidth,
         window.innerHeight,
+        blurScale,
       );
 
       if ("error" in next) {
@@ -708,20 +880,32 @@ export function HorizonShader({
         return;
       }
 
-      if (blurTexture) gl.deleteTexture(blurTexture.texture);
+      if (blurTexture) {
+        gl.deleteTexture(blurTexture.texture);
+        if (blurTexture.softTexture) gl.deleteTexture(blurTexture.softTexture);
+      }
 
       blurTexture = next;
+      bakedBlurScale = blurScale;
+      scheduledBlurScale = blurScale;
       dirty = true;
     };
 
-    const scheduleTexture = () => {
+    rebuildTextureRef.current = rebuildTexture;
+
+    /**
+     * Rebuild the coverage texture after a quiet period. The tuner's blur
+     * slider calls this every frame while it moves, so the timer keeps sliding
+     * until the drag stops (200ms); a resize keeps its shorter 120ms.
+     */
+    const scheduleTexture = (delay = 120) => {
       if (textureTimer !== null) window.clearTimeout(textureTimer);
 
       textureTimer = window.setTimeout(() => {
         textureTimer = null;
         rebuildTexture();
         requestFrame();
-      }, 120);
+      }, delay);
     };
 
     // The canvas CSS size, refreshed by a ResizeObserver. tick() calls
@@ -770,10 +954,29 @@ export function HorizonShader({
       const height = canvas.height;
       const dpr = width / Math.max(window.innerWidth, 1);
       const params = paramsRef.current;
+      const listeningNow = currentListening();
+      const liveBlur = listeningNow?.blurScale ?? 1;
+
+      // The tuner changes the baked coverage texture; debounce the re-bake so a
+      // drag never rebuilds it per frame. Only a *new* target resets the timer,
+      // otherwise the 200ms would never elapse while the draw loop keeps
+      // seeing the same pending value. The geometry and strength uniforms
+      // below still update live on every frame.
+      if (
+        Math.abs(liveBlur - bakedBlurScale) > 0.001 &&
+        Math.abs(liveBlur - scheduledBlurScale) > 0.001
+      ) {
+        scheduledBlurScale = liveBlur;
+        scheduleTexture(200);
+      }
+
       const animated = motionUniforms(
         params.motion,
         params.tuning,
+        listeningNow,
+        listen,
         clock,
+        breatheCycle,
         window.innerWidth,
         window.innerHeight,
         nightBlend,
@@ -846,10 +1049,43 @@ export function HorizonShader({
       gl.uniform1f(uniforms.opacity2, animated.opacity2);
       gl.uniform1f(uniforms.dither, params.ditherLsb);
 
+      // Listening transform, derived from the same 0..1 value as the texture
+      // crossfade. The lift is in device pixels because the shader's UVs are.
+      const listenScale = listeningNow
+        ? 1 + listen * (listeningNow.blobScale - 1)
+        : 1;
+      const listenLift = listeningNow
+        ? listen * (listeningNow.blobLift / 100) * window.innerHeight * dpr
+        : 0;
+
+      gl.uniform1f(uniforms.listen, listen);
+      gl.uniform1f(uniforms.listenScale, listenScale);
+      gl.uniform1f(uniforms.listenLift, listenLift);
+
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, blurTexture.texture);
       gl.uniform1i(uniforms.blurTex, 0);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(
+        gl.TEXTURE_2D,
+        blurTexture.softTexture ?? blurTexture.texture,
+      );
+      gl.uniform1i(uniforms.blurSoftTex, 1);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    };
+
+    const advanceListen = (dt: number) => {
+      if (listenRamp >= 1) {
+        listen = listenTarget;
+        return;
+      }
+
+      listenRamp = Math.min(1, listenRamp + dt / listenDuration);
+      const eased = bezierProgress(listenRamp, listenCurve);
+
+      listen = listenFrom + (listenTarget - listenFrom) * eased;
+
+      if (listenRamp >= 1) listen = listenTarget;
     };
 
     const tick = (timestamp: number) => {
@@ -860,22 +1096,44 @@ export function HorizonShader({
       // even while covered), so a phase switch under the drawer does not leave
       // the strip beside the panel in the old palette.
       const coveredNow = covered();
+      // A long gap means the tab was hidden or the loop was idle; the CSS
+      // animation was frozen then too, so do not jump any clock.
+      const dt =
+        lastTimestamp !== null && !coveredNow
+          ? Math.min(Math.max((timestamp - lastTimestamp) / 1000, 0), 0.1)
+          : 0;
 
-      if (lastTimestamp !== null && !coveredNow) {
-        // A long gap means the tab was hidden or the loop was idle; the CSS
-        // animation was frozen then too, so do not jump the shader clock.
-        clock += Math.min(Math.max((timestamp - lastTimestamp) / 1000, 0), 0.1);
+      if (dt > 0) {
+        clock += dt;
+
+        // Reduced motion freezes the breath entirely; the listening crossfade
+        // still advances, but the period/amplitude never change. Under normal
+        // motion the cycle integrates the listen-stretched period.
+        if (!reduceQuery.matches) {
+          breatheCycle +=
+            dt /
+            effectiveBreathePeriod(
+              paramsRef.current.tuning,
+              currentListening(),
+              listen,
+            );
+        }
+
+        advanceListen(dt);
       }
 
       lastTimestamp = coveredNow ? null : timestamp;
       resize();
       draw();
 
+      const ramping = listenRamp < 1;
       const animating =
         !coveredNow &&
         !document.hidden &&
-        !reduceQuery.matches &&
-        paramsRef.current.motion !== "none";
+        // The ambient loop runs on its own; under reduced motion it only runs
+        // while the listening state is crossfading.
+        (ramping ||
+          (!reduceQuery.matches && paramsRef.current.motion !== "none"));
 
       // Keep going while the ambient loop runs; a phase change is one extra
       // frame, not a second loop.
@@ -891,6 +1149,53 @@ export function HorizonShader({
       // parameter change. The ambient loop stays stopped.
       if (!frame && !document.hidden) frame = requestAnimationFrame(tick);
     };
+
+    /**
+     * Retarget the listening ramp. The durations are asymmetric by design: a
+     * long swell in, a short settle out, so pause feels immediate. Re-basing
+     * from the current value is what lets a pause mid-swell reverse without a
+     * jump.
+     */
+    const startListenRamp = (next: number, force = false) => {
+      const config = currentListening();
+
+      if (!config) return;
+      if (!force && next === listenTarget) return;
+
+      const reduced = reduceQuery.matches;
+
+      listenFrom = listen;
+      listenTarget = next;
+      listenRamp = 0;
+      listenCurve = reduced ? standardCurve : calmCurve;
+      listenDuration = Math.max(
+        0.001,
+        reduced
+          ? config.reducedDuration
+          : next > listen
+            ? config.inDuration
+            : config.outDuration,
+      );
+
+      requestFrame();
+    };
+
+    const syncListen = () => {
+      if (!currentListening()) return;
+
+      const next = root.dataset.listening === "true" ? 1 : 0;
+
+      if (next !== listenTarget) startListenRamp(next);
+    };
+
+    /*
+     * A tuning change must draw even when reduced motion has the ambient loop
+     * stopped. The next frame reads the live values and schedules a debounced
+     * texture bake if the blur moved.
+     */
+    const unsubscribeLiveTuning = subscribeLiveListeningTuning(() => {
+      requestFrame();
+    });
 
     /**
      * Soft focus: the stylesheet animates `--soft-softness` on this layer for
@@ -943,6 +1248,7 @@ export function HorizonShader({
     };
 
     const observer = new MutationObserver(() => {
+      syncListen();
       dirty = true;
       requestFrame();
     });
@@ -954,6 +1260,7 @@ export function HorizonShader({
         "data-mode",
         "data-phase-switching",
         "data-overlay-open",
+        "data-listening",
         "class",
       ],
     });
@@ -982,7 +1289,12 @@ export function HorizonShader({
       requestFrame();
     });
 
-    const onReducedMotion = () => requestFrame();
+    const onReducedMotion = () => {
+      // A preference flip mid-ramp restarts the remaining distance with the
+      // new duration; it never snaps.
+      if (listenRamp < 1) startListenRamp(listenTarget, true);
+      requestFrame();
+    };
     const onResize = () => {
       cssWidth = canvas.clientWidth;
       cssHeight = canvas.clientHeight;
@@ -1009,6 +1321,8 @@ export function HorizonShader({
     return () => {
       disposed = true;
       requestFrameRef.current = () => {};
+      rebuildTextureRef.current = () => {};
+      unsubscribeLiveTuning();
 
       if (frame) cancelAnimationFrame(frame);
       if (textureTimer !== null) window.clearTimeout(textureTimer);
@@ -1025,7 +1339,10 @@ export function HorizonShader({
       gl.deleteShader(vertex.shader);
       gl.deleteShader(fragment.shader);
 
-      if (blurTexture) gl.deleteTexture(blurTexture.texture);
+      if (blurTexture) {
+        gl.deleteTexture(blurTexture.texture);
+        if (blurTexture.softTexture) gl.deleteTexture(blurTexture.softTexture);
+      }
 
       // React's dev double-mount runs cleanup between two setups on the same
       // canvas; losing the context there would poison the remount (and a lost
@@ -1044,9 +1361,18 @@ export function HorizonShader({
 
   // A parameter change needs a frame; motion needs the running loop.
   useEffect(() => {
-    paramsRef.current = { motion, tuning, ditherLsb, dprCap };
+    const previous = paramsRef.current;
+
+    paramsRef.current = { motion, tuning, listening, ditherLsb, dprCap };
+
+    // A new blur factor changes the baked listening texture, not just a
+    // uniform, so rebuild it once instead of per frame.
+    if (previous.listening?.blurScale !== listening?.blurScale) {
+      rebuildTextureRef.current();
+    }
+
     requestFrameRef.current();
-  }, [motion, tuning, ditherLsb, dprCap]);
+  }, [motion, tuning, listening, ditherLsb, dprCap]);
 
   return (
     <div

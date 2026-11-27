@@ -307,6 +307,68 @@ describe("NavDock", () => {
     render_.unmount();
   });
 
+  it("carries the home position into the drawer in the dock's zoomed space", async () => {
+    const view = renderDock();
+    const el = dock();
+    const home = {
+      top: 741.531,
+      left: 228.703,
+      width: 1078.563,
+      height: 60.75,
+    };
+    const reader = {
+      top: 44,
+      left: 228.703,
+      width: 1078.563,
+      height: 60.75,
+    };
+
+    // Both states are the xl dock scaled by --fit: the visual boxes have the
+    // same size, and their measured px must be divided back into the zoomed
+    // coordinate space before the flight writes the transform.
+    Object.defineProperty(el, "offsetWidth", {
+      configurable: true,
+      value: 1136,
+    });
+    el.getBoundingClientRect = () => {
+      const box = el.dataset.navState === "reader" ? reader : home;
+      return {
+        ...box,
+        right: box.left + box.width,
+        bottom: box.top + box.height,
+        x: box.left,
+        y: box.top,
+        toJSON: () => ({}),
+      } as DOMRect;
+    };
+
+    await act(() => moveNav("reader", "flip"));
+
+    const frames = mocks.animate.mock.calls.at(-1)?.[1] as {
+      transform: string[];
+    };
+    expect(frames.transform[0]).toMatch(
+      /translate\(0px, 734(?:\.\d+)?px\) scale\(1\)/,
+    );
+    expect(frames.transform[1]).toBe("translate(0px, 0px) scale(1)");
+    // Nothing is left transformed at rest.
+    expect(el.style.transform).toBe("");
+    expect(el.style.transformOrigin).toBe("");
+    view.unmount();
+  });
+
+  it("scales the home dock with the frame, in the frame's own space", () => {
+    const css = readFileSync(
+      join(process.cwd(), "src", "components", "nav", "nav-dock.css"),
+      "utf8",
+    );
+
+    expect(css).toMatch(/\.wd-nav-dock\s*\{[^}]*zoom:\s*var\(--fit\);/);
+    // 50dvh is not zoomed, so the dock divides it back into frame px.
+    expect(css).toMatch(/50dvh \/ var\(--fit\)/);
+    expect(css).toMatch(/calc\(50% - 568px\)/);
+  });
+
   it("hangs the phase row on one shared gap in both docks", () => {
     const read = (...parts: string[]) =>
       readFileSync(join(process.cwd(), ...parts), "utf8");

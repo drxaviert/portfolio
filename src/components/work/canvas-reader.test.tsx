@@ -21,6 +21,9 @@ vi.mock("@/components/canvas/infinite-canvas", async () => {
     InfiniteCanvas: forwardRef(function MockCanvas(
       {
         onOpen,
+        onIntroStart,
+        edgeBlur = true,
+        edgeBlurSuppressed = false,
       }: {
         onOpen?: (
           index: number,
@@ -28,6 +31,9 @@ vi.mock("@/components/canvas/infinite-canvas", async () => {
           openRect?: unknown,
           canvasOwned?: boolean,
         ) => void;
+        onIntroStart?: () => void;
+        edgeBlur?: boolean;
+        edgeBlurSuppressed?: boolean;
       },
       ref: ForwardedRef<unknown>,
     ) {
@@ -46,12 +52,19 @@ vi.mock("@/components/canvas/infinite-canvas", async () => {
       );
 
       return (
-        <div data-canvas-stage>
+        <div
+          data-canvas-stage
+          data-edge-blur={edgeBlur ? "on" : "off"}
+          data-edge-blur-suppressed={edgeBlurSuppressed ? "" : undefined}
+        >
           <button
             type="button"
             onClick={() => onOpen?.(0, undefined, undefined, true)}
           >
             Simulate tile open
+          </button>
+          <button type="button" onClick={() => onIntroStart?.()}>
+            Simulate intro start
           </button>
         </div>
       );
@@ -134,13 +147,13 @@ function renderViewerReader() {
   return reader;
 }
 
-function renderReader() {
+function renderReader({ edgeBlur }: { edgeBlur?: boolean } = {}) {
   const close = vi.fn();
   const stepBack = vi.fn();
 
   render(
     <DrawerActionsProvider close={close} stepBack={stepBack} exit={vi.fn()}>
-      <CanvasReader meta={meta} items={items} />
+      <CanvasReader meta={meta} items={items} edgeBlur={edgeBlur} />
     </DrawerActionsProvider>,
   );
 
@@ -242,6 +255,38 @@ describe("CanvasReader breadcrumb bar", () => {
   });
 });
 
+describe("CanvasReader chrome entrance", () => {
+  it("holds the bottom chrome until the canvas intro starts", () => {
+    const reader = renderViewerReader();
+
+    expect(reader).toHaveAttribute("data-chrome", "pending");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Simulate intro start" }),
+    );
+
+    expect(reader).toHaveAttribute("data-chrome", "in");
+  });
+
+  it("runs the approved curve, rise and defocus, with a reduced-motion fade", () => {
+    const readerCss = readFileSync(
+      join(process.cwd(), "src/components/work/canvas-reader.css"),
+      "utf8",
+    );
+
+    expect(readerCss).toMatch(/--cv-chrome-duration: 700ms;/);
+    expect(readerCss).toMatch(
+      /--cv-chrome-ease: cubic-bezier\(0\.45, 0, 0\.55, 1\);/,
+    );
+    expect(readerCss).toMatch(
+      /@keyframes cv-chrome-in \{\s*from \{\s*opacity: 0;\s*transform: translateY\(4px\);\s*filter: blur\(4px\);/,
+    );
+    expect(readerCss).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?animation: cv-chrome-fade 160ms/,
+    );
+  });
+});
+
 describe("CanvasReader viewer staging", () => {
   it("keeps a canvas-owned open uncovered and clears the state after close", () => {
     const reader = renderViewerReader();
@@ -309,5 +354,27 @@ describe("CanvasReader bottom bar stacking", () => {
     );
 
     expect(barZ).toBeGreaterThan(viewerZ);
+  });
+});
+
+describe("CanvasReader edge blur", () => {
+  it("passes the edge blur and viewer suppression to the canvas", () => {
+    renderReader();
+
+    const stage = document.querySelector("[data-canvas-stage]");
+    expect(stage).toHaveAttribute("data-edge-blur", "on");
+    expect(stage).not.toHaveAttribute("data-edge-blur-suppressed");
+
+    fireEvent.click(screen.getByRole("button", { name: "Simulate tile open" }));
+    expect(stage).toHaveAttribute("data-edge-blur-suppressed");
+  });
+
+  it("turns the canvas effect off for the edgeblur=off A/B view", () => {
+    renderReader({ edgeBlur: false });
+
+    expect(document.querySelector("[data-canvas-stage]")).toHaveAttribute(
+      "data-edge-blur",
+      "off",
+    );
   });
 });
