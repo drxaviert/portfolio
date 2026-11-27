@@ -306,3 +306,50 @@
 .painting-frame[data-mount="hanging"] .painting-frame-rod[data-edge="bottom"] {
   bottom: max(2px, calc(clamp(10px, 7cqh, 24px) * 0.45));
 }
+
+/* -------------------------------------------------------------------------
+ * Shredder slot
+ * ---------------------------------------------------------------------- */
+
+/*
+ * The strips hang from the frame's bottom edge. The slot is clipped at the
+ * top by its own box (the rod is the frame edge above it), and the strips
+ * inside slide down from -100% to 0, so the visible length is exactly the
+ * part of the painting that has passed through the frame.
+ *
+ * `--shred-lip` is the frame edge plus the mount lip: the window's inset, so
+ * the strips line up with the painting inside the frame. The extra 12px at the
+ * bottom gives the rotated strips room without a flat machine-cut hem.
+ */
+.painting-frame-shred {
+  --shred-lip: calc(var(--frame-edge) + var(--frame-mount-pad));
+
+  position: absolute;
+  top: 100%;
+  left: var(--shred-lip);
+  width: calc(100% - var(--shred-lip) * 2);
+  height: calc((100% - var(--shred-lip) * 2) / 2 + 12px);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.shred-strips {
+  position: absolute;
+  inset: 0;
+}
+
+.shred-strip {
+  position: absolute;
+  top: 0;
+  left: calc(var(--strip-index) * 100% / var(--shred-count, 18));
+  width: calc(100% / var(--shred-count, 18));
+  height: calc(100% - 12px);
+  background-color: #16120e;
+  background-image: var(--shred-src);
+  background-position-x: var(--strip-offset);
+  background-position-y: 100%;
+  background-repeat: no-repeat;
+  background-size: calc(var(--shred-count, 18) * 100%) 200%;
+  transform: translate3d(var(--strip-sway), 0, 0) rotate(var(--strip-rotate));
+  transform-origin: top center;
+}

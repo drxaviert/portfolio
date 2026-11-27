@@ -143,6 +143,8 @@ export function ArtDialog({ art, open, onClose }: ArtDialogProps) {
       aria-modal="true"
       onClose={handleNativeClose}
       onClick={(event) => {
+        event.stopPropagation();
+
         if (event.target !== event.currentTarget) return;
 
         const dialog = dialogRef.current;

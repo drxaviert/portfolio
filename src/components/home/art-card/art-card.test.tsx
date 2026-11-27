@@ -1,11 +1,18 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DailyArt } from "@/lib/daily-art";
 import { ArtCard } from "./art-card";
 import { ArtImage, artImageSrc } from "./art-image";
 
 const TODAY = "2026-11-25";
+const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
 
 function art(overrides: Partial<DailyArt> = {}): DailyArt {
   return {
@@ -31,6 +38,26 @@ function art(overrides: Partial<DailyArt> = {}): DailyArt {
   };
 }
 
+function stubMatchMedia(reduced: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: query === REDUCE_QUERY ? reduced : false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  );
+}
+
+beforeEach(() => {
+  stubMatchMedia(false);
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -38,6 +65,14 @@ afterEach(() => {
 
 function renderCard(input = art()) {
   return render(<ArtCard art={input} />);
+}
+
+function loadPainting(container: HTMLElement) {
+  const image = container.querySelector(".art-image img");
+
+  if (!image) throw new Error("the painting image did not render");
+
+  fireEvent.load(image as HTMLImageElement);
 }
 
 function disableNativeDialog() {
@@ -71,7 +106,7 @@ function disableNativeDialog() {
 }
 
 describe("ArtCard", () => {
-  it("renders today's label, synopsis and full-view button", () => {
+  it("renders today's label, the painting button and the full-screen trigger", () => {
     renderCard();
 
     expect(screen.getByText("Today’s painting")).toBeInTheDocument();
@@ -86,10 +121,11 @@ describe("ArtCard", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", {
-        name: "View A painting by An artist in full",
-      }),
-    ).toBeInTheDocument();
+      screen.getByRole("button", { name: "View full screen" }),
+    ).toHaveAttribute("aria-haspopup", "dialog");
+    expect(
+      screen.getByRole("button", { name: "Shred the painting" }),
+    ).toHaveAttribute("aria-pressed", "false");
   });
 
   it("omits the medium separator when the record has none", () => {
@@ -105,9 +141,15 @@ describe("ArtCard", () => {
     const order = Array.from(scene?.children ?? []).map(
       (child) => child.className,
     );
+    const label = container.querySelector(".art-card-label");
 
     expect(order[0]).toContain("art-card-label");
-    expect(order[1]).toContain("art-card-frame-button");
+    expect(order[1]).toContain("art-card-painting-button");
+    expect(
+      within(label as HTMLElement).getByRole("button", {
+        name: "View full screen",
+      }),
+    ).toBeInTheDocument();
     expect(container.querySelector(".art-control")).toBeNull();
     expect(
       screen.queryByRole("button", { name: /Previous painting/ }),
@@ -120,6 +162,145 @@ describe("ArtCard", () => {
     );
   });
 
+  it("opens the full view from a click anywhere on the card", async () => {
+    const user = userEvent.setup();
+    const restoreDialog = disableNativeDialog();
+
+    try {
+      renderCard();
+
+      await user.click(screen.getByText("An artist"));
+
+      expect(screen.getByRole("dialog")).toHaveAttribute("open");
+      expect(
+        within(screen.getByRole("dialog")).getByRole("heading", {
+          name: "A painting",
+        }),
+      ).toBeInTheDocument();
+    } finally {
+      restoreDialog();
+    }
+  });
+
+  it("shreds the painting instead of opening the full view", async () => {
+    const user = userEvent.setup();
+    const { container } = renderCard();
+
+    loadPainting(container);
+
+    const painting = screen.getByRole("button", { name: "Shred the painting" });
+
+    await user.click(painting);
+
+    await waitFor(() => {
+      expect(container.querySelectorAll(".shred-strip")).toHaveLength(18);
+    });
+
+    expect(painting).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Restore the painting" })).toBe(
+      painting,
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      container
+        .querySelector(".painting-frame-shred")
+        ?.getAttribute("aria-hidden"),
+    ).toBe("true");
+  });
+
+  it("restores the painting on a second click and removes the strips", async () => {
+    const user = userEvent.setup();
+    const { container } = renderCard();
+
+    loadPainting(container);
+
+    await user.click(
+      screen.getByRole("button", { name: "Shred the painting" }),
+    );
+
+    await waitFor(() => {
+      expect(container.querySelectorAll(".shred-strip")).toHaveLength(18);
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Restore the painting" }),
+    );
+
+    await waitFor(() => {
+      expect(container.querySelectorAll(".shred-strip")).toHaveLength(0);
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Shred the painting" }),
+    ).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("ignores clicks while the shred is animating", async () => {
+    vi.spyOn(Element.prototype, "animate").mockImplementation(
+      () =>
+        ({
+          finished: new Promise(() => {}),
+          cancel: vi.fn(),
+        }) as unknown as Animation,
+    );
+
+    const user = userEvent.setup();
+    const { container } = renderCard();
+
+    loadPainting(container);
+
+    const painting = screen.getByRole("button", { name: "Shred the painting" });
+
+    expect(painting).toHaveAttribute("data-shred-phase", "idle");
+
+    await user.click(painting);
+
+    expect(painting).toHaveAttribute("data-shred-phase", "shredding");
+
+    // A click during the descent is ignored rather than queued.
+    fireEvent.click(painting);
+
+    expect(painting).toHaveAttribute("data-shred-phase", "shredding");
+    expect(painting).toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelectorAll(".shred-strip")).toHaveLength(18);
+  });
+
+  it("disables shredding when the image has failed", () => {
+    const { container } = renderCard();
+    const image = container.querySelector(".art-image img");
+
+    fireEvent.error(image as HTMLImageElement);
+
+    const painting = screen.getByRole("button", { name: "Shred the painting" });
+
+    expect(painting).toBeDisabled();
+
+    fireEvent.click(painting);
+
+    expect(container.querySelectorAll(".shred-strip")).toHaveLength(0);
+    expect(painting).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("skips the web animation under reduced motion", async () => {
+    stubMatchMedia(true);
+
+    const animate = vi.spyOn(Element.prototype, "animate");
+    const user = userEvent.setup();
+    const { container } = renderCard();
+
+    loadPainting(container);
+
+    await user.click(
+      screen.getByRole("button", { name: "Shred the painting" }),
+    );
+
+    await waitFor(() => {
+      expect(container.querySelectorAll(".shred-strip")).toHaveLength(18);
+    });
+
+    expect(animate).not.toHaveBeenCalled();
+  });
+
   it("opens the full view, traps Tab, closes on Escape and restores focus", async () => {
     const user = userEvent.setup();
     const restoreDialog = disableNativeDialog();
@@ -127,9 +308,7 @@ describe("ArtCard", () => {
     try {
       renderCard();
 
-      const trigger = screen.getByRole("button", {
-        name: "View A painting by An artist in full",
-      });
+      const trigger = screen.getByRole("button", { name: "View full screen" });
 
       await user.click(trigger);
 
@@ -203,9 +382,7 @@ describe("ArtCard", () => {
     try {
       renderCard();
       await user.click(
-        screen.getByRole("button", {
-          name: "View A painting by An artist in full",
-        }),
+        screen.getByRole("button", { name: "View full screen" }),
       );
 
       expect(showModal).toHaveBeenCalledTimes(1);
@@ -234,9 +411,7 @@ describe("ArtCard", () => {
     try {
       renderCard();
 
-      const trigger = screen.getByRole("button", {
-        name: "View A painting by An artist in full",
-      });
+      const trigger = screen.getByRole("button", { name: "View full screen" });
 
       await user.click(trigger);
 
@@ -314,9 +489,7 @@ describe("ArtCard", () => {
       screen.getByRole("heading", { name: "A painting" }),
     ).toBeInTheDocument();
 
-    const trigger = screen.getByRole("button", {
-      name: "View A painting by An artist in full",
-    });
+    const trigger = screen.getByRole("button", { name: "View full screen" });
     const describedBy = trigger.getAttribute("aria-describedby");
 
     expect(describedBy).toBeTruthy();

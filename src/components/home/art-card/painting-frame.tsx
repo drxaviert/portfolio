@@ -29,6 +29,8 @@ type PaintingFrameProps = {
   /** Lab overrides: force an era to compare the frame tokens. */
   era?: FrameEra;
   className?: string;
+  /** Decorative strips rendered in the shred slot below the bottom rod. */
+  shred?: ReactNode;
 };
 
 export function PaintingFrame({
@@ -37,6 +39,7 @@ export function PaintingFrame({
   variant = "card",
   era,
   className = "",
+  shred,
 }: PaintingFrameProps) {
   const style = frameStyleFor(art);
   const aspect =
@@ -64,6 +67,11 @@ export function PaintingFrame({
         data-edge="bottom"
         aria-hidden="true"
       />
+      {shred ? (
+        <div className="painting-frame-shred" aria-hidden="true">
+          {shred}
+        </div>
+      ) : null}
     </div>
   );
 }
