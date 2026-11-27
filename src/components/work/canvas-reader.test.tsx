@@ -21,6 +21,7 @@ vi.mock("@/components/canvas/infinite-canvas", async () => {
     InfiniteCanvas: forwardRef(function MockCanvas(
       {
         onOpen,
+        onIntroStart,
       }: {
         onOpen?: (
           index: number,
@@ -28,6 +29,7 @@ vi.mock("@/components/canvas/infinite-canvas", async () => {
           openRect?: unknown,
           canvasOwned?: boolean,
         ) => void;
+        onIntroStart?: () => void;
       },
       ref: ForwardedRef<unknown>,
     ) {
@@ -52,6 +54,9 @@ vi.mock("@/components/canvas/infinite-canvas", async () => {
             onClick={() => onOpen?.(0, undefined, undefined, true)}
           >
             Simulate tile open
+          </button>
+          <button type="button" onClick={() => onIntroStart?.()}>
+            Simulate intro start
           </button>
         </div>
       );
@@ -239,6 +244,36 @@ describe("CanvasReader breadcrumb bar", () => {
 
     expect(screen.queryByText(/Cathy Dolle/)).toBeNull();
     expect(document.querySelector(".cv-reader__credit")).toBeNull();
+  });
+});
+
+describe("CanvasReader chrome entrance", () => {
+  it("holds the bottom chrome until the canvas intro starts", () => {
+    const reader = renderViewerReader();
+
+    expect(reader).toHaveAttribute("data-chrome", "pending");
+
+    fireEvent.click(screen.getByRole("button", { name: "Simulate intro start" }));
+
+    expect(reader).toHaveAttribute("data-chrome", "in");
+  });
+
+  it("runs the approved curve, rise and defocus, with a reduced-motion fade", () => {
+    const readerCss = readFileSync(
+      join(process.cwd(), "src/components/work/canvas-reader.css"),
+      "utf8",
+    );
+
+    expect(readerCss).toMatch(/--cv-chrome-duration: 700ms;/);
+    expect(readerCss).toMatch(
+      /--cv-chrome-ease: cubic-bezier\(0\.45, 0, 0\.55, 1\);/,
+    );
+    expect(readerCss).toMatch(
+      /@keyframes cv-chrome-in \{\s*from \{\s*opacity: 0;\s*transform: translateY\(4px\);\s*filter: blur\(4px\);/,
+    );
+    expect(readerCss).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?animation: cv-chrome-fade 160ms/,
+    );
   });
 });
 

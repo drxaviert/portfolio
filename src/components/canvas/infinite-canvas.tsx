@@ -148,6 +148,8 @@ export type InfiniteCanvasProps = {
   ) => void;
   /** The canvas-owned open has settled; reveal the viewer chrome. */
   onCanvasOpened: () => void;
+  /** The intro clock has started (posters ready, or the wait timed out). */
+  onIntroStart?: () => void;
 };
 
 const CAMERA_Z = INTRO.cameraToZ;
@@ -623,7 +625,16 @@ export const InfiniteCanvas = forwardRef<
   InfiniteCanvasProps
 >(
   function InfiniteCanvas(
-    { items, paused, lens, breath, hover, onOpen, onCanvasOpened },
+    {
+      items,
+      paused,
+      lens,
+      breath,
+      hover,
+      onOpen,
+      onCanvasOpened,
+      onIntroStart,
+    },
     ref,
   ) {
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
@@ -654,6 +665,7 @@ export const InfiniteCanvas = forwardRef<
   const canvasOwnedRef = useRef(false);
   const onOpenRef = useRef(onOpen);
   const onCanvasOpenedRef = useRef(onCanvasOpened);
+  const onIntroStartRef = useRef(onIntroStart);
 
   useImperativeHandle(ref, () => apiRef.current, []);
 
@@ -664,6 +676,10 @@ export const InfiniteCanvas = forwardRef<
   useEffect(() => {
     onCanvasOpenedRef.current = onCanvasOpened;
   }, [onCanvasOpened]);
+
+  useEffect(() => {
+    onIntroStartRef.current = onIntroStart;
+  }, [onIntroStart]);
 
   useEffect(() => {
     lensRef.current = lens;
@@ -883,6 +899,7 @@ export const InfiniteCanvas = forwardRef<
     let introZoomValue: number = INTRO.zoomFrom;
     let introVideos = false;
     let introAnnounced = false;
+    let introStartAnnounced = false;
     /** The barrel strength currently drawn; picking uses this same value. */
     let lensBase = 0;
     let lensApplied = 0;
@@ -3901,6 +3918,13 @@ export const InfiniteCanvas = forwardRef<
         // Wait for the posters (or a failed one) before starting the clock.
         if (textureLoadMs !== null || now - textureStartedAt > 2500) {
           introElapsed = 0;
+
+          // The chrome enters with the canvas, not before it: the pill has
+          // nothing to sit on until the intro is running.
+          if (!introStartAnnounced) {
+            introStartAnnounced = true;
+            onIntroStartRef.current?.();
+          }
         } else {
           grayUniform.value = 1;
           introZoomUniform.value = INTRO.zoomFrom;
