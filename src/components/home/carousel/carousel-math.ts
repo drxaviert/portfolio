@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Order, wrap and motion maths for the home carousel. Pure: no DOM, no React.
  *
  * Items sit in a ring of `n`. The first four (from `offset`) fill the four
@@ -82,7 +82,7 @@ export type Bezier = [number, number, number, number];
  * 50ms, 36% by 100ms of a 900ms step), so the whole row is visibly moving from
  * the first frames instead of holding still for ~150ms. "smooth" is the old
  * gentle-start-and-long-glide curve, kept as a preset; easeOutExpo covers about
- * half the distance in its first ~70ms, so a step starting on it snaps — it
+ * half the distance in its first ~70ms, so a step starting on it snaps â€” it
  * stays as "expo-out" for comparison.
  */
 export const EASE_OPTIONS: { value: EaseKey; label: string }[] = [
@@ -304,36 +304,98 @@ export function retarget(
   const exit = k > 0 ? exitLeft(g) : offRight(g);
   const entry = k > 0 ? offRight(g) : exitLeft(g);
 
-  // Every card that enters from the right starts at the same offRight point:
-  // the seam copies of a far step, and the waiting main card parked past the
-  // last slot. Left on that one point they pile up, and the card growing into a
-  // wide slot covers the one behind it for most of the run, because a growing
-  // card takes the gap to the next slot as it widens. Queue them in landing
-  // order instead, one entry column plus a gap apart, so the gap between them
-  // stays the same on every frame: the lead card's growth exactly matches the
-  // extra distance it travels. One entrant (a one-slot step) keeps the point.
-  const entrance = new Map<number, number>();
+  // Cards that enter from the right line up behind the card that lands in the
+  // slot before them, from where that card is drawn at this instant. On a fresh
+  // step that is the rest queue (one entry column plus a gap apart). On an
+  // interrupt the card ahead can be mid-flight, and the old fixed rest column
+  // started the copy inside it (pf-bw7). The lead card's growth matches its
+  // extra travel, so the gap stays 12px on every frame.
+  const chainFrom = new Map<number, Pose>();
   if (k > 0) {
-    current
-      .map((e) => e.item)
-      .filter((item, index, all) => all.indexOf(item) === index)
-      .filter((item) => current.filter((e) => e.item === item).length === 1)
-      .map((item) => {
-        const prevSlot = slotOf(item, prevOffset, n);
-        const unwrapped = prevSlot - k;
-        const dest = mod(unwrapped, n);
-        const wraps = unwrapped < 0 || unwrapped >= n;
-        const entering =
-          dest < VISIBLE_SLOTS && (wraps || prevSlot >= VISIBLE_SLOTS);
+    const slotFrom: (Pose | null)[] = Array.from(
+      { length: VISIBLE_SLOTS },
+      () => null,
+    );
+    const slotEntry = new Map<
+      number,
+      { item: number; w: number; current: Pose | null }
+    >();
 
-        return entering ? { item, dest } : null;
-      })
-      .filter(
-        (candidate): candidate is { item: number; dest: number } =>
-          candidate !== null,
-      )
-      .sort((a, b) => a.dest - b.dest)
-      .forEach((candidate, index) => entrance.set(candidate.item, index));
+    for (let item = 0; item < n; item++) {
+      const prevSlot = slotOf(item, prevOffset, n);
+      const unwrapped = prevSlot - k;
+      const dest = mod(unwrapped, n);
+      if (dest >= VISIBLE_SLOTS) continue;
+
+      const ents = current.filter((e) => e.item === item);
+      const destPose = slotPose(g, dest);
+      if (ents.length >= 2) {
+        const [a, b] = ents;
+        const aLeads =
+          Math.abs(a.from.x - destPose.x) <= Math.abs(b.from.x - destPose.x);
+        const lead = aLeads ? a : b;
+        // A seam copy taking the slot joins the entry chain from where it is
+        // drawn; the card it came from leaves through an end.
+        if (lead.ghost) {
+          slotEntry.set(dest, {
+            item,
+            w: lead.from.w,
+            current: lead.from,
+          });
+        } else {
+          slotFrom[dest] = lead.from;
+        }
+        continue;
+      }
+
+      const main = ents[0];
+      if (!main) continue;
+      const wraps = unwrapped < 0 || unwrapped >= n;
+
+      if (!wraps) {
+        if (prevSlot < VISIBLE_SLOTS) {
+          slotFrom[dest] = main.from;
+        } else if (main.edgeLeft || main.from.x < g.rowWidth / 2) {
+          // A card already leaving left cannot come back in from the right;
+          // the slot gets a fresh seam copy instead.
+          slotEntry.set(dest, { item, w: entry.w, current: null });
+        } else if (main.from.x >= g.rowWidth) {
+          // A waiting card parked past the row: queue it behind the card ahead.
+          slotEntry.set(dest, {
+            item,
+            w: main.from.w,
+            current: main.from,
+          });
+        } else {
+          // Already entering from a previous run: keep its drawn start.
+          slotFrom[dest] = main.from;
+        }
+      } else {
+        slotEntry.set(dest, { item, w: entry.w, current: null });
+      }
+    }
+
+    let ahead: Pose | null = null;
+    for (let dest = 0; dest < VISIBLE_SLOTS; dest++) {
+      const entrySlot = slotEntry.get(dest);
+      if (entrySlot) {
+        const proposed: Pose = ahead
+          ? { x: ahead.x + ahead.w + g.gap, w: entrySlot.w }
+          : { ...entry, w: entrySlot.w };
+        // A copy or waiting card keeps its drawn pose when it is already at or
+        // behind its place; only one drawn left of it moves right with the chain.
+        // A brand-new copy still starts outside the row, never pops into view.
+        const from: Pose = entrySlot.current
+          ? entrySlot.current.x >= proposed.x
+            ? entrySlot.current
+            : proposed
+          : { ...proposed, x: Math.max(proposed.x, entry.x) };
+        chainFrom.set(entrySlot.item, from);
+        ahead = from;
+      } else if (slotFrom[dest]) {
+        ahead = slotFrom[dest];
+      }
+    }
   }
 
   // The cards a rightward step pushes out through the left end leave as one
@@ -375,8 +437,28 @@ export function retarget(
         const aLeads =
           Math.abs(a.from.x - destPose.x) <= Math.abs(b.from.x - destPose.x);
         const [lead, other] = aLeads ? [a, b] : [b, a];
-        out.push(retargetTo(lead, destPose));
-        out.push(retargetTo(other, nearestExit(g, other.from)));
+        const chained = chainFrom.get(item);
+        // Only move a copy that is drawn left of its place in the chain; one
+        // already at or behind it keeps its exact pose (no snap).
+        const from =
+          chained && chained.x > lead.from.x + 0.01 ? chained : undefined;
+        out.push(
+          retargetTo(
+            {
+              ...lead,
+              edgeLeft: undefined,
+              ...(from ? { from } : {}),
+            },
+            destPose,
+          ),
+        );
+        const exitPose = nearestExit(g, other.from);
+        out.push(
+          retargetTo(
+            { ...other, edgeLeft: exitPose.x < 0 ? true : undefined },
+            exitPose,
+          ),
+        );
       }
       continue;
     }
@@ -384,24 +466,35 @@ export function retarget(
     const main = ents[0];
 
     if (!wraps) {
+      // A card already leaving through the left end cannot come back in
+      // through the right: it teleports across the row at its old (wide)
+      // width, and the queue's narrow entry column puts the next copy inside
+      // it. Keep the card leaving and give the slot a fresh seam copy.
+      if (k > 0 && prevSlot >= VISIBLE_SLOTS && main.edgeLeft) {
+        out.push({
+          ...retargetTo(main, { x: main.from.x - pushOut, w: main.from.w }),
+          edgeLeft: true,
+        });
+        if (visible) {
+          out.push({
+            item,
+            ghost: true,
+            from: chainFrom.get(item) ?? entry,
+            to: destPose,
+          });
+        }
+        continue;
+      }
+
       // A main card waiting past the last slot enters from its place in the
-      // right-hand queue (see `entrance`), not from the raw offRight point.
-      const queued = entrance.get(item);
-      if (k > 0 && queued !== undefined && prevSlot >= VISIBLE_SLOTS) {
+      // right-hand chain (see `chainFrom`), not from the raw offRight point.
+      const chained = chainFrom.get(item);
+      if (k > 0 && chained && prevSlot >= VISIBLE_SLOTS) {
         out.push(
-          retargetTo(
-            {
-              ...main,
-              from: {
-                x: entry.x + queued * (entry.w + g.gap),
-                w: main.from.w,
-              },
-            },
-            destPose,
-          ),
+          retargetTo({ ...main, edgeLeft: undefined, from: chained }, destPose),
         );
       } else {
-        out.push(retargetTo(main, destPose));
+        out.push(retargetTo({ ...main, edgeLeft: undefined }, destPose));
       }
       continue;
     }
@@ -416,15 +509,14 @@ export function retarget(
         edgeLeft: true,
       });
     } else {
-      out.push(retargetTo(main, exit));
+      out.push(retargetTo({ ...main, edgeLeft: undefined }, exit));
     }
 
     if (visible) {
-      const queued = k > 0 ? (entrance.get(item) ?? 0) : 0;
       out.push({
         item,
         ghost: true,
-        from: { ...entry, x: entry.x + queued * (entry.w + g.gap) },
+        from: chainFrom.get(item) ?? entry,
         to: destPose,
       });
     }

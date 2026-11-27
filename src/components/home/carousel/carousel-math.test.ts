@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   GAP,
   VISIBLE_SLOTS,
@@ -207,7 +207,6 @@ describe("wrap seam", () => {
           planned.find(
             (e) =>
               e.item === item &&
-              !e.edgeLeft &&
               e.to.x === G.slots[slot].x &&
               e.to.w === G.slots[slot].w,
           )!,
@@ -249,6 +248,98 @@ describe("wrap seam", () => {
           expect(
             gap,
             `click ${k} at ${p}: ${entityKey(drawn[i - 1])} -> ${entityKey(drawn[i])}`,
+          ).toBeGreaterThanOrEqual(G.gap - 1e-6);
+        }
+      }
+    }
+  });
+
+  it("keeps the 12px gutter when the 3rd card is clicked again mid-step", () => {
+    const linear = (t: number) => t;
+    const running = advance(0, 2, 5);
+    const after = advance(running, 2, 5);
+    const chainOf = (planned: Entity[]) =>
+      slotOrder(5, after)
+        .slice(0, VISIBLE_SLOTS)
+        .map((item, slot) =>
+          planned.find(
+            (e) =>
+              e.item === item &&
+              e.to.x === G.slots[slot].x &&
+              e.to.w === G.slots[slot].w,
+          )!,
+        );
+
+    for (const timing of [0.05, 0.1, 0.25, 0.5, 0.75]) {
+      const first = retarget(G, 5, 0, 2, restEntities(G, 5, 0));
+      const midway = sampleEntities(first, timing * 1000, 1000, linear);
+      const replanned = retarget(G, 5, running, 2, midway);
+      const chain = chainOf(replanned);
+      const keys = chain.map(entityKey);
+
+      for (let step = 0; step <= 100; step++) {
+        const p = step / 100;
+        const drawn = sampleEntities(replanned, p * 1000, 1000, linear)
+          .filter((e) => keys.includes(entityKey(e)))
+          .filter((e) => e.from.x < G.rowWidth && e.from.x + e.from.w > 0)
+          .sort((a, b) => a.from.x - b.from.x);
+
+        for (let i = 1; i < drawn.length; i++) {
+          const gap =
+            drawn[i].from.x - (drawn[i - 1].from.x + drawn[i - 1].from.w);
+          expect(
+            gap,
+            `retarget at ${timing}, ${p}: ` +
+              `${entityKey(drawn[i - 1])} -> ${entityKey(drawn[i])}`,
+          ).toBeGreaterThanOrEqual(G.gap - 1e-6);
+        }
+      }
+    }
+  });
+
+  it("keeps the 12px gutter through three mid-step clicks on the 3rd card", () => {
+    const linear = (t: number) => t;
+
+    for (const timings of [
+      [0.1, 0.1, 0.1],
+      [0.25, 0.2, 0.15],
+      [0.5, 0.25, 0.1],
+    ]) {
+      let offset = 0;
+      let plan = retarget(G, 5, 0, 2, restEntities(G, 5, 0));
+      for (const timing of timings) {
+        const midway = sampleEntities(plan, timing * 1000, 1000, linear);
+        offset = advance(offset, 2, 5);
+        plan = retarget(G, 5, offset, 2, midway);
+      }
+
+      const after = advance(offset, 2, 5);
+      const chain = slotOrder(5, after)
+        .slice(0, VISIBLE_SLOTS)
+        .map((item, slot) =>
+          plan.find(
+            (e) =>
+              e.item === item &&
+              e.to.x === G.slots[slot].x &&
+              e.to.w === G.slots[slot].w,
+          )!,
+        );
+      const keys = chain.map(entityKey);
+
+      for (let step = 0; step <= 100; step++) {
+        const p = step / 100;
+        const drawn = sampleEntities(plan, p * 1000, 1000, linear)
+          .filter((e) => keys.includes(entityKey(e)))
+          .filter((e) => e.from.x < G.rowWidth && e.from.x + e.from.w > 0)
+          .sort((a, b) => a.from.x - b.from.x);
+
+        for (let i = 1; i < drawn.length; i++) {
+          const gap =
+            drawn[i].from.x - (drawn[i - 1].from.x + drawn[i - 1].from.w);
+          expect(
+            gap,
+            `three clicks ${timings.join("/")} at ${p}: ` +
+              `${entityKey(drawn[i - 1])} -> ${entityKey(drawn[i])}`,
           ).toBeGreaterThanOrEqual(G.gap - 1e-6);
         }
       }
