@@ -68,6 +68,13 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Where the self-hosted track is fetched from. Only the local dev route is
+  // wired for now, so production keeps the YouTube backend until the audio
+  // object is in R2 (see docs/design-system/media.md, Audio tracks).
+  env: {
+    NEXT_PUBLIC_MEDIA_BASE:
+      process.env.MEDIA_ORIGIN === "local" ? "/media/local" : "",
+  },
   // Lets Dat test dev servers from a laptop on the LAN (Next 16 blocks
   // cross-origin dev requests, so the page never hydrates without this).
   allowedDevOrigins: ["192.168.2.33", "192.168.2.28"],

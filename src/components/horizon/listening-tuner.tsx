@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { audioBands } from "@/components/player/audio-bands";
 import type { HorizonListeningTuning } from "./horizon-background";
 import {
   DEFAULT_LISTENING_STATE,
@@ -120,6 +121,73 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 const subscribeToLocation = () => () => {};
+
+const BAND_KEYS = ["bass", "mid", "high", "energy"] as const;
+
+/**
+ * Read-only meters for the audio analyser. A rAF loop writes the bar widths
+ * and numbers straight to the DOM, the same way the shader will read the
+ * values, so playing music causes no React renders.
+ */
+function AudioBandBars() {
+  const fills = useRef<(HTMLSpanElement | null)[]>([]);
+  const labels = useRef<(HTMLSpanElement | null)[]>([]);
+
+  useEffect(() => {
+    let frame = 0;
+
+    const tick = () => {
+      const bands = audioBands.getBands();
+
+      BAND_KEYS.forEach((key, index) => {
+        const value = bands[key];
+        const fill = fills.current[index];
+        const label = labels.current[index];
+
+        if (fill) fill.style.transform = `scaleX(${value})`;
+        if (label) label.textContent = value.toFixed(2);
+      });
+      frame = window.requestAnimationFrame(tick);
+    };
+
+    frame = window.requestAnimationFrame(tick);
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  return (
+    <div
+      aria-label="Audio bands (read only)"
+      role="group"
+      className="space-y-1"
+    >
+      <h3 className="text-base font-medium">Audio bands</h3>
+      {BAND_KEYS.map((key, index) => (
+        <div key={key} className="flex items-center gap-2 text-base">
+          <span className="w-16 capitalize">{key}</span>
+          <span className="h-2 flex-1 overflow-hidden rounded-full bg-surface-container-highest">
+            <span
+              ref={(node) => {
+                fills.current[index] = node;
+              }}
+              data-band={key}
+              className="block h-full origin-left rounded-full bg-[var(--primary)]"
+              style={{ transform: "scaleX(0)" }}
+            />
+          </span>
+          <span
+            ref={(node) => {
+              labels.current[index] = node;
+            }}
+            className="w-10 text-right tabular-nums text-on-surface-variant"
+          >
+            0.00
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function ListeningTuner() {
   // The server renders nothing; after hydration the client snapshot opens the
@@ -297,6 +365,8 @@ export function ListeningTuner() {
               })}
             </div>
           </details>
+
+          <AudioBandBars />
 
           <label className="flex items-center gap-2 text-base">
             <input

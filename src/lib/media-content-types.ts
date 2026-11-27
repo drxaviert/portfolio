@@ -20,6 +20,9 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   jpeg: "image/jpeg",
   png: "image/png",
   vtt: "text/vtt",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  ogg: "audio/ogg",
 };
 
 /**

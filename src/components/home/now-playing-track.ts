@@ -9,7 +9,22 @@ export const NOW_PLAYING_TRACK = {
   artist: "Chihei Hatakeyama",
   durationSeconds: 375,
   durationLabel: "6:15",
+  /** Key of the self-hosted file, written by `pnpm post` (media/<id>/audio.mp3). */
+  audioKey: "media/door-to-the-cosmos-601b1958e1/audio.mp3",
 } as const;
+
+/**
+ * The self-hosted audio URL, or null when no media base is configured (then
+ * the player falls back to the YouTube embed).
+ */
+export function audioUrlFor(
+  track: { audioKey?: string },
+  base: string | undefined = process.env.NEXT_PUBLIC_MEDIA_BASE,
+): string | null {
+  if (!track.audioKey || !base) return null;
+
+  return `${base.replace(/\/+$/, "")}/${track.audioKey}`;
+}
 
 export function watchUrl(videoId: string) {
   return `https://www.youtube.com/watch?v=${videoId}`;

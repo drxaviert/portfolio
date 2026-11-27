@@ -205,6 +205,31 @@ audio is never heard through `<Media>` today. An HLS clip is the exception: it p
 controls and is unmuted when it has audio (see Adaptive streaming above). Everything else needs a
 component decision, not just a manifest flag.
 
+## Audio tracks (self-hosted)
+
+The now-playing track can play from a file instead of the YouTube embed.
+
+- Ingest: drop an `.mp3`, `.m4a` or `.ogg` in `media/inbox/` and run
+  `pnpm post --only <file>` (add `--local` for `media/local/`). The file is stored as supplied at
+  `media/<id>/audio.<ext>` (content types `audio/mpeg`, `audio/mp4`, `audio/ogg`), with the usual
+  one-year immutable cache on R2. There is no manifest; the command prints the key. Locally the file
+  lands at `media/local/media/<id>/audio.<ext>`. The original is archived, never deleted.
+- Wiring: `NOW_PLAYING_TRACK.audioKey` in `src/components/home/now-playing-track.ts`. The player
+  uses the audio backend when `audioUrlFor(track)` returns a URL, otherwise YouTube.
+  `NEXT_PUBLIC_MEDIA_BASE` (set in `next.config.ts`) is `/media/local` under `MEDIA_ORIGIN=local` and
+  empty otherwise, so production stays on YouTube until the object is in R2 and the base is pointed at
+  the R2 host.
+- **R2 CORS requirement.** The element is created with `crossOrigin="anonymous"` and feeds a Web
+  Audio `AnalyserNode` (`src/components/player/audio-bands.ts`). A cross-origin file served without
+  CORS headers is muted by `createMediaElementSource` and reads as zeros. Before switching
+  production to the R2 URL, add a CORS rule on the bucket: allowed methods `GET` and `HEAD`, allowed
+  origins the production site origin(s) (and `http://localhost:3000` for dev if wanted), allowed
+  header `Range`, expose `Content-Length`, `Content-Range` and `Accept-Ranges`. The bucket has not
+  been changed.
+- Bands: `audioBands.getBands()` returns smoothed 0..1 `bass` (20-250 Hz), `mid` (250 Hz-2 kHz),
+  `high` (2-12 kHz) and `energy`, all 0 when nothing plays. Under `prefers-reduced-motion` the four
+  collapse to one slow energy value capped at 0.5. `?tune=1` shows the four as read-only bars.
+
 ## What fails the build
 
 `getMedia` throws on:
