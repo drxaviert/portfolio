@@ -14,7 +14,6 @@ import {
   layerDrift,
   mapBands,
   maskGradient,
-  mulberry32,
   nextShootingGap,
   parsePhase,
   resolvePhase,
@@ -73,9 +72,6 @@ type Curtain = {
   folds: number;
   phase: number;
   weight: number;
-  /** Ray texture: scale in lowres px and sideways drift in px/s. */
-  rayScale: number;
-  drift: number;
   /** Seconds between brightness pulses travelling along the curtain. */
   pulse: number;
 };
@@ -92,8 +88,6 @@ const CURTAINS: readonly Curtain[] = [
     folds: 1.3,
     phase: 0.6,
     weight: 1,
-    rayScale: 0.9,
-    drift: 1.6,
     pulse: 16,
   },
   {
@@ -106,8 +100,6 @@ const CURTAINS: readonly Curtain[] = [
     folds: 1.9,
     phase: 3.1,
     weight: 0.7,
-    rayScale: 1.2,
-    drift: -1.1,
     pulse: 23,
   },
 ];
@@ -159,34 +151,6 @@ function makeCurtainSprite(curtain: Curtain): HTMLCanvasElement {
   }
 
   return sprite;
-}
-
-/** Smoothed 1D value noise, tiled, used for the fine vertical streaks. */
-function makeRayNoise(length: number): Float32Array {
-  const random = mulberry32(777);
-  const raw = Float32Array.from({ length }, () => random());
-  const out = new Float32Array(length);
-
-  for (let i = 0; i < length; i += 1) {
-    const a = raw[i];
-    const b = raw[(i + 1) % length];
-    const c = raw[(i + 3) % length];
-
-    out[i] = 0.5 * a + 0.3 * b + 0.2 * c;
-  }
-
-  return out;
-}
-
-const RAY_NOISE_LENGTH = 2048;
-
-function sampleNoise(noise: Float32Array, position: number): number {
-  const length = noise.length;
-  const wrapped = ((position % length) + length) % length;
-  const i = Math.floor(wrapped);
-  const f = wrapped - i;
-
-  return noise[i] * (1 - f) + noise[(i + 1) % length] * f;
 }
 
 /** A white-ish soft disc, for the softened stars at the very top edge. */
@@ -267,7 +231,6 @@ export function CosmicSky() {
     const pool = createStarPool();
     const curtainSprites = CURTAINS.map(makeCurtainSprite);
     const glowSprites = STAR_COLORS.map(makeGlowSprite);
-    const rayNoise = makeRayNoise(RAY_NOISE_LENGTH);
     let edgeEl: Element | null = null;
 
     /** The live top-band blur, which ramps on its own CSS transition. */
@@ -339,15 +302,17 @@ export function CosmicSky() {
     };
 
     /**
-     * A folded curtain: a sinuous lower edge, a ray per column fading upward
-     * with a mint hem shading to lilac and rose. Bass deepens the folds, mid
-     * brightens the rays, a slow pulse travels along each curtain.
+     * A folded curtain: a sinuous, bright lower edge with a smooth silky body
+     * fading upward, mint at the hem shading to lilac and rose. Brightness only
+     * varies as wide, slow swells along the curtain (no per-column texture), so
+     * there are no lines or bands. Bass deepens the folds, mid brightens the
+     * body and hem, a slow pulse travels along each curtain.
      */
     const drawAurora = (
       t: number,
       alpha: number,
       fold: number,
-      rays: number,
+      bright: number,
       shimmer: number,
     ) => {
       const w = auroraCanvas.width;
@@ -358,7 +323,6 @@ export function CosmicSky() {
       CURTAINS.forEach((curtain, index) => {
         const sprite = curtainSprites[index];
         const pulsePos = ((t / curtain.pulse) % 1) * 1.8 - 0.4;
-        const driftOffset = t * curtain.drift;
 
         for (let x = 0; x < w; x += 1) {
           const u = x / w;
@@ -367,18 +331,19 @@ export function CosmicSky() {
             0.05 * Math.sin(u * 6.283 * curtain.folds * 2.2 - t * curtain.rate * 1.4) +
             0.022 * Math.sin(u * 6.283 * curtain.folds * 4.6 + t * curtain.rate * 2.1);
           const edge = (curtain.hem + swing * fold) * h;
-          const ray = sampleNoise(rayNoise, x * curtain.rayScale + driftOffset);
-          const streak = 0.3 + 0.7 * Math.pow(ray * 1.5, 1.4) * (0.75 + 0.25 * rays);
-          const fine =
-            1 + (0.1 + shimmer * 0.25) * Math.sin(x * 0.9 + t * 2.1 + curtain.phase * 3);
-          const pulse =
-            1 + 0.45 * Math.exp(-(((u - pulsePos) / 0.14) ** 2));
+          // Two wide swells drifting sideways at different speeds.
+          const swell =
+            1 +
+            0.16 * Math.sin(u * 6.283 * 1.2 + t * 0.21 + curtain.phase * 2) +
+            (0.08 + shimmer * 0.12) *
+              Math.sin(u * 6.283 * 2.1 - t * 0.29 + curtain.phase);
+          const pulse = 1 + 0.45 * Math.exp(-(((u - pulsePos) / 0.14) ** 2));
           const sides = 0.65 + 0.35 * Math.sin(Math.PI * u);
-          const a = alpha * curtain.weight * streak * fine * pulse * sides;
+          const a = alpha * bright * curtain.weight * swell * pulse * sides;
 
           if (a < 0.004) continue;
 
-          const length = (edge + curtain.reach * h) * (0.88 + 0.24 * ray);
+          const length = (edge + curtain.reach * h) * (1 + 0.05 * swell);
 
           auroraCtx.globalAlpha = Math.min(1, a);
           auroraCtx.drawImage(sprite, 0, 0, 1, SPRITE_ROWS, x, edge - length, 1, length);
