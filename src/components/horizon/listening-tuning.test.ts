@@ -15,7 +15,9 @@ import {
 import type { ListeningTuningState } from "./listening-tuning";
 
 function expectDefault(actual: number, expected: number) {
-  expect(actual).toBeCloseTo(expected, 10);
+  // The effective values are rounded to four decimals, so the default state
+  // must reproduce the preset numbers exactly, not just approximately.
+  expect(actual).toBe(expected);
 }
 
 describe("listening tuning", () => {
@@ -140,9 +142,11 @@ describe("listening tuning", () => {
     expect(snippet).toContain(
       "export const HORIZON_HOME_LISTENING: HorizonListeningTuning = {",
     );
-    expect(snippet).toContain("intensityBoost: 1.6,");
-    expect(snippet).toContain("blobScale: 1.4,");
-    expect(snippet).toContain("blobLift: 14,");
+    expect(snippet).toContain("intensityBoost: 1.9,");
+    expect(snippet).toContain("breathePeriod: 12,");
+    expect(snippet).toContain("intensityAmp: 0.95,");
+    expect(snippet).toContain("blobScale: 1.8,");
+    expect(snippet).toContain("blobLift: 12.6,");
     expect(snippet).toContain("blurScale: 1.5,");
     expect(snippet).toContain("inDuration: 3.5,");
   });

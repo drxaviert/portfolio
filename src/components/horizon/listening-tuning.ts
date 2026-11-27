@@ -102,19 +102,23 @@ export function effectiveListening(
 ): HorizonListeningTuning {
   const m = clamp(state.immersion, 0, IMMERSION_MAX);
   const p = state.params;
+  // Four decimals keeps the default effective values exactly equal to the
+  // preset numbers a panel Copy emits; the slider deltas can otherwise land a
+  // float ulp away (1.4999999999999998 instead of 1.5).
+  const round = (value: number) => Math.round(value * 10000) / 10000;
 
   return {
-    intensityBoost: clamp(1 + m * (p.strength - 1), 1, 1.9),
-    breathePeriod: clamp(
-      REST_PERIOD + m * (p.period - REST_PERIOD),
-      REST_PERIOD,
-      20,
+    intensityBoost: round(clamp(1 + m * (p.strength - 1), 1, 1.9)),
+    breathePeriod: round(
+      clamp(REST_PERIOD + m * (p.period - REST_PERIOD), REST_PERIOD, 20),
     ),
-    intensityAmp: clamp(REST_AMP + m * (p.amp - REST_AMP), REST_AMP, 0.95),
-    blobScale: clamp(1 + m * (p.scale - 1), 1, 1.8),
-    blobLift: clamp(m * p.lift, 0, 24),
-    blurScale: clamp(1 + m * (p.blur - 1), 1, 1.9),
-    inDuration: clamp(m * p.rampIn, 0, 12),
+    intensityAmp: round(
+      clamp(REST_AMP + m * (p.amp - REST_AMP), REST_AMP, 0.95),
+    ),
+    blobScale: round(clamp(1 + m * (p.scale - 1), 1, 1.8)),
+    blobLift: round(clamp(m * p.lift, 0, 24)),
+    blurScale: round(clamp(1 + m * (p.blur - 1), 1, 1.9)),
+    inDuration: round(clamp(m * p.rampIn, 0, 12)),
     outDuration: HORIZON_HOME_LISTENING.outDuration,
     reducedDuration: HORIZON_HOME_LISTENING.reducedDuration,
   };

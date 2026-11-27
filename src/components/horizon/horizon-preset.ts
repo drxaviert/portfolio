@@ -59,11 +59,11 @@ export const HORIZON_HOME_MOTION: Required<HorizonMotionTuning> = {
  * blur uses blurScale, and its static geometry uses blobScale / blobLift.
  */
 export const HORIZON_HOME_LISTENING: HorizonListeningTuning = {
-  intensityBoost: 1.6,
+  intensityBoost: 1.9,
   breathePeriod: 12,
   intensityAmp: 0.95,
-  blobScale: 1.4,
-  blobLift: 14,
+  blobScale: 1.8,
+  blobLift: 12.6,
   blurScale: 1.5,
   inDuration: 3.5,
   outDuration: 1.2,
