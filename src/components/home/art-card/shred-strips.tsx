@@ -3,8 +3,11 @@
 import type { CSSProperties, Ref } from "react";
 
 export const SHRED_STRIP_COUNT = 18;
-/** Segments per strip, including the strip root. Each joint adds a little bend. */
-export const SHRED_SEGMENTS = 6;
+/**
+ * Segments per strip, including the strip root. Together they are the whole
+ * painting's height: segment `s` shows the `s`-th eighth of the image.
+ */
+export const SHRED_SEGMENTS = 8;
 
 export type ShredSegmentMotion = {
   /** The segment's slice of the painting, as a background-position-y percentage. */
@@ -20,7 +23,7 @@ export type ShredStripMotion = {
   index: number;
   backgroundPosition: string;
   sway: string;
-  /** Segment 0 is the strip root; 1.. are its nested children. */
+  /** Segment 0 is the strip root (the painting's top); 1.. nest below it. */
   segments: ShredSegmentMotion[];
 };
 
@@ -39,10 +42,15 @@ const MAX_OUTWARD_SWAY = 3;
 const MAX_TIP_SHADE = 0.13;
 
 /**
- * The strips' static geometry. Each strip is a chain of nested segments: every
- * segment hangs off its parent's bottom edge and rotates a little around its
- * own top edge, so the accumulated rotations read as a curling paper ribbon
- * that starts vertical at the slot and bends more towards the tip.
+ * The strips' static geometry. Each strip is a chain of nested segments that
+ * together cover the whole painting: every segment hangs off its parent's
+ * bottom edge and rotates a little around its own top edge, so the accumulated
+ * rotations read as a curling paper ribbon.
+ *
+ * Only the lower half of the chain is below the slot when the shred jams (the
+ * painting stops halfway), so only that half bends and darkens; the upper half
+ * stays straight and plain, and is what comes out when the shred finishes. The
+ * first segment of the lower half stays flush in the slot.
  *
  * Left-half strips curl left (positive rotation, tip swings left), right-half
  * strips curl right, growing with distance from the centre, plus a little
@@ -53,22 +61,23 @@ export function shredStripMotion(
   count = SHRED_STRIP_COUNT,
   segmentCount = SHRED_SEGMENTS,
 ): ShredStripMotion[] {
-  // The first segment stays flush in the slot; only the joints below it bend.
-  const joints = Math.max(1, segmentCount - 1);
+  const half = Math.floor(segmentCount / 2);
+  const joints = Math.max(1, segmentCount - half - 1);
   const weights = Array.from({ length: joints }, (_, joint) =>
     Math.pow(joint + 1, 1.35),
   );
   const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
+  const lower = Math.max(1, segmentCount - half);
 
   return Array.from({ length: count }, (_, index) => {
-    const half = Math.max(1, (count - 1) / 2);
-    const spread = (index - (count - 1) / 2) / half;
+    const centre = Math.max(1, (count - 1) / 2);
+    const spread = (index - (count - 1) / 2) / centre;
     const sway = spread * MAX_OUTWARD_SWAY + (seeded(index, 1) * 2 - 1) * 0.8;
     const bend = -spread * MAX_OUTWARD_BEND + (seeded(index, 2) * 2 - 1) * 1.2;
 
     const segments = Array.from({ length: segmentCount }, (_, segment) => {
-      const share = segment / Math.max(1, segmentCount - 1);
-      const joint = segment - 1;
+      const joint = segment - half - 1;
+      const below = segment - half;
       const tilt =
         joint < 0
           ? 0
@@ -76,11 +85,10 @@ export function shredStripMotion(
             (seeded(index, 10 + joint) * 2 - 1) * 0.22;
 
       return {
-        // Show the bottom half of the painting, split evenly across the chain.
-        positionY: `${(((segmentCount + segment) / (2 * segmentCount - 1)) * 100).toFixed(3)}%`,
+        positionY: `${((segment / Math.max(1, segmentCount - 1)) * 100).toFixed(3)}%`,
         rotate: `${tilt.toFixed(2)}deg`,
-        shadeFrom: MAX_TIP_SHADE * share,
-        shadeTo: MAX_TIP_SHADE * ((segment + 1) / segmentCount),
+        shadeFrom: below < 0 ? 0 : (MAX_TIP_SHADE * below) / lower,
+        shadeTo: below < 0 ? 0 : (MAX_TIP_SHADE * (below + 1)) / lower,
       };
     });
 
@@ -93,11 +101,23 @@ export function shredStripMotion(
   });
 }
 
+/** The exit's seeded fall-away: extra rotation (deg), x drift (px), stagger (ms). */
+export function shredExitDrift(index: number, count = SHRED_STRIP_COUNT) {
+  const centre = Math.max(1, (count - 1) / 2);
+
+  return {
+    rotate: (seeded(index, 3) * 2 - 1) * 6,
+    drift: (seeded(index, 4) * 2 - 1) * 8,
+    delay: (Math.abs(index - (count - 1) / 2) / centre) * 60,
+  };
+}
+
 /**
  * The painting as vertical strips, each showing its own slice of the same
- * 843w image and built from nested segments so it bends like paper. The strips
- * hang from the frame's bottom edge and slide out of the shred slot as the
- * painting descends.
+ * 843w image and built from nested segments so it bends like paper. Every
+ * strip's track is as tall as the whole painting and slides down through the
+ * shred slot in step with the canvas, so the ribbon below the frame is always
+ * exactly the part of the painting that has passed through.
  */
 export function ShredStrips({
   src,
@@ -121,28 +141,23 @@ export function ShredStrips({
       }
       aria-hidden="true"
     >
-      {strips.map((strip) => {
-        const [root] = strip.segments;
-
-        return (
-          <span
-            key={strip.index}
-            className="shred-strip"
-            style={
-              {
-                "--strip-index": strip.index,
-                "--strip-offset": strip.backgroundPosition,
-                "--strip-sway": strip.sway,
-                "--seg-position-y": root.positionY,
-                "--seg-shade-from": root.shadeFrom,
-                "--seg-shade-to": root.shadeTo,
-              } as CSSProperties
-            }
-          >
-            <StripSegment segments={strip.segments} index={1} />
+      {strips.map((strip) => (
+        <span
+          key={strip.index}
+          className="shred-strip"
+          style={
+            {
+              "--strip-index": strip.index,
+              "--strip-offset": strip.backgroundPosition,
+              "--strip-sway": strip.sway,
+            } as CSSProperties
+          }
+        >
+          <span className="shred-strip-track">
+            <StripSegment segments={strip.segments} index={0} />
           </span>
-        );
-      })}
+        </span>
+      ))}
     </div>
   );
 }
@@ -165,6 +180,7 @@ function StripSegment({
   return (
     <span
       className="shred-strip-segment"
+      data-root={index === 0 ? "true" : undefined}
       style={
         {
           "--seg-position-y": segment.positionY,
