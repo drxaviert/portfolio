@@ -33,6 +33,58 @@
 }
 
 /*
+ * Listening stack: its radii and height are static, pre-set from the tuner.
+ * The idle stack keeps the root tokens, so the default 8/172 is unchanged.
+ * The height still stops at --edge-blur-margin: the band may only cover the
+ * empty content margin, never a card or text.
+ */
+.wd-edge-blur[data-edge-stack="listen"] {
+  --edge-blur-max: calc(
+    var(--edge-blur-tune-max, 8px) * var(--edge-blur-fit, 1)
+  );
+  --edge-blur-height: min(
+    var(--edge-blur-tune-height, 172px),
+    var(--edge-blur-margin, 172px)
+  );
+}
+
+/*
+ * Two-stack crossfade: only opacity moves. The idle stack is the current look;
+ * the listening stack is the tuned target. The in/out durations match the
+ * shader's listening ramp; the reduced-motion media query collapses both to
+ * the same 400ms standard crossfade.
+ */
+.wd-edge-blur[data-edge-stack="idle"] {
+  opacity: 1;
+  transition: opacity 1200ms var(--ease-calm);
+}
+
+.wd-edge-blur[data-edge-stack="listen"] {
+  opacity: 0;
+  transition: opacity 1200ms var(--ease-calm);
+}
+
+:root[data-listening="true"] .wd-edge-blur[data-edge-stack="idle"] {
+  opacity: 0;
+  transition-duration: 3500ms;
+}
+
+:root[data-listening="true"] .wd-edge-blur[data-edge-stack="listen"] {
+  opacity: 1;
+  transition-duration: 3500ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-edge-blur[data-edge-stack="idle"],
+  .wd-edge-blur[data-edge-stack="listen"],
+  :root[data-listening="true"] .wd-edge-blur[data-edge-stack="idle"],
+  :root[data-listening="true"] .wd-edge-blur[data-edge-stack="listen"] {
+    transition-duration: 400ms;
+    transition-timing-function: var(--ease-standard);
+  }
+}
+
+/*
  * A shallower ramp than the reader's: 0.5/1/2/4/6/8px at --edge-blur-max: 8px,
  * weakest first, so each band blurs the result of the one under it. The last
  * mask lands on transparent at the band's inner edge, so the blur reaches zero

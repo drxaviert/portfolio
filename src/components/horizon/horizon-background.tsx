@@ -133,6 +133,14 @@ export type HorizonListeningTuning = {
   blobLift: number;
   /** Extra blur baked into the listening coverage texture (1.3 = 30% softer). */
   blurScale: number;
+  /**
+   * Peak viewport edge-blur radius at full listen, px at the 1440 base (the
+   * CSS applies --edge-blur-fit). The master Immersion slider does not scale
+   * this: it stays an absolute readability budget.
+   */
+  edgeBlurMax: number;
+  /** Edge-blur band height at full listen, px before the content-margin clamp. */
+  edgeBlurHeight: number;
   /** Seconds to swell in when playback starts. */
   inDuration: number;
   /** Seconds to settle back when playback pauses. */

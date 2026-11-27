@@ -39,6 +39,8 @@ const PARAM_LABELS: Record<keyof ListeningTuningParams, string> = {
   scale: "Scale",
   lift: "Lift",
   blur: "Blur factor",
+  edgeBlurMax: "Edge blur max",
+  edgeBlurHeight: "Edge blur height",
   period: "Breathe period",
   amp: "Breathe amp",
   rampIn: "Ramp-in",
@@ -53,6 +55,9 @@ function formatParam(key: keyof ListeningTuningParams, value: number): string {
       return `${value.toFixed(1)}s`;
     case "blur":
       return `${value.toFixed(2)}x`;
+    case "edgeBlurMax":
+    case "edgeBlurHeight":
+      return `${value.toFixed(0)}px`;
     default:
       return value.toFixed(2);
   }
@@ -71,6 +76,10 @@ function effectiveParam(
       return effective.blobLift;
     case "blur":
       return effective.blurScale;
+    case "edgeBlurMax":
+      return effective.edgeBlurMax;
+    case "edgeBlurHeight":
+      return effective.edgeBlurHeight;
     case "period":
       return effective.breathePeriod;
     case "amp":
@@ -236,9 +245,11 @@ export function ListeningTuner() {
               className="mt-2 w-full accent-[var(--primary)]"
             />
             <p className="mt-1 text-base text-on-surface-variant">
-              Scales every listening delta from the resting horizon. Left
-              numbers are the base at Immersion 1; right numbers are live. Blur
-              re-bakes 200ms after you stop.
+              Scales the horizon deltas from the resting state. Left numbers are
+              the base at Immersion 1; right numbers are live. Edge blur is an
+              absolute readability budget, not master-scaled, and its height
+              still clamps to the content margin. Blur re-bakes 200ms after you
+              stop.
             </p>
           </div>
 

@@ -62,6 +62,11 @@ export const HORIZON_HOME_MOTION: Required<HorizonMotionTuning> = {
  *
  * Keep the CSS fallback in step: its extra tint uses intensityBoost - 1, its
  * blur uses blurScale, and its static geometry uses blobScale / blobLift.
+ *
+ * The edge-blur fields are absolute px targets for the two-stack viewport
+ * bands. The master Immersion slider deliberately does not scale them: they
+ * are a readability budget over the chrome, not part of the horizon's visual
+ * strength, so changing Immersion cannot quietly move the safe limit.
  */
 export const HORIZON_HOME_LISTENING: HorizonListeningTuning = {
   intensityBoost: 1.9,
@@ -70,6 +75,8 @@ export const HORIZON_HOME_LISTENING: HorizonListeningTuning = {
   blobScale: 1.8,
   blobLift: 12.6,
   blurScale: 1.5,
+  edgeBlurMax: 8,
+  edgeBlurHeight: 172,
   inDuration: 3.5,
   outDuration: 1.2,
   reducedDuration: 0.4,

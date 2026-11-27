@@ -74,8 +74,9 @@ describe("home page", () => {
 
     // The bands are homepage-scoped by where they mount
     // (app/(site)/page.tsx); a study's direct load comes from
-    // app/(site)/work/layout.tsx and has none.
-    expect(container.querySelectorAll(".wd-edge-blur")).toHaveLength(2);
+    // app/(site)/work/layout.tsx and has none. Each edge has an idle and a
+    // listening stack, so the listening state can crossfade opacity only.
+    expect(container.querySelectorAll(".wd-edge-blur")).toHaveLength(4);
     expect(container.querySelector(".wd-edge-blur--top")).not.toBeNull();
     expect(container.querySelector(".wd-edge-blur--bottom")).not.toBeNull();
   });

@@ -27,6 +27,10 @@ export type ListeningTuningParams = {
   lift: number;
   /** Extra baked blur multiplier at Immersion 1. */
   blur: number;
+  /** Peak viewport edge-blur radius, px at the 1440 base. */
+  edgeBlurMax: number;
+  /** Edge-blur band height, px before the content-margin clamp. */
+  edgeBlurHeight: number;
   /** Breathe period at Immersion 1, seconds. */
   period: number;
   /** Intensity swing at Immersion 1. */
@@ -52,6 +56,8 @@ export const LISTENING_PARAM_RANGES = {
   scale: { min: 1, max: 1.7, step: 0.01 },
   lift: { min: 0, max: 20, step: 0.1 },
   blur: { min: 1, max: 2, step: 0.01 },
+  edgeBlurMax: { min: 0, max: 32, step: 1 },
+  edgeBlurHeight: { min: 80, max: 400, step: 1 },
   period: { min: 6, max: 18, step: 0.5 },
   amp: { min: 0.5, max: 1, step: 0.01 },
   rampIn: { min: 0.5, max: 6, step: 0.1 },
@@ -74,6 +80,9 @@ export const LISTENING_BASE_DEFAULTS: ListeningTuningParams = {
   scale: 1 + (HORIZON_HOME_LISTENING.blobScale - 1) / IMMERSION_DEFAULT,
   lift: HORIZON_HOME_LISTENING.blobLift / IMMERSION_DEFAULT,
   blur: 1 + (HORIZON_HOME_LISTENING.blurScale - 1) / IMMERSION_DEFAULT,
+  // Edge blur is an absolute readability budget, not a master-scaled delta.
+  edgeBlurMax: HORIZON_HOME_LISTENING.edgeBlurMax,
+  edgeBlurHeight: HORIZON_HOME_LISTENING.edgeBlurHeight,
   period:
     REST_PERIOD +
     (HORIZON_HOME_LISTENING.breathePeriod - REST_PERIOD) / IMMERSION_DEFAULT,
@@ -93,9 +102,11 @@ export function clamp(value: number, min: number, max: number): number {
 }
 
 /**
- * The current look. The master scales every delta from the resting horizon,
- * then the clamps keep the extreme end from clipping: strength 1.9, scale 1.8,
- * lift 24%, blur 1.9, breathe 20s / amp 0.95, ramp 12s.
+ * The current look. The master scales every horizon delta from the resting
+ * state, then the clamps keep the extreme end from clipping: strength 1.9,
+ * scale 1.8, lift 24%, blur 1.9, breathe 20s / amp 0.95, ramp 12s. The edge
+ * blur is deliberately excluded: it is an absolute readability budget, so
+ * moving Immersion cannot quietly move the safe limit over the chrome.
  */
 export function effectiveListening(
   state: ListeningTuningState,
@@ -118,6 +129,8 @@ export function effectiveListening(
     blobScale: round(clamp(1 + m * (p.scale - 1), 1, 1.8)),
     blobLift: round(clamp(m * p.lift, 0, 24)),
     blurScale: round(clamp(1 + m * (p.blur - 1), 1, 1.9)),
+    edgeBlurMax: round(clamp(p.edgeBlurMax, 0, 32)),
+    edgeBlurHeight: round(clamp(p.edgeBlurHeight, 80, 400)),
     inDuration: round(clamp(m * p.rampIn, 0, 12)),
     outDuration: HORIZON_HOME_LISTENING.outDuration,
     reducedDuration: HORIZON_HOME_LISTENING.reducedDuration,
@@ -212,6 +225,8 @@ export function listeningSnippet(effective: HorizonListeningTuning): string {
     `  blobScale: ${fmt(effective.blobScale)},`,
     `  blobLift: ${fmt(effective.blobLift)},`,
     `  blurScale: ${fmt(effective.blurScale)},`,
+    `  edgeBlurMax: ${fmt(effective.edgeBlurMax)},`,
+    `  edgeBlurHeight: ${fmt(effective.edgeBlurHeight)},`,
     `  inDuration: ${fmt(effective.inDuration)},`,
     `  outDuration: ${fmt(effective.outDuration)},`,
     `  reducedDuration: ${fmt(effective.reducedDuration)},`,

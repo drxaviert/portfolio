@@ -40,6 +40,11 @@ describe("listening tuning", () => {
     expectDefault(effective.blobScale, HORIZON_HOME_LISTENING.blobScale);
     expectDefault(effective.blobLift, HORIZON_HOME_LISTENING.blobLift);
     expectDefault(effective.blurScale, HORIZON_HOME_LISTENING.blurScale);
+    expectDefault(effective.edgeBlurMax, HORIZON_HOME_LISTENING.edgeBlurMax);
+    expectDefault(
+      effective.edgeBlurHeight,
+      HORIZON_HOME_LISTENING.edgeBlurHeight,
+    );
     expectDefault(effective.inDuration, HORIZON_HOME_LISTENING.inDuration);
     expect(effective.outDuration).toBe(HORIZON_HOME_LISTENING.outDuration);
     expect(effective.reducedDuration).toBe(
@@ -60,6 +65,8 @@ describe("listening tuning", () => {
     expect(effective.breathePeriod).toBe(6);
     expect(effective.intensityAmp).toBe(0.5);
     expect(effective.inDuration).toBe(0);
+    expect(effective.edgeBlurMax).toBe(8);
+    expect(effective.edgeBlurHeight).toBe(172);
   });
 
   it("keeps the idle 6s breathe speed while listening", () => {
@@ -95,6 +102,20 @@ describe("listening tuning", () => {
     });
 
     expect(effective.breathePeriod).toBe(20);
+  });
+
+  it("clamps the absolute edge-blur budget without master scaling", () => {
+    const effective = effectiveListening({
+      immersion: 3,
+      params: {
+        ...LISTENING_BASE_DEFAULTS,
+        edgeBlurMax: 40,
+        edgeBlurHeight: 500,
+      },
+    });
+
+    expect(effective.edgeBlurMax).toBe(32);
+    expect(effective.edgeBlurHeight).toBe(400);
   });
 
   it("clamps the master itself to 0..3", () => {
@@ -168,6 +189,8 @@ describe("listening tuning", () => {
     expect(snippet).toContain("blobScale: 1.8,");
     expect(snippet).toContain("blobLift: 12.6,");
     expect(snippet).toContain("blurScale: 1.5,");
+    expect(snippet).toContain("edgeBlurMax: 8,");
+    expect(snippet).toContain("edgeBlurHeight: 172,");
     expect(snippet).toContain("inDuration: 3.5,");
   });
 
