@@ -815,6 +815,7 @@ export function FocusViewer({
     <div
       ref={overlayRef}
       className="cv-viewer"
+      data-lenis-prevent
       data-closing={closing || undefined}
       data-hidden={!open || undefined}
       data-ready={chromeVisible || undefined}
