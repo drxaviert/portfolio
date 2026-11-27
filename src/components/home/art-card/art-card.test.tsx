@@ -198,7 +198,7 @@ describe("ArtCard", () => {
     });
 
     expect(painting).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Restore the painting" })).toBe(
+    expect(screen.getByRole("button", { name: "Finish the shred" })).toBe(
       painting,
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -228,8 +228,17 @@ describe("ArtCard", () => {
     for (const strip of strips) {
       const segments = strip.querySelectorAll(".shred-strip-segment");
 
-      // The strip root is the first segment of the chain.
-      expect(1 + segments.length).toBe(SHRED_SEGMENTS);
+      // The strip root is the first segment of the chain, inside a full-height track.
+      expect(segments).toHaveLength(SHRED_SEGMENTS);
+      expect(strip.querySelector(":scope > .shred-strip-track")).not.toBeNull();
+      expect(strip.querySelectorAll("[data-root]")).toHaveLength(1);
+      expect(
+        strip.querySelector(".shred-strip-track > [data-root]"),
+      ).not.toBeNull();
+      // Nested, not siblings: each segment's parent is the previous segment.
+      segments.forEach((segment, i) => {
+        if (i > 0) expect(segment.parentElement).toBe(segments[i - 1]);
+      });
     }
 
     // Left-half strips curl left (positive rotation, tip swings left), the
@@ -253,31 +262,154 @@ describe("ArtCard", () => {
     expect(Math.abs(total(strips[9]))).toBeLessThan(3);
   });
 
-  it("restores the painting on a second click and removes the strips", async () => {
+  it("finishes the shred: exits, mounts the fresh copy, then returns to idle", async () => {
+    const resolvers: Array<() => void> = [];
+    let animateCalls = 0;
+
+    vi.spyOn(Element.prototype, "animate").mockImplementation(() => {
+      animateCalls += 1;
+
+      return {
+        finished: new Promise<void>((resolve) => resolvers.push(resolve)),
+        cancel: vi.fn(),
+      } as unknown as Animation;
+    });
+
     const user = userEvent.setup();
     const { container } = renderCard();
 
     loadPainting(container);
 
+    const painting = screen.getByRole("button", { name: "Shred the painting" });
+
+    await user.click(painting);
+    expect(painting).toHaveAttribute("data-shred-phase", "shredding");
+    expect(container.querySelector(".art-card-fresh")).toBeNull();
+
+    resolvers.splice(0).forEach((resolve) => resolve());
+    await waitFor(() =>
+      expect(painting).toHaveAttribute("data-shred-phase", "shredded"),
+    );
+    expect(painting).toHaveAccessibleName("Finish the shred");
+
+    animateCalls = 0;
+    await user.click(painting);
+
+    expect(painting).toHaveAttribute("data-shred-phase", "exiting");
+    expect(container.querySelector(".art-card-fresh")).not.toBeNull();
+    expect(container.querySelectorAll(".shred-strip")).toHaveLength(18);
+    // Canvas + tracks + 18 strip falls + strips layer + fresh copy.
+    expect(animateCalls).toBe(1 + 18 + 18 + 1 + 1);
+
+    // Clicks during the exit are ignored.
+    fireEvent.click(painting);
+    expect(painting).toHaveAttribute("data-shred-phase", "exiting");
+
+    resolvers.splice(0).forEach((resolve) => resolve());
+    await waitFor(() =>
+      expect(painting).toHaveAttribute("data-shred-phase", "idle"),
+    );
+    expect(container.querySelectorAll(".shred-strip")).toHaveLength(0);
+    expect(container.querySelector(".art-card-fresh")).toBeNull();
+    expect(painting).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("does not open the dialog when a ribbon is clicked", async () => {
+    const user = userEvent.setup();
+    const { container } = renderCard();
+
+    loadPainting(container);
     await user.click(
       screen.getByRole("button", { name: "Shred the painting" }),
     );
-
-    await waitFor(() => {
-      expect(container.querySelectorAll(".shred-strip")).toHaveLength(18);
-    });
-
-    await user.click(
-      screen.getByRole("button", { name: "Restore the painting" }),
+    await waitFor(() =>
+      expect(container.querySelectorAll(".shred-strip")).toHaveLength(18),
     );
 
-    await waitFor(() => {
-      expect(container.querySelectorAll(".shred-strip")).toHaveLength(0);
-    });
+    fireEvent.click(container.querySelector(".shred-strip-segment") as Element);
 
-    expect(
-      screen.getByRole("button", { name: "Shred the painting" }),
-    ).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("brushing the ribbons sways them only with hover and motion allowed", async () => {
+    const rects = () =>
+      vi
+        .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+        .mockReturnValue({
+          left: 0,
+          top: 0,
+          right: 180,
+          bottom: 100,
+          width: 180,
+          height: 100,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        });
+    const run = async (reduced: boolean, noHover: boolean) => {
+      vi.stubGlobal(
+        "matchMedia",
+        vi.fn((query: string) => ({
+          matches:
+            query === REDUCE_QUERY ? reduced : query === "(hover: none)" && noHover,
+          media: query,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        })),
+      );
+      rects();
+
+      const user = userEvent.setup();
+      const { container, unmount } = renderCard();
+
+      loadPainting(container);
+      await user.click(
+        screen.getByRole("button", { name: /shred the painting/i }),
+      );
+      await waitFor(() =>
+        expect(container.querySelectorAll(".shred-strip")).toHaveLength(18),
+      );
+      // Reduced motion lands directly on "shredded"; otherwise settle the mocked-away animations.
+      const layer = container.querySelector(".shred-strips") as HTMLElement;
+
+      await waitFor(() =>
+        expect(
+          container.querySelector("[data-shred-phase='shredded']"),
+        ).not.toBeNull(),
+      );
+
+      const raf = vi.spyOn(window, "requestAnimationFrame");
+
+      const pointer = (type: string, clientX: number, timeStamp: number) => {
+        const event = new MouseEvent(type, { clientX, bubbles: false });
+
+        Object.defineProperty(event, "timeStamp", { value: timeStamp });
+        layer.dispatchEvent(event);
+      };
+
+      pointer("pointerenter", 10, 90);
+      pointer("pointermove", 20, 100);
+      pointer("pointermove", 120, 116);
+
+      const called = raf.mock.calls.length > 0;
+
+      unmount();
+      raf.mockRestore();
+
+      return called;
+    };
+
+    vi.spyOn(Element.prototype, "animate").mockImplementation(
+      () =>
+        ({
+          finished: Promise.resolve(),
+          cancel: vi.fn(),
+        }) as unknown as Animation,
+    );
+
+    expect(await run(false, false)).toBe(true);
+    expect(await run(true, false)).toBe(false);
+    expect(await run(false, true)).toBe(false);
   });
 
   it("ignores clicks while the shred is animating", async () => {
@@ -567,8 +699,15 @@ describe("shredStripMotion", () => {
     );
 
     expect(strip.segments).toHaveLength(SHRED_SEGMENTS);
-    expect(positions[0]).toBeGreaterThan(50);
+    // Whole painting: first segment is the top, last the bottom, even steps.
+    expect(positions[0]).toBe(0);
     expect(positions.at(-1)).toBe(100);
+
+    const step = 100 / (SHRED_SEGMENTS - 1);
+
+    positions.forEach((position, i) =>
+      expect(position).toBeCloseTo(step * i, 1),
+    );
 
     for (let index = 1; index < positions.length; index += 1) {
       expect(positions[index]).toBeGreaterThan(positions[index - 1]);
