@@ -1,27 +1,14 @@
-import { ArtCard } from "@/components/home/art-card/art-card";
-import { HomeScreen } from "@/components/home/home-screen";
 import { ViewportEdgeBlur } from "@/components/edge-blur/viewport-edge-blur";
-import { ART_DATA_VERSION, getTodaysArt } from "@/lib/daily-art";
 
 /**
- * `/`: the homepage as the page. A study's direct load renders it too.
+ * `/`: the homepage is the shared site layout's HomeScreen, so the page itself
+ * adds only what belongs to `/` alone.
  *
- * The route entry owns the async data: it awaits today's painting and hands the
- * filled card to the sync HomeScreen, so the client-reachable HomeLayout never
- * fetches or calls a Server Action during initial render.
- *
- * The viewport edge blur is mounted here rather than in the root layout, so it
- * exists on `/` alone: `/work*` composes HomeScreen from its own layout and
- * therefore gets no bands. Opening a study from here still covers both bands
- * with the drawer panel, which is what the bands' own comment promises.
+ * The viewport edge blur is mounted here rather than in the layout, so it
+ * exists on `/` alone: `/work*` shows the same HomeScreen but no bands. Opening
+ * a study from here still covers both bands with the drawer panel, which is
+ * what the bands' own comment promises.
  */
-export default async function Home() {
-  const art = await getTodaysArt(ART_DATA_VERSION);
-
-  return (
-    <>
-      <HomeScreen playCard={<ArtCard art={art} />} />
-      <ViewportEdgeBlur />
-    </>
-  );
+export default function Home() {
+  return <ViewportEdgeBlur />;
 }

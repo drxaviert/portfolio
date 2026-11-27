@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import SiteLayout from "../layout";
 import WorkLayout from "./layout";
 
 vi.mock("next/navigation", () => ({
@@ -44,12 +45,31 @@ afterEach(() => {
 
 describe("work layout", () => {
   it("does not mount the homepage's edge blur over the drawer", async () => {
-    const layout = await WorkLayout({ children: <p>study</p> });
+    const layout = await SiteLayout({
+      children: <WorkLayout><p>study</p></WorkLayout>,
+    });
     const { container } = render(<ThemeProvider>{layout}</ThemeProvider>);
 
     // The bands live on `/` alone: a direct load of a study shares the
     // homepage underneath but not its edge blur.
     expect(screen.getByText("study")).toBeInTheDocument();
     expect(container.querySelector(".wd-edge-blur")).toBeNull();
+  });
+});
+
+describe("work layout ownership", () => {
+  it("leaves the homepage to the site layout so it never remounts", () => {
+    const { container } = render(
+      <ThemeProvider>
+        <WorkLayout>
+          <p>study</p>
+        </WorkLayout>
+      </ThemeProvider>,
+    );
+
+    // The card, carousel and player belong to the (site) layout's one
+    // HomeScreen; a second copy here would remount them on every navigation.
+    expect(screen.getByText("study")).toBeInTheDocument();
+    expect(container.querySelector(".art-card")).toBeNull();
   });
 });

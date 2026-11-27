@@ -1,7 +1,10 @@
 import type { ReactNode } from "react";
+import { ArtCard } from "@/components/home/art-card/art-card";
+import { HomeScreen } from "@/components/home/home-screen";
 import { ListeningSync } from "@/components/horizon/listening-sync";
 import { ListeningTuner } from "@/components/horizon/listening-tuner";
 import { SharedHorizon } from "@/components/horizon/shared-horizon";
+import { ART_DATA_VERSION, getTodaysArt } from "@/lib/daily-art";
 
 /**
  * The shipped site shell.
@@ -16,14 +19,28 @@ import { SharedHorizon } from "@/components/horizon/shared-horizon";
  * route tree itself rather than a client `usePathname()` read. That read made
  * the horizon a postponed client hole in the prerender: a cached shell could
  * be served without it, the client then rendered it, and React reported a
- * hydration mismatch (#418). A static layout keeps it in every shell.
+ * hydration mismatch (#418). The horizon stays static in every shell.
+ *
+ * The homepage is mounted here too, once, so it is the same instance on `/`
+ * and under the `/work*` drawer: the daily painting's shred, the carousel and
+ * the player keep running through every open and close instead of remounting
+ * with a route's own copy. This server entry owns the daily painting fetch and
+ * passes the filled card to the sync HomeScreen, so the client-reachable
+ * HomeLayout never fetches or calls a Server Action during initial render.
  */
-export default function SiteLayout({ children }: { children: ReactNode }) {
+export default async function SiteLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const art = await getTodaysArt(ART_DATA_VERSION);
+
   return (
     <>
       <SharedHorizon />
       <ListeningSync />
       <ListeningTuner />
+      <HomeScreen playCard={<ArtCard art={art} />} />
       {children}
     </>
   );

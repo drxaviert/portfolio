@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import Page from "./page";
+import SiteLayout from "./layout";
 import { ART_DATA_VERSION, getTodaysArt } from "@/lib/daily-art";
 
 vi.mock("@/lib/daily-art", async (importOriginal) => {
@@ -14,7 +15,7 @@ vi.mock("@/lib/daily-art", async (importOriginal) => {
 });
 
 async function renderPage() {
-  const page = await Page();
+  const page = await SiteLayout({ children: <Page /> });
 
   return render(<ThemeProvider>{page}</ThemeProvider>);
 }
