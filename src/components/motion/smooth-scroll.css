@@ -1,10 +1,10 @@
 /*
- * Lenis (trial, pf-9cv.18).
+ * Lenis (pf-9cv.18, shipped 2026-11-27).
  *
  * The standard stylesheet from lenis 1.3.29 (`dist/lenis.css`) plus the
- * overscroll lock the trial asks for. These rules only match while the
- * SmoothScroll instance is alive: it adds `.lenis` to <html> and removes it
- * on destroy, so reduced motion leaves the page on fully native scrolling.
+ * overscroll lock. Lenis is scoped to the work reader, so its classes land on
+ * `.wd-reader-scroll`, not <html>; the html rules stay the standard root
+ * fallback, and the reader keeps its own `overscroll-behavior: contain`.
  */
 
 html.lenis,
