@@ -15,14 +15,14 @@ export const INTRO = {
   opacityDelayMinMs: 500,
   opacityDelayMaxMs: 1250,
   opacityDurationMs: 2000,
-  grayDelayMs: 2250,
-  grayDurationMs: 2000,
+  /** Each tile starts this from its own opacity delay and colourises in 900ms. */
+  grayDurationMs: 900,
   zoomDelayMs: 1250,
   zoomDurationMs: 2250,
   /** The bundle only says "settle"; 1.3 reads as a gentle push in. */
   zoomFrom: 1.3,
-  /** Last tween to finish: grayscale, 2250 + 2000. */
-  endMs: 4250,
+  /** Last tween to finish: the texture zoom, 1250 + 2250. */
+  endMs: 3500,
   /** Visible videos start as soon as the poster load releases the intro clock. */
   videoStartMs: 0,
   /** Reduced motion: no camera/grid motion, just a short opacity fade. */
@@ -104,15 +104,15 @@ export function introPlaneOpacity(
   );
 }
 
-export function introGray(elapsedMs: number): number {
+/**
+ * One tile's grayscale, 1 -> 0, starting at the same delay as its opacity
+ * fade. The tile is fully grey when it first becomes visible and blooms into
+ * colour over 900ms power3.out while the 2s opacity fade is still running.
+ */
+export function introGray(elapsedMs: number, delayMs: number): number {
   return (
     1 -
-    introSegment(
-      elapsedMs,
-      INTRO.grayDelayMs,
-      INTRO.grayDurationMs,
-      power3Out,
-    )
+    introSegment(elapsedMs, delayMs, INTRO.grayDurationMs, power3Out)
   );
 }
 
