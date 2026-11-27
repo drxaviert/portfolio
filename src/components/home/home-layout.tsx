@@ -89,7 +89,7 @@ type HomeLayoutProps = {
   playCard?: ReactNode;
   /**
    * Draw the horizon inside this layout. The shipped routes pass false: the
-   * root layout's SharedHorizon owns the one canvas above both routes. Dev
+   * site layout's SharedHorizon owns the one canvas above both routes. Dev
    * prototypes keep their own.
    */
   horizon?: boolean;

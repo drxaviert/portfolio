@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
-import Page from "@/app/page";
+import Page from "./page";
 import { ART_DATA_VERSION, getTodaysArt } from "@/lib/daily-art";
 
 vi.mock("@/lib/daily-art", async (importOriginal) => {
@@ -72,8 +72,9 @@ describe("home page", () => {
   it("mounts the edge blur bands, which belong to the homepage alone", async () => {
     const { container } = await renderPage();
 
-    // The bands are homepage-scoped by where they mount (app/page.tsx); a
-    // study's direct load comes from app/work/layout.tsx and has none.
+    // The bands are homepage-scoped by where they mount
+    // (app/(site)/page.tsx); a study's direct load comes from
+    // app/(site)/work/layout.tsx and has none.
     expect(container.querySelectorAll(".wd-edge-blur")).toHaveLength(2);
     expect(container.querySelector(".wd-edge-blur--top")).not.toBeNull();
     expect(container.querySelector(".wd-edge-blur--bottom")).not.toBeNull();
