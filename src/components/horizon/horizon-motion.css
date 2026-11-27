@@ -180,6 +180,51 @@
   animation-play-state: paused;
 }
 
+/*
+ * Listening swell, CSS fallback.
+ *
+ * HorizonBackground renders a second, pre-styled blob layer: the preset's extra
+ * tint, a wider/softer shape, and the upward lift. Only its opacity transitions,
+ * so the state change is a compositor crossfade over an already-rasterised blur
+ * - never a per-frame filter, transform or --horizon-* token transition
+ * (motion.md:110). The shader runs the real continuous swell on its own clock.
+ *
+ * The scale is anchored to the bottom centre so the glow climbs up the page
+ * instead of only growing downward off-screen, and the lift is applied in screen
+ * space (translate after scale), matching the shader's UV transform. The
+ * in/out durations mirror the shader's ramp; reduced motion collapses both to
+ * the same short crossfade.
+ */
+.horizon-listen-layer {
+  opacity: 0;
+  transform: translateY(calc(var(--horizon-listen-lift, 8%) * -1))
+    scale(var(--horizon-listen-scale, 1.25));
+  transform-origin: 50% 100%;
+  transition: opacity var(--horizon-listen-out, 1.2s) var(--ease-calm);
+}
+
+:root[data-listening="true"] .horizon-listen-layer {
+  opacity: 1;
+  transition-duration: var(--horizon-listen-in, 3.5s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .horizon-listen-layer,
+  :root[data-listening="true"] .horizon-listen-layer {
+    transition-duration: var(--horizon-listen-reduced, 400ms);
+    transition-timing-function: var(--ease-standard);
+  }
+}
+
+/*
+ * The home page already has a ?tune=1 carousel panel pinned to the bottom-right
+ * corner. When it is mounted, the horizon tuner sits just to its left so both
+ * remain usable; everywhere else the horizon tuner takes the corner itself.
+ */
+html:has([aria-label="Carousel tuner"]) {
+  --horizon-tuner-right: 17.25rem;
+}
+
 @keyframes horizon-drift-a {
   from {
     transform: translate3d(0, 0, 0);

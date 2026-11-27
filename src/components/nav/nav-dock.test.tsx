@@ -81,6 +81,13 @@ function dock() {
 }
 
 describe("NavDock", () => {
+  it("stays out of the full-screen live route", () => {
+    mocks.pathname = "/live/human-contact";
+    renderDock();
+
+    expect(document.querySelector("[data-nav-dock]")).toBeNull();
+  });
+
   it("renders the homepage nav exactly once, at rest over the home slot", () => {
     renderDock();
 
@@ -115,6 +122,37 @@ describe("NavDock", () => {
     await act(() => moveNav("reader", "flip"));
 
     expect(mocks.animate).not.toHaveBeenCalled();
+  });
+
+  it("marks the nav as leaving before the home flight and clears it after", async () => {
+    mocks.pathname = "/work";
+    renderDock();
+
+    let resolveFlight!: () => void;
+    const finished = new Promise<void>((resolve) => {
+      resolveFlight = resolve;
+    });
+
+    mocks.animate.mockImplementationOnce(() => ({
+      finished,
+      stop: vi.fn(),
+      complete: vi.fn(),
+    }));
+
+    let move!: Promise<void>;
+
+    act(() => {
+      move = moveNav("home", "flip");
+    });
+
+    expect(dock()).toHaveAttribute("data-nav-leaving", "true");
+
+    await act(async () => {
+      resolveFlight();
+      await move;
+    });
+
+    expect(dock()).not.toHaveAttribute("data-nav-leaving");
   });
 
   it("takes its new place with no flight when no reader has lent motion", async () => {
@@ -267,6 +305,68 @@ describe("NavDock", () => {
       ease: [0.32, 0.72, 0, 1],
     });
     render_.unmount();
+  });
+
+  it("carries the home position into the drawer in the dock's zoomed space", async () => {
+    const view = renderDock();
+    const el = dock();
+    const home = {
+      top: 741.531,
+      left: 228.703,
+      width: 1078.563,
+      height: 60.75,
+    };
+    const reader = {
+      top: 44,
+      left: 228.703,
+      width: 1078.563,
+      height: 60.75,
+    };
+
+    // Both states are the xl dock scaled by --fit: the visual boxes have the
+    // same size, and their measured px must be divided back into the zoomed
+    // coordinate space before the flight writes the transform.
+    Object.defineProperty(el, "offsetWidth", {
+      configurable: true,
+      value: 1136,
+    });
+    el.getBoundingClientRect = () => {
+      const box = el.dataset.navState === "reader" ? reader : home;
+      return {
+        ...box,
+        right: box.left + box.width,
+        bottom: box.top + box.height,
+        x: box.left,
+        y: box.top,
+        toJSON: () => ({}),
+      } as DOMRect;
+    };
+
+    await act(() => moveNav("reader", "flip"));
+
+    const frames = mocks.animate.mock.calls.at(-1)?.[1] as {
+      transform: string[];
+    };
+    expect(frames.transform[0]).toMatch(
+      /translate\(0px, 734(?:\.\d+)?px\) scale\(1\)/,
+    );
+    expect(frames.transform[1]).toBe("translate(0px, 0px) scale(1)");
+    // Nothing is left transformed at rest.
+    expect(el.style.transform).toBe("");
+    expect(el.style.transformOrigin).toBe("");
+    view.unmount();
+  });
+
+  it("scales the home dock with the frame, in the frame's own space", () => {
+    const css = readFileSync(
+      join(process.cwd(), "src", "components", "nav", "nav-dock.css"),
+      "utf8",
+    );
+
+    expect(css).toMatch(/\.wd-nav-dock\s*\{[^}]*zoom:\s*var\(--fit\);/);
+    // 50dvh is not zoomed, so the dock divides it back into frame px.
+    expect(css).toMatch(/50dvh \/ var\(--fit\)/);
+    expect(css).toMatch(/calc\(50% - 568px\)/);
   });
 
   it("hangs the phase row on one shared gap in both docks", () => {

@@ -4,6 +4,35 @@
  * here: every route that renders a MessageScreen carries the marker on its
  * <main>, and the nav's display rule lives in nav-dock.css, untouched.
  */
+
+/*
+ * The message column: the site's 1200px frame. Below 768 it is the mobile
+ * 16px/2rem column used by the mobile gate; at >=768 it is the xl 32px/60px
+ * column, scaled by the shared --fit zoom.
+ */
+.wd-message-column {
+  position: relative;
+  display: flex;
+  width: 100%;
+  max-width: 1200px;
+  flex: 1 1 auto;
+  flex-direction: column;
+  margin-inline: auto;
+  padding: 16px;
+}
+
+@media (min-width: 768px) {
+  .wd-message-column {
+    padding: 60px 32px;
+    zoom: var(--fit);
+  }
+}
+
+.wd-message-block {
+  width: 100%;
+  max-width: 34rem;
+}
+
 :root:has([data-message-screen]) .wd-nav-dock {
   display: none;
 }

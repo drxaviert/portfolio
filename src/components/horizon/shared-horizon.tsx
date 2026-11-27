@@ -1,6 +1,4 @@
-"use client";
-
-import { usePathname } from "next/navigation";
+import { CosmicSky } from "./cosmic-sky-layer";
 import { HorizonLive } from "./horizon-live";
 
 /**
@@ -9,22 +7,22 @@ import { HorizonLive } from "./horizon-live";
  * Both `/` and `/work*` render the same home layout underneath, but they mount
  * it as two separate route trees: the drawer route's HomeScreen would otherwise
  * create a second HorizonShader and replay the CSS-to-WebGL handoff on the
- * first navigation. The horizon lives here, above both routes in the root
- * layout, so one canvas and one WebGL context serve the whole session, and the
- * fallback only hands over once per document.
+ * first navigation. The `(site)` layout mounts this above both routes, so one
+ * canvas and one WebGL context serve the whole session, and the fallback only
+ * hands over once per document.
  *
- * The dev prototypes draw their own horizon (HomeLayout's default), so this
- * only mounts on the two shipped routes.
+ * It is deliberately a plain server wrapper: it used to read `usePathname()` in
+ * the root layout to decide whether to mount, which made it a postponed client
+ * hole. A cached shell could then be served without the horizon while the
+ * client rendered it, which React reported as a hydration mismatch (#418).
+ * The `(site)` route group is the route gate now, so the wrapper is static and
+ * every shell carries it.
  */
 export function SharedHorizon() {
-  const pathname = usePathname();
-  const shipped = pathname === "/" || pathname.startsWith("/work");
-
-  if (!shipped) return null;
-
   return (
     <div data-horizon-shared="">
       <HorizonLive />
+      <CosmicSky />
     </div>
   );
 }

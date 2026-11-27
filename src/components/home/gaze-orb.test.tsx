@@ -82,6 +82,41 @@ describe("GazeOrb", () => {
     expect(gaze(eyes).y).toBeCloseTo(0, 1);
   });
 
+  it("writes eye travel in the head's layout space when the frame is zoomed", async () => {
+    stubPointer();
+    const { orb, eyes } = renderOrb();
+
+    // The home frame's --fit zoom: a 36px head paints at 34.25px, while
+    // offsetWidth and the eye transforms stay at 36.
+    Object.defineProperty(orb, "offsetWidth", {
+      configurable: true,
+      value: 36,
+    });
+    orb.getBoundingClientRect = () =>
+      ({
+        left: 100,
+        top: 100,
+        width: 34.25,
+        height: 34.25,
+        right: 134.25,
+        bottom: 134.25,
+        x: 100,
+        y: 100,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    fireEvent.pointerMove(window, {
+      clientX: 160,
+      clientY: 118,
+      pointerType: "mouse",
+    });
+
+    // Distance 42.87 over a 57.08 reach is 0.751 of full strength; the visual
+    // travel (4.5 * 0.9514 * 0.751) is written as layout px, so the 0.9514
+    // cancels and the transform stays 3.38px rather than shrinking twice.
+    await waitFor(() => expect(gaze(eyes).x).toBeCloseTo(3.38, 1));
+  });
+
   it("holds its aim through a theme crossfade's synthetic pointer leave", async () => {
     stubPointer();
     const { eyes } = renderOrb();

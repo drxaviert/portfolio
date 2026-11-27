@@ -128,6 +128,146 @@
   }
 }
 
+/*
+ * Human Contact route transition (pf-9cv.9).
+ *
+ * The live page is the only named participant. On open its snapshot starts as
+ * the case-study embed's rect and grows to the viewport; on close it shrinks
+ * back. The timing is the Motion & Stills canvas tile's own: 1s power3.inOut
+ * open (the glide), 600ms shrink close, with the case study leaving on the
+ * open's 900ms sibling fade and returning with the shrink. Storing the rect
+ * instead of pairing with the embed keeps the motion working when the work
+ * page commits separately (Next does not prefetch in development).
+ *
+ * human-contact-motion.ts writes the durations and the tile geometry from
+ * src/components/canvas/transition.ts into the custom properties below.
+ */
+html[data-human-contact-transition]::view-transition {
+  background-color: #111;
+  pointer-events: none;
+}
+
+::view-transition-group(.human-contact-open),
+::view-transition-group(.human-contact-close) {
+  animation: none;
+}
+
+::view-transition-old(.human-contact-open),
+::view-transition-new(.human-contact-close) {
+  display: none;
+}
+
+/*
+ * Entering: the live page's snapshot is the tile. The first fifth crossfades
+ * it over the real embed, so the embed's own type scale does not pop against
+ * the scaled live page; the grow is the canvas power3.inOut curve over the
+ * whole second.
+ */
+::view-transition-new(.human-contact-open) {
+  transform-origin: 0 0;
+  animation: human-contact-open var(--human-contact-open-duration)
+    var(--human-contact-ease) both;
+}
+
+/*
+ * Leaving: the same tile in reverse. The last fifth fades the snapshot out
+ * over the real embed so the landing frame has no content pop; the movement
+ * and the case study's return end together at 600ms.
+ */
+::view-transition-old(.human-contact-close) {
+  transform-origin: 0 0;
+  animation: human-contact-close var(--human-contact-close-duration)
+    var(--human-contact-ease) both;
+}
+
+@keyframes human-contact-open {
+  0% {
+    opacity: 0;
+    transform: translate(
+        var(--human-contact-tile-x),
+        var(--human-contact-tile-y)
+      )
+      scale(var(--human-contact-tile-scale));
+    clip-path: inset(
+      var(--human-contact-tile-clip-y) var(--human-contact-tile-clip-x)
+        var(--human-contact-tile-clip-y) var(--human-contact-tile-clip-x)
+    );
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes human-contact-close {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+    clip-path: inset(0 0 0 0);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(
+        var(--human-contact-tile-x),
+        var(--human-contact-tile-y)
+      )
+      scale(var(--human-contact-tile-scale));
+    clip-path: inset(
+      var(--human-contact-tile-clip-y) var(--human-contact-tile-clip-x)
+        var(--human-contact-tile-clip-y) var(--human-contact-tile-clip-x)
+    );
+  }
+}
+
+html[data-human-contact-transition="open"]::view-transition-old(root) {
+  animation: human-contact-page-out var(--human-contact-page-fade-duration)
+    var(--human-contact-ease) both;
+}
+
+html[data-human-contact-transition="open"]::view-transition-new(root) {
+  animation: none;
+  opacity: 0;
+}
+
+html[data-human-contact-transition="close"]::view-transition-old(root) {
+  animation: none;
+  opacity: 0;
+}
+
+html[data-human-contact-transition="close"]::view-transition-new(root) {
+  animation: human-contact-page-in var(--human-contact-close-duration)
+    var(--human-contact-ease) both;
+}
+
+@keyframes human-contact-page-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes human-contact-page-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* If the preference flips between the two routes, still land directly. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-human-contact-transition]::view-transition-group(*),
+  html[data-human-contact-transition]::view-transition-old(*),
+  html[data-human-contact-transition]::view-transition-new(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
 :root {
   /*
    * Horizon glow geometry (Figma 1440 frame): phase-independent and tunable
@@ -211,11 +351,39 @@
   --wd-nav-content-gap: 24px;
   --wd-phase-row-gap: 4px;
 
+  /* Home frame fit. Below 768 the mobile gate owns the layout, so the frame is
+     never zoomed and this stays 1. The desktop rules below set the real value. */
+  --fit: 1;
+
+  /*
+   * The home frame's own fit. At 768-1279 the tablet frame (768x964) is scaled
+   * by this; at >=1280 it aliases --fit, so the xl composition keeps exactly
+   * the old fit. The other fixed compositions (drawer, play lab, messages)
+   * keep --fit: they are still the xl composition at every desktop width.
+   */
+  --home-fit: 1;
+
+  /*
+   * Page geometry for the scrolling desktop pages. At >=768 these are the xl
+   * (widest) values, and the whole composition is scaled by --fit; below 768
+   * the mobile gate keeps its previous values. There are no intermediate
+   * breakpoints to snap to.
+   */
+  --page-pad: 16px;
+  --page-gap: 16px;
+  --reading-column: 582px;
+  --reading-rail: 170px;
+  --title-fluid: 2rem;
+
   /* Homepage edge blur (viewport-edge-blur.css): the fixed progressive blur at
      the top and bottom of `/`. The band's height, and the deepest band's blur;
      the ramp fades to zero at the band's inner edge. */
   --edge-blur-height: 172px;
   --edge-blur-max: 8px;
+  /* Listening edge-blur scaling: same fit as the idle peak, and the empty
+     content margin the band height may occupy before it reaches text. */
+  --edge-blur-fit: 1;
+  --edge-blur-margin: 172px;
 }
 
 @media (min-width: 768px) {
@@ -223,6 +391,97 @@
     --wd-panel-inset: 16px;
     --wd-nav-inset: 28px;
     --wd-nav-content-gap: 32px;
+
+    /*
+     * The desktop is one composition: the xl design (1200 x 910: the 780px
+     * column, the 64px bottom gap, and the 65px top gap including the 1px
+     * top line, plus 1px of centring slack). It is drawn on the 1440px design
+     * frame (the 1200px frame plus 120px side padding each way), so the width
+     * ratio is 100vw / 1440px. The height ratio stays 910px. Never grows past
+     * 1. Length/length division is the tan(atan2()) trick faux-ui.css uses;
+     * plain CSS cannot divide two lengths.
+     */
+    --fit: min(
+      1,
+      calc(tan(atan2(100vw, 1440px))),
+      calc(tan(atan2(100dvh, 910px)))
+    );
+
+    /* >=1280 keeps the xl fit for the home frame too. */
+    --home-fit: var(--fit);
+
+    /*
+     * Edge blur may only cover the empty margin around the frame's content,
+     * never a card or text. The margin is half of what the viewport has left
+     * after the xl 780px column, so the band is clamped to it; on a tall
+     * screen it settles at the design 172px. The peak blur follows the scale.
+     */
+    --edge-blur-height: min(172px, calc((100dvh - 780px * var(--fit)) / 2));
+    --edge-blur-max: calc(8px * var(--fit));
+    --edge-blur-fit: var(--fit);
+    --edge-blur-margin: calc((100dvh - 780px * var(--fit)) / 2);
+
+    /* Desktop reading geometry: the xl values, scaled by --fit. */
+    --page-pad: 32px;
+    --page-gap: 44px;
+    --reading-column: 582px;
+    --reading-rail: 170px;
+    --title-fluid: 2.5rem;
+  }
+
+  /* The desktop composition is always the xl one, scaled by its own fit. */
+  [data-home-frame] {
+    /* The xl box is the 910px ink frame (909px of line ink); the horizontals
+       sit on its top/bottom. The verticals keep main's full-viewport length,
+       positioned on the box's left/right edges. */
+    --frame-line-top: calc((100% - 910px) / 2);
+    --frame-line-height: 909px;
+    --frame-line-v-top: calc((100% - 100dvh / var(--home-fit)) / 2);
+    --frame-line-v-height: calc(100dvh / var(--home-fit));
+
+    zoom: var(--home-fit);
+  }
+}
+
+/*
+ * Home / Dawn / 768: the tablet frame.
+ *
+ * From 768 to 1279 the home page is the 768 design frame: a 768x964 portrait
+ * composition with 32px side padding and 48px top/bottom, holding a 220px top
+ * band, a 560px card band and the 64px nav (two 12px gaps: 48 + 220 + 12 + 560
+ * + 12 + 64 + 48 = 964). It is centred and scaled by its own fit, capped at 1,
+ * so it never grows past the design size. >=1280 returns to the xl frame above.
+ */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  :root {
+    --home-fit: min(
+      1,
+      calc(tan(atan2(100vw, 768px))),
+      calc(tan(atan2(100dvh, 964px)))
+    );
+
+    /* The 768 frame's content column is 868 tall (964 - 2 * 48). */
+    --edge-blur-height: min(
+      172px,
+      calc((100dvh - 868px * var(--home-fit)) / 2)
+    );
+    --edge-blur-max: calc(8px * var(--home-fit));
+    --edge-blur-fit: var(--home-fit);
+    --edge-blur-margin: calc((100dvh - 868px * var(--home-fit)) / 2);
+  }
+
+  [data-home-frame] {
+    flex: 0 0 auto;
+    width: 768px;
+    max-width: 768px;
+    height: 964px;
+    padding: 48px 32px;
+    margin-block: auto;
+
+    /* The 768 frame's hairlines sit on its four edges; the 12px gutters and
+       the 32/48 padding stay inside the frame. */
+    --frame-line-top: 0px;
+    --frame-line-height: 964px;
   }
 }
 
@@ -436,13 +695,14 @@
   --horizon-1-alpha: 0.06;
   --horizon-2: var(--palette-blue-800);
   --horizon-2-alpha: 0.06;
-  /* Ring hover: the same blob hues at 75% so they survive on a 1px ring.
+  /* Ring hover: the same blob hues at 60% over 3 stops (Night's 3-stop shape, Night at .55), so they survive on a 1px ring.
      Literal rgb() keeps it valid below Safari 18; it mirrors
      --palette-blue-600 and --palette-blue-800. */
   --horizon-ring-glow: linear-gradient(
     45deg,
-    rgb(96 168 226 / 0.75) 0%,
-    rgb(0 113 193 / 0.75) 100%
+    rgb(96 168 226 / 0.6) 0%,
+    rgb(0 113 193 / 0.6) 45%,
+    rgb(0 113 193 / 0.6) 100%
   );
 
   /* Orb head (nav): blob-left → blob-right, bottom-left to top-right. */
@@ -520,13 +780,14 @@
   --horizon-1-alpha: 0.06;
   --horizon-2: var(--palette-violet-550);
   --horizon-2-alpha: 0.06;
-  /* Ring hover: the same blob hues at 90% so they survive on a 1px ring.
+  /* Ring hover: the same blob hues at 60% over 3 stops (Night's 3-stop shape, Night at .55), so they survive on a 1px ring.
      Literal rgb() keeps it valid below Safari 18; it mirrors
      --palette-rose-200 and --palette-violet-550. */
   --horizon-ring-glow: linear-gradient(
     45deg,
-    rgb(255 144 185 / 0.9) 0%,
-    rgb(203 131 255 / 0.9) 100%
+    rgb(255 144 185 / 0.6) 0%,
+    rgb(203 131 255 / 0.6) 45%,
+    rgb(203 131 255 / 0.6) 100%
   );
 
   --orb-1: var(--palette-rose-200);
@@ -595,18 +856,21 @@
   --horizon-mid: var(--palette-blue-150);
   --horizon-mid-at: 80%;
   --horizon-3: var(--palette-amber-300);
-  --horizon-1: var(--palette-blue-400);
-  --horizon-1-alpha: 0.06;
+  --horizon-1: var(--palette-rose-200);
+  --horizon-1-alpha: 0.12;
+  /* Music mode only: the left blob keeps 65% of its boosted alpha (~35% less pink while listening). */
+  --horizon-1-listen-damp: 0.65;
   --horizon-2: var(--palette-amber-650);
   --horizon-2-alpha: 0.06;
   /* Ring hover: Dusk's accent into a deeper amber, not the horizon blobs, so
-     the 1px ring keeps real contrast on the pale surface. Literal rgb() keeps
+     the 1px ring keeps real contrast on the pale surface; 60% over 3 stops (Night's 3-stop shape, Night at .55). Literal rgb() keeps
      it valid below Safari 18; it mirrors --palette-amber-700 and
      --palette-amber-800. */
   --horizon-ring-glow: linear-gradient(
     45deg,
-    rgb(240 176 117 / 0.9) 0%,
-    rgb(224 128 48 / 0.9) 100%
+    rgb(240 176 117 / 0.6) 0%,
+    rgb(224 128 48 / 0.6) 45%,
+    rgb(224 128 48 / 0.6) 100%
   );
 
   --orb-1: var(--palette-blue-400);
@@ -711,6 +975,81 @@
   --play-glow: var(--palette-violet-350);
 }
 
+/*
+ * Painting-frame material by phase.
+ *
+ * One ornate gilt frame in every phase: the shared structure (edge, mount
+ * geometry, bevels, grain layers, lip width and sheen offsets) lives in
+ * painting-frame.css, so these blocks declare colours only. Day, Dawn and Dusk
+ * use the origin/main gilt colours on the light surface. Night (pf-y2d)
+ * repaints that structure with origin/main's walnut palette, mapped onto the
+ * gilt stops light-to-dark: #6d4830 on the three light stops, #603e29 on the
+ * upper mid, #40281a on the lower mids, and #2d1c12 / #24150d at the ends.
+ */
+:root,
+[data-phase="day"],
+[data-phase="dawn"],
+[data-phase="dusk"] {
+  --frame-bevel-top: rgb(255 248 220 / 0.55);
+  --frame-bevel-bottom: rgb(45 27 6 / 0.55);
+  --frame-lip-color: rgb(255 239 186 / 0.42);
+  --frame-lip-inner: rgb(77 49 10 / 0.5);
+  --frame-lip-outer: rgb(255 240 190 / 0.25);
+  --frame-face:
+    repeating-linear-gradient(
+      90deg,
+      rgb(255 244 205 / 0.16) 0 1px,
+      transparent 1px 5px
+    ),
+    linear-gradient(
+      135deg,
+      #5a4117 0%,
+      #c79b48 12%,
+      #f3dfa4 21%,
+      #a97b32 38%,
+      #e9cf8d 55%,
+      #906823 72%,
+      #f0dca6 87%,
+      #5d4318 100%
+    );
+  --frame-mount: linear-gradient(
+    135deg,
+    #8c6525,
+    #f0dfae 26%,
+    #a27934 55%,
+    #e8d195 76%,
+    #6f4d19
+  );
+  --frame-window-edge: rgb(43 27 8 / 0.9);
+}
+
+[data-phase="night"] {
+  --frame-bevel-top: rgb(255 231 190 / 0.18);
+  --frame-bevel-bottom: rgb(0 0 0 / 0.55);
+  --frame-lip-color: rgb(176 138 74 / 0.65);
+  --frame-lip-inner: rgb(36 21 13 / 0.55);
+  --frame-lip-outer: rgb(176 138 74 / 0.22);
+  --frame-face:
+    repeating-linear-gradient(
+      90deg,
+      rgb(0 0 0 / 0.14) 0 1px,
+      transparent 1px 5px
+    ),
+    linear-gradient(
+      135deg,
+      #2d1c12 0%,
+      #603e29 12%,
+      #6d4830 21%,
+      #40281a 38%,
+      #6d4830 55%,
+      #40281a 72%,
+      #6d4830 87%,
+      #24150d 100%
+    );
+  --frame-mount: #21150e;
+  --frame-window-edge: rgb(36 21 13 / 0.9);
+}
+
 @theme inline {
   --color-surface: var(--surface);
   --color-surface-dim: var(--surface-dim);
@@ -742,6 +1081,17 @@
 
 @utility shadow-card {
   box-shadow: var(--shadow-card);
+}
+
+/*
+ * The display title for the scrolling pages. Below 768 it is the mobile 2rem;
+ * at >=768 it is the xl 2.5rem and the page zoom scales it with the rest of
+ * the composition.
+ */
+@utility text-title-fluid {
+  font-size: var(--title-fluid);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
 }
 
 /*

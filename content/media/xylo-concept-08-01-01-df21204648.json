@@ -1,0 +1,33 @@
+{
+  "id": "xylo-concept-08-01-01-df21204648",
+  "kind": "image",
+  "width": 1080,
+  "height": 1920,
+  "alt": "Black rippled forms on a black background",
+  "caption": "Xylo concept 08",
+  "createdAt": "2026-11-24T16:47:04.338Z",
+  "original": "Xylo_Concept_08_01_01.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/xylo-concept-08-01-01-df21204648/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/xylo-concept-08-01-01-df21204648/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1080,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/xylo-concept-08-01-01-df21204648/w1080.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1080,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/xylo-concept-08-01-01-df21204648/w1080.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRnAAAABXRUJQVlA4IGQAAACwAwCdASoQABwAPtFipk0oJiOiMAgBABoJaQAAW+jUu/cOPenAAAD+8ZaUBg8m1vlYpljGMvEBmwHTBv67ZdRKPKuINCsip3E6SwqqhB0UJezkBaShKyR/6QruEMR8QhL1MAAA"
+}

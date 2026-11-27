@@ -1,0 +1,233 @@
+/*
+ * The live canvas study. It fills the drawer panel, so the panel's own inset,
+ * radius, shadow and morph stay in charge around it.
+ */
+
+.cv-reader {
+  /*
+   * The bottom pill's shared geometry. The bar and the opened-tile caption
+   * both read these, so their vertical centres line up without measuring
+   * either one at reveal time. The row is the breadcrumb's 32px list height.
+   */
+  --cv-reader-pill-pad-y: 8px;
+  --cv-reader-pill-row: 2rem;
+  --cv-reader-pill-height: calc(
+    var(--cv-reader-pill-row) + 2 * var(--cv-reader-pill-pad-y)
+  );
+  --cv-reader-pill-bottom: calc(max(16px, env(safe-area-inset-bottom)) + 24px);
+
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--on-surface);
+}
+
+.cv-reader__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.cv-reader__stage {
+  position: absolute;
+  inset: 0;
+  transition: opacity var(--duration-medium-5) var(--ease-decelerate);
+}
+
+/* A DOM viewer dims the grid around its own media. The canvas-owned open
+   already fades the other planes out, and the focused plane is part of the
+   stage, so dimming it would dim the opened media too. */
+.cv-reader[data-viewing]:not([data-canvas-viewing]) .cv-reader__stage {
+  opacity: 0.4;
+}
+
+/* The viewer owns the close shrink, so hide the stale WebGL frame with a
+   flat surface layer instead of re-rendering the grid. The layer is removed
+   on the landing frame together with the viewer. The canvas-owned close is
+   rendered by the WebGL scene itself, so it must not be covered. */
+.cv-reader[data-closing] .cv-reader__stage {
+  opacity: 1;
+  transition: none;
+}
+
+.cv-reader[data-closing]:not([data-canvas-viewing])
+  .cv-reader__stage::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  content: "";
+  background: var(--surface);
+  pointer-events: none;
+}
+
+/* One bottom chip: the shared breadcrumb, a hairline divider and the hint.
+   The chip keeps the hint pill's surface: no stroke, card shadow, pill radius. */
+.cv-reader__pill {
+  padding: var(--cv-reader-pill-pad-y) 12px;
+  border-radius: 999px;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: var(--shadow-card);
+}
+
+.cv-reader__bottom-bar {
+  --cv-chrome-duration: 700ms;
+  --cv-chrome-ease: cubic-bezier(0.45, 0, 0.55, 1);
+
+  position: absolute;
+  bottom: var(--cv-reader-pill-bottom);
+  left: max(16px, env(safe-area-inset-left));
+  /* The reader's bottom chrome sits above the fixed viewer (z-index 20), so
+     media never paints into the pill in any state. The box is the pill itself,
+     so clicks outside it still reach the content. */
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--cv-reader-pill-height);
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  pointer-events: auto;
+  white-space: nowrap;
+}
+
+/*
+ * The chrome entrance starts with the canvas intro, not with the drawer: the
+ * pill sits on a grid that is still opening, so it waits until the intro clock
+ * actually starts. One block, one beat: opacity + a 4px rise + a 4px defocus
+ * over 700ms on the requested symmetric curve. `backwards` holds the start
+ * state through the wait, so nothing flashes before it begins.
+ *
+ * The canvas has one chrome cluster (the bottom chip), so there is nothing to
+ * stagger at 40ms; its three children stay on the same beat.
+ */
+.cv-reader[data-chrome="pending"] .cv-reader__bottom-bar {
+  opacity: 0;
+}
+
+.cv-reader[data-chrome="in"] .cv-reader__bottom-bar {
+  animation: cv-chrome-in var(--cv-chrome-duration) var(--cv-chrome-ease)
+    backwards;
+}
+
+@keyframes cv-chrome-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+/*
+ * The opened-tile caption is the breadcrumb pill's twin: same type scale,
+ * padding, row height and fully rounded surface, so the two read as one chrome
+ * row. It is centred on the page: `left: 50%` with the symmetric translate
+ * keeps its centre on the viewport's centre through live resizes, with no
+ * layout read. Its vertical centre is the bar's. The viewer is fixed to the
+ * viewport while the bar sits inside the drawer panel, so the panel inset is
+ * part of the shared bottom offset. Its own height cancels through the
+ * translate, so only the bar's height is needed to line the centres up.
+ */
+.cv-reader .cv-viewer__caption {
+  bottom: calc(
+    var(--wd-panel-inset) + var(--cv-reader-pill-bottom) +
+      var(--cv-reader-pill-height) / 2
+  );
+  left: 50%;
+  display: block;
+  min-height: var(--cv-reader-pill-height);
+  padding: var(--cv-reader-pill-pad-y) 12px;
+  border-radius: 999px;
+  font-size: var(--text-base);
+  line-height: var(--cv-reader-pill-row);
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translate(-50%, 50%);
+}
+
+/*
+ * Below 768 the xl composition is no longer zoomed down with --fit, so a
+ * page-centred caption and the bottom bar cannot share one row without
+ * overlapping. Stack the caption 8px above the bar: still centred, nothing
+ * covered, and the bar keeps its own anchor.
+ */
+@media (max-width: 767.98px) {
+  .cv-reader .cv-viewer__caption {
+    bottom: calc(
+      var(--wd-panel-inset) + var(--cv-reader-pill-bottom) +
+        var(--cv-reader-pill-height) + 8px
+    );
+    transform: translate(-50%, 0);
+  }
+}
+
+.cv-reader__bottom-bar .wd-breadcrumb {
+  margin: 0;
+}
+
+.cv-reader__bottom-divider {
+  width: 1px;
+  height: 12px;
+  flex: 0 0 1px;
+  background: var(--outline-variant);
+}
+
+.cv-reader__bottom-hint {
+  color: var(--on-surface-variant);
+}
+
+@media (min-width: 768px) {
+  .cv-reader__bottom-bar {
+    left: 32px;
+  }
+}
+
+/*
+ * The crumb trail already fills the chip at phone width. Drop the hint and its
+ * divider instead of wrapping the trail or pushing the chip past the edge.
+ */
+@media (max-width: 560px) {
+  .cv-reader__bottom-bar {
+    gap: 0;
+  }
+
+  .cv-reader__bottom-hint,
+  .cv-reader__bottom-divider {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-reader__stage {
+    transition: none;
+  }
+
+  /* No rise and no defocus: one short opacity pass, the same state change. */
+  .cv-reader[data-chrome="in"] .cv-reader__bottom-bar {
+    animation: cv-chrome-fade 160ms var(--ease-decelerate) backwards;
+  }
+
+  @keyframes cv-chrome-fade {
+    from {
+      opacity: 0;
+    }
+  }
+}

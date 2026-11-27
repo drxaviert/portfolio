@@ -65,9 +65,8 @@ describe("ReaderRail", () => {
       "utf8",
     );
 
-    expect(css).toMatch(
-      /@media \(min-width: 1024px\) \{\s*\.wd-rail \{[^}]*position: absolute;[^}]*z-index: 1;/,
-    );
+    // The xl rail is the only desktop rail; the drawer layer scales it by --fit.
+    expect(css).toMatch(/\.wd-rail \{[^}]*position: absolute;[^}]*z-index: 1;/);
   });
 
   it("keeps only the reach-to-top control in the rail", () => {

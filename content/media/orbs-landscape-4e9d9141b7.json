@@ -1,0 +1,63 @@
+{
+  "id": "orbs-landscape-4e9d9141b7",
+  "kind": "image",
+  "width": 3840,
+  "height": 2160,
+  "alt": "Golden orb resting on a green tufted landscape",
+  "caption": "Orb landscape",
+  "createdAt": "2026-11-24T16:46:12.903Z",
+  "original": "Orbs_Landscape.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/orbs-landscape-4e9d9141b7/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/orbs-landscape-4e9d9141b7/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/orbs-landscape-4e9d9141b7/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/orbs-landscape-4e9d9141b7/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/orbs-landscape-4e9d9141b7/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/orbs-landscape-4e9d9141b7/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2560,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/orbs-landscape-4e9d9141b7/w2560.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2560,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/orbs-landscape-4e9d9141b7/w2560.webp"
+    },
+    {
+      "format": "avif",
+      "width": 3840,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/orbs-landscape-4e9d9141b7/w3840.avif"
+    },
+    {
+      "format": "webp",
+      "width": 3840,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/orbs-landscape-4e9d9141b7/w3840.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAACwAQCdASoQAAkAAsBMJbACdAD5UT6wAP7qKDhPyJZGMFmud9hX3bCkXMzK3lmOxCnJLFcQQNB1jNM9mr0EuYFexrnrN/8D8/3oZYz9vo7qMF8RjgA="
+}

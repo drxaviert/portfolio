@@ -134,10 +134,16 @@ export function beginNavBlur(
   tracked = element;
   gaussian = node;
 
-  // One read for the start position and the region. The filter is applied only
-  // once the region is right, so nothing is clipped on the first frame.
+  // One read for the start position and the region. The region is the dock's
+  // layout box, not the first flight frame: the flight scales the bar from the
+  // home fit up to 1x, so a region measured from the scaled start would clip
+  // the bar as it grows. The filter is applied only once the region is right,
+  // so nothing is clipped on the first frame.
   const start = element.getBoundingClientRect();
-  setRegion(start);
+  setRegion({
+    width: element.offsetWidth || start.width,
+    height: element.offsetHeight || start.height,
+  });
   element.style.filter = `url(#${NAV_BLUR_FILTER_ID})`;
 
   let lastTop = start.top;

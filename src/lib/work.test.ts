@@ -7,8 +7,6 @@ import {
   parseFrontmatter,
 } from "./work";
 
-const COVERS = ["tiles", "window", "phone"];
-
 describe("parseFrontmatter", () => {
   const BODY = "---\ntitle: A study\nrole: Design\n---\n\n# Body\n";
 
@@ -16,7 +14,17 @@ describe("parseFrontmatter", () => {
     expect(parseFrontmatter(BODY)).toEqual({
       title: "A study",
       role: "Design",
+      layout: "reader",
     });
+  });
+
+  it("reads the canvas layout and rejects an unknown one", () => {
+    const CANVAS = BODY.replace("---\n\n# Body", "layout: canvas\n---\n\n# Body");
+
+    expect(parseFrontmatter(CANVAS).layout).toBe("canvas");
+    expect(() =>
+      parseFrontmatter(BODY.replace("---\n\n# Body", "layout: sheet\n---\n\n# Body")),
+    ).toThrow(/Unknown layout/);
   });
 
   it("reads a file saved with a UTF-8 BOM", () => {
@@ -29,19 +37,27 @@ describe("parseFrontmatter", () => {
     expect(parseFrontmatter(crlf).title).toBe("A study");
   });
 
+  it("reads the hidden switch", () => {
+    const HIDDEN = BODY.replace("---\n\n# Body", "hidden: true\n---\n\n# Body");
+
+    expect(parseFrontmatter(HIDDEN).hidden).toBe("true");
+  });
+
   it("returns nothing when there is no block", () => {
     expect(parseFrontmatter("# Body\n")).toEqual({});
   });
 });
 
 describe("listWork", () => {
-  it("returns the sixteen case studies", () => {
-    expect(listWork()).toHaveLength(16);
+  it("returns the visible case studies", () => {
+    expect(listWork()).toHaveLength(17);
   });
 
   it("gives every study a known cover", () => {
     for (const work of listWork()) {
-      expect(COVERS).toContain(work.cover);
+      expect(work.cover).toMatch(
+        /^(tiles|window|phone|media:[a-z0-9][a-z0-9-]*)$/,
+      );
     }
   });
 
@@ -62,18 +78,36 @@ describe("listWork", () => {
       "metaview",
       "linksys",
       "london-public-library",
+      "motion-and-stills",
       "personal",
     ]);
+  });
+
+  it("leaves the study behind the hidden switch out of the list", () => {
+    expect(listWork().map((work) => work.slug)).not.toContain("human-contact");
   });
 });
 
 describe("getWork", () => {
   it("reads the featured study and its window cover", () => {
     expect(getWork(FEATURED_SLUG)?.cover).toBe("window");
+    expect(getWork(FEATURED_SLUG)?.layout).toBe("reader");
+  });
+
+  it("reads Motion & Stills as the canvas study", () => {
+    const work = getWork("motion-and-stills");
+
+    expect(work?.layout).toBe("canvas");
+    expect(work?.cover).toBe("media:good-form-reel-4c969cc977");
+    expect(work?.coverImage?.width).toBeGreaterThan(0);
   });
 
   it("returns null for an unknown slug", () => {
     expect(getWork("nope")).toBeNull();
+  });
+
+  it("returns null for a hidden study, so its routes 404", () => {
+    expect(getWork("human-contact")).toBeNull();
   });
 });
 
@@ -95,8 +129,20 @@ describe("nextWork", () => {
     expect(nextWork("ai-agents-google").slug).toBe("klaris");
   });
 
+  it("steps from the last 2D study to the canvas study", () => {
+    expect(nextWork("london-public-library").slug).toBe("motion-and-stills");
+  });
+
+  it("skips the hidden study between the canvas study and personal", () => {
+    expect(nextWork("motion-and-stills").slug).toBe("personal");
+  });
+
   it("wraps from the last study back to the first", () => {
     expect(nextWork("personal").slug).toBe("ai-agents-google");
+  });
+
+  it("treats a hidden slug as the end of the reading order", () => {
+    expect(nextWork("human-contact").slug).toBe("ai-agents-google");
   });
 });
 

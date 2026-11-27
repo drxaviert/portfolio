@@ -1,0 +1,24 @@
+{
+  "id": "infiniti-horizon-ea360a3014",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "INFINITI logo above a dark horizon line",
+  "caption": "Infiniti Horizon",
+  "createdAt": "2026-11-24T16:39:43.415Z",
+  "original": "INFINITI_Horizon.webm",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/infiniti-horizon-ea360a3014/video.mp4",
+    "bytes": 902369
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/infiniti-horizon-ea360a3014/canvas.mp4",
+    "bytes": 71402
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/infiniti-horizon-ea360a3014/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/infiniti-horizon-ea360a3014/poster.jpg"
+  },
+  "duration": 9.96,
+  "hasAudio": false
+}

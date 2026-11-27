@@ -27,13 +27,14 @@ export function PlayCard({ settings, className }: PlayCardProps) {
       href="/play"
       aria-label="Play: interactive art"
       className={[
-        "relative block h-[276px] w-[849px] max-w-full overflow-hidden rounded-lg shadow-card outline-none",
+        "relative block w-[849px] max-w-full overflow-hidden rounded-lg shadow-card outline-none",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
         className ?? "",
       ]
         .join(" ")
         .trim()}
       style={{
+        aspectRatio: "849 / 276",
         background:
           "linear-gradient(180deg, var(--play-bg-top) 0%, var(--play-bg-mid) 58%, var(--play-bg-mid) 74%, var(--play-base, var(--play-bg-bottom)) 100%)",
       }}

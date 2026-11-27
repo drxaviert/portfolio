@@ -1,11 +1,13 @@
 import type { MDXComponents } from "mdx/types";
+import { HumanContactCredit } from "@/components/human-contact/human-contact-credit";
+import { HumanContactEmbed } from "@/components/human-contact/human-contact-embed";
 import { Media } from "@/components/media/media";
 import { BriefQuote, DecisionTable, Note } from "./parts";
 import { ContactSheet, Figure, Hero, Row, StepFigure } from "./media-parts";
 
 /**
  * The Margin layout's MDX contract. Passed explicitly to the loaded body in
- * `app/work/[slug]/page.tsx`; the root `mdx-components.tsx` stays empty.
+ * `app/(site)/work/[slug]/page.tsx`; the root `mdx-components.tsx` stays empty.
  */
 export const mdxComponents: MDXComponents = {
   h2: ({ children }) => <h2 className="wd-h2">{children}</h2>,
@@ -34,4 +36,6 @@ export const mdxComponents: MDXComponents = {
   Media,
   Brief: BriefQuote,
   Steps: DecisionTable,
+  HumanContactEmbed,
+  HumanContactCredit,
 };

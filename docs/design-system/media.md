@@ -108,7 +108,7 @@ on a longer one; 20 s exactly still counts as short.
 | Keyframes | `-force_key_frames "expr:gte(t,n_forced*2)" -sc_threshold 0`, so every segment starts on one |
 | Segments | `-hls_time 4`, `fmp4`, `independent_segments`, `-hls_playlist_type vod` |
 | Output | `master.m3u8`, then `v<rung>/index.m3u8`, `v<rung>/init_<rung>.mp4`, `v<rung>/segment_<n>.m4s` |
-| Upload | `media/<id>/hls/<relative path>`, six at a time; `.m3u8` is `application/vnd.apple.mpegurl`, `.mp4`/`.m4s` are `video/mp4`; public, no random suffix, one-year cache |
+| Upload | `media/<id>/hls/<relative path>`, six at a time; `.m3u8` is `application/vnd.apple.mpegurl`, `.ts` is `video/mp2t`, `.m4s` is `video/iso.segment`, `.mp4` is `video/mp4`; R2, one-year immutable cache |
 | Budget | warn over 60 MB, hard-fail over 150 MB, both before any upload |
 | Manifest | `hls: { url, bytes, levels: [{ height, bandwidth }] }`; `levels` is read back from the master's `EXT-X-STREAM-INF` |
 
@@ -131,11 +131,58 @@ Playback (`src/components/media/media-video.tsx`):
 - Short loops are unchanged: muted, looping, autoplaying in view, and the reduced-motion button
   is still the only way in under `prefers-reduced-motion: reduce`.
 
-Cache check on the existing Blob store (`media/pipeline-test-loop-c0fe9c23ef/`): both `poster.jpg`
-and `video.mp4` return `x-vercel-cache: HIT`, `cache-control: public, max-age=31536000`,
-`accept-ranges: bytes`, and a `206` for a `Range` request; the second request only advanced `age`.
-Uploaded `.m3u8` and `.m4s` answer with the same cache headers and the content types above, so a
-ladder is served straight from Blob without a rewrite.
+## Canvas rendition
+
+The WebGL grid draws its planes at roughly 111-197px, so a 1080p frame is wasted decode and
+texture upload. When the main MP4 is taller than 480px, `pnpm post` also encodes `canvas.mp4`:
+H.264, no audio, at most 480px tall, `-crf 24 -maxrate 650k -bufsize 1300k`, `+faststart`, uploaded
+as `media/<id>/canvas.mp4` and recorded as `canvas: { url, bytes }` next to `mp4`.
+
+- The canvas uses `canvas ?? mp4` (`src/components/canvas/infinite-canvas.tsx`).
+- The live `/work/motion-and-stills` study uses the same list as the dev prototype. An HLS piece has no `canvas` rendition, so its grid plane uses the progressive MP4 while the full-screen viewer uses the ladder.
+- Clips already at or below 480p skip the extra encode, so the field is optional and absent for
+  them; `validateManifest` accepts both shapes.
+- The 16 existing clips over 480p were backfilled from `media/archive/<id>.webm`; only the new
+  `canvas.mp4` files were uploaded. The archives themselves were not modified.
+
+## Storage: R2 and local dev
+
+`pnpm post` uploads to Cloudflare R2 over the S3 API (`@aws-sdk/client-s3`,
+region `auto`, endpoint `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`). The
+object key layout is unchanged: `media/<id>/...`. `R2_PUBLIC_BASE_URL` turns a
+key into the public URL. Every upload sets the mapped content type and
+`Cache-Control: public, max-age=31536000, immutable`.
+
+The `<id>` prefix is content-addressed (`<slug>-sha256(original)[:10]`); the
+individual file names are not hashes. Re-running the pipeline for the same
+original writes the same keys, which is why the immutable cache is safe.
+
+Credentials live in `.env.r2` (gitignored): `R2_ACCOUNT_ID`,
+`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL`.
+A missing key is named in the error; values are never printed. See
+`.env.r2.example`. `next.config.ts` hard-codes the public r2.dev host, so
+production needs no `.env.r2` or R2 env var; `R2_PUBLIC_BASE_URL` remains an
+optional override for a custom domain. The Blob host is gone now that every
+rendered manifest points at R2. The former test fixtures that had no local
+original were removed once they became the last Blob URLs.
+
+### Migration
+
+`pnpm media:migrate-r2 --dry-run --archive media/archive --archive ...` prints
+the per-manifest plan without a network call. Drop `--dry-run` to re-encode the
+local originals, upload, HEAD-skip objects already in R2 and rewrite the
+manifests. A manifest with no local original is listed as missing and skipped.
+Blob is never read.
+
+### Local media
+
+Browser, playback and performance tests must not pull production storage. Set
+`MEDIA_ORIGIN=local`, populate `media/local/` with `pnpm post --local` (or the
+migration's `--local` flag, which mirrors the R2 uploads), and start the dev
+server. `src/lib/media.ts` rewrites every manifest URL to
+`/media/local/<key>`; the dev-only `src/app/media/local/[...key]/route.ts`
+serves the file with the same content type and byte ranges. The manifest still
+records the production R2 URL.
 
 ## Alt text
 
@@ -158,6 +205,31 @@ audio is never heard through `<Media>` today. An HLS clip is the exception: it p
 controls and is unmuted when it has audio (see Adaptive streaming above). Everything else needs a
 component decision, not just a manifest flag.
 
+## Audio tracks (self-hosted)
+
+The now-playing track can play from a file instead of the YouTube embed.
+
+- Ingest: drop an `.mp3`, `.m4a` or `.ogg` in `media/inbox/` and run
+  `pnpm post --only <file>` (add `--local` for `media/local/`). The file is stored as supplied at
+  `media/<id>/audio.<ext>` (content types `audio/mpeg`, `audio/mp4`, `audio/ogg`), with the usual
+  one-year immutable cache on R2. There is no manifest; the command prints the key. Locally the file
+  lands at `media/local/media/<id>/audio.<ext>`. The original is archived, never deleted.
+- Wiring: `NOW_PLAYING_TRACK.audioKey` in `src/components/home/now-playing-track.ts`. The player
+  uses the audio backend when `audioUrlFor(track)` returns a URL, otherwise YouTube.
+  `NEXT_PUBLIC_MEDIA_BASE` (set in `next.config.ts`) is `/media/local` under `MEDIA_ORIGIN=local` and
+  empty otherwise, so production stays on YouTube until the object is in R2 and the base is pointed at
+  the R2 host.
+- **R2 CORS requirement.** The element is created with `crossOrigin="anonymous"` and feeds a Web
+  Audio `AnalyserNode` (`src/components/player/audio-bands.ts`). A cross-origin file served without
+  CORS headers is muted by `createMediaElementSource` and reads as zeros. Before switching
+  production to the R2 URL, add a CORS rule on the bucket: allowed methods `GET` and `HEAD`, allowed
+  origins the production site origin(s) (and `http://localhost:3000` for dev if wanted), allowed
+  header `Range`, expose `Content-Length`, `Content-Range` and `Accept-Ranges`. The bucket has not
+  been changed.
+- Bands: `audioBands.getBands()` returns smoothed 0..1 `bass` (20-250 Hz), `mid` (250 Hz-2 kHz),
+  `high` (2-12 kHz) and `energy`, all 0 when nothing plays. Under `prefers-reduced-motion` the four
+  collapse to one slow energy value capped at 0.5. `?tune=1` shows the four as read-only bars.
+
 ## What fails the build
 
 `getMedia` throws on:
@@ -166,9 +238,9 @@ component decision, not just a manifest flag.
 - no `content/media/<id>.json` (`media.ts:235-239`);
 - a manifest that does not validate: id mismatch, unknown `kind`, non-integer or non-positive
   dimensions, non-`https` media URLs, empty `sources`, a `lqip` that is not an image data URI, a
-  non-positive `duration`, a non-boolean `hasAudio`, or an `hls` block whose `url` is not an https
+  non-positive `duration`, a non-boolean `hasAudio`, an `hls` block whose `url` is not an https
   `.m3u8`, whose `bytes` is not a positive integer, or whose `levels` are empty or not positive
-  (`media.ts:122-155`, `:157-221`);
+  (`media.ts:122-155`, `:157-221`), or a `canvas` block with a non-https url or non-positive bytes;
 - an image manifest with no sources to draw (`media-image.tsx:33-37`).
 
 Manifests are read once per id per process (`media.ts:50`, `:223-253`), so a newly posted file needs

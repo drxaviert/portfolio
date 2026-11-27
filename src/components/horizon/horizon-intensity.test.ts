@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  alternateCycle,
   alternateProgress,
   baseStrength,
   breatheEnvelope,
@@ -119,6 +120,33 @@ describe("breathe intensity envelope", () => {
   });
 });
 
+describe("alternate cycle", () => {
+  it("matches the CSS alternate animation at a constant period", () => {
+    for (let time = 0; time <= PERIOD * 3; time += 0.1) {
+      expect(alternateCycle(time / PERIOD)).toBeCloseTo(
+        alternateProgress(time, PERIOD, 0),
+        6,
+      );
+      expect(alternateCycle(time / PERIOD + 0.5)).toBeCloseTo(
+        alternateProgress(time, PERIOD, -PERIOD / 2),
+        6,
+      );
+    }
+  });
+
+  it("is continuous, including at iteration boundaries", () => {
+    // The listening swell changes the period while the cycle accumulates, so
+    // the eased output must never jump when the cycle crosses an integer.
+    for (const boundary of [1, 2, 3, 4]) {
+      expect(
+        Math.abs(
+          alternateCycle(boundary - 0.0001) - alternateCycle(boundary + 0.0001),
+        ),
+      ).toBeLessThan(0.001);
+    }
+  });
+});
+
 describe("rest strength", () => {
   it("eases from the day base to the night base over the phase fade", () => {
     expect(baseStrength({ base: 4, nightBase: 2.5, nightBlend: 0 })).toBe(4);
@@ -166,5 +194,13 @@ describe("CSS intensity layer", () => {
       /\.horizon-motion-intensity \{[\s\S]*?\}/.exec(reduced)?.[0] ?? "";
 
     expect(rule).toContain("display: none");
+  });
+
+  it("crossfades the listening fallback on opacity only", () => {
+    const rule = /\.horizon-listen-layer \{[\s\S]*?\}/.exec(css)?.[0] ?? "";
+
+    expect(rule).toContain("transition: opacity");
+    expect(rule).not.toContain("transition: all");
+    expect(css).toContain(':root[data-listening="true"] .horizon-listen-layer');
   });
 });

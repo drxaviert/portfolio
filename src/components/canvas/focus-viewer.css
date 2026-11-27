@@ -1,0 +1,234 @@
+/*
+ * The shared focus viewer. It is a full-viewport layer over the canvas, used
+ * by the live Motion & Stills study and the dev prototype alike.
+ */
+
+.cv-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  overflow: hidden;
+}
+
+/* The overlay stays mounted between opens; this removes the layer insertion
+   from the pointer-up frame while keeping the DOM warm. */
+.cv-viewer[data-hidden] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cv-viewer[data-hidden] .cv-viewer__frame,
+.cv-viewer[data-hidden] .cv-viewer__caption,
+.cv-viewer[data-hidden] .cv-viewer__close {
+  pointer-events: none;
+}
+
+.cv-viewer:focus,
+.cv-viewer:focus-visible {
+  outline: none;
+}
+
+.cv-viewer__backdrop {
+  position: absolute;
+  inset: 0;
+}
+
+.cv-viewer__stage {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* The frame is centred in the full viewport, independent of the caption, so
+   the canvas grow and the DOM frame land on the same box. */
+.cv-viewer__slot {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  padding: 4vh 6vw;
+  pointer-events: none;
+  place-items: center;
+}
+
+.cv-viewer__frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-highest);
+  box-shadow: var(--shadow-card);
+  will-change: transform;
+  pointer-events: auto;
+}
+
+.cv-viewer[data-canvas-owned] .cv-viewer__frame {
+  background: transparent;
+  box-shadow: none;
+}
+
+.cv-viewer[data-pending] .cv-viewer__backdrop {
+  pointer-events: none;
+}
+
+.cv-viewer[data-pending] .cv-viewer__close {
+  opacity: 0;
+  pointer-events: none;
+  animation: none;
+}
+
+.cv-viewer__content {
+  position: absolute;
+  inset: 0;
+}
+
+.cv-viewer__slide {
+  position: absolute;
+  inset: 0;
+}
+
+.cv-viewer__video {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.cv-viewer__video[data-visible] {
+  opacity: 1;
+}
+
+/* A decoded still at display resolution carries the open flight; the clip is
+   revealed on its first presented frame, so no playing video layer is
+   rastered mid-zoom. */
+.cv-viewer__poster {
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.cv-viewer:not([data-zooming]) .cv-viewer__poster {
+  background-size: contain;
+}
+
+.cv-viewer__media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+.cv-viewer__media .media-asset {
+  object-fit: contain;
+}
+
+/* The FLIP starts at the tile's cropped box; cover keeps that crop until the
+   frame reaches the media's own aspect at the focus box. */
+.cv-viewer[data-zooming] .cv-viewer__media .media-asset {
+  object-fit: cover;
+}
+
+.cv-viewer__caption {
+  position: absolute;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  max-width: min(88vw, 720px);
+  padding: 8px 12px;
+  margin: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  text-wrap: pretty;
+  box-shadow: var(--shadow-card);
+  pointer-events: auto;
+  transform: translateX(-50%);
+}
+
+.cv-viewer__close {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  z-index: 2;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+  cursor: pointer;
+  place-items: center;
+  box-shadow: var(--shadow-card);
+}
+
+.cv-viewer__close:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.cv-viewer[data-closing] .cv-viewer__caption,
+.cv-viewer[data-closing] .cv-viewer__close {
+  opacity: 0;
+  transition: opacity 150ms var(--ease-decelerate);
+}
+
+/* The close button joins the frame after the viewer's first decoded frame. */
+.cv-viewer .cv-viewer__close {
+  opacity: 0;
+}
+
+.cv-viewer[data-ready] .cv-viewer__close {
+  animation: cv-viewer-chrome-in 180ms var(--ease-decelerate) 200ms forwards;
+}
+
+.cv-viewer[data-ready][data-closing] .cv-viewer__close {
+  animation: none;
+  opacity: 0;
+}
+
+@keyframes cv-viewer-chrome-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cv-viewer__close:hover {
+    background: var(--surface-container-high);
+  }
+}
+
+@media (max-width: 640px) {
+  .cv-viewer__slot {
+    padding: 2vh 4vw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-viewer[data-closing] .cv-viewer__caption,
+  .cv-viewer[data-closing] .cv-viewer__close {
+    transition: none;
+  }
+
+  .cv-viewer[data-ready] .cv-viewer__close {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+@media (forced-colors: active) {
+  .cv-viewer__frame,
+  .cv-viewer__caption,
+  .cv-viewer__close {
+    border: 1px solid CanvasText;
+  }
+}

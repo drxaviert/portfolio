@@ -1,0 +1,43 @@
+{
+  "id": "comestic-rnd-01a-scene-03-00000-b53726405e",
+  "kind": "image",
+  "width": 1472,
+  "height": 1840,
+  "alt": "White cosmetic tube on a pale blue surface",
+  "caption": "Cosmetic R&D, scene 03",
+  "createdAt": "2026-11-24T16:45:50.059Z",
+  "original": "Comestic_RnD_01a_Scene_03_00000.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-03-00000-b53726405e/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-03-00000-b53726405e/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-03-00000-b53726405e/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-03-00000-b53726405e/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1472,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-03-00000-b53726405e/w1472.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1472,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-03-00000-b53726405e/w1472.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRmoAAABXRUJQVlA4IF4AAADwAwCdASoQABQAPtFUo0uoJKMhsAgBABoJZwAAXedIqfphTqM43jIAAP72kzd04qeFQ1b1tDQEWte98dmV6j8Wb6sx954uMNL6dI/H1p3z3CxJ0Sqnuhv2S4Q9SCgA"
+}

@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { ReactNode } from "react";
 import { HorizonLive } from "@/components/horizon/horizon-live";
 import { EntranceCell } from "./entrance-cell";
 import type { EntranceVariant } from "./entrance-cell";
@@ -10,19 +10,20 @@ import type { CarouselItem } from "./carousel/home-carousel";
 import { EMPTY_WORK_LABEL } from "./empty-work";
 import { FrameLineSpotlight } from "./frame-line-spotlight";
 import { PlayCard, ProjectCard, WorkSlivers } from "./home-cards";
+import { NowPlayingCard } from "./now-playing-card";
 import { RingHoverPointer } from "./ring-pointer";
-import { TrackerWidget } from "./tracker-widget";
 import "./ring-hover.css";
 
 /*
- * Nominal frame: 780px content + 2 x 64px gaps = 908px. A 900px-tall viewport
- * overflows that by 8px, so the horizontal lines fall outside the frame and
- * are clipped. Shrink the gaps to the space available; 64px is kept as soon
- * as 100dvh leaves room (1920x1080 is unchanged).
+ * The frame hairlines keep main's full-length treatment: the verticals run
+ * the full viewport height and the horizontals span the frame width, so they
+ * cross at the frame corners. Their positions follow the active composition:
+ * the xl box is the 910px ink frame (780px content + 64px bottom gap + 65px
+ * top gap including the 1px line, plus 1px slack) and the tablet box is the
+ * 768x964 artboard. `--frame-line-top` / `--frame-line-height` place the
+ * horizontals; `--frame-line-v-top` / `--frame-line-v-height` extend the
+ * verticals to the viewport in globals.css.
  */
-const frameGapStyle = {
-  "--frame-gap": "clamp(0px, calc((100dvh - 780px) / 2), 64px)",
-} as CSSProperties;
 
 /**
  * The home page layout, shared by / and /dev/prototype so both routes render
@@ -30,8 +31,10 @@ const frameGapStyle = {
  * around this component and nothing else.
  *
  * Mirrors the final Figma frames (Day 121:2003, Night 121:3243): a 1200-wide
- * frame with 1px hairlines, a tracker card plus the Play card shell, the
- * 753/180/83/84 main band and the nav bar.
+ * frame with 1px hairlines, the now-playing card plus the Play card shell, the
+ * 753/180/83/84 main band and the nav bar. From 768 to 1279 the 768 frame
+ * (Home / Dawn / 768) replaces it: a 768x964 portrait frame with a 220px top
+ * band (the now-playing card at 220), a 444/120/52/52 band and the same nav.
  *
  * Hover is the promoted "Ring + nav bar" language: every card and the nav bar
  * is one ring surface that grows into its own box and is lit by a glow in the
@@ -76,8 +79,16 @@ type HomeLayoutProps = {
   entrance?: EntranceVariant;
   shipped?: boolean;
   /**
+   * Optional server-rendered Play card. The shell is also imported by the
+   * client-side entrance harness, so it may not fetch on its own: a server
+   * route that owns the data passes the filled card here, and every client
+   * preview keeps the empty shell. This is what removes the old environment
+   * check and the Server Action call during initial render.
+   */
+  playCard?: ReactNode;
+  /**
    * Draw the horizon inside this layout. The shipped routes pass false: the
-   * root layout's SharedHorizon owns the one canvas above both routes. Dev
+   * site layout's SharedHorizon owns the one canvas above both routes. Dev
    * prototypes keep their own.
    */
   horizon?: boolean;
@@ -89,6 +100,7 @@ export function HomeLayout({
   items,
   entrance,
   shipped = false,
+  playCard,
   horizon = true,
 }: HomeLayoutProps = {}) {
   const lead = items?.[0];
@@ -116,40 +128,52 @@ export function HomeLayout({
       <RingHoverPointer />
 
       <div
-        className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-12 xl:py-15"
-        style={frameGapStyle}
+        data-home-frame=""
+        className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-4 md:px-8 md:py-15"
       >
-        {/* Vertical frame lines: 1px hairlines on the content-column edges,
-            full frame height (Figma 121:2009/121:2010). */}
+        {/* The four frame hairlines keep main's full-length treatment: the
+            verticals run the whole viewport height and the horizontals span
+            the frame width, crossing at the frame corners. Only their
+            positions follow the composition: the tablet box is 768x964 and
+            the xl box is the 910px ink frame centred in the viewport. */}
         <span
           aria-hidden="true"
           data-frame-line="v"
-          className="pointer-events-none absolute inset-y-0 left-0 hidden w-px bg-frame-line min-[1440px]:block"
+          className="pointer-events-none absolute left-0 hidden w-px bg-frame-line md:block"
+          style={{
+            top: "var(--frame-line-v-top)",
+            height: "var(--frame-line-v-height)",
+          }}
         />
         <span
           aria-hidden="true"
           data-frame-line="v"
-          className="pointer-events-none absolute inset-y-0 right-0 hidden w-px bg-frame-line min-[1440px]:block"
+          className="pointer-events-none absolute right-0 hidden w-px bg-frame-line md:block"
+          style={{
+            top: "var(--frame-line-v-top)",
+            height: "var(--frame-line-v-height)",
+          }}
+        />
+        <span
+          aria-hidden="true"
+          data-frame-line="h"
+          className="pointer-events-none absolute inset-x-0 hidden h-px bg-frame-line md:block"
+          style={{ top: "var(--frame-line-top)" }}
+        />
+        <span
+          aria-hidden="true"
+          data-frame-line="h"
+          className="pointer-events-none absolute inset-x-0 hidden h-px bg-frame-line md:block"
+          style={{
+            top: "calc(var(--frame-line-top) + var(--frame-line-height) - 1px)",
+          }}
         />
 
         <div className="relative mx-auto my-auto flex w-full max-w-[1136px] flex-col gap-3">
-          {/* Frame lines: the 1200-wide hairlines sit 65px above and 64px
-              below the content column (Figma 121:2007/121:2008). */}
-          <span
-            aria-hidden="true"
-            data-frame-line="h"
-            className="pointer-events-none absolute -inset-x-8 hidden h-px bg-frame-line min-[1440px]:block"
-            style={{ top: "calc(var(--frame-gap) * -1 - 1px)" }}
-          />
-          <span
-            aria-hidden="true"
-            data-frame-line="h"
-            className="pointer-events-none absolute -inset-x-8 hidden h-px bg-frame-line min-[1440px]:block"
-            style={{ bottom: "calc(var(--frame-gap) * -1)" }}
-          />
-
-          {/* Top band: the widget card, then the Play card's empty shell at
-              its Figma size (275 + 12 + 849 at 1440). No generative art. */}
+          {/* Top band. The xl frame pairs the now-playing card with the Play
+              card (275 + 12 + 849 at 1440); the 768 frame pairs the same card
+              at 220 with it (220 + 12 + 472). Both are 220/276 tall, so the
+              visible card drives the row. */}
           <div className="flex gap-3">
             <EntranceCell
               variant={entrance}
@@ -157,7 +181,7 @@ export function HomeLayout({
               row={1}
               className="shrink-0"
             >
-              <TrackerWidget />
+              <NowPlayingCard />
             </EntranceCell>
             <EntranceCell
               variant={entrance}
@@ -165,14 +189,14 @@ export function HomeLayout({
               row={1}
               className="min-w-0 flex-1"
             >
-              <PlayCard />
+              {playCard ?? <PlayCard />}
             </EntranceCell>
           </div>
 
           {items && items.length === 0 ? (
             // No studies yet: one line in the band's own height, in the same
             // place the cards would be. No stand-in card, no empty slot.
-            <div className="flex h-[420px] items-center justify-center md:h-[560px] lg:h-[360px] xl:h-[416px]">
+            <div className="flex h-[420px] items-center justify-center md:h-[416px]">
               <p className="text-base text-on-surface-variant">
                 {EMPTY_WORK_LABEL}
               </p>
@@ -184,25 +208,19 @@ export function HomeLayout({
                   entrance as items 3-6, and CSS shows only one of them. */}
               <div className="grid gap-3 md:hidden">
                 <EntranceCell variant={entrance} item={3} row={2}>
-                  <ProjectCard
-                    title={stacked?.title}
-                    slug={stacked?.slug}
-                  />
+                  <ProjectCard title={stacked?.title} slug={stacked?.slug} />
                 </EntranceCell>
                 <WorkSlivers entrance={entrance} />
               </div>
               <HomeCarousel items={items} entrance={entrance} />
             </>
           ) : (
-            <div className="grid gap-3 md:h-[560px] md:grid-cols-[444fr_120fr_52fr_52fr] lg:h-[360px] lg:grid-cols-[656fr_140fr_64fr_64fr] xl:h-[416px] xl:grid-cols-[753fr_180fr_83fr_84fr]">
+            <div className="grid gap-3 md:h-[416px] md:grid-cols-[753fr_180fr_83fr_84fr]">
               <EntranceCell variant={entrance} item={3} row={2}>
                 {work ? (
                   <ProjectCard title={work.title} onOpen={work.onOpen} />
                 ) : (
-                  <ProjectCard
-                    title={featured?.title}
-                    slug={featured?.slug}
-                  />
+                  <ProjectCard title={featured?.title} slug={featured?.slug} />
                 )}
               </EntranceCell>
               <WorkSlivers items={work?.slivers} entrance={entrance} />

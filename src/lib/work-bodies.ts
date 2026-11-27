@@ -29,5 +29,8 @@ export const WORK_BODIES: Record<WorkSlug, () => Promise<WorkBody>> = {
   linksys: () => import("../../content/work/linksys.mdx"),
   "london-public-library": () =>
     import("../../content/work/london-public-library.mdx"),
+  "motion-and-stills": () =>
+    import("../../content/work/motion-and-stills.mdx"),
+  "human-contact": () => import("../../content/work/human-contact.mdx"),
   personal: () => import("../../content/work/personal.mdx"),
 };

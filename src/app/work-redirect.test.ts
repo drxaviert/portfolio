@@ -4,7 +4,7 @@ import nextConfig from "../../next.config";
 /**
  * `/work` used to be a permanent redirect to `/`, because the site had no
  * index. It is now the work sheet's own route, so nothing may send it away.
- * `/work` renders the sheet: see ./page.test.tsx.
+ * `/work` renders the sheet: see ./work/page.test.tsx.
  */
 describe("work route", () => {
   it("does not redirect /work", async () => {

@@ -1,0 +1,295 @@
+/*
+ * The satellite off-home control: the 13px dot at the orb's 4 o'clock edge.
+ * It is absolute inside the 36px orb slot, so the nav's layout and resting
+ * pixels never change.
+ */
+
+.orb-shell {
+  position: relative;
+}
+
+.orb-shell > .nav-logo {
+  z-index: 1;
+}
+
+.orb-head {
+  position: relative;
+  display: block;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: 50%;
+  background-image: var(--orb-gradient);
+}
+
+.orb-focus-ring:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.orb-eyes {
+  position: absolute;
+  inset: 0;
+}
+
+.orb-eyes span {
+  position: absolute;
+  top: 10.5px;
+  width: 3.4px;
+  height: 8px;
+  border-radius: 999px;
+  background-color: var(--palette-neutral-50);
+}
+
+.orb-eyes span:first-child {
+  left: 13.5px;
+}
+
+.orb-eyes span:last-child {
+  left: 20.6px;
+}
+
+.orb-satellite {
+  position: absolute;
+  top: 21px;
+  left: 21px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    opacity var(--duration-short-1) var(--ease-accelerate),
+    transform var(--duration-short-4) var(--ease-emphasized-decelerate);
+}
+
+/* 40px target that only grows right and bottom, away from the Home orb. */
+.orb-satellite::before {
+  position: absolute;
+  inset: 0 -16px -16px 0;
+  border-radius: 50%;
+  content: "";
+}
+
+.orb-satellite[data-visible="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  transition:
+    opacity var(--duration-long-1) var(--ease-emphasized-decelerate),
+    transform var(--duration-short-4) var(--ease-emphasized-decelerate);
+}
+
+/*
+ * The dock sets data-nav-leaving before it starts flying home, so this exit
+ * starts on the nav's first frame instead of waiting for the route change that
+ * lands after the 300ms close. 100ms fits inside the shorter 120ms fade used by
+ * browser Back. Visibility flips after the fade so the control leaves the tab
+ * order and the accessibility tree.
+ */
+.wd-nav-dock[data-nav-leaving="true"] .orb-satellite {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity var(--duration-short-1) var(--ease-accelerate),
+    visibility 0s linear var(--duration-short-1);
+}
+
+/* A settled home nav never paints the satellite, including a re-revealed
+   Activity copy with stale player state. */
+.wd-nav-dock[data-nav-state="home"]:not([data-nav-leaving="true"])
+  .orb-satellite {
+  visibility: hidden;
+}
+
+.orb-satellite:active {
+  transform: scale(0.96);
+  transition-duration: var(--duration-short-1);
+}
+
+/*
+ * One face owns the whole grow. Animating its size keeps the 2px ring at 2px;
+ * a transform scale would thin the edge as the face shrinks.
+ */
+.orb-sat-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background-image: var(--orb-gradient);
+  /* The ring is the nav surface showing through, not a white stroke. */
+  box-shadow: 0 0 0 2px var(--surface-container-low);
+  transform: translate(-50%, -50%);
+  transition:
+    width var(--duration-long-1) var(--ease-emphasized-decelerate),
+    height var(--duration-long-1) var(--ease-emphasized-decelerate);
+}
+
+.orb-sat-dot::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-image: var(--orb-gradient);
+  content: "";
+  opacity: 0;
+}
+
+/*
+ * The resting dot carries the transport state. Both glyphs stay mounted so a
+ * play/pause flip crossfades in place; opacity and scale transitions keep the
+ * swap interruptible.
+ */
+.orb-sat-glyph {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  color: var(--palette-neutral-50);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity var(--duration-long-1) var(--ease-emphasized-decelerate);
+}
+
+.orb-sat-glyph-large {
+  opacity: 0;
+}
+
+.orb-sat-icon {
+  grid-area: 1 / 1;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity var(--duration-short-3) var(--ease-decelerate),
+    transform var(--duration-short-3) var(--ease-decelerate);
+}
+
+/* A triangle reads light on its base side, so nudge it off the box centre. */
+.orb-sat-icon-play {
+  translate: 0.5px 0;
+}
+
+.orb-sat-icon[data-active="true"] {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.orb-satellite[data-visible="true"] .orb-sat-dot[data-playing="true"]::after {
+  animation: orb-satellite-pulse 1600ms var(--ease-decelerate) infinite;
+}
+
+@keyframes orb-satellite-pulse {
+  0% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+.orb-satellite:focus-visible .orb-sat-dot,
+.orb-satellite[data-paused="true"] .orb-sat-dot {
+  width: 24px;
+  height: 24px;
+}
+
+.orb-satellite:focus-visible .orb-sat-glyph,
+.orb-satellite[data-paused="true"] .orb-sat-glyph {
+  opacity: 0;
+}
+
+.orb-satellite:focus-visible .orb-sat-glyph-large,
+.orb-satellite[data-paused="true"] .orb-sat-glyph-large {
+  opacity: 1;
+}
+
+/* The settled button has no dot to pulse; keep the ring only at rest. */
+.orb-satellite:focus-visible .orb-sat-dot[data-playing="true"]::after {
+  animation: none;
+  opacity: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .orb-shell:hover
+    .orb-satellite:not([data-suppress-hover="true"])
+    .orb-sat-dot {
+    width: 24px;
+    height: 24px;
+  }
+
+  .orb-shell:hover
+    .orb-satellite:not([data-suppress-hover="true"])
+    .orb-sat-glyph {
+    opacity: 0;
+  }
+
+  .orb-shell:hover
+    .orb-satellite:not([data-suppress-hover="true"])
+    .orb-sat-glyph-large {
+    opacity: 1;
+  }
+
+  .orb-shell:hover
+    .orb-satellite:not([data-suppress-hover="true"])
+    .orb-sat-dot[data-playing="true"]::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-satellite[data-visible="false"],
+  .wd-nav-dock[data-nav-leaving="true"] .orb-satellite {
+    opacity: 0;
+    visibility: hidden;
+    transition: none;
+  }
+
+  .orb-satellite,
+  .orb-satellite[data-visible="true"] {
+    transition: opacity var(--duration-short-3) var(--ease-linear);
+  }
+
+  .orb-sat-dot {
+    transition: none;
+  }
+
+  .orb-satellite,
+  .orb-satellite:active {
+    transform: none;
+  }
+
+  .orb-sat-dot {
+    transform: translate(-50%, -50%);
+  }
+
+  .orb-sat-glyph,
+  .orb-sat-glyph-large {
+    transition: none;
+  }
+
+  .orb-sat-dot::after,
+  .orb-satellite[data-visible="true"] .orb-sat-dot[data-playing="true"]::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .orb-sat-glyph .orb-sat-icon {
+    transform: none;
+    transition: none;
+  }
+}

@@ -43,7 +43,7 @@ export function Intro({
         id={titleId}
         tabIndex={-1}
         dir="auto"
-        className="wd-intro-title text-balance text-title-sm font-semibold md:text-title"
+        className="wd-intro-title text-balance text-title-fluid font-semibold"
       >
         {meta.title}
       </h1>

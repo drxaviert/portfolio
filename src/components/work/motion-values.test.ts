@@ -169,8 +169,10 @@ describe("drawer motion values", () => {
     expect(index).toMatch(
       /\[data-reveal="pending"\] \.wd-index-scroll \{\s*opacity: 0;\s*transition: none;/,
     );
+    // A route restoring an already-open drawer shares the visible state but
+    // not the entrance animation (pf-9cv.9).
     expect(index).toMatch(
-      /\[data-reveal="on"\]:not\(\[data-phase="closing"\]\)\s*\.wd-index-scroll \{\s*opacity: 1;\s*transition: opacity var\(--duration-medium-5\)\s*var\(--ease-emphasized-decelerate\);/,
+      /\[data-reveal="on"\]:not\(\[data-phase="closing"\]\)\s*\.wd-index-scroll,\s*\.wd-expand-layer\[data-reveal="settled"\] \.wd-index-scroll \{\s*opacity: 1;\s*transition: opacity var\(--duration-medium-5\)\s*var\(--ease-emphasized-decelerate\);/,
     );
     // Reduced motion keeps the fade, at the drawer's 120ms.
     const reduced = reducedMotionBlock(index);

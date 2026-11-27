@@ -97,6 +97,8 @@ Throwaway test branches with no worktree: `drxaviert/aquarium` (`8e9702e`, 2 ahe
 - When handing Dat a test link, give `http://localhost:<port>` and `http://192.168.2.33:<port>`.
 - Once Dat approves a job, merge its PR and push `main` without asking again. Commit bodies say what
   changed and why.
+- Browser, playback and perf tests must use `MEDIA_ORIGIN=local` and `media/local/`. Never pull
+  production media; Blob is paused and R2 transfer is billed.
 - A guard hook blocks worktree removal, so Dat runs the orca worktree removal command. Release the
   job's workers first and check for uncommitted or unpushed work.
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  CANVAS_MAX_HEIGHT,
+  canvasTargetSize,
   HLS_MIN_DURATION,
   hlsRungs,
   selectInbox,
@@ -71,5 +73,41 @@ describe("hlsRungs", () => {
   it("floors an odd source height to an even one", () => {
     expect(hlsRungs(479)[0].height).toBe(478);
     expect(hlsRungs(721).map((rung) => rung.height)).toEqual([720, 480]);
+  });
+});
+
+describe("canvasTargetSize", () => {
+  it("caps a 1080p clip at 480px tall with an even width", () => {
+    expect(canvasTargetSize(1920, 1080, 1080)).toEqual({
+      width: 852,
+      height: 480,
+    });
+    expect(canvasTargetSize(1920, 1080, 1080)?.height).toBe(CANVAS_MAX_HEIGHT);
+  });
+
+  it("keeps a square clip square", () => {
+    expect(canvasTargetSize(1080, 1080, 1080)).toEqual({
+      width: 480,
+      height: 480,
+    });
+  });
+
+  it("drops the 720p rung to 480", () => {
+    expect(canvasTargetSize(1280, 720, 720)).toEqual({
+      width: 852,
+      height: 480,
+    });
+  });
+
+  it("returns nothing when the main MP4 already fits", () => {
+    expect(canvasTargetSize(852, 480, 480)).toBeUndefined();
+    expect(canvasTargetSize(640, 360, 360)).toBeUndefined();
+  });
+
+  it("never upscales a small portrait source", () => {
+    expect(canvasTargetSize(390, 844, 844)).toEqual({
+      width: 220,
+      height: 480,
+    });
   });
 });

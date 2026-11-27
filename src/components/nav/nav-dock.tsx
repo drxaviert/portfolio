@@ -92,20 +92,31 @@ export function NavDock() {
       if (!el) return;
       if (stateRef.current === to && !flyingRef.current) return;
 
+      // The satellite reads this attribute, so its exit starts on the same
+      // frame as the nav's return instead of waiting for the route change that
+      // lands after the flight.
+      if (to === "reader") {
+        delete el.dataset.navLeaving;
+      } else {
+        el.dataset.navLeaving = "true";
+      }
+
       // Nothing has loaded the reader in this document, so there is no motion to
       // fly with and no drawer to fly into: take the new place at once.
       const animate = getDockAnimate();
       if (!animate) {
         el.style.removeProperty("top");
         el.style.removeProperty("transform");
+        el.style.removeProperty("transform-origin");
         el.style.removeProperty("opacity");
         el.dataset.navState = to;
         stateRef.current = to;
         if (to === "home") alignHomeRef.current?.();
+        delete el.dataset.navLeaving;
         return;
       }
 
-      const from = el.getBoundingClientRect().top;
+      const fromRect = el.getBoundingClientRect();
       flyingRef.current?.stop();
       flyingRef.current = null;
 
@@ -120,6 +131,7 @@ export function NavDock() {
 
         el.style.removeProperty("top");
         el.style.removeProperty("transform");
+        el.style.removeProperty("transform-origin");
         el.dataset.navState = to;
         stateRef.current = to;
 
@@ -133,18 +145,41 @@ export function NavDock() {
 
         if (flyingRef.current !== fadeIn) return;
         flyingRef.current = null;
+        delete el.dataset.navLeaving;
         if (to === "home") alignHomeRef.current?.();
         return;
       }
 
       // Switching state moves the element's CSS box; measure where it would
       // paint untransformed, then start from where it appears right now.
+      //
+      // Both states now use the same --fit zoom, so the dock keeps one size
+      // through the switch: the flight only moves it. The measured boxes are
+      // still carried as a scale so a future width difference cannot snap; the
+      // transform lives inside the zoomed dock, hence the /zoom on the travel.
       el.style.removeProperty("top");
       el.style.transform = "none";
+      el.style.removeProperty("transform-origin");
       el.dataset.navState = to;
       stateRef.current = to;
-      const target = el.getBoundingClientRect().top;
-      const delta = from - target;
+      const targetRect = el.getBoundingClientRect();
+      const delta = fromRect.top - targetRect.top;
+      const centerDelta =
+        fromRect.left +
+        fromRect.width / 2 -
+        (targetRect.left + targetRect.width / 2);
+      const scale =
+        targetRect.width > 0 ? fromRect.width / targetRect.width : 1;
+      // The dock is zoomed by --fit in both states now, so the measured
+      // positions are painted pixels while the transform is written inside the
+      // zoomed element. Divide the travel back into its coordinate space.
+      const zoom = el.offsetWidth > 0 ? targetRect.width / el.offsetWidth : 1;
+      const startTransform = `translate(${centerDelta / zoom}px, ${delta / zoom}px) scale(${scale})`;
+
+      // Pin the first painted frame to the old box before starting; Motion's
+      // first keyframe then continues from exactly where the switch left it.
+      el.style.transformOrigin = "50% 0";
+      el.style.transform = startTransform;
 
       const fallback: NavFlightTiming =
         to === "reader"
@@ -155,7 +190,7 @@ export function NavDock() {
 
       const flight = animate(
         el,
-        { transform: [`translateY(${delta}px)`, "translateY(0px)"] },
+        { transform: [startTransform, "translate(0px, 0px) scale(1)"] },
         spec,
       );
       flyingRef.current = flight;
@@ -179,12 +214,17 @@ export function NavDock() {
       flyingRef.current = null;
       endNavBlur();
       el.style.removeProperty("transform");
+      el.style.removeProperty("transform-origin");
+      delete el.dataset.navLeaving;
       if (to === "home") alignHomeRef.current?.();
 
       // Motion writes the final keyframe as an inline style on the frame after
       // `finished` resolves; clear it again so no identity transform lingers.
       requestAnimationFrame(() => {
-        if (!flyingRef.current) el.style.removeProperty("transform");
+        if (!flyingRef.current) {
+          el.style.removeProperty("transform");
+          el.style.removeProperty("transform-origin");
+        }
       });
     },
     [],
@@ -286,9 +326,10 @@ export function NavDock() {
     }
   }
 
-  // The dock is the site's nav; the /dev prototype routes draw their own
-  // chrome and the dock's reader rules would cover their corners (T16 M3).
-  if (pathname.startsWith("/dev")) return null;
+  // The dock is the site's nav; the /dev prototype routes and the /live
+  // full-screen pieces draw their own chrome, and the dock's reader rules
+  // would cover their corners (T16 M3).
+  if (pathname.startsWith("/dev") || pathname.startsWith("/live")) return null;
 
   return (
     <>

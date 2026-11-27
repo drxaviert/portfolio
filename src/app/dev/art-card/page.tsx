@@ -1,0 +1,457 @@
+import { notFound } from "next/navigation";
+import { ArtCard } from "@/components/home/art-card/art-card";
+import { ArtImage } from "@/components/home/art-card/art-image";
+import { PaintingFrame } from "@/components/home/art-card/painting-frame";
+import { ART_DATA_VERSION, fallbackArt, getTodaysArt } from "@/lib/daily-art";
+import type { DailyArt } from "@/lib/daily-art";
+import "./lab.css";
+
+/**
+ * Dev lab for the daily painting card.
+ *
+ * Every sample is pinned to a real AIC id (except the bundled fallback) and
+ * rendered at the three sizes the home actually gives the card:
+ *
+ *   1440 → 849 × 276
+ *   1024 → 728 × 220
+ *    375 → 171 × 160
+ *
+ * That covers portrait, landscape, square, panorama and tall-scroll aspects.
+ * The frame material follows the phase, not the artwork: ornate gilt on the
+ * light surface and the same ornate gilt with the walnut palette at night.
+ * The top row shows the live day and night materials side by side; the matrix
+ * shows them on several paintings, and the samples below keep the real cards.
+ */
+export const metadata = {
+  title: "Daily painting card lab",
+  robots: { index: false, follow: false },
+};
+
+type LabSample = {
+  key: string;
+  caption: string;
+  note?: string;
+  art: DailyArt;
+};
+
+const CARD_SIZES = [
+  { label: "1440 · 849 × 276", width: 849, height: 276 },
+  { label: "1024 · 728 × 220", width: 728, height: 220 },
+  { label: "375 · 171 × 160", width: 171, height: 160 },
+] as const;
+
+/**
+ * Contrast matrix instrumentation: several paintings on the real card surface
+ * in every phase. Nested data-phase blocks re-declare the phase tokens for
+ * their subtree, so one page can show all four side by side. The material is
+ * phase-driven, not era-driven; the samples below keep the real cards.
+ */
+const PHASE_COLUMNS = [
+  { id: "day", label: "Day" },
+  { id: "dawn", label: "Dawn" },
+  { id: "dusk", label: "Dusk" },
+  { id: "night", label: "Night" },
+] as const;
+
+const SAMPLE_ROWS = [
+  {
+    sampleKey: "portrait-ornate",
+    label: "Portrait",
+    note: "0.79 · The Music Lesson",
+  },
+  {
+    sampleKey: "landscape-carved",
+    label: "Landscape",
+    note: "1.70 · John Thomlinson",
+  },
+  {
+    sampleKey: "square-walnut",
+    label: "Square",
+    note: "1.00 · Irises",
+  },
+  {
+    sampleKey: "scroll",
+    label: "Tall scroll",
+    note: "0.41 · Beauty Beneath a Willow Tree",
+  },
+  {
+    sampleKey: "fallback",
+    label: "Bundled stand-in",
+    note: "4:3 · no image",
+  },
+] as const;
+
+function baseArt(
+  fields: Omit<DailyArt, "articUrl" | "fallback" | "date">,
+  date: string,
+): DailyArt {
+  return {
+    ...fields,
+    date,
+    articUrl: fields.id ? `https://www.artic.edu/artworks/${fields.id}` : null,
+    fallback: false,
+  };
+}
+
+function samples(today: string): LabSample[] {
+  const common = {
+    lqip: null,
+  };
+
+  return [
+    {
+      key: "portrait-ornate",
+      caption: "Portrait · 0.79 · The Music Lesson, 1665",
+      art: baseArt(
+        {
+          id: 512,
+          title: "The Music Lesson",
+          artist: "Gerard ter Borch the Younger",
+          dateDisplay: "c. 1670",
+          dateStart: 1665,
+          placeOfOrigin: "Netherlands",
+          styleTitle: "17th Century",
+          medium: "Oil on canvas",
+          synopsis:
+            "A woman plays the double-headed lute while her companion marks the tempo. The intimate interior and the bed behind them leave the precise relationship tantalizingly ambiguous.",
+          imageId: "d55ad474-aa3c-6881-b10d-06a9ac6e05b7",
+          width: 6218,
+          height: 7855,
+          alt: "A work made of oil on canvas.",
+          ...common,
+        },
+        today,
+      ),
+    },
+    {
+      key: "landscape-carved",
+      caption: "Landscape · 1.70 · John Thomlinson and His Family, 1745",
+      art: baseArt(
+        {
+          id: 2169,
+          title: "John Thomlinson and His Family",
+          artist: "Arthur Devis",
+          dateDisplay: "1745",
+          dateStart: 1745,
+          placeOfOrigin: "England",
+          styleTitle: "18th Century",
+          medium: "Oil on canvas",
+          synopsis: "Painted in England — 18th Century.",
+          imageId: "e8a4e4ed-13cf-901a-adc9-4a0e9bc47424",
+          width: 3000,
+          height: 1767,
+          alt: "A work made of oil on canvas.",
+          ...common,
+        },
+        today,
+      ),
+    },
+    {
+      key: "square-walnut",
+      caption: "Square · 1.00 · Irises, 1914",
+      art: baseArt(
+        {
+          id: 4887,
+          title: "Irises",
+          artist: "Claude Monet",
+          dateDisplay: "1914-17",
+          dateStart: 1914,
+          placeOfOrigin: "France",
+          styleTitle: "Impressionism",
+          medium: "Oil on canvas",
+          synopsis:
+            "Irises is one of a series of paintings Monet undertook during World War I, experimenting with familiar motifs on an ever-expanding scale. Lacking a horizon, the viewer is both on top of and submerged in its encrusted surface.",
+          imageId: "1f925e43-ff81-5ad7-da75-b28ea651c09f",
+          width: 5407,
+          height: 5398,
+          alt: "A work made of oil on canvas.",
+          ...common,
+        },
+        today,
+      ),
+    },
+    {
+      key: "landscape-walnut",
+      caption: "Landscape · 1.49 · A Sunday on La Grande Jatte, 1884",
+      art: baseArt(
+        {
+          id: 27992,
+          title: "A Sunday on La Grande Jatte - 1884",
+          artist: "Georges Seurat",
+          dateDisplay: "1884-86",
+          dateStart: 1884,
+          placeOfOrigin: "France",
+          styleTitle: "Pointillism",
+          medium: "Oil on canvas",
+          synopsis:
+            "Seurat depicted Parisians strolling, lounging, sailing and fishing in La Grande Jatte on the River Seine. He used Pointillism, applying tiny dabs of colour that viewers see as a single brilliant hue.",
+          imageId: "2d484387-2509-5e8e-2c43-22f9981972eb",
+          width: 9310,
+          height: 6237,
+          alt: "Large painting of people in a crowded park, brushstrokes are dots.",
+          ...common,
+        },
+        today,
+      ),
+    },
+    {
+      key: "panorama",
+      caption: "Panorama · 3.04 · Landscape of the Four Seasons, c. 1560",
+      art: baseArt(
+        {
+          id: 7634,
+          title: "Landscape of the Four Seasons",
+          artist: "Sesson Shukei",
+          dateDisplay: "About 1560",
+          dateStart: 1501,
+          placeOfOrigin: "Japan",
+          styleTitle: "Japanese (culture or style)",
+          medium: "Pair of six-panel screens; ink and light color on paper",
+          synopsis:
+            "Sesson Shukei was a Zen Buddhist monk-painter who worked in eastern Japan without ever reaching Kyoto. His dreamlike Chinese landscape expands in spatial depth, with the seasons flowing from right to left.",
+          imageId: "58d58cdf-ed3d-c641-1910-504ae64b8ce8",
+          width: 3000,
+          height: 987,
+          alt: "A work made of pair of six-panel screens; ink and light color on paper.",
+          ...common,
+        },
+        today,
+      ),
+    },
+    {
+      key: "scroll",
+      caption: "Tall scroll · 0.41 · Beauty Beneath a Willow Tree, c. 1780",
+      art: baseArt(
+        {
+          id: 8900,
+          title: "Beauty Beneath a Willow Tree",
+          artist: "Isoda Koryusai",
+          dateDisplay: "Edo period, c. 1780",
+          dateStart: 1775,
+          placeOfOrigin: "Japan",
+          styleTitle: "Japanese (culture or style)",
+          medium: "Hanging scroll; ink on silk",
+          synopsis:
+            "A young woman strolls beneath a willow tree, lost in thought. Her black kimono, layered reds and phoenix-embroidered obi suggest she is on the way to an engagement.",
+          imageId: "5708fdd8-40e3-3c68-41bb-454684981dc5",
+          width: 924,
+          height: 2250,
+          alt: "A work made of hanging scroll; ink on silk.",
+          ...common,
+        },
+        today,
+      ),
+    },
+    {
+      key: "portrait-walnut",
+      caption: "Tall portrait · 0.53 · Mrs. George Swinton, 1897",
+      art: baseArt(
+        {
+          id: 4749,
+          title: "Mrs. George Swinton (Elizabeth Ebsworth)",
+          artist: "John Singer Sargent",
+          dateDisplay: "1897",
+          dateStart: 1897,
+          placeOfOrigin: "London",
+          styleTitle: "Impressionism",
+          medium: "Oil on canvas",
+          synopsis:
+            "Sargent was one of the most fashionable portraitists of the late 19th century. Here he harmonized the realism of his sitter's face with impressionistic brushstrokes describing her shimmering gown.",
+          imageId: "074c1b1b-fe92-01ce-9e62-cc99369142dd",
+          width: 3330,
+          height: 6269,
+          alt: "A work made of oil on canvas.",
+          ...common,
+        },
+        today,
+      ),
+    },
+    {
+      key: "fallback",
+      caption: "Bundled stand-in · API unavailable · 4:3",
+      note: "No AIC request or image: this is the card's fallback painting.",
+      art: fallbackArt(today),
+    },
+  ];
+}
+
+export default async function ArtCardLabPage() {
+  if (process.env.NODE_ENV === "production") {
+    notFound();
+  }
+
+  const today = (await getTodaysArt(ART_DATA_VERSION)).date;
+  const items = samples(today);
+  const artByKey = new Map(items.map((item) => [item.key, item.art]));
+  const nightGiltArt = artByKey.get("portrait-ornate");
+
+  return (
+    <main className="art-lab">
+      <header className="art-lab-header">
+        <p className="art-lab-kicker">Dev lab · not shipped</p>
+        <h1 className="art-lab-title">Daily painting card</h1>
+        <p className="art-lab-lede">
+          Every pinned artwork at the three sizes the home gives the card. The
+          text block sits left, the frame right; the frame takes its aspect from
+          the source painting and the text column clamps first at 160px.
+        </p>
+        <p className="art-lab-note">
+          Artwork metadata is fixed by AIC id; image bytes still come from the
+          Art Institute&apos;s IIIF service. The frame material follows the
+          phase: ornate gilt on the light surface, the same ornate gilt with the
+          walnut palette at night.
+        </p>
+      </header>
+
+      {nightGiltArt ? (
+        <section
+          className="art-lab-section"
+          aria-labelledby="night-frame-title"
+        >
+          <div className="art-lab-caption">
+            <h2 className="art-lab-sample-title" id="night-frame-title">
+              Night frame material
+            </h2>
+            <p className="art-lab-caption-line">
+              One ornate gilt structure in both phases: the day frame on its
+              light card surface, then the same frame at night with the walnut
+              palette applied. Edge, bevels, grain layers, lip and mount
+              structure are unchanged; only the colours differ.
+            </p>
+            <p className="art-lab-caption-note">
+              This is the live night material — no variants.
+            </p>
+          </div>
+
+          <div className="art-lab-matrix-scroll">
+            <div className="art-lab-frame-compare">
+              <figure className="art-lab-frame-figure">
+                <div
+                  className="art-lab-frame-stage art-lab-frame-stage-lg"
+                  data-phase="day"
+                >
+                  <PaintingFrame art={nightGiltArt}>
+                    <ArtImage art={nightGiltArt} />
+                  </PaintingFrame>
+                </div>
+                <figcaption>
+                  <p className="art-lab-frame-label">Day · ornate gilt</p>
+                  <p className="art-lab-frame-note">
+                    The light-surface reference.
+                  </p>
+                </figcaption>
+              </figure>
+
+              <figure className="art-lab-frame-figure">
+                <div
+                  className="art-lab-frame-stage art-lab-frame-stage-lg"
+                  data-phase="night"
+                >
+                  <PaintingFrame art={nightGiltArt}>
+                    <ArtImage art={nightGiltArt} />
+                  </PaintingFrame>
+                </div>
+                <figcaption>
+                  <p className="art-lab-frame-label">
+                    Night · walnut palette on gilt
+                  </p>
+                  <p className="art-lab-frame-note">
+                    The same structure with the walnut colours; live now.
+                  </p>
+                </figcaption>
+              </figure>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="art-lab-section" aria-labelledby="frame-matrix-title">
+        <div className="art-lab-caption">
+          <h2 className="art-lab-sample-title" id="frame-matrix-title">
+            Frame material by phase
+          </h2>
+          <p className="art-lab-caption-line">
+            The same material for every painting: ornate gilt on the light
+            surface and the walnut palette on that same gilt at night. Each
+            frame sits in its own data-phase scope, so this is the matrix the
+            face contrast is measured from (WCAG 1.4.11, target ≥ 3:1).
+          </p>
+        </div>
+
+        <div className="art-lab-matrix-scroll">
+          <div className="art-lab-matrix">
+            <div className="art-lab-matrix-head">
+              <span className="art-lab-matrix-corner">Painting</span>
+              {PHASE_COLUMNS.map((phase) => (
+                <span className="art-lab-matrix-phase" key={phase.id}>
+                  {phase.label}
+                </span>
+              ))}
+            </div>
+
+            {SAMPLE_ROWS.map((row) => {
+              const art = artByKey.get(row.sampleKey);
+              if (!art) return null;
+
+              return (
+                <div className="art-lab-matrix-row" key={row.sampleKey}>
+                  <div className="art-lab-matrix-sample">
+                    <span className="art-lab-matrix-sample-name">
+                      {row.label}
+                    </span>
+                    <span className="art-lab-matrix-sample-note">
+                      {row.note}
+                    </span>
+                  </div>
+                  {PHASE_COLUMNS.map((phase) => (
+                    <div
+                      className="art-lab-frame-cell"
+                      data-phase-cell={phase.id}
+                      data-sample-cell={row.sampleKey}
+                      key={phase.id}
+                    >
+                      <div
+                        className="art-lab-frame-stage"
+                        data-phase={phase.id}
+                      >
+                        <PaintingFrame art={art}>
+                          <ArtImage art={art} />
+                        </PaintingFrame>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {items.map((sample) => (
+        <section className="art-lab-sample" key={sample.key}>
+          <div className="art-lab-caption">
+            <h2 className="art-lab-sample-title">{sample.art.title}</h2>
+            <p className="art-lab-caption-line">{sample.caption}</p>
+            {sample.note ? (
+              <p className="art-lab-caption-note">{sample.note}</p>
+            ) : null}
+          </div>
+
+          <div className="art-lab-stages">
+            {CARD_SIZES.map((size) => (
+              <figure className="art-lab-figure" key={size.label}>
+                <figcaption className="art-lab-size">{size.label}</figcaption>
+                <div
+                  className="art-lab-stage"
+                  style={{ width: size.width, height: size.height }}
+                >
+                  <ArtCard art={sample.art} />
+                </div>
+              </figure>
+            ))}
+          </div>
+        </section>
+      ))}
+    </main>
+  );
+}

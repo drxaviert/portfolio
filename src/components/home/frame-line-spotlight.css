@@ -9,14 +9,20 @@
 
 .frame-spot-root {
   position: absolute;
-  inset: 0;
+  /* The lines keep main's full-viewport verticals; the root covers the same
+     box so the host strips and pools are not clipped at the frame top/bottom
+     when the tablet frame is centred in a taller viewport. */
+  top: var(--frame-line-v-top, 0);
+  right: 0;
+  left: 0;
+  height: var(--frame-line-v-height, 100%);
   display: none;
   overflow: hidden;
   pointer-events: none;
 }
 
 /* Same visibility rule as the frame lines themselves, plus hover capability. */
-@media (min-width: 1440px) and (hover: hover) and (pointer: fine) {
+@media (min-width: 768px) and (hover: hover) and (pointer: fine) {
   .frame-spot-root {
     display: block;
   }

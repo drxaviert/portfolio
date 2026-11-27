@@ -888,28 +888,21 @@
   }
 }
 
-/* The control panel sits above the card in the column on small screens, so it
-   can never sit on top of the scene; on a wide screen it docks top right. */
+/* The control panel docks top right in the one desktop composition. */
 .fu-panel {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 50;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 16px;
+  width: 224px;
+  margin-bottom: 0;
   padding: 12px;
   border-radius: 12px;
   background: var(--surface-container-low);
   box-shadow: var(--shadow-card);
-}
-
-@media (min-width: 900px) {
-  .fu-panel {
-    position: fixed;
-    top: 16px;
-    right: 16px;
-    z-index: 50;
-    width: 224px;
-    margin-bottom: 0;
-  }
 }
 
 .fu-panel__head {

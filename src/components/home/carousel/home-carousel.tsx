@@ -15,6 +15,7 @@ import { flushSync } from "react-dom";
 import { EntranceCell } from "../entrance-cell";
 import type { EntranceVariant } from "../entrance-cell";
 import { RingLayers } from "../ring-hover";
+import { rectZoom } from "../layout-zoom";
 import { EDGE_KEYFRAMES } from "./edge-blur";
 import { restStyle, playEntity } from "./carousel-dom";
 import {
@@ -166,10 +167,13 @@ function supportsLinearEasing(): boolean {
  */
 function snapRow(row: HTMLElement) {
   row.style.left = "";
-  const left = row.getBoundingClientRect().left;
+  const rect = row.getBoundingClientRect();
+  const left = rect.left;
   const ratio = window.devicePixelRatio || 1;
   const shift = Math.round(left * ratio) / ratio - left;
-  if (Math.abs(shift) > 0.001) row.style.left = `${shift}px`;
+  if (Math.abs(shift) > 0.001) {
+    row.style.left = `${shift / rectZoom(row, rect)}px`;
+  }
 }
 
 function measureGeometry(
@@ -179,15 +183,20 @@ function measureGeometry(
   const rowRect = row.getBoundingClientRect();
   if (rowRect.width === 0) return null;
 
+  // The home frame is zoomed to fit short viewports; every measured value is
+  // painted px, while slot widths and positions are written back inside the
+  // zoomed frame. Convert once, at the measurement boundary, or the cards end
+  // up narrower than their slots and drift left.
+  const zoom = rectZoom(row, rowRect);
   const cells = Array.from(guide.children).map((cell) => {
     const rect = cell.getBoundingClientRect();
-    return { x: rect.left - rowRect.left, w: rect.width };
+    return { x: (rect.left - rowRect.left) / zoom, w: rect.width / zoom };
   });
   // A run with fewer items than slots has fewer guide cells. The unused slots
   // wait off the row, where no item is ever placed, so every pose still has a
   // full set and nothing else has to know the run is short.
   const offRow = {
-    x: rowRect.width + GAP,
+    x: rowRect.width / zoom + GAP,
     w: cells[cells.length - 1]?.w ?? 0,
   };
   const slots = Array.from(
@@ -195,7 +204,7 @@ function measureGeometry(
     (_, slot) => cells[slot] ?? offRow,
   );
 
-  return { slots, rowWidth: rowRect.width, gap: GAP };
+  return { slots, rowWidth: rowRect.width / zoom, gap: GAP };
 }
 
 function isModified(event: MouseEvent<HTMLElement>): boolean {

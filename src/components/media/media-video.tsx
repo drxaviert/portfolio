@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { VideoMedia } from "@/lib/media-types";
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
+import { beginPerf, perfEnabled } from "@/components/canvas/perf";
 
 /**
  * A looping clip that costs nothing while it is off screen, or an adaptive
@@ -26,20 +27,41 @@ export function MediaVideo({
   media,
   alt,
   className = "",
+  viewerOwned = false,
+  loopMuted = false,
+  deferPlayback = false,
 }: {
   media: VideoMedia;
   alt: string;
   className?: string;
+  /**
+   * The focus viewer owns playback. It disables the IntersectionObserver
+   * autoplay and, for an HLS piece, keeps the progressive MP4 fallback out of
+   * the element until hls.js has attached, so the viewer never starts the MP4
+   * and then gets an emptied source when the ladder arrives.
+   */
+  viewerOwned?: boolean;
+  /**
+   * The canvas viewer contract: use the progressive MP4, loop it, keep it
+   * muted, hide controls and start it as soon as a frame is available.
+   */
+  loopMuted?: boolean;
+  /**
+   * Keep the canvas viewer's clip paused until the open flight has landed.
+   * A playing 1080p layer is re-rastered every frame while it is transformed,
+   * which stalls the opening frames; a paused first frame does not.
+   */
+  deferPlayback?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const reduce = useReducedMotion();
   const [playing, setPlaying] = useState(false);
 
   const hlsUrl = media.hls?.url;
-  const streaming = Boolean(hlsUrl);
+  const streaming = Boolean(hlsUrl) && !loopMuted;
 
   useEffect(() => {
-    if (streaming) return;
+    if (streaming || viewerOwned || loopMuted) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -80,10 +102,54 @@ export function MediaVideo({
       observer.disconnect();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [reduce, streaming]);
+  }, [reduce, streaming, viewerOwned, loopMuted]);
+
+  // The canvas viewer wants a silent loop, not the reader's adaptive player.
+  // Start on the first available frame and retry until the element actually
+  // plays; no controls and no audio path exist in this mode.
+  useEffect(() => {
+    if (!loopMuted) return;
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (deferPlayback) {
+      video.pause();
+      return;
+    }
+
+    const start = () => {
+      video.muted = true;
+      video.loop = true;
+      if (perfEnabled) {
+        const endPlay = beginPerf("video-play", {
+          id: media.id,
+          viewer: true,
+        });
+        void video.play().then(
+          () => endPlay({ ok: true }),
+          () => endPlay({ ok: false }),
+        );
+        return;
+      }
+      void video.play().catch(() => {
+        // A later canplay retries.
+      });
+    };
+
+    video.addEventListener("canplay", start);
+    video.addEventListener("loadeddata", start);
+    start();
+
+    return () => {
+      video.removeEventListener("canplay", start);
+      video.removeEventListener("loadeddata", start);
+      video.pause();
+    };
+  }, [deferPlayback, loopMuted, media.id]);
 
   useEffect(() => {
-    if (!hlsUrl) return;
+    if (!hlsUrl || loopMuted) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -104,8 +170,7 @@ export function MediaVideo({
       // capability it depends on first: no MSE and no ManagedMediaSource means
       // the library cannot work and the bytes are not worth fetching.
       const hasMediaSource =
-        typeof MediaSource !== "undefined" ||
-        "ManagedMediaSource" in window;
+        typeof MediaSource !== "undefined" || "ManagedMediaSource" in window;
       const nativeHls =
         video.canPlayType("application/vnd.apple.mpegurl") !== "";
 
@@ -130,6 +195,7 @@ export function MediaVideo({
 
       // Older iOS: the element plays HLS itself. Everything else keeps the mp4.
       if (nativeHls) video.src = hlsUrl;
+      else if (viewerOwned) video.src = media.mp4.url;
     };
 
     const observer = new IntersectionObserver(
@@ -148,14 +214,22 @@ export function MediaVideo({
       observer.disconnect();
       hls?.destroy();
     };
-  }, [hlsUrl]);
+  }, [hlsUrl, media.mp4.url, viewerOwned, loopMuted]);
 
   function toggle() {
     const video = videoRef.current;
     if (!video) return;
 
     if (video.paused) {
-      void video.play().catch(() => {});
+      if (perfEnabled) {
+        const endPlay = beginPerf("video-play", { id: media.id, manual: true });
+        void video.play().then(
+          () => endPlay({ ok: true }),
+          () => endPlay({ ok: false }),
+        );
+      } else {
+        void video.play().catch(() => {});
+      }
     } else {
       video.pause();
     }
@@ -177,20 +251,30 @@ export function MediaVideo({
         width={media.width}
         height={media.height}
         poster={media.poster.jpg}
-        muted={streaming ? !media.hasAudio : true}
-        loop={!streaming}
+        crossOrigin={loopMuted ? "anonymous" : undefined}
+        muted={loopMuted ? true : streaming ? !media.hasAudio : true}
+        loop={loopMuted || !streaming}
         playsInline
-        preload="none"
-        controls={streaming}
+        preload={loopMuted ? "auto" : "none"}
+        controls={streaming && !loopMuted}
+        autoPlay={loopMuted && !deferPlayback}
         aria-label={alt || undefined}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
       >
-        {media.webm ? <source src={media.webm.url} type="video/webm" /> : null}
-        <source src={media.mp4.url} type="video/mp4" />
+        {loopMuted ? (
+          <source src={media.mp4.url} type="video/mp4" />
+        ) : !streaming || !viewerOwned ? (
+          <>
+            {media.webm ? (
+              <source src={media.webm.url} type="video/webm" />
+            ) : null}
+            <source src={media.mp4.url} type="video/mp4" />
+          </>
+        ) : null}
       </video>
 
-      {reduce && !streaming ? (
+      {reduce && !streaming && !loopMuted ? (
         <button
           type="button"
           className="media-play"

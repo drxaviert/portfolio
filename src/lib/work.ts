@@ -9,6 +9,8 @@ export type CoverScene = "tiles" | "window" | "phone";
 /** A drawn scene, or a media id that resolves to a manifest picture. */
 export type Cover = CoverScene | `media:${string}`;
 
+export type WorkLayout = "reader" | "canvas";
+
 export { FEATURED_SLUG };
 
 /** Reading order for the list and for the wrap-around next-study link. */
@@ -30,6 +32,9 @@ const WORK_ORDER = [
   "metaview",
   "linksys",
   "london-public-library",
+  // Studies built for this site.
+  "motion-and-stills",
+  "human-contact",
   // The personal page.
   "personal",
 ] as const;
@@ -45,8 +50,15 @@ export type WorkMeta = {
   role: string;
   summary: string;
   cover: Cover;
+  /** How the study renders; omitted means the Margin reader. */
+  layout?: WorkLayout;
   /** Set when `cover` is a media id: the picture the cover slots draw. */
   coverImage?: CoverImage;
+  /**
+   * `hidden: true` in the file's frontmatter: the study stays in the repo and
+   * in `WORK_BODIES`, but every listing filters it out and its routes 404.
+   */
+  hidden: boolean;
 };
 
 const WORK_SLUGS: readonly string[] = WORK_ORDER;
@@ -84,13 +96,24 @@ export function parseFrontmatter(source: string): Record<string, string> {
     fields[key] = line.slice(colon + 1).trim();
   }
 
+  const layout = fields.layout ?? "reader";
+
+  if (layout !== "reader" && layout !== "canvas") {
+    throw new Error(
+      `Unknown layout "${layout}" in frontmatter; expected reader or canvas`,
+    );
+  }
+
+  fields.layout = layout;
+
   return fields;
 }
 
 function readWork(slug: WorkSlug): WorkMeta {
   const file = path.join(CONTENT_DIR, `${slug}.mdx`);
   const fields = parseFrontmatter(fs.readFileSync(file, "utf8"));
-  const { title, subtitle, year, role, summary, cover } = fields;
+  const { title, subtitle, year, role, summary, cover, layout, hidden } =
+    fields;
   const missing = [
     ["title", title],
     ["subtitle", subtitle],
@@ -120,22 +143,30 @@ function readWork(slug: WorkSlug): WorkMeta {
     role,
     summary,
     cover,
+    layout: layout === "canvas" ? "canvas" : "reader",
+    hidden: hidden === "true",
     ...(cover.startsWith("media:")
       ? { coverImage: coverImageFor(cover.slice("media:".length)) }
       : {}),
   };
 }
 
+/** The studies on the site: every file in reading order that is not sunset. */
 export function listWork(): WorkMeta[] {
-  return WORK_ORDER.map(readWork);
+  return WORK_ORDER.map(readWork).filter((work) => !work.hidden);
 }
 
+/** One visible study; a hidden or unknown slug resolves to null (a 404). */
 export function getWork(slug: string): WorkMeta | null {
-  return isWorkSlug(slug) ? readWork(slug) : null;
+  if (!isWorkSlug(slug)) return null;
+
+  const work = readWork(slug);
+  return work.hidden ? null : work;
 }
 
-/** The study after `slug` in reading order; the last one wraps to the first. */
+/** The visible study after `slug`; the last one wraps to the first. */
 export function nextWork(slug: string): WorkMeta {
-  const index = isWorkSlug(slug) ? WORK_ORDER.indexOf(slug) : -1;
-  return readWork(WORK_ORDER[(index + 1) % WORK_ORDER.length]);
+  const works = listWork();
+  const index = works.findIndex((work) => work.slug === slug);
+  return works[(index + 1) % works.length]!;
 }

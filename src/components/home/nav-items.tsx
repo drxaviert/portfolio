@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { isPhaseSwitching } from "@/lib/theme";
+import { layoutZoom } from "./layout-zoom";
 import { GlideCapsule } from "./glide-capsule";
 import { NAV_ITEM_CLASS } from "./nav-item-class";
 import { NavGlyphIcon } from "./nav-glyph-icon";
@@ -71,7 +72,7 @@ function useClippedLabels(
         // number there (and 0 either way, so nothing clips in tests).
         const text =
           typeof range.getBoundingClientRect === "function"
-            ? range.getBoundingClientRect().width
+            ? range.getBoundingClientRect().width / layoutZoom(node)
             : node.scrollWidth;
         const style = window.getComputedStyle(node);
         const padding =

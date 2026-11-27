@@ -512,6 +512,17 @@ describe("easing and one timeline", () => {
     expect(rule?.[1]).toMatch(/:is\(\.ring-frame, \.ring-glow\)/);
     expect(rule?.[2]).toMatch(/transition:\s*none/);
     expect(rule?.[2]).toMatch(/opacity:\s*0/);
+
+    // The fill gives its hover growth back too, or the hovered card keeps a
+    // 2.5px lip into the gutter while the row slides: the card boxes stay 12px
+    // apart but the visible edge closes on the neighbour (pf-bw7).
+    const surface = css.match(
+      /\.car-row\[data-ring-quench\]\s*([^{]*\.ring-surface(?![\w-])[^{]*)\{([^}]*)\}/,
+    );
+    expect(surface?.[1]).toContain(":not(:focus-visible)");
+    expect(surface?.[1]).toContain(":not(:has(:focus-visible))");
+    expect(surface?.[2]).toMatch(/inset:\s*0/);
+    expect(surface?.[2]).toMatch(/transition:\s*none/);
   });
 
   it("tells the page a step ended when the row unmounts mid-step", () => {
