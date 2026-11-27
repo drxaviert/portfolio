@@ -1236,6 +1236,49 @@ Final `HORIZON_HOME_LISTENING` values (the shipping preset at the panel's defaul
 - `src/components/edge-blur/viewport-edge-blur.css:79` — 400ms reduced-motion edge transition
 
 
+## Cosmic sky (music mode) (2026-11-27)
+
+Approved 2026-11-27 (bd pf-ixo.3). While the horizon is listening, the top half of the viewport gains a sky: faint stars at night, a pale aurora by day, dusk and dawn borrowing one of them. Dat chose D3 stars (night) and a D6-style aurora (day, dawn, dusk). It is decorative (`aria-hidden`, `pointer-events-none`) and mounts in `SharedHorizon`, so it survives route changes.
+
+| Layer | Element | z-index | Paints |
+| --- | --- | --- | --- |
+| Aurora + stars below the blur | `.cosmic-sky` (fixed, top, 50vh) | under the edge blur (40) | quarter-res aurora canvas upscaled, then the star canvas |
+| Stars in the edge-blur band | `.cosmic-sky--top` | 41 | stars above `--edge-blur-frame-height`, so the 32px blur cannot erase them |
+| Reader / nav dock | existing | 50 / 60 | stay above the sky |
+
+Both roots carry a bottom-fading eased mask (opaque to 20%, gone by the bottom). The band is clamped to the empty content margin, so the z-41 canvas never covers a card or the nav. Stars inside the band are drawn as soft radial glows (local blur = max * (1 - y/h)^2) so the backdrop blur leaves soft points instead of dissolving them.
+
+| Phase | Stars | Aurora | Notes |
+| --- | --- | --- | --- |
+| night | 1 | 0 | stars only |
+| dusk | 0.9 (star gain 1.8) | 0.58 | OKLab colour mix, no white wash |
+| dawn | 0 | 0.6 | pale aurora |
+| day | 0 | 0.75 | wash 0.58 toward white; the sky stays bright |
+
+A phase change is a snap, repainted inside the theme view-transition crossfade; palettes re-read from the phase tokens.
+
+| Trigger | Property | Duration | Easing |
+| --- | --- | --- | --- |
+| Playback starts | opacity of both sky roots (CSS transition) | 3500ms (`--horizon-listen-in`) | `--ease-calm` |
+| Playback pauses | same | 1200ms (`--horizon-listen-out`) | `--ease-calm` |
+| Reduced motion | same, one crossfade | 400ms (`--horizon-listen-reduced`) | `--ease-standard` |
+
+The canvases draw at full strength; nothing inside ramps, so the sky cannot drift from the horizon swell. The same preset tokens feed both.
+
+- **Ambient motion.** Star twinkle period 4-9s per star (rest depth 0.4); drift a full lap in about 13 min (far 0.2x, mid 0.5x, near 1x); aurora curtain fold cycle about 20s (rates 0.33 and 0.45 rad/s) with brightness pulses every 16s and 23s; a shooting star every 40-75s, night and dusk only.
+- **Audio bands** (smoothed, from `audioBands`): bass sways the aurora (x1 + 0.7 bass); mid brightens it (x1 + 0.4 mid) and deepens twinkle (+0.3); high adds shimmer and twinkle (+0.15, gain 3 by default); energy lifts overall brightness (x1 + 0.22 energy). All zeros give the resting values, so the time-driven motion is the whole picture. Production audio is still YouTube, so bands read 0 until the R2 upload is approved.
+- **Progressive aurora blur.** The sharp aurora is composed through 5 blur levels crossfaded by height: 1px at the hem (62% of the layer) up to 28px at the top, curve exponent 1.4. A padded copy stops the rim from fading. Falls back to the unblurred aurora if the 2D context has no `filter`.
+- **Budget.** About 30fps (30ms frames), DPR capped at 1.5, aurora at 1/3+ resolution, rAF stops when not listening, fully faded or the tab is hidden. Resize repaints in the same frame; stars use normalised coordinates, so a resize never re-seeds or stretches.
+- **Reduced motion.** Frozen clock (t = 11), no drift, no shooting star, no band reactivity, no per-frame loop once the 400ms fade lands.
+- **No 2D context.** `.cosmic-sky-fallback` paints a static CSS version of the same two looks.
+- **Tune panel (`?tune=1`, Cosmic sky section).** Star density (default 3.5), star brightness, aurora opacity, aurora speed, blur min 1 / max 28 / curve 1.4, gain bass / mid / high (3) / energy, and a phase override (auto, day, dawn, dusk, night). Stored in `horizon-sky-tuning:v3`; production reads the defaults only.
+
+- `src/components/horizon/cosmic-sky.ts` - `SKY_PHASE_PRESET`, `SKY_TUNING_DEFAULTS`, `mapBands`, star pool, `maskGradient`, `edgeBlurAt`
+- `src/components/horizon/cosmic-sky-layer.tsx` - the canvases, rAF loop, aurora blur, cleanup
+- `src/components/horizon/cosmic-sky.css` - fade timing, z-index, fallback
+- `src/components/horizon/sky-tuner-section.tsx` / `sky-tuning.ts` - panel and live store
+- `src/components/horizon/cosmic-sky.test.ts` - phase, band, pool, mask and edge-blur coverage
+
 ## Motion & Stills - canvas edge blur (2026-11-27)
 
 Approved 2026-11-27 (bd pf-9cv.20; PR #137). The Motion & Stills drag canvas blurs progressively toward its four edges: the centre stays fully sharp and the rim reaches a 16px CSS blur. It lives inside the canvas's three.js render, not in a CSS `backdrop-filter` overlay. The lens pass draws into a linear screen-space target; a half-resolution horizontal Gaussian pass feeds the vertical half in the composite; the composite mixes the blurred copy back by an eased screen-space mask, adds the theme tint, then does the one sRGB encode and the vignette. That is two extra draws, and no compositor layer is added over the WebGL surface.
