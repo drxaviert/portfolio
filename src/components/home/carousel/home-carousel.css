@@ -898,12 +898,24 @@
  * shrink with a delayed fade, ring-hover.css) it draws over the card's edge
  * line, where the host's own 1px shadow ring already is: for about 100ms the
  * edge stacked two 8% rings and read brighter than at rest. Dropping the ring
- * at once leaves only the host's ring. Hover works as usual after the step.
- * Keyboard-focused hosts keep their ring. Opacity only.
+ * at once leaves only the host's ring. The fill gives its hover growth back too
+ * (`.ring-surface`): left grown, the hovered card keeps a lip into the gutter
+ * while the row slides, and the card's visible edge closes on its neighbour
+ * even though the card boxes stay 12px apart. With the frame quenched the fill
+ * is the only visible edge. Hover works as usual after the step. Keyboard-
+ * focused hosts keep their ring.
  */
 .car-row[data-ring-quench]
   .ring-host:not(:focus-visible):not(:has(:focus-visible))
   :is(.ring-frame, .ring-glow) {
   transition: none;
   opacity: 0;
+}
+
+.car-row[data-ring-quench]
+  .ring-host:not(:focus-visible):not(:has(:focus-visible))
+  .ring-surface {
+  inset: 0;
+  border-radius: var(--ring-radius);
+  transition: none;
 }
