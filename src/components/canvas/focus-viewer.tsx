@@ -2,7 +2,6 @@
 
 import { AnimatePresence, animate, motion } from "motion/react";
 import {
-  type CSSProperties,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -832,14 +831,7 @@ export function FocusViewer({
     >
       <div className="cv-viewer__backdrop" aria-hidden="true" onClick={close} />
 
-      <div
-        className="cv-viewer__stage"
-        style={
-          {
-            "--cv-viewer-frame-width": `${size.width}px`,
-          } as CSSProperties
-        }
-      >
+      <div className="cv-viewer__stage">
         <div className="cv-viewer__slot">
           <div
             ref={frameRef}

@@ -136,19 +136,19 @@
 /*
  * The opened-tile caption is the breadcrumb pill's twin: same type scale,
  * padding, row height and fully rounded surface, so the two read as one chrome
- * row. Its right edge anchors to the focus box's right edge (the box width is
- * known from the fit, so a resize needs no layout read); its vertical centre
- * is the bar's. The viewer is fixed to the viewport while the bar sits inside
- * the drawer panel, so the panel inset is part of the shared bottom offset.
- * Its own height cancels through the translate, so only the bar's height is
- * needed to line the centres up.
+ * row. It is centred on the page: `left: 50%` with the symmetric translate
+ * keeps its centre on the viewport's centre through live resizes, with no
+ * layout read. Its vertical centre is the bar's. The viewer is fixed to the
+ * viewport while the bar sits inside the drawer panel, so the panel inset is
+ * part of the shared bottom offset. Its own height cancels through the
+ * translate, so only the bar's height is needed to line the centres up.
  */
 .cv-reader .cv-viewer__caption {
   bottom: calc(
     var(--wd-panel-inset) + var(--cv-reader-pill-bottom) +
       var(--cv-reader-pill-height) / 2
   );
-  left: calc(50% + var(--cv-viewer-frame-width, 0px) / 2);
+  left: 50%;
   display: block;
   min-height: var(--cv-reader-pill-height);
   padding: var(--cv-reader-pill-pad-y) 12px;
@@ -160,7 +160,23 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transform: translate(-100%, 50%);
+  transform: translate(-50%, 50%);
+}
+
+/*
+ * Below 768 the xl composition is no longer zoomed down with --fit, so a
+ * page-centred caption and the bottom bar cannot share one row without
+ * overlapping. Stack the caption 8px above the bar: still centred, nothing
+ * covered, and the bar keeps its own anchor.
+ */
+@media (max-width: 767.98px) {
+  .cv-reader .cv-viewer__caption {
+    bottom: calc(
+      var(--wd-panel-inset) + var(--cv-reader-pill-bottom) +
+        var(--cv-reader-pill-height) + 8px
+    );
+    transform: translate(-50%, 0);
+  }
 }
 
 .cv-reader__bottom-bar .wd-breadcrumb {
