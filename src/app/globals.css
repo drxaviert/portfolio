@@ -856,8 +856,8 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
   --horizon-mid: var(--palette-blue-150);
   --horizon-mid-at: 80%;
   --horizon-3: var(--palette-amber-300);
-  --horizon-1: var(--palette-blue-400);
-  --horizon-1-alpha: 0.06;
+  --horizon-1: var(--palette-rose-200);
+  --horizon-1-alpha: 0.12;
   --horizon-2: var(--palette-amber-650);
   --horizon-2-alpha: 0.06;
   /* Ring hover: Dusk's accent into a deeper amber, not the horizon blobs, so
