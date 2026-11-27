@@ -72,6 +72,41 @@ describe("shipped home entrance", () => {
     expect(document.documentElement.dataset.entrancePlayed).toBe("true");
   });
 
+  it("waits for a restarted entrance instead of cutting it on the clock", async () => {
+    placeServerMarkup();
+
+    // A hydration recovery replaces <main> and starts the entrance again after
+    // the first mount. The clock reaches 1710ms while that run is still going;
+    // the gate must wait for it instead of cancelling its delayed cards.
+    let running = true;
+    let finish = () => {};
+    const finished = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const animation = {
+      animationName: "entrance-soft-card-split",
+      playState: "running",
+      finished,
+    } as unknown as Animation;
+    const doc = document as Document & { getAnimations?: () => Animation[] };
+    doc.getAnimations = vi.fn(() => (running ? [animation] : []));
+
+    try {
+      render(<HomeEntrancePlayed />);
+
+      vi.advanceTimersByTime(SHIPPED_ENTRANCE_TOTAL_MS);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(document.documentElement.dataset.entrancePlayed).toBeUndefined();
+
+      running = false;
+      finish();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(document.documentElement.dataset.entrancePlayed).toBe("true");
+    } finally {
+      delete (doc as { getAnimations?: () => Animation[] }).getAnimations;
+    }
+  });
+
   it("does not mark when it is torn down before the sequence settles", () => {
     placeServerMarkup();
     const view = render(<HomeEntrancePlayed />);
