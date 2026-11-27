@@ -5,8 +5,10 @@ import {
   SKY_PHASE_PRESET,
   SKY_TUNING_DEFAULTS,
   STAR_POOL_SIZE,
+  blurredGlow,
   createStarPool,
   easeCalm,
+  edgeBlurAt,
   mapBands,
   maskGradient,
   nextShootingGap,
@@ -130,6 +132,30 @@ describe("stars", () => {
   it("spaces shooting stars at least 40s apart", () => {
     expect(nextShootingGap(() => 0)).toBe(SHOOTING_MIN_GAP);
     expect(nextShootingGap(() => 0.99)).toBeGreaterThan(SHOOTING_MIN_GAP);
+  });
+});
+
+describe("edge blur compensation", () => {
+  const edge = { height: 400, max: 32 };
+
+  it("follows the edge blur: full at the top edge, none past the band", () => {
+    expect(edgeBlurAt(0, edge)).toBe(32);
+    expect(edgeBlurAt(200, edge)).toBeCloseTo(8);
+    expect(edgeBlurAt(400, edge)).toBe(0);
+    expect(edgeBlurAt(500, edge)).toBe(0);
+    expect(edgeBlurAt(0, { height: 0, max: 8 })).toBe(0);
+  });
+
+  it("leaves unblurred stars alone and widens and lifts blurred ones", () => {
+    expect(blurredGlow(0.6, 0)).toEqual({ radius: 0.6, alpha: 1 });
+
+    const soft = blurredGlow(0.6, 8);
+    const heavy = blurredGlow(0.6, 32);
+
+    expect(soft.radius).toBeGreaterThan(2);
+    expect(heavy.radius).toBeGreaterThan(soft.radius);
+    expect(heavy.alpha).toBeGreaterThan(1);
+    expect(heavy.alpha).toBeLessThanOrEqual(3);
   });
 });
 

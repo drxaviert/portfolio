@@ -346,3 +346,43 @@ export function maskGradient(): string {
 
   return `linear-gradient(to bottom, ${stops.join(", ")})`;
 }
+
+export type EdgeBlur = { height: number; max: number };
+
+/**
+ * The viewport edge blur's effective radius at `y` px from the top edge. The
+ * six stacked bands step down 1, 1/2, 1/4, 1/8... of the peak as the mask
+ * fades out over the band height, which a (1 - y/height)^2 curve follows.
+ */
+export function edgeBlurAt(y: number, edge: EdgeBlur): number {
+  if (edge.height <= 0 || edge.max <= 0) return 0;
+
+  const f = clamp(y / edge.height, 0, 1);
+
+  return edge.max * (1 - f) * (1 - f);
+}
+
+/** How much brighter than its resting alpha a compensated star may be drawn. */
+export const GLOW_ALPHA_MAX = 3;
+
+/**
+ * Draw size for a star the backdrop blur is about to smear. A blurred point's
+ * peak falls with the blur area, so alpha alone cannot hold it: widen the star
+ * to a soft disc about half the blur radius and lift its alpha, which leaves a
+ * glow close to the brightness of an unblurred star, just softer. Zero blur
+ * returns the star as it is.
+ */
+export function blurredGlow(
+  radius: number,
+  sigma: number,
+): { radius: number; alpha: number } {
+  if (sigma <= 0) return { radius, alpha: 1 };
+
+  const drawn = radius + sigma * 0.34;
+  const area = (drawn * drawn + sigma * sigma) / (drawn * drawn);
+
+  return {
+    radius: drawn * 1.5,
+    alpha: clamp(area * 0.6, 1, GLOW_ALPHA_MAX),
+  };
+}

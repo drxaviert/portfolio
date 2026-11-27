@@ -7,8 +7,10 @@ import {
   SKY_PHASE_PRESET,
   SKY_RAMP,
   STAR_DRIFT_PER_SECOND,
+  blurredGlow,
   createStarPool,
   easeCalm,
+  edgeBlurAt,
   layerDrift,
   mapBands,
   maskGradient,
@@ -19,6 +21,7 @@ import {
   stepRamp,
   twinkle,
 } from "./cosmic-sky";
+import type { EdgeBlur } from "./cosmic-sky";
 import { getSkyTuning, subscribeSkyTuning } from "./sky-tuning";
 import "./cosmic-sky.css";
 
@@ -99,6 +102,35 @@ function makeSprite(color: Rgb): HTMLCanvasElement {
   return sprite;
 }
 
+/** A white-ish soft disc: opaque centre easing to nothing at the rim. */
+function makeGlowSprite(color: Rgb): HTMLCanvasElement {
+  const size = 64;
+  const sprite = document.createElement("canvas");
+
+  sprite.width = size;
+  sprite.height = size;
+
+  const context = sprite.getContext("2d");
+
+  if (!context) return sprite;
+
+  const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
+
+  for (let i = 0; i <= 8; i += 1) {
+    const t = i / 8;
+    const alpha = (1 - t) * (1 - t) * (3 - 2 * (1 - t));
+
+    gradient.addColorStop(
+      t,
+      `rgba(${color[0]},${color[1]},${color[2]},${alpha.toFixed(3)})`,
+    );
+  }
+
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
+  return sprite;
+}
+
 type Shooting = {
   start: number;
   x: number;
@@ -140,6 +172,24 @@ export function CosmicSky() {
     const reducedQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const pool = createStarPool();
     const sprites = RIBBONS.map((ribbon) => makeSprite(ribbon.color));
+    const glowSprites = STAR_COLORS.map(makeGlowSprite);
+    let edgeEl: Element | null = null;
+
+    /** The live top-band blur, which ramps on its own CSS transition. */
+    const readEdgeBlur = (): EdgeBlur => {
+      if (!edgeEl || !edgeEl.isConnected) {
+        edgeEl = document.querySelector(".wd-edge-blur--top");
+      }
+
+      if (!edgeEl) return { height: 0, max: 0 };
+
+      const style = getComputedStyle(edgeEl);
+
+      return {
+        height: parseFloat(style.getPropertyValue("--edge-blur-frame-height")) || 0,
+        max: parseFloat(style.getPropertyValue("--edge-blur-frame-max")) || 0,
+      };
+    };
 
     let width = 0;
     let height = 0;
@@ -236,6 +286,7 @@ export function CosmicSky() {
 
       const tuning = getSkyTuning();
       const count = starCount(width, height, tuning.starDensity);
+      const edge = readEdgeBlur();
 
       for (let i = 0; i < count; i += 1) {
         const star = pool[i];
@@ -248,12 +299,33 @@ export function CosmicSky() {
         if (a < 0.01) continue;
 
         const color = STAR_COLORS[star.layer];
+        const y = star.y * height;
+        const sigma = edgeBlurAt(y, edge);
 
-        starsCtx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${Math.min(1, a).toFixed(3)})`;
-        starsCtx.beginPath();
-        starsCtx.arc(x, star.y * height, star.radius, 0, Math.PI * 2);
-        starsCtx.fill();
+        if (sigma < 0.5) {
+          starsCtx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${Math.min(1, a).toFixed(3)})`;
+          starsCtx.beginPath();
+          starsCtx.arc(x, y, star.radius, 0, Math.PI * 2);
+          starsCtx.fill();
+          continue;
+        }
+
+        // Inside the edge blur a point dissolves, so draw it as a soft glow
+        // sized to the local blur; what the backdrop blur leaves is a visible
+        // soft star rather than nothing.
+        const glow = blurredGlow(star.radius, sigma);
+
+        starsCtx.globalAlpha = Math.min(1, a * glow.alpha);
+        starsCtx.drawImage(
+          glowSprites[star.layer],
+          x - glow.radius,
+          y - glow.radius,
+          glow.radius * 2,
+          glow.radius * 2,
+        );
       }
+
+      starsCtx.globalAlpha = 1;
 
       if (shooting) {
         const p = (t - shooting.start) / 1.2;
