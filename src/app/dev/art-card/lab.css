@@ -125,6 +125,37 @@
   --art-frame-inset: 0px;
 }
 
+/* Day and night frame materials: the same ornate gilt structure, each on its
+   own phase card surface. */
+.art-lab-frame-compare {
+  display: grid;
+  min-width: 620px;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.art-lab-frame-figure {
+  margin: 0;
+}
+
+.art-lab-frame-stage-lg {
+  height: 340px;
+}
+
+.art-lab-frame-label {
+  margin: 10px 0 0;
+  color: var(--on-surface);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.art-lab-frame-note {
+  margin: 2px 0 0;
+  color: var(--on-surface-variant);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
 .art-lab-caption {
   max-width: 760px;
   margin-bottom: 16px;

@@ -8,11 +8,13 @@
  * change reserve the exact box the painting will occupy.
  *
  * The material follows the phase, not the artwork: the ornate gilt on the
- * light surface and walnut at night, both from origin/main. globals.css owns
- * those phase tokens (--frame-face, --frame-face-shadow, --frame-lip,
- * --frame-mount, ...), so the whole frame changes with the phase toggle and a
- * nested phase scope gets the right material. There is no era selection and no
- * hanging scroll mount; every painting uses the same frame.
+ * light surface and the same ornate gilt repainted with the walnut palette at
+ * night. This file owns the frame structure (edge, mount, bevel, lip and
+ * sheen offsets); globals.css owns only the phase colours (--frame-face,
+ * --frame-bevel-*, --frame-lip-color, --frame-mount, ...), so the whole frame
+ * changes with the phase toggle and a nested phase scope gets the right
+ * material. There is no era selection and no hanging scroll mount; every
+ * painting uses the same frame.
  */
 
 .painting-frame {
@@ -21,6 +23,21 @@
     calc(100cqh - var(--art-frame-inset, 0px)),
     calc(var(--frame-share) / var(--art-ratio, 1.333))
   );
+
+  /* One frame structure in every phase. The composed tokens resolve their
+     var() colours here, on the frame element inside the phase scope, so
+     globals.css only overrides colours. */
+  --frame-edge: clamp(5px, 5.6cqh, 16px);
+  --frame-mount-pad: clamp(2px, 1.1cqh, 4px);
+  --frame-face-shadow:
+    inset 0 1px 0 var(--frame-bevel-top),
+    inset 0 -2px 3px var(--frame-bevel-bottom), 0 2px 2px rgb(0 0 0 / 0.22),
+    0 18px 30px -18px rgb(0 0 0 / 0.6);
+  --frame-lip: 2px solid var(--frame-lip-color);
+  --frame-lip-shadow:
+    inset 0 0 0 2px var(--frame-lip-inner), 0 0 0 2px var(--frame-lip-outer);
+  --frame-mount-shadow: none;
+  --frame-window-outline: 1px solid var(--frame-window-edge);
 
   position: relative;
   flex: none;

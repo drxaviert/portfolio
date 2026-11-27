@@ -15,7 +15,9 @@ import "./painting-frame.css";
  * a measure pass or a client re-render.
  *
  * The material follows the phase, not the artwork: ornate gilt on the light
- * surface, walnut at night (globals.css). Every painting uses the same frame.
+ * surface and the same ornate gilt with the walnut palette at night. The
+ * frame structure is shared; globals.css supplies only the phase colours.
+ * Every painting uses the same frame.
  */
 
 type PaintingFrameProps = {

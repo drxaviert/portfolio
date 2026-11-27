@@ -962,19 +962,23 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
 /*
  * Painting-frame material by phase.
  *
- * Dat picked the origin/main materials: the ornate gilt on the light surface
- * (Day, Dawn, Dusk) and walnut at Night. The frame reads these phase-scoped
- * tokens, so the whole frame swaps live with the existing phase toggle and a
- * nested phase scope (the dev lab) gets the right material without knowing the
- * artwork's era. The values are the exact origin/main painting-frame.css
- * values for those two frames.
+ * One ornate gilt frame in every phase: the shared structure (edge, mount
+ * geometry, bevels, grain layers, lip width and sheen offsets) lives in
+ * painting-frame.css, so these blocks declare colours only. Day, Dawn and Dusk
+ * use the origin/main gilt colours on the light surface. Night (pf-y2d)
+ * repaints that structure with origin/main's walnut palette, mapped onto the
+ * gilt stops light-to-dark: #6d4830 on the three light stops, #603e29 on the
+ * upper mid, #40281a on the lower mids, and #2d1c12 / #24150d at the ends.
  */
 :root,
 [data-phase="day"],
 [data-phase="dawn"],
 [data-phase="dusk"] {
-  --frame-edge: clamp(5px, 5.6cqh, 16px);
-  --frame-mount-pad: clamp(2px, 1.1cqh, 4px);
+  --frame-bevel-top: rgb(255 248 220 / 0.55);
+  --frame-bevel-bottom: rgb(45 27 6 / 0.55);
+  --frame-lip-color: rgb(255 239 186 / 0.42);
+  --frame-lip-inner: rgb(77 49 10 / 0.5);
+  --frame-lip-outer: rgb(255 240 190 / 0.25);
   --frame-face:
     repeating-linear-gradient(
       90deg,
@@ -992,12 +996,6 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
       #f0dca6 87%,
       #5d4318 100%
     );
-  --frame-face-shadow:
-    inset 0 1px 0 rgb(255 248 220 / 0.55), inset 0 -2px 3px rgb(45 27 6 / 0.55),
-    0 2px 2px rgb(0 0 0 / 0.22), 0 18px 30px -18px rgb(0 0 0 / 0.6);
-  --frame-lip: 2px solid rgb(255 239 186 / 0.42);
-  --frame-lip-shadow:
-    inset 0 0 0 2px rgb(77 49 10 / 0.5), 0 0 0 2px rgb(255 240 190 / 0.25);
   --frame-mount: linear-gradient(
     135deg,
     #8c6525,
@@ -1006,38 +1004,34 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
     #e8d195 76%,
     #6f4d19
   );
-  --frame-mount-shadow: none;
-  --frame-window-outline: 1px solid rgb(43 27 8 / 0.9);
+  --frame-window-edge: rgb(43 27 8 / 0.9);
 }
 
 [data-phase="night"] {
-  --frame-edge: clamp(4px, 4.2cqh, 13px);
-  --frame-mount-pad: clamp(1px, 0.8cqh, 3px);
+  --frame-bevel-top: rgb(255 231 190 / 0.18);
+  --frame-bevel-bottom: rgb(0 0 0 / 0.55);
+  --frame-lip-color: rgb(176 138 74 / 0.65);
+  --frame-lip-inner: rgb(36 21 13 / 0.55);
+  --frame-lip-outer: rgb(176 138 74 / 0.22);
   --frame-face:
     repeating-linear-gradient(
-      92deg,
+      90deg,
       rgb(0 0 0 / 0.14) 0 1px,
-      transparent 1px 3.5px
+      transparent 1px 5px
     ),
     linear-gradient(
       135deg,
-      #2d1c12,
-      #603e29 32%,
-      #40281a 58%,
-      #6d4830 80%,
-      #24150d
+      #2d1c12 0%,
+      #603e29 12%,
+      #6d4830 21%,
+      #40281a 38%,
+      #6d4830 55%,
+      #40281a 72%,
+      #6d4830 87%,
+      #24150d 100%
     );
-  --frame-face-shadow:
-    inset 0 1px 0 rgb(255 231 190 / 0.18), inset 0 -2px 3px rgb(0 0 0 / 0.55),
-    0 2px 2px rgb(0 0 0 / 0.2), 0 14px 26px -18px rgb(0 0 0 / 0.55);
-  --frame-lip: 1px solid rgb(255 233 194 / 0.16);
-  --frame-lip-shadow:
-    inset 0 0 0 1px
-      color-mix(in oklab, var(--palette-neutral-800) 30%, transparent),
-    0 0 0 1px color-mix(in oklab, var(--palette-neutral-800) 16%, transparent);
   --frame-mount: #21150e;
-  --frame-mount-shadow: inset 0 0 0 1px rgb(176 138 74 / 0.65);
-  --frame-window-outline: none;
+  --frame-window-edge: rgb(36 21 13 / 0.9);
 }
 
 @theme inline {

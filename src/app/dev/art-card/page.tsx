@@ -18,8 +18,9 @@ import "./lab.css";
  *
  * That covers portrait, landscape, square, panorama and tall-scroll aspects.
  * The frame material follows the phase, not the artwork: ornate gilt on the
- * light surface, walnut at night. The top matrix shows that on several
- * paintings side by side; the samples below keep the real cards.
+ * light surface and the same ornate gilt with the walnut palette at night.
+ * The top row shows the live day and night materials side by side; the matrix
+ * shows them on several paintings, and the samples below keep the real cards.
  */
 export const metadata = {
   title: "Daily painting card lab",
@@ -282,6 +283,7 @@ export default async function ArtCardLabPage() {
   const today = (await getTodaysArt(ART_DATA_VERSION)).date;
   const items = samples(today);
   const artByKey = new Map(items.map((item) => [item.key, item.art]));
+  const nightGiltArt = artByKey.get("portrait-ornate");
 
   return (
     <main className="art-lab">
@@ -296,9 +298,72 @@ export default async function ArtCardLabPage() {
         <p className="art-lab-note">
           Artwork metadata is fixed by AIC id; image bytes still come from the
           Art Institute&apos;s IIIF service. The frame material follows the
-          phase: ornate gilt on the light surface, walnut at night.
+          phase: ornate gilt on the light surface, the same ornate gilt with the
+          walnut palette at night.
         </p>
       </header>
+
+      {nightGiltArt ? (
+        <section
+          className="art-lab-section"
+          aria-labelledby="night-frame-title"
+        >
+          <div className="art-lab-caption">
+            <h2 className="art-lab-sample-title" id="night-frame-title">
+              Night frame material
+            </h2>
+            <p className="art-lab-caption-line">
+              One ornate gilt structure in both phases: the day frame on its
+              light card surface, then the same frame at night with the walnut
+              palette applied. Edge, bevels, grain layers, lip and mount
+              structure are unchanged; only the colours differ.
+            </p>
+            <p className="art-lab-caption-note">
+              This is the live night material — no variants.
+            </p>
+          </div>
+
+          <div className="art-lab-matrix-scroll">
+            <div className="art-lab-frame-compare">
+              <figure className="art-lab-frame-figure">
+                <div
+                  className="art-lab-frame-stage art-lab-frame-stage-lg"
+                  data-phase="day"
+                >
+                  <PaintingFrame art={nightGiltArt}>
+                    <ArtImage art={nightGiltArt} />
+                  </PaintingFrame>
+                </div>
+                <figcaption>
+                  <p className="art-lab-frame-label">Day · ornate gilt</p>
+                  <p className="art-lab-frame-note">
+                    The light-surface reference.
+                  </p>
+                </figcaption>
+              </figure>
+
+              <figure className="art-lab-frame-figure">
+                <div
+                  className="art-lab-frame-stage art-lab-frame-stage-lg"
+                  data-phase="night"
+                >
+                  <PaintingFrame art={nightGiltArt}>
+                    <ArtImage art={nightGiltArt} />
+                  </PaintingFrame>
+                </div>
+                <figcaption>
+                  <p className="art-lab-frame-label">
+                    Night · walnut palette on gilt
+                  </p>
+                  <p className="art-lab-frame-note">
+                    The same structure with the walnut colours; live now.
+                  </p>
+                </figcaption>
+              </figure>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="art-lab-section" aria-labelledby="frame-matrix-title">
         <div className="art-lab-caption">
@@ -306,10 +371,10 @@ export default async function ArtCardLabPage() {
             Frame material by phase
           </h2>
           <p className="art-lab-caption-line">
-            The same origin/main material for every painting: ornate gilt on the
-            light surface and walnut at night. Each frame sits in its own
-            data-phase scope, so this is the matrix the face contrast is
-            measured from (WCAG 1.4.11, target ≥ 3:1).
+            The same material for every painting: ornate gilt on the light
+            surface and the walnut palette on that same gilt at night. Each
+            frame sits in its own data-phase scope, so this is the matrix the
+            face contrast is measured from (WCAG 1.4.11, target ≥ 3:1).
           </p>
         </div>
 

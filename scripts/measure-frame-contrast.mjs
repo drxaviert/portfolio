@@ -2,12 +2,14 @@
  * Measures the daily-painting frame face against the card surface.
  *
  * Reads the sample × phase matrix on /dev/art-card, screenshots each stage at
- * device scale 2, and samples the outermost fully painted pixel along each
- * edge, every device pixel, skipping the rounded corners. The layout box can
- * land on a fraction, so the first fully painted pixel is ceil(edge); the
- * sampler derives that from the box instead of adding a fixed offset. The
- * surface colour is the stage's computed background, which is the real card
- * fill (--surface-container-low).
+ * device scale 2, and samples just inside the outermost painted pixel along
+ * each edge, every device pixel, skipping the rounded corners. The layout box
+ * can land on a fraction, so the first fully painted pixel is ceil(edge); the
+ * sampler derives that from the box instead of adding a fixed offset, then
+ * stays two device pixels inside it because an element screenshot can include
+ * a device pixel outside a fractional box. The surface colour is the stage's
+ * computed background, which is the real card fill
+ * (--surface-container-low).
  *
  * Usage: node scripts/measure-frame-contrast.mjs [url]
  *   URL defaults to http://localhost:3013/dev/art-card.
@@ -87,11 +89,14 @@ async function decode(buffer) {
 function sampleEdges(image, left, top, width, height) {
   // Device-space box. The outermost fully painted pixel is ceil(edge) on the
   // left/top and floor(edge) - 1 on the right/bottom; that holds whether the
-  // layout edge lands on a whole pixel or a fraction.
-  const xLeft = Math.ceil(left);
-  const xRight = Math.floor(left + width) - 1;
-  const yTop = Math.ceil(top);
-  const yBottom = Math.floor(top + height) - 1;
+  // layout edge lands on a whole pixel or a fraction. Inset two device pixels
+  // so a screenshot cropped at a fractional box cannot land on the surface
+  // outside the frame.
+  const inset = 2;
+  const xLeft = Math.ceil(left) + inset;
+  const xRight = Math.floor(left + width) - 1 - inset;
+  const yTop = Math.ceil(top) + inset;
+  const yBottom = Math.floor(top + height) - 1 - inset;
   // The corner radius is 2px; stay 4 CSS px in so no sample is surface.
   const margin = Math.round(4 * DPR);
   const xSpan = Math.max(1, xRight - xLeft);
