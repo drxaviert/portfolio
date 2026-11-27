@@ -22,6 +22,8 @@ vi.mock("@/components/canvas/infinite-canvas", async () => {
       {
         onOpen,
         onIntroStart,
+        edgeBlur = true,
+        edgeBlurSuppressed = false,
       }: {
         onOpen?: (
           index: number,
@@ -30,6 +32,8 @@ vi.mock("@/components/canvas/infinite-canvas", async () => {
           canvasOwned?: boolean,
         ) => void;
         onIntroStart?: () => void;
+        edgeBlur?: boolean;
+        edgeBlurSuppressed?: boolean;
       },
       ref: ForwardedRef<unknown>,
     ) {
@@ -48,7 +52,11 @@ vi.mock("@/components/canvas/infinite-canvas", async () => {
       );
 
       return (
-        <div data-canvas-stage>
+        <div
+          data-canvas-stage
+          data-edge-blur={edgeBlur ? "on" : "off"}
+          data-edge-blur-suppressed={edgeBlurSuppressed ? "" : undefined}
+        >
           <button
             type="button"
             onClick={() => onOpen?.(0, undefined, undefined, true)}
@@ -253,7 +261,9 @@ describe("CanvasReader chrome entrance", () => {
 
     expect(reader).toHaveAttribute("data-chrome", "pending");
 
-    fireEvent.click(screen.getByRole("button", { name: "Simulate intro start" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Simulate intro start" }),
+    );
 
     expect(reader).toHaveAttribute("data-chrome", "in");
   });
@@ -348,26 +358,23 @@ describe("CanvasReader bottom bar stacking", () => {
 });
 
 describe("CanvasReader edge blur", () => {
-  it("renders the blur over the stage and under the bottom chrome", () => {
+  it("passes the edge blur and viewer suppression to the canvas", () => {
     renderReader();
 
-    const reader = document.querySelector<HTMLElement>(".cv-reader");
-    const stage = reader?.querySelector(".cv-reader__stage");
-    const overlay = reader?.querySelector(".cv-edge-blur");
-    const bar = reader?.querySelector(".cv-reader__bottom-bar");
+    const stage = document.querySelector("[data-canvas-stage]");
+    expect(stage).toHaveAttribute("data-edge-blur", "on");
+    expect(stage).not.toHaveAttribute("data-edge-blur-suppressed");
 
-    expect(stage).not.toBeNull();
-    expect(overlay).not.toBeNull();
-    expect(overlay?.querySelectorAll(".cv-edge-blur__band")).toHaveLength(6);
-    expect(overlay).toHaveAttribute("aria-hidden", "true");
-    expect(stage?.nextElementSibling).toBe(overlay);
-    expect(overlay?.nextElementSibling).toBe(bar);
+    fireEvent.click(screen.getByRole("button", { name: "Simulate tile open" }));
+    expect(stage).toHaveAttribute("data-edge-blur-suppressed");
   });
 
-  it("omits the blur for the edgeblur=off A/B view", () => {
+  it("turns the canvas effect off for the edgeblur=off A/B view", () => {
     renderReader({ edgeBlur: false });
 
-    expect(document.querySelector(".cv-edge-blur")).toBeNull();
-    expect(document.querySelector(".cv-reader__stage")).not.toBeNull();
+    expect(document.querySelector("[data-canvas-stage]")).toHaveAttribute(
+      "data-edge-blur",
+      "off",
+    );
   });
 });

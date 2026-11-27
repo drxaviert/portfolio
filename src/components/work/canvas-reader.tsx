@@ -3,7 +3,6 @@
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BreathSettings } from "@/components/canvas/breathing";
-import { CanvasEdgeBlur } from "@/components/canvas/canvas-edge-blur";
 import { FocusViewer } from "@/components/canvas/focus-viewer";
 import type { HoverSettings } from "@/components/canvas/hover";
 import { InfiniteCanvas } from "@/components/canvas/infinite-canvas";
@@ -61,7 +60,7 @@ export function CanvasReader({
 }: {
   meta: WorkMeta;
   items: CanvasItem[];
-  /** `?edgeblur=off`: the prototype's A/B view without the overlay. */
+  /** `?edgeblur=off`: the prototype's A/B view without the effect. */
   edgeBlur?: boolean;
 }) {
   const [viewer, setViewer] = useState<ViewerState | null>(null);
@@ -76,9 +75,17 @@ export function CanvasReader({
   const canvasViewing = Boolean(shownViewer?.canvasOwned) && !viewerStepped;
 
   const openViewer = useCallback(
-    (index: number, startAt?: number, openRect?: Box, canvasOwned?: boolean) => {
+    (
+      index: number,
+      startAt?: number,
+      openRect?: Box,
+      canvasOwned?: boolean,
+    ) => {
       if (perfEnabled) {
-        markPerf("react-open-state", { index, canvasOwned: Boolean(canvasOwned) });
+        markPerf("react-open-state", {
+          index,
+          canvasOwned: Boolean(canvasOwned),
+        });
       }
       setViewerClosing(false);
       setViewerStepped(false);
@@ -142,9 +149,7 @@ export function CanvasReader({
       data-viewing={shownViewer && !viewerClosing ? "" : undefined}
       data-canvas-viewing={canvasViewing ? "" : undefined}
       data-closing={viewerClosing || undefined}
-      data-chrome={
-        items.length === 0 ? undefined : chromeIn ? "in" : "pending"
-      }
+      data-chrome={items.length === 0 ? undefined : chromeIn ? "in" : "pending"}
     >
       <h1 id={READER_TITLE_ID} tabIndex={-1} className="cv-reader__title">
         {meta.title}
@@ -158,13 +163,13 @@ export function CanvasReader({
           lens={LOCKED_LENS}
           breath={LOCKED_BREATH}
           hover={LOCKED_HOVER}
+          edgeBlur={edgeBlur}
+          edgeBlurSuppressed={shownViewer !== null}
           onOpen={openViewer}
           onCanvasOpened={markCanvasOpened}
           onIntroStart={markIntroStarted}
         />
       </div>
-
-      {edgeBlur ? <CanvasEdgeBlur /> : null}
 
       <div className="cv-reader__pill cv-reader__bottom-bar">
         <Breadcrumb title={meta.title} />
