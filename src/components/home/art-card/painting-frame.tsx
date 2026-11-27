@@ -1,7 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { DailyArt } from "@/lib/daily-art";
-import { frameStyleFor } from "./frame-style";
-import type { FrameEra } from "./frame-style";
 import "./painting-frame.css";
 
 /**
@@ -16,29 +14,21 @@ import "./painting-frame.css";
  * available width, a portrait is capped by the card height, and neither needs
  * a measure pass or a client re-render.
  *
- * The frame face is CSS layers — bevels, grain and inset shadows — not an
- * image, so it stays crisp from the 160px card to the dialog. Era comes from
- * the artwork's date (and, for tall East Asian works, the scroll mount).
+ * The material follows the phase, not the artwork: ornate gilt on the light
+ * surface, walnut at night (globals.css). Every painting uses the same frame.
  */
 
 type PaintingFrameProps = {
-  art: Pick<DailyArt, "dateStart" | "placeOfOrigin" | "width" | "height">;
+  art: Pick<DailyArt, "width" | "height">;
   children: ReactNode;
-  /** Card mode for the day view, full for the dialog stage. */
-  variant?: "card" | "full";
-  /** Lab overrides: force an era to compare the frame tokens. */
-  era?: FrameEra;
   className?: string;
 };
 
 export function PaintingFrame({
   art,
   children,
-  variant = "card",
-  era,
   className = "",
 }: PaintingFrameProps) {
-  const style = frameStyleFor(art);
   const aspect =
     Number.isFinite(art.width) &&
     Number.isFinite(art.height) &&
@@ -50,20 +40,11 @@ export function PaintingFrame({
   return (
     <div
       className={`painting-frame ${className}`.trim()}
-      data-era={era ?? style.era}
-      data-mount={style.mount}
-      data-variant={variant}
       style={{ "--art-ratio": aspect } as CSSProperties}
     >
-      <span className="painting-frame-rod" data-edge="top" aria-hidden="true" />
       <div className="painting-frame-mount">
         <div className="painting-frame-window">{children}</div>
       </div>
-      <span
-        className="painting-frame-rod"
-        data-edge="bottom"
-        aria-hidden="true"
-      />
     </div>
   );
 }

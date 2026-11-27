@@ -173,7 +173,7 @@ export function ArtDialog({ art, open, onClose }: ArtDialogProps) {
         </button>
 
         <div className="art-dialog-stage">
-          <PaintingFrame art={art} variant="full">
+          <PaintingFrame art={art}>
             <ArtImage
               art={art}
               variant="full"
