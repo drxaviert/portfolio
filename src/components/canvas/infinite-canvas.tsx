@@ -81,7 +81,12 @@ import {
   markPerf,
   perfEnabled,
 } from "./perf";
-import { EDGE_BLUR, edgeBlurDepthPx, edgeBlurRadiusPx } from "./edge-blur";
+import {
+  EDGE_BLUR,
+  EDGE_MASK_GLSL,
+  edgeBlurDepthPx,
+  edgeBlurRadiusPx,
+} from "./edge-blur";
 import "./infinite-canvas.css";
 
 export type CanvasItem = {
@@ -367,13 +372,9 @@ const EDGE_H_FRAGMENT_SHADER = /* glsl */ `
   uniform float uWeights[7];
 
   varying vec2 vUv;
-
+  ${EDGE_MASK_GLSL}
   void main() {
-    vec2 edgeDistance =
-      min(vUv, 1.0 - vUv) / max(uEdgeDepth, vec2(0.000001));
-    float edgeT = clamp(min(edgeDistance.x, edgeDistance.y), 0.0, 1.0);
-    float edge = 1.0 - edgeT;
-    edge = edge * edge * (3.0 - 2.0 * edge);
+    float edge = edgeMask(vUv, uEdgeDepth);
 
     float radius = uRadius * edge;
     vec4 sum = texture2D(uSource, vUv) * uWeights[0];
@@ -400,7 +401,8 @@ const EDGE_H_FRAGMENT_SHADER = /* glsl */ `
  * screen-space edge mask, adds the theme tint, then does the one sRGB encode
  * and the vignette on the way to the canvas.
  *
- * The mask is exactly `edgeBlurMask()` in edge-blur.ts, which tests pin.
+ * The mask is EDGE_MASK_GLSL, the shared source of `edgeBlurMask()` in
+ * edge-blur.ts, which tests pin.
  */
 const COMPOSITE_FRAGMENT_SHADER = /* glsl */ `
   uniform sampler2D uScene;
@@ -416,13 +418,9 @@ const COMPOSITE_FRAGMENT_SHADER = /* glsl */ `
   uniform float uAspect;
 
   varying vec2 vUv;
-
+  ${EDGE_MASK_GLSL}
   void main() {
-    vec2 edgeDistance =
-      min(vUv, 1.0 - vUv) / max(uEdgeDepth, vec2(0.000001));
-    float edgeT = clamp(min(edgeDistance.x, edgeDistance.y), 0.0, 1.0);
-    float edge = 1.0 - edgeT;
-    edge = edge * edge * (3.0 - 2.0 * edge) * uEdgeAmount;
+    float edge = edgeMask(vUv, uEdgeDepth) * uEdgeAmount;
 
     vec4 sharp = texture2D(uScene, vUv);
     vec4 c = sharp;
@@ -915,7 +913,8 @@ export const InfiniteCanvas = forwardRef<
 
     if (perfEnabled) instrumentWebGL(renderer.getContext());
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const readDpr = () => Math.min(window.devicePixelRatio || 1, 2);
+    let dpr = readDpr();
     renderer.setPixelRatio(dpr);
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -955,14 +954,24 @@ export const InfiniteCanvas = forwardRef<
     // a half-resolution target. The composite finishes the vertical half in
     // its own draw by the screen-space edge mask. Screen-space keeps the band
     // depth exactly where it is measured, after the lens warp.
+    // The targets hold linear premultiplied colour, so half-float avoids
+    // 8-bit banding in the blur; fall back to 8-bit when the driver cannot
+    // render to it.
+    const edgeTargetType =
+      renderer.extensions.has("EXT_color_buffer_float") ||
+      renderer.extensions.has("EXT_color_buffer_half_float")
+        ? THREE.HalfFloatType
+        : THREE.UnsignedByteType;
     const screenTarget = edgeBlurEnabled
       ? new THREE.WebGLRenderTarget(1, 1, {
+          type: edgeTargetType,
           depthBuffer: false,
           stencilBuffer: false,
         })
       : null;
     const edgeTargetA = edgeBlurEnabled
       ? new THREE.WebGLRenderTarget(1, 1, {
+          type: edgeTargetType,
           depthBuffer: false,
           stencilBuffer: false,
         })
@@ -1077,20 +1086,28 @@ export const InfiniteCanvas = forwardRef<
      * custom properties (often oklch), so resolve the actual painted colour
      * through a hidden probe and a 2D canvas rather than parsing CSS in JS.
      */
-    function readSurfaceTint(): THREE.Color {
-      const probe = document.createElement("span");
-      probe.style.cssText =
-        "position:absolute;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;color:var(--surface)";
-      document.body.appendChild(probe);
-      const css = getComputedStyle(probe).color;
-      probe.remove();
+    let tintProbe: HTMLSpanElement | null = null;
+    let tintContext: CanvasRenderingContext2D | null = null;
 
-      const swatch = document.createElement("canvas");
-      swatch.width = 1;
-      swatch.height = 1;
-      const context2d = swatch.getContext("2d", { willReadFrequently: true });
+    function readSurfaceTint(): THREE.Color {
+      if (!tintProbe) {
+        tintProbe = document.createElement("span");
+        tintProbe.style.cssText =
+          "position:absolute;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;color:var(--surface)";
+        document.body.appendChild(tintProbe);
+      }
+      const css = getComputedStyle(tintProbe).color;
+
+      if (!tintContext) {
+        const swatch = document.createElement("canvas");
+        swatch.width = 1;
+        swatch.height = 1;
+        tintContext = swatch.getContext("2d", { willReadFrequently: true });
+      }
+      const context2d = tintContext;
       if (!context2d) return new THREE.Color(0x000000);
 
+      context2d.clearRect(0, 0, 1, 1);
       context2d.fillStyle = css;
       context2d.fillRect(0, 0, 1, 1);
       const [r, g, b] = context2d.getImageData(0, 0, 1, 1).data;
@@ -4883,8 +4900,20 @@ export const InfiniteCanvas = forwardRef<
       const nextWidth = Math.max(1, Math.round(rect.width));
       const nextHeight = Math.max(1, Math.round(rect.height));
 
-      if (planes.length > 0 && nextWidth === width && nextHeight === height) {
+      const nextDpr = readDpr();
+
+      if (
+        planes.length > 0 &&
+        nextWidth === width &&
+        nextHeight === height &&
+        nextDpr === dpr
+      ) {
         return;
+      }
+
+      if (nextDpr !== dpr) {
+        dpr = nextDpr;
+        renderer.setPixelRatio(dpr);
       }
 
       const previousWidth = width;
@@ -4940,15 +4969,17 @@ export const InfiniteCanvas = forwardRef<
       edgeDepth.set(depthPx / width, depthPx / height);
 
       if (screenTarget && edgeTargetA && compositeMaterial) {
-        const screenWidth = Math.max(1, Math.round(width * dpr));
-        const screenHeight = Math.max(1, Math.round(height * dpr));
+        // Floor, as three's setSize does, so the screen target matches the
+        // canvas backing store and the half-res target cannot drift a texel.
+        const screenWidth = Math.max(1, Math.floor(width * dpr));
+        const screenHeight = Math.max(1, Math.floor(height * dpr));
         const edgeWidth = Math.max(
           1,
-          Math.round(screenWidth * EDGE_BLUR.targetScale),
+          Math.floor(screenWidth * EDGE_BLUR.targetScale),
         );
         const edgeHeight = Math.max(
           1,
-          Math.round(screenHeight * EDGE_BLUR.targetScale),
+          Math.floor(screenHeight * EDGE_BLUR.targetScale),
         );
         const edgeRadius =
           edgeBlurRadiusPx(EDGE_BLUR.maxBlurPx, dpr) * EDGE_BLUR.targetScale;
@@ -5005,6 +5036,9 @@ export const InfiniteCanvas = forwardRef<
 
     const resizeObserver = new ResizeObserver(scheduleResize);
     resizeObserver.observe(hostElement);
+    // A DPR-only change (monitor move, browser zoom) does not resize the host
+    // box, so the observer stays quiet; the window resize event covers it.
+    window.addEventListener("resize", scheduleResize);
     document.addEventListener("visibilitychange", onVisibilityChange);
     motionQuery.addEventListener("change", onMotionChange);
 
@@ -5168,9 +5202,11 @@ export const InfiniteCanvas = forwardRef<
       if (resizeFrame !== 0) cancelAnimationFrame(resizeFrame);
 
       resizeObserver.disconnect();
+      window.removeEventListener("resize", scheduleResize);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       motionQuery.removeEventListener("change", onMotionChange);
       themeObserver.disconnect();
+      tintProbe?.remove();
       surface?.removeEventListener("pointerdown", onPreloadPointerDown);
       surface?.removeEventListener("focus", onPreloadFocus);
       surface?.removeEventListener("pointermove", onHoverPointerMove);
