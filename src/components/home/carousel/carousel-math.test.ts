@@ -231,6 +231,30 @@ describe("wrap seam", () => {
     }
   });
 
+  it("holds the 12px gutter between every adjacent pair for every click target", () => {
+    const linear = (t: number) => t;
+
+    for (const k of [1, 2, 3]) {
+      const planned = retarget(G, 5, 0, k, restEntities(G, 5, 0));
+
+      for (let step = 0; step <= 200; step++) {
+        const p = step / 200;
+        const drawn = sampleEntities(planned, p * 1000, 1000, linear)
+          .map((e) => ({ ...e, x: e.from.x, w: e.from.w }))
+          .filter((e) => e.x + e.w > -G.gap && e.x < G.rowWidth + G.gap)
+          .sort((a, b) => a.x - b.x);
+
+        for (let i = 1; i < drawn.length; i++) {
+          const gap = drawn[i].x - (drawn[i - 1].x + drawn[i - 1].w);
+          expect(
+            gap,
+            `click ${k} at ${p}: ${entityKey(drawn[i - 1])} -> ${entityKey(drawn[i])}`,
+          ).toBeGreaterThanOrEqual(G.gap - 1e-6);
+        }
+      }
+    }
+  });
+
   it("pushes a far step's leaving cards out as one group, gaps kept", () => {
     for (const k of [2, 3]) {
       const planned = retarget(G, 4, 0, k, restEntities(G, 4, 0));
