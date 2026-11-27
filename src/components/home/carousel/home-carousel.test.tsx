@@ -627,7 +627,7 @@ describe("edge blur", () => {
     );
   });
 
-  it("melts only the face of a card crossing the right end during a step, never its shadow", () => {
+  it("melts the shadow with the face of a card crossing the right end during a step", () => {
     const css = readFileSync(
       resolve(process.cwd(), "src/components/home/carousel/home-carousel.css"),
       "utf8",
@@ -643,13 +643,18 @@ describe("edge blur", () => {
 
     // The melt on the slide faded the card's shadow too, a pale haze under the
     // card's bottom. The slide is cropped at the column's edge instead, the
-    // shadow sits unmasked on the frame, and the host carries the melt (its
-    // progressive blur copy rides inside it). The peek keeps its own melt.
+    // shadow sits on the frame, and both the host's face and that shadow carry
+    // the same column-anchored ramp. The shadow used to be unmasked, so its 1px
+    // ring painted a stray hairline across the faded end (bd pf-bw7).
     expect(rule("")).toMatch(/mask-image:\s*none/);
     expect(rule("")).toMatch(/clip-path:\s*inset\(/);
-    expect(rule(String.raw`\s*\.car-frame::before`)).toMatch(
-      /box-shadow:\s*var\(--shadow-card\)/,
-    );
+    const frame = rule(String.raw`\s*\.car-frame`);
+    expect(frame).toMatch(/--car-xk:/);
+    expect(frame).toMatch(/--car-xe:/);
+    const shadow = rule(String.raw`\s*\.car-frame::before`);
+    expect(shadow).toMatch(/box-shadow:\s*var\(--shadow-card\)/);
+    expect(shadow).toMatch(/mask-image:\s*linear-gradient/);
+    expect(shadow).toMatch(/var\(--car-xe\)/);
     const host = rule(String.raw`\s*\.car-host`);
     expect(host).toMatch(/box-shadow:\s*none/);
     expect(host).toMatch(/mask-image:\s*linear-gradient/);
