@@ -18,5 +18,7 @@ States
 - No 2D canvas: static CSS fallback of the same looks.
 - Tab hidden: the loop stops and resumes on return.
 - Resize: repaints in the same frame; stars keep their positions.
+- Dusk: the left horizon blob is rose-200 at alpha 0.12 (`--horizon-1`, dusk block in `globals.css`).
+- Dusk + music mode: `--horizon-1-listen-damp` (0.65 at dusk, default 1) softens it. The CSS fallback without WebGL is not damped.
 
 Spec: `docs/design-system/motion.md` (Cosmic sky).
