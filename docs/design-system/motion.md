@@ -1143,3 +1143,49 @@ Approved 2026-11-27 (bd pf-9cv.18; trial merged in PR #133). The case-study read
 - `src/app/layout.tsx` — the single `SmoothScroll` mount
 - `src/components/motion/smooth-scroll.test.tsx` — scope, rebind, reduced-motion, pointer/key stop, native-yield, CSS and exclusion coverage
 
+## Horizon listening swell (2026-11-27)
+
+While "Door to the Cosmos" plays, the home horizon swells and the viewport edge blur deepens; pausing settles both back. `ListeningSync` mirrors the player onto `<html data-listening="true">` when `usePlayerStatus()` is `playing`, and both renderers read that attribute. A dev-only `?listen=1` seeds the same force store without playback; the `?tune=1` tuning panel is a dev tool (dev builds show it by default, production opens it only on that query), and production ships the preset below.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Playback starts | horizon listening value, edge blur radius and height | 3500ms (`--horizon-listen-in`) | 0 | `cubic-bezier(0.4, 0, 0.2, 1)` (`--ease-calm`) | resting horizon → the listening target |
+| Playback pauses | same | 1200ms (`--horizon-listen-out`) | 0 | same | current value → the resting horizon |
+| Pause mid-ramp | same | remaining travel | not re-armed | same | retargeted from the current value, no jump |
+| Reduced motion | the same states, one crossfade | 400ms (`--horizon-listen-reduced`) | 0 | `ease-in-out` (`--ease-standard`) | resting ↔ listening, no per-frame ramp |
+
+The ramp is deliberately asymmetric: the 3.5s in is the calm swell, the 1.2s out makes a pause feel immediate. Both ends rebase from the value on screen, so a pause mid-swell reverses continuously instead of restarting. Reduced motion keeps the brighter state and only crossfades it.
+
+Final `HORIZON_HOME_LISTENING` values (the shipping preset at the panel's default Immersion 1.5):
+
+| Field | Value |
+| --- | --- |
+| `intensityBoost` | 1.9 |
+| `breathePeriod` | 6 |
+| `intensityAmp` | 0.95 |
+| `blobScale` | 1.8 |
+| `blobLift` | 12.6 |
+| `blurScale` | 1.5 |
+| `edgeBlurMax` | 32 |
+| `edgeBlurHeight` | 400 |
+| `inDuration` | 3.5 |
+| `outDuration` | 1.2 |
+| `reducedDuration` | 0.4 |
+
+- **The shader owns the ramp.** A 0..1 `listen` value chases its target on the shader's rAF clock, on `inDuration` / `outDuration` with `--ease-calm` (or one `reducedDuration` crossfade with `--ease-standard`). Nothing transitions a `--horizon-*` token in CSS: the shader observes the attribute and integrates its own clock, so the swell survives a route change and a retarget keeps the current value.
+- **The blob blur is a crossfade, not a rebuild.** A second coverage texture is baked once at `blurScale` (`softTexture`); each frame mixes the two samples by `uListen`. The per-frame cost is one extra texture sample, not a filter over the viewport.
+- **The edge blur animates the radius.** `--edge-blur-frame-max` and `--edge-blur-frame-height` are registered `<length>` properties, transitioned 3.5s in / 1.2s out on `--ease-calm` (400ms under reduced motion). Do not crossfade two edge stacks: Chrome renders a `backdrop-filter` inside an opacity group against an empty backdrop, so the incoming stack paints nothing until opacity reaches 1 and the blur pops in at the end of the ramp. Interpolating the registered lengths keeps all six band filters live on every frame.
+- **The CSS fallback agrees.** `HorizonBackground` paints a second pre-styled blob layer and transitions only its `opacity`; its in/out/reduced durations come from the same preset (`--horizon-listen-in/out/reduced`), so the fallback and the shader match without a token transition.
+
+- `src/components/horizon/listening-sync.tsx:34` — mirrors the player status onto `<html data-listening="true">`
+- `src/components/horizon/listening-sync.tsx:27` — dev-only `?listen=1` override
+- `src/components/horizon/horizon-shader.tsx:1159` — the in/out ramp: curve, duration and re-base from the current value
+- `src/components/horizon/horizon-shader.tsx:1183` — reads the `data-listening` attribute
+- `src/components/horizon/horizon-shader.tsx:193` — mixes the two coverage samples by `uListen`
+- `src/components/horizon/horizon-shader.tsx:692` — bakes the second coverage at `blurScale`
+- `src/components/horizon/horizon-preset.ts:72` — `HORIZON_HOME_LISTENING`
+- `src/components/horizon/horizon-motion.css:203` — the CSS fallback's opacity crossfade and preset durations
+- `src/components/edge-blur/viewport-edge-blur.css:22` — the registered `<length>` properties
+- `src/components/edge-blur/viewport-edge-blur.css:68` — 3.5s in / 1.2s out on the edge stack
+- `src/components/edge-blur/viewport-edge-blur.css:79` — 400ms reduced-motion edge transition
+
