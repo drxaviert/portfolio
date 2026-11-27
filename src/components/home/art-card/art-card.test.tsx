@@ -8,7 +8,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DailyArt } from "@/lib/daily-art";
-import { ArtCard, resetSettledShred } from "./art-card";
+import { ArtCard } from "./art-card";
 import { ArtImage, artImageSrc } from "./art-image";
 import { SHRED_SEGMENTS, shredStripMotion } from "./shred-strips";
 import {
@@ -61,7 +61,6 @@ function stubMatchMedia(reduced: boolean) {
 }
 
 beforeEach(() => {
-  resetSettledShred();
   stubMatchMedia(false);
 });
 
@@ -375,7 +374,6 @@ describe("ArtCard", () => {
       );
       rects();
 
-      resetSettledShred();
       const user = userEvent.setup();
       const { container, unmount } = renderCard();
 
@@ -473,34 +471,6 @@ describe("ArtCard", () => {
 
     expect(container.querySelectorAll(".shred-strip")).toHaveLength(0);
     expect(painting).toHaveAttribute("aria-pressed", "false");
-  });
-
-  it("keeps the shredded painting when the card remounts", async () => {
-    stubMatchMedia(true);
-
-    const user = userEvent.setup();
-    const first = renderCard();
-
-    loadPainting(first.container);
-
-    await user.click(
-      screen.getByRole("button", { name: "Shred the painting" }),
-    );
-
-    await waitFor(() => {
-      expect(first.container.querySelectorAll(".shred-strip")).toHaveLength(18);
-    });
-
-    first.unmount();
-
-    const second = renderCard();
-
-    expect(second.container.querySelectorAll(".shred-strip")).toHaveLength(18);
-    expect(
-      within(second.container).getByRole("button", {
-        name: "Finish the shred",
-      }),
-    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("skips the web animation under reduced motion", async () => {

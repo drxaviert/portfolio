@@ -43,20 +43,6 @@ type ArtCardProps = {
 
 type ShredPhase = "idle" | "shredding" | "shredded" | "exiting";
 
-/**
- * `/` and `/work*` each mount their own HomeScreen, so the card remounts on
- * every open and close of the drawer. The settled shred state lives here so the
- * new instance starts where the old one stopped: no snap back to the intact
- * painting, and no replayed descent. Written only from client effects, so the
- * server never sees it and a hard load still starts intact.
- */
-let settledShred: { date: string; phase: "idle" | "shredded" } | null = null;
-
-/** Test seam: forget the remembered shred so cases stay independent. */
-export function resetSettledShred() {
-  settledShred = null;
-}
-
 const CATCH_MS = 120;
 const DESCENT_MS = 2400;
 const JAM_MS = 200;
@@ -269,9 +255,7 @@ export function ArtCard({ art }: ArtCardProps) {
 function ArtScene({ art, onOpen }: { art: DailyArt; onOpen: () => void }) {
   const [failureSrc, setFailureSrc] = useState<string | null>(null);
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
-  const [phase, setPhase] = useState<ShredPhase>(
-    settledShred?.date === art.date ? settledShred.phase : "idle",
-  );
+  const [phase, setPhase] = useState<ShredPhase>("idle");
   const reduce = useReducedMotion();
   const canvasRef = useRef<HTMLDivElement>(null);
   const stripsRef = useRef<HTMLDivElement>(null);
@@ -318,13 +302,6 @@ function ArtScene({ art, onOpen }: { art: DailyArt; onOpen: () => void }) {
   );
 
   useRibbonSway(stripsRef, phase === "shredded" && !reduce);
-
-  useEffect(() => {
-    settledShred = {
-      date: art.date,
-      phase: phase === "idle" || phase === "exiting" ? "idle" : "shredded",
-    };
-  }, [art.date, phase]);
 
   useEffect(() => {
     if (phase !== "shredding" && phase !== "exiting") return;

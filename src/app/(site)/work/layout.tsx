@@ -1,32 +1,15 @@
 import type { ReactNode } from "react";
-import { ArtCard } from "@/components/home/art-card/art-card";
-import { HomeScreen } from "@/components/home/home-screen";
 import { WorkDrawer } from "@/components/work/work-drawer";
-import { ART_DATA_VERSION, getTodaysArt } from "@/lib/daily-art";
 
 /**
  * `/work` and `/work/<slug>` are one route segment, so they share this layout:
- * the homepage underneath and the drawer over it, once for every `/work*` URL.
+ * the drawer over the homepage, once for every `/work*` URL.
  *
- * The homepage stays mounted while the drawer is open — a study, the index and
- * the way back all happen above it — so closing the drawer reveals the page
- * exactly as it was left, with the card or the nav still where the reverse
- * morph needs it.
- *
- * Like `/`, this server entry owns the daily painting fetch and passes the
- * filled card to the sync HomeScreen.
+ * The homepage underneath is the `(site)` layout's HomeScreen, the same mounted
+ * instance as on `/`, so a study, the index and the way back all happen above
+ * it and closing the drawer reveals the page exactly as it was left, shred,
+ * carousel and player included.
  */
-export default async function WorkLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  const art = await getTodaysArt(ART_DATA_VERSION);
-
-  return (
-    <>
-      <HomeScreen playCard={<ArtCard art={art} />} />
-      <WorkDrawer>{children}</WorkDrawer>
-    </>
-  );
+export default function WorkLayout({ children }: { children: ReactNode }) {
+  return <WorkDrawer>{children}</WorkDrawer>;
 }
