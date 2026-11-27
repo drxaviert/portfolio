@@ -36,8 +36,9 @@ export const TRANSITION = {
   /**
    * The lens returns with the shrink, not after it. Any delay here leaves the
    * landed tile static before the idle handoff, which reads as a freeze
-   * followed by a snap. Sibling plane opacity is on its own, earlier clock
-   * (`closeSiblingFadeMs`) so the grid is fully back before the tile lands.
+   * followed by a snap. Sibling plane opacity is on its own, later clock
+   * (`closeSiblingFadeDelayMs`): the grid is still hidden while the tile lands
+   * and fills in behind it after.
    */
   closeFadeDelayMs: 0,
   closeFadeMs: 600,
