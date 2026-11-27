@@ -312,16 +312,16 @@
  * ---------------------------------------------------------------------- */
 
 /*
- * The strips hang from the frame's bottom edge. The slot is clipped at the
- * top by its own box (the rod is the frame edge above it), and the strips
- * inside slide down from -100% to 0, so the visible length is exactly the
- * part of the painting that has passed through the frame.
+ * The slot is as tall as the painting window and starts at the frame's bottom
+ * edge. It is clipped on top only: a strip track (as tall as the whole
+ * painting) slides down from -100% to -50%, so the visible ribbon is exactly
+ * the part of the painting that has passed through, and the exit can let the
+ * ribbons fall past the bottom and sides without being cut off.
  *
  * `--shred-lip` is the frame edge plus the mount lip: the window's inset, so
  * the strips line up with the painting inside the frame. The slot is wider
  * than the window by `--shred-bleed` on each side so the outer strips can curl
- * past the painting edge without being cut off. The extra 12px at the bottom
- * gives the hem room without a flat machine-cut line.
+ * past the painting edge.
  */
 .painting-frame-shred {
   --shred-lip: calc(var(--frame-edge) + var(--frame-mount-pad));
@@ -331,8 +331,8 @@
   top: 100%;
   left: calc(var(--shred-lip) - var(--shred-bleed));
   width: calc(100% - var(--shred-lip) * 2 + var(--shred-bleed) * 2);
-  height: calc((100% - var(--shred-lip) * 2) / 2 + 12px);
-  overflow: hidden;
+  height: calc(100% - var(--shred-lip) * 2);
+  clip-path: inset(0 -200px -100vh -200px);
   pointer-events: none;
 }
 
@@ -344,25 +344,53 @@
   height: 100%;
 }
 
+/* The ribbons are grabbable only once the shred has jammed (they sway then). */
+.art-card-painting-button[data-shred-phase="shredded"] .shred-strip-segment {
+  pointer-events: auto;
+}
+
+/* Strip wrapper: carries the static sideways drift and the pointer sway. */
+.shred-strip {
+  position: absolute;
+  top: 0;
+  left: calc(var(--strip-index) * 100% / var(--shred-count, 18));
+  width: calc(100% / var(--shred-count, 18));
+  height: 100%;
+  transform: translate3d(var(--strip-sway), 0, 0);
+  transform-origin: top center;
+}
+
+/*
+ * The track is as tall as the whole painting. Its percentage translate is
+ * therefore relative to the painting, not to one segment, so the ribbon length
+ * follows the canvas exactly. End state is the jam (-50%).
+ */
+.shred-strip-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform: translate3d(0, -50%, 0);
+}
+
 /*
  * Each strip is a chain of nested segments. The root is the top segment and
- * stays flush in the slot; every child hangs off its parent's bottom edge and
- * rotates a little around its own top, so the rotations accumulate into a
- * curve. The 2px overlap at every joint hides the sub-pixel seam that two
- * antialiased edges would otherwise leave.
+ * stays flush; every child hangs off its parent's bottom edge and rotates a
+ * little around its own top, so the rotations accumulate into a curve. The 1px
+ * overlap at every joint hides the sub-pixel seam.
  *
- * The image is continuous because every segment shows the same painting at
- * `segmentCount * 200%` height and a `background-position-y` that selects its
- * own slice. Segment 0's slice is the top of the visible ribbon, the last
- * child's slice is the tip.
+ * Every segment shows the same painting at `segments * 100%` of its own
+ * height and a `background-position-y` that selects its own slice, plus a
+ * static darkening gradient handed down per segment.
  */
-/*
- * The image layers are identical on the root and every child: the painting
- * slice plus a static darkened gradient whose stops are handed down per
- * segment, so the shading ramps continuously towards the tip.
- */
-.shred-strip,
 .shred-strip-segment {
+  position: absolute;
+  top: calc(100% - 1px);
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
   background-image:
     linear-gradient(
       to bottom,
@@ -376,29 +404,26 @@
   background-repeat: no-repeat;
   background-size:
     100% 100%,
-    calc(var(--shred-count, 18) * 100%) calc(var(--shred-segments, 6) * 200%);
-}
-
-.shred-strip {
-  position: absolute;
-  top: 0;
-  left: calc(var(--strip-index) * 100% / var(--shred-count, 18));
-  width: calc(100% / var(--shred-count, 18));
-  height: calc((100% - 12px) / var(--shred-segments, 6));
-  background-color: #16120e;
-  transform: translate3d(var(--strip-sway), 0, 0);
-  transform-origin: top center;
-}
-
-.shred-strip-segment {
-  position: absolute;
-  top: calc(100% - 2px);
-  left: 0;
-  width: 100%;
-  height: 100%;
-  /* No background colour here: the parent's image sits behind the antialiased
-     joint, so the seam cannot darken. */
-  background-color: transparent;
+    calc(var(--shred-count, 18) * 100%) calc(var(--shred-segments, 8) * 100%);
   transform: rotate(var(--seg-rotate, 0deg));
   transform-origin: top center;
+}
+
+.shred-strip-segment[data-root] {
+  top: 0;
+  height: calc(100% / var(--shred-segments, 8));
+  background-color: #16120e;
+}
+
+/* The fresh copy that slides back into the window after the exit. */
+.art-card-fresh {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  transform: translate3d(0, -100%, 0);
 }

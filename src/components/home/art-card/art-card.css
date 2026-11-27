@@ -148,7 +148,7 @@
  * the strip chain waits above the slot, straight: no one-frame flash of the
  * end state.
  */
-.art-card-painting-button[data-shred-phase="shredding"] .shred-strip {
+.art-card-painting-button[data-shred-phase="shredding"] .shred-strip-track {
   transform: translate3d(0, -100%, 0);
 }
 
@@ -157,14 +157,14 @@
 }
 
 .art-card-painting-button[data-shred-phase="shredded"] .art-card-canvas,
-.art-card-painting-button[data-shred-phase="restoring"] .art-card-canvas {
+.art-card-painting-button[data-shred-phase="exiting"] .art-card-canvas {
   transform: translate3d(0, 50%, 0);
 }
 
 .art-card-painting-button[data-shred-phase="shredding"] .art-card-canvas,
-.art-card-painting-button[data-shred-phase="restoring"] .art-card-canvas,
-.art-card-painting-button[data-shred-phase="shredding"] .shred-strip,
-.art-card-painting-button[data-shred-phase="restoring"] .shred-strip {
+.art-card-painting-button[data-shred-phase="exiting"] .art-card-canvas,
+.art-card-painting-button[data-shred-phase="shredding"] .shred-strip-track,
+.art-card-painting-button[data-shred-phase="exiting"] .shred-strip-track {
   will-change: transform;
 }
 
@@ -702,9 +702,9 @@
   }
 
   .art-card-painting-button[data-shred-phase="shredding"] .art-card-canvas,
-  .art-card-painting-button[data-shred-phase="restoring"] .art-card-canvas,
-  .art-card-painting-button[data-shred-phase="shredding"] .shred-strip,
-  .art-card-painting-button[data-shred-phase="restoring"] .shred-strip {
+  .art-card-painting-button[data-shred-phase="exiting"] .art-card-canvas,
+  .art-card-painting-button[data-shred-phase="shredding"] .shred-strip-track,
+  .art-card-painting-button[data-shred-phase="exiting"] .shred-strip-track {
     will-change: auto;
   }
 
@@ -720,7 +720,7 @@
       transform 1ms linear 150ms;
   }
 
-  .art-card-painting-button[data-shred-phase="restoring"] .art-card-canvas {
+  .art-card-painting-button[data-shred-phase="exiting"] .art-card-canvas {
     transform: translate3d(0, 0, 0);
     opacity: 1;
     transition:
@@ -736,7 +736,7 @@
     animation: art-card-shred-fade-in 150ms linear both;
   }
 
-  .art-card-painting-button[data-shred-phase="restoring"]
+  .art-card-painting-button[data-shred-phase="exiting"]
     .painting-frame-shred {
     animation: art-card-shred-fade-out 150ms linear both;
   }
