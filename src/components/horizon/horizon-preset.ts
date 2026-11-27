@@ -40,7 +40,8 @@ export const HORIZON_HOME_MOTION: Required<HorizonMotionTuning> = {
 
 /**
  * The listening swell: while "Door to the Cosmos" plays, the glow grows upward
- * and outward, softens, brightens and breathes slower and deeper.
+ * and outward, softens, brightens and breathes deeper without changing its
+ * speed.
  *
  * These are the effective shipping values at the tuning panel's default
  * Immersion of 1.5. The panel's per-parameter sliders store the base values at
@@ -55,12 +56,16 @@ export const HORIZON_HOME_MOTION: Required<HorizonMotionTuning> = {
  * without a jump. Reduced motion keeps the brighter, larger state but only
  * crossfades it over 400ms and freezes the breathe exactly where it was.
  *
+ * The breathing period is deliberately the idle 6s, so the period ramp is a
+ * no-op and the breathe phase continues uninterrupted; only the amplitude
+ * deepens. A manually raised period in the tuner still ramps normally.
+ *
  * Keep the CSS fallback in step: its extra tint uses intensityBoost - 1, its
  * blur uses blurScale, and its static geometry uses blobScale / blobLift.
  */
 export const HORIZON_HOME_LISTENING: HorizonListeningTuning = {
   intensityBoost: 1.9,
-  breathePeriod: 12,
+  breathePeriod: 6,
   intensityAmp: 0.95,
   blobScale: 1.8,
   blobLift: 12.6,

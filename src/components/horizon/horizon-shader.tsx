@@ -322,13 +322,19 @@ function effectiveBreathePeriod(
   listening: HorizonListeningTuning | undefined,
   listen: number,
 ): number {
-  const base = tuning?.breathePeriod ?? DEFAULT_TUNING.breathePeriod;
+  const base = Math.max(
+    0.001,
+    tuning?.breathePeriod ?? DEFAULT_TUNING.breathePeriod,
+  );
 
   if (!listening) return base;
 
   const amount = Math.min(1, Math.max(0, listen));
 
-  return base + (listening.breathePeriod - base) * amount;
+  // The shipped listening period is the idle 6s, so this is constant and the
+  // accumulator keeps its phase. The floor also keeps a malformed zero from
+  // turning the cycle advance into an Infinity/NaN phase.
+  return Math.max(0.001, base + (listening.breathePeriod - base) * amount);
 }
 
 function motionUniforms(

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { HORIZON_HOME_LISTENING } from "./horizon-preset";
+import { HORIZON_HOME_LISTENING, HORIZON_HOME_MOTION } from "./horizon-preset";
 import {
   DEFAULT_LISTENING_STATE,
   IMMERSION_DEFAULT,
@@ -62,6 +62,17 @@ describe("listening tuning", () => {
     expect(effective.inDuration).toBe(0);
   });
 
+  it("keeps the idle 6s breathe speed while listening", () => {
+    // The shipped listening period is deliberately the same as the idle one:
+    // listening deepens the breathe, it does not slow it.
+    expect(HORIZON_HOME_LISTENING.breathePeriod).toBe(
+      HORIZON_HOME_MOTION.breathePeriod,
+    );
+    expect(effectiveListening(DEFAULT_LISTENING_STATE).breathePeriod).toBe(
+      HORIZON_HOME_MOTION.breathePeriod,
+    );
+  });
+
   it("clamps the extreme end so the glow cannot blow out", () => {
     const effective = effectiveListening({
       immersion: 3,
@@ -72,9 +83,18 @@ describe("listening tuning", () => {
     expect(effective.blobScale).toBeCloseTo(1.8, 10);
     expect(effective.blobLift).toBe(24);
     expect(effective.blurScale).toBe(1.9);
-    expect(effective.breathePeriod).toBe(18);
+    expect(effective.breathePeriod).toBe(6);
     expect(effective.intensityAmp).toBe(0.95);
     expect(effective.inDuration).toBeCloseTo(7, 10);
+  });
+
+  it("still lets a manually raised period stretch the breathe", () => {
+    const effective = effectiveListening({
+      immersion: 1.5,
+      params: { ...LISTENING_BASE_DEFAULTS, period: 18 },
+    });
+
+    expect(effective.breathePeriod).toBe(20);
   });
 
   it("clamps the master itself to 0..3", () => {
@@ -143,7 +163,7 @@ describe("listening tuning", () => {
       "export const HORIZON_HOME_LISTENING: HorizonListeningTuning = {",
     );
     expect(snippet).toContain("intensityBoost: 1.9,");
-    expect(snippet).toContain("breathePeriod: 12,");
+    expect(snippet).toContain("breathePeriod: 6,");
     expect(snippet).toContain("intensityAmp: 0.95,");
     expect(snippet).toContain("blobScale: 1.8,");
     expect(snippet).toContain("blobLift: 12.6,");
