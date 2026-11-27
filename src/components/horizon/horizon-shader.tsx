@@ -227,6 +227,8 @@ type Tokens = {
   color2: [number, number, number];
   alpha1: number;
   alpha2: number;
+  /** Left-blob alpha multiplier at full listening; 1 leaves the shared boost alone. */
+  listenDamp1: number;
   /** CSS blur radius in px after the responsive scale. */
   blur: number;
 };
@@ -285,6 +287,7 @@ function readTokens(): Tokens {
     color2: parseColor(style.getPropertyValue("--horizon-2")),
     alpha1: num("--horizon-1-alpha", 0.06),
     alpha2: num("--horizon-2-alpha", 0.06),
+    listenDamp1: num("--horizon-1-listen-damp", 1),
     blur: effectiveBlur(num("--horizon-blob-blur", 180), width),
   };
 }
@@ -321,6 +324,8 @@ type MotionUniforms = {
   intensity2: number;
   /** Rest strength, eased towards the night base over the phase fade. */
   base: number;
+  /** 0..1 listening swell, for per-blob listen damping. */
+  listenAmount: number;
 };
 
 /**
@@ -420,6 +425,7 @@ function motionUniforms(
     intensity1: intensity(breathe1),
     intensity2: intensity(breathe2),
     base: rest * boost,
+    listenAmount,
   };
 }
 
@@ -1005,7 +1011,10 @@ export function HorizonShader({
       // so they compose here exactly as the CSS tint and pulse layer do.
       gl.uniform1f(
         uniforms.alpha1,
-        tokens.alpha1 * animated.base * animated.intensity1,
+        tokens.alpha1 *
+          animated.base *
+          animated.intensity1 *
+          (1 + animated.listenAmount * (tokens.listenDamp1 - 1)),
       );
       gl.uniform1f(
         uniforms.alpha2,
