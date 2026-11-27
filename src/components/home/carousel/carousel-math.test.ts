@@ -346,6 +346,73 @@ describe("wrap seam", () => {
     }
   });
 
+  it("keeps the 12px gutter when the 4th card is clicked again mid-step", () => {
+    const linear = (t: number) => t;
+    const running = advance(0, 3, 5);
+
+    for (const timing of [0.05, 0.15, 0.3, 0.5, 0.75]) {
+      const first = retarget(G, 5, 0, 3, restEntities(G, 5, 0));
+      const midway = sampleEntities(first, timing * 1000, 1000, linear);
+      const replanned = retarget(G, 5, running, 3, midway);
+
+      // Every card drawn at all, including the faded edge copies, not just the
+      // four that land in the slots: an already-leaving copy must never be
+      // dragged back across the cards still in the row.
+      for (let step = 0; step <= 200; step++) {
+        const p = step / 200;
+        const drawn = sampleEntities(replanned, p * 1000, 1000, linear)
+          .filter((e) => e.from.x < G.rowWidth && e.from.x + e.from.w > 0)
+          .sort((a, b) => a.from.x - b.from.x);
+
+        for (let i = 1; i < drawn.length; i++) {
+          const gap =
+            drawn[i].from.x - (drawn[i - 1].from.x + drawn[i - 1].from.w);
+          expect(
+            gap,
+            `retarget at ${timing}, ${p}: ` +
+              `${entityKey(drawn[i - 1])} -> ${entityKey(drawn[i])}`,
+          ).toBeGreaterThanOrEqual(G.gap - 1e-6);
+        }
+      }
+    }
+  });
+
+  it("keeps the 12px gutter through three mid-step clicks on the 4th card", () => {
+    const linear = (t: number) => t;
+
+    for (const timings of [
+      [0.1, 0.1, 0.1],
+      [0.25, 0.2, 0.15],
+      [0.5, 0.25, 0.1],
+      [0.3, 0.6, 0.9],
+    ]) {
+      let offset = 0;
+      let plan = retarget(G, 5, 0, 3, restEntities(G, 5, 0));
+      for (const timing of timings) {
+        const midway = sampleEntities(plan, timing * 1000, 1000, linear);
+        offset = advance(offset, 3, 5);
+        plan = retarget(G, 5, offset, 3, midway);
+      }
+
+      for (let step = 0; step <= 200; step++) {
+        const p = step / 200;
+        const drawn = sampleEntities(plan, p * 1000, 1000, linear)
+          .filter((e) => e.from.x < G.rowWidth && e.from.x + e.from.w > 0)
+          .sort((a, b) => a.from.x - b.from.x);
+
+        for (let i = 1; i < drawn.length; i++) {
+          const gap =
+            drawn[i].from.x - (drawn[i - 1].from.x + drawn[i - 1].from.w);
+          expect(
+            gap,
+            `three clicks ${timings.join("/")} at ${p}: ` +
+              `${entityKey(drawn[i - 1])} -> ${entityKey(drawn[i])}`,
+          ).toBeGreaterThanOrEqual(G.gap - 1e-6);
+        }
+      }
+    }
+  });
+
   it("pushes a far step's leaving cards out as one group, gaps kept", () => {
     for (const k of [2, 3]) {
       const planned = retarget(G, 4, 0, k, restEntities(G, 4, 0));
