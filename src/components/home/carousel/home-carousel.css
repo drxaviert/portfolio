@@ -1,20 +1,22 @@
 /*
  * Home carousel geometry.
  *
- * The slot widths are the Figma columns (444/120/52/52, 656/140/64/64,
- * 753/180/83/84) with 12px gaps (`calc(var(--spacing) * 3)` below; keep in sync with
- * `GAP` in carousel-math.ts). Until the client measures the row, a card's
- * box comes from these rules so the server HTML already shows the right
- * layout; after that (`data-ready`) the script writes every box in pixels and
- * these rules stop applying.
+ * The slot widths are the Figma xl columns (753/180/83/84) with 12px gaps
+ * (`calc(var(--spacing) * 3)` below; keep in sync with `GAP` in
+ * carousel-math.ts). This is the only desktop layout: the whole home frame is
+ * scaled by --fit, so there are no md/lg slot sets. Until the client measures
+ * the row, a card's box comes from these rules so the server HTML already
+ * shows the right layout; after that (`data-ready`) the script writes every
+ * box in pixels and these rules stop applying. Below 768 the carousel is
+ * replaced by the stacked card and slivers.
  */
 
 .car-row {
-  --c0: 444;
-  --c1: 120;
-  --c2: 52;
-  --c3: 52;
-  --cols: 444fr 120fr 52fr 52fr;
+  --c0: 753;
+  --c1: 180;
+  --c2: 83;
+  --c3: 84;
+  --cols: 753fr 180fr 83fr 84fr;
   --u: calc((100% - var(--spacing) * 9) / (var(--c0) + var(--c1) + var(--c2) + var(--c3)));
   /* The short run's centring offset: 0 for the full four-column band. */
   --c-off: 0px;
@@ -23,32 +25,26 @@
   --car-shadow-pad: 8px;
 
   position: relative;
-  height: 560px;
+  height: 416px;
   /* Clips cards at the row's edges (the seam enters from beyond the right
      edge) while leaving room for the hover ring, the shadow and the focus
      outline, which grow past a resting card's box. */
   clip-path: inset(-12px -6px);
 }
 
-@media (min-width: 1024px) {
+/*
+ * Home / Dawn / 768: the tablet band is 444/120/52/52 over the 704 column and
+ * 560 tall, with the same 12px gutters. These are the 768 design's own slot
+ * ratios, not the xl 753/180/83/84 scaled down. >=1280 keeps the xl band above.
+ */
+@media (min-width: 768px) and (max-width: 1279.98px) {
   .car-row {
-    --c0: 656;
-    --c1: 140;
-    --c2: 64;
-    --c3: 64;
-    --cols: 656fr 140fr 64fr 64fr;
-    height: 360px;
-  }
-}
-
-@media (min-width: 1280px) {
-  .car-row {
-    --c0: 753;
-    --c1: 180;
-    --c2: 83;
-    --c3: 84;
-    --cols: 753fr 180fr 83fr 84fr;
-    height: 416px;
+    --c0: 444;
+    --c1: 120;
+    --c2: 52;
+    --c3: 52;
+    --cols: 444fr 120fr 52fr 52fr;
+    height: 560px;
   }
 }
 

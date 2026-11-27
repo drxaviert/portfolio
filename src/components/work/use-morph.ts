@@ -204,7 +204,29 @@ export function findOrigin(slug: string | null): HTMLElement | null {
 export function findCard(slug: string): Box | null {
   const card = cardElement(slug);
 
-  return card ? toBox(card.getBoundingClientRect()) : null;
+  return card ? drawerBox(toBox(card.getBoundingClientRect())) : null;
+}
+
+/**
+ * Convert a painted (post-zoom) box into the drawer layer's own layout space.
+ * The xl drawer is the only desktop drawer and is zoomed by --fit; its panel
+ * offsets and transforms are written in that pre-zoom space.
+ */
+function drawerBox(box: Box): Box {
+  const layer = document.querySelector<HTMLElement>(".wd-expand-layer");
+  if (!layer) return box;
+
+  const rect = layer.getBoundingClientRect();
+  const zoom = layer.offsetWidth ? rect.width / layer.offsetWidth : 1;
+
+  if (zoom === 1) return box;
+
+  return {
+    left: box.left / zoom,
+    top: box.top / zoom,
+    width: box.width / zoom,
+    height: box.height / zoom,
+  };
 }
 
 /**
@@ -528,7 +550,7 @@ export function useDrawerMorph(
           ? toBox(entry.origin.getBoundingClientRect())
           : null);
 
-      flyOpen(generation, box, mode);
+      flyOpen(generation, box ? drawerBox(box) : null, mode);
     },
     [commit, flyOpen, panelRef, readEntry, route],
   );
@@ -735,9 +757,12 @@ export function useDrawerMorph(
     const entry = machine.current.entry;
 
     if (entry.origin && laidOut(entry.origin)) {
-      return entry.kind === "capsule"
-        ? capsuleBox()
-        : toBox(entry.origin.getBoundingClientRect());
+      const box =
+        entry.kind === "capsule"
+          ? capsuleBox()
+          : toBox(entry.origin.getBoundingClientRect());
+
+      return box ? drawerBox(box) : null;
     }
 
     const again = findOrigin(slug);
@@ -748,7 +773,9 @@ export function useDrawerMorph(
         ? capsuleBox()
         : toBox(again.getBoundingClientRect());
 
-    return box && box.width > 0 && box.height > 0 ? box : null;
+    return box && box.width > 0 && box.height > 0
+      ? drawerBox(box)
+      : null;
   }, [slug]);
 
   /**

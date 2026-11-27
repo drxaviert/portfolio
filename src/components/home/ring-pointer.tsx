@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { CAROUSEL_STEP_END, CAROUSEL_STEP_START } from "./step-events";
+import { rectZoom } from "./layout-zoom";
 
 const HOST = ".ring-host";
 const GLOW = ".ring-glow";
@@ -24,6 +25,8 @@ export function RingHoverPointer() {
     let host: HTMLElement | null = null;
     let glow: HTMLElement | null = null;
     let rect: DOMRect | null = null;
+    /** The host's frame zoom at the last box read; 1 when it has no layout. */
+    let zoom = 1;
     let clientX = 0;
     let clientY = 0;
     let frame = 0;
@@ -41,6 +44,13 @@ export function RingHoverPointer() {
       }
     }
 
+    /** Reads a host box and keeps the effective frame zoom that goes with it. */
+    function readBox(element: HTMLElement): DOMRect {
+      const box = element.getBoundingClientRect();
+      zoom = rectZoom(element, box);
+      return box;
+    }
+
     function flush() {
       frame = 0;
 
@@ -54,7 +64,7 @@ export function RingHoverPointer() {
       // unless a carousel step is running (a card can be moved under a still
       // pointer) or the last step just ended; only then is it re-measured.
       if (following || needsRead) {
-        rect = host.getBoundingClientRect();
+        rect = readBox(host);
         needsRead = false;
       }
 
@@ -62,8 +72,10 @@ export function RingHoverPointer() {
         return;
       }
 
-      const mx = clientX - rect.left - rect.width / 2;
-      const my = clientY - rect.top - rect.height / 2;
+      // The glow's transform lives inside the zoomed frame, so the painted
+      // pointer offset is divided back into frame px.
+      const mx = (clientX - rect.left - rect.width / 2) / zoom;
+      const my = (clientY - rect.top - rect.height / 2) / zoom;
 
       glow.style.setProperty("--ring-mx", `${mx}px`);
       glow.style.setProperty("--ring-my", `${my}px`);
@@ -114,14 +126,14 @@ export function RingHoverPointer() {
 
       host = next;
       glow = nextGlow;
-      rect = host.getBoundingClientRect();
+      rect = readBox(next);
       clientX = x;
       clientY = y;
 
       snapTo(
         glow,
-        x - rect.left - rect.width / 2,
-        y - rect.top - rect.height / 2,
+        (x - rect.left - rect.width / 2) / zoom,
+        (y - rect.top - rect.height / 2) / zoom,
       );
       schedule();
     }
@@ -189,14 +201,14 @@ export function RingHoverPointer() {
 
       host = entry;
       glow = entryGlow;
-      rect = hostRect;
+      rect = readBox(entry);
       clientX = targetRect.left + targetRect.width / 2;
       clientY = targetRect.top + targetRect.height / 2;
 
       snapTo(
         glow,
-        clientX - hostRect.left - hostRect.width / 2,
-        clientY - hostRect.top - hostRect.height / 2,
+        (clientX - hostRect.left - hostRect.width / 2) / zoom,
+        (clientY - hostRect.top - hostRect.height / 2) / zoom,
       );
     }
 
@@ -230,7 +242,7 @@ export function RingHoverPointer() {
         return;
       }
 
-      rect = host.getBoundingClientRect();
+      rect = readBox(host);
       schedule();
     }
 

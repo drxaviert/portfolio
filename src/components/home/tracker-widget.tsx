@@ -2,12 +2,13 @@
  * Contribution tracker widget for the top-left card (Figma "emoji" 121:2022).
  *
  * Figma fills the card with the GitHub contribution tracker: square cells,
- * radius 2, 3px gaps and a 3-dot pager. The card is 160 at 375, 220 at 768/1024
- * and 275x276 at 1440. At 375 the grid is a 7x7 square (98x98, 11.43px cells);
- * from 768 up it is two stacked bands of 7 rows x 16 weeks (165x150, 7.5px
- * cells; 223x200.75 and 11.125px cells at 1440), with 9px between bands. The
- * pager sits 22px above the card bottom. Levels are placeholder data drawn from
- * the tracker ramp, so all four phases recolour it.
+ * radius 2, 3px gaps and a 3-dot pager. The card is 160 at 375, 220 square at
+ * 768/1024 (the Home / Dawn / 768 top band) and 275x276 at 1440. At 375 the
+ * grid is a 7x7 square (98x98, 11.43px cells); from 768 up it is two stacked
+ * bands of 7 rows x 16 weeks (165x150 over 165px at 768, 7.5px cells;
+ * 223x200.75 and 11.125px cells at 1440), with 9px between bands. The pager
+ * sits 22px above the card bottom at both desktop sizes. Levels are placeholder
+ * data drawn from the tracker ramp, so all four phases recolour it.
  */
 import { RingLayers } from "./ring-hover";
 
@@ -74,7 +75,7 @@ export function TrackerWidget() {
     <div
       role="img"
       aria-label="Contribution tracker, placeholder data"
-      className="ring-host flex h-40 w-40 flex-col rounded-lg pt-[22px] pb-[22px] md:size-[220px] md:pt-[26px] xl:h-[276px] xl:w-[275px]"
+      className="ring-host flex h-40 w-40 flex-col rounded-lg pt-[22px] pb-[22px] md:h-[220px] md:w-[220px] md:pt-[26px] xl:h-[276px] xl:w-[275px]"
     >
       <RingLayers fill="bg-surface-container-low" />
       <div className="mx-auto w-[98px] md:hidden">

@@ -33,6 +33,18 @@
 }
 
 /*
+ * The drawer is one xl composition too. At >=768 the layer, its fixed panel,
+ * the reader/index content and the nav all scale by the shared --fit zoom;
+ * below 768 the mobile gate covers it. The layer's fixed box still fills the
+ * viewport after zoom (a fixed inset:0 layer is viewport-sized in CSS zoom).
+ */
+@media (min-width: 768px) {
+  .wd-expand-layer {
+    zoom: var(--fit);
+  }
+}
+
+/*
  * A shell that has closed is off the screen even while its route is still
  * `/work`: the flight is over, the page is released, and a slow (or lost) exit
  * must not leave a surface behind. `visibility`, not `display`, so the panel

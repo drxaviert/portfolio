@@ -351,6 +351,30 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
   --wd-nav-content-gap: 24px;
   --wd-phase-row-gap: 4px;
 
+  /* Home frame fit. Below 768 the mobile gate owns the layout, so the frame is
+     never zoomed and this stays 1. The desktop rules below set the real value. */
+  --fit: 1;
+
+  /*
+   * The home frame's own fit. At 768-1279 the tablet frame (768x964) is scaled
+   * by this; at >=1280 it aliases --fit, so the xl composition keeps exactly
+   * the old fit. The other fixed compositions (drawer, play lab, messages)
+   * keep --fit: they are still the xl composition at every desktop width.
+   */
+  --home-fit: 1;
+
+  /*
+   * Page geometry for the scrolling desktop pages. At >=768 these are the xl
+   * (widest) values, and the whole composition is scaled by --fit; below 768
+   * the mobile gate keeps its previous values. There are no intermediate
+   * breakpoints to snap to.
+   */
+  --page-pad: 16px;
+  --page-gap: 16px;
+  --reading-column: 582px;
+  --reading-rail: 170px;
+  --title-fluid: 2rem;
+
   /* Homepage edge blur (viewport-edge-blur.css): the fixed progressive blur at
      the top and bottom of `/`. The band's height, and the deepest band's blur;
      the ramp fades to zero at the band's inner edge. */
@@ -363,6 +387,90 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
     --wd-panel-inset: 16px;
     --wd-nav-inset: 28px;
     --wd-nav-content-gap: 32px;
+
+    /*
+     * The desktop is one composition: the xl design (1200 x 910: the 780px
+     * column, the 64px bottom gap, and the 65px top gap including the 1px
+     * top line, plus 1px of centring slack). It is drawn on the 1440px design
+     * frame (the 1200px frame plus 120px side padding each way), so the width
+     * ratio is 100vw / 1440px. The height ratio stays 910px. Never grows past
+     * 1. Length/length division is the tan(atan2()) trick faux-ui.css uses;
+     * plain CSS cannot divide two lengths.
+     */
+    --fit: min(
+      1,
+      calc(tan(atan2(100vw, 1440px))),
+      calc(tan(atan2(100dvh, 910px)))
+    );
+
+    /* >=1280 keeps the xl fit for the home frame too. */
+    --home-fit: var(--fit);
+
+    /*
+     * Edge blur may only cover the empty margin around the frame's content,
+     * never a card or text. The margin is half of what the viewport has left
+     * after the xl 780px column, so the band is clamped to it; on a tall
+     * screen it settles at the design 172px. The peak blur follows the scale.
+     */
+    --edge-blur-height: min(172px, calc((100dvh - 780px * var(--fit)) / 2));
+    --edge-blur-max: calc(8px * var(--fit));
+
+    /* Desktop reading geometry: the xl values, scaled by --fit. */
+    --page-pad: 32px;
+    --page-gap: 44px;
+    --reading-column: 582px;
+    --reading-rail: 170px;
+    --title-fluid: 2.5rem;
+  }
+
+  /* The desktop composition is always the xl one, scaled by its own fit. */
+  [data-home-frame] {
+    /* The xl box is the 910px ink frame (909px of line ink); the horizontals
+       sit on its top/bottom. The verticals keep main's full-viewport length,
+       positioned on the box's left/right edges. */
+    --frame-line-top: calc((100% - 910px) / 2);
+    --frame-line-height: 909px;
+    --frame-line-v-top: calc((100% - 100dvh / var(--home-fit)) / 2);
+    --frame-line-v-height: calc(100dvh / var(--home-fit));
+
+    zoom: var(--home-fit);
+  }
+}
+
+/*
+ * Home / Dawn / 768: the tablet frame.
+ *
+ * From 768 to 1279 the home page is the 768 design frame: a 768x964 portrait
+ * composition with 32px side padding and 48px top/bottom, holding a 220px top
+ * band, a 560px card band and the 64px nav (two 12px gaps: 48 + 220 + 12 + 560
+ * + 12 + 64 + 48 = 964). It is centred and scaled by its own fit, capped at 1,
+ * so it never grows past the design size. >=1280 returns to the xl frame above.
+ */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  :root {
+    --home-fit: min(
+      1,
+      calc(tan(atan2(100vw, 768px))),
+      calc(tan(atan2(100dvh, 964px)))
+    );
+
+    /* The 768 frame's content column is 868 tall (964 - 2 * 48). */
+    --edge-blur-height: min(172px, calc((100dvh - 868px * var(--home-fit)) / 2));
+    --edge-blur-max: calc(8px * var(--home-fit));
+  }
+
+  [data-home-frame] {
+    flex: 0 0 auto;
+    width: 768px;
+    max-width: 768px;
+    height: 964px;
+    padding: 48px 32px;
+    margin-block: auto;
+
+    /* The 768 frame's hairlines sit on its four edges; the 12px gutters and
+       the 32/48 padding stay inside the frame. */
+    --frame-line-top: 0px;
+    --frame-line-height: 964px;
   }
 }
 
@@ -882,6 +990,17 @@ html[data-human-contact-transition="close"]::view-transition-new(root) {
 
 @utility shadow-card {
   box-shadow: var(--shadow-card);
+}
+
+/*
+ * The display title for the scrolling pages. Below 768 it is the mobile 2rem;
+ * at >=768 it is the xl 2.5rem and the page zoom scales it with the rest of
+ * the composition.
+ */
+@utility text-title-fluid {
+  font-size: var(--title-fluid);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
 }
 
 /*

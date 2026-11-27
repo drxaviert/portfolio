@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { isPhaseSwitching } from "@/lib/theme";
 import { createEdge, isEdgeAtRest, stepEdge } from "./glide-spring";
 import type { GlideSpring } from "./glide-spring";
+import { rectZoom } from "./layout-zoom";
 
 /**
  * The nav's orb head, with eyes that look at the pointer.
@@ -138,13 +139,18 @@ export function GazeOrb({
         return;
       }
 
+      // Reach and the pointer distance are painted (post-zoom) pixels, while
+      // the transform below is written inside the zoomed frame. The travel is
+      // scaled once for the painted head, then divided back into frame px so
+      // the frame zoom does not apply a second time.
       const scale = box.width / BASE;
+      const zoom = rectZoom(ball, box);
       const reach = tuning.lookDistance * scale;
       const amount = Math.min(distance / reach, 1) * tuning.strength;
 
       targetRef.current = {
-        x: (dx / distance) * LOOK_X * scale * amount,
-        y: (dy / distance) * LOOK_Y * scale * amount,
+        x: (dx / distance) * LOOK_X * (scale / zoom) * amount,
+        y: (dy / distance) * LOOK_Y * (scale / zoom) * amount,
       };
       kick();
     };

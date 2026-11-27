@@ -15,6 +15,7 @@ import type {
   VariantMeta,
   VariantSettings,
 } from "@/components/play/variants/settings";
+import "./play-lab.css";
 
 type Phase = "dawn" | "day" | "dusk" | "night";
 
@@ -92,8 +93,9 @@ function CardFrame({
 }) {
   return (
     <div
-      className="relative h-[276px] w-[849px] max-w-full overflow-hidden rounded-lg shadow-card"
+      className="relative w-[849px] max-w-full overflow-hidden rounded-lg shadow-card"
       style={{
+        aspectRatio: "849 / 276",
         background: variant === "silk-wave" ? "var(--surface)" : PLAY_GRADIENT,
       }}
     >
@@ -224,7 +226,7 @@ export function PlayLab() {
 
   return (
     <main className="min-h-screen bg-surface px-6 py-8 text-on-surface">
-      <div className="mx-auto max-w-[1740px]">
+      <div className="play-lab-content mx-auto max-w-[1740px]">
         <header className="mb-6">
           <h1 className="text-2xl font-medium">Play card · fibre-optic fan</h1>
           <p className="mt-1 max-w-[70ch] text-sm text-on-surface-variant">
@@ -298,7 +300,7 @@ export function PlayLab() {
           aria-label="Preview"
           className="flex flex-wrap items-start gap-6"
         >
-          <figure>
+          <figure className="min-w-0 max-w-full">
             <figcaption className="mb-2 text-xs text-on-surface-variant">
               <span className="font-medium text-on-surface">
                 {active.label}
@@ -316,7 +318,7 @@ export function PlayLab() {
             )}
           </figure>
 
-          <figure>
+          <figure className="min-w-0 max-w-full">
             <figcaption className="mb-2 text-xs text-on-surface-variant">
               <span className="font-medium text-on-surface">Current</span> ·
               reference for comparison
