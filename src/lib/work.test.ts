@@ -50,7 +50,7 @@ describe("parseFrontmatter", () => {
 
 describe("listWork", () => {
   it("returns the visible case studies", () => {
-    expect(listWork()).toHaveLength(4);
+    expect(listWork()).toHaveLength(17);
   });
 
   it("gives every study a known cover", () => {
@@ -63,10 +63,23 @@ describe("listWork", () => {
 
   it("keeps the reading order stable", () => {
     expect(listWork().map((work) => work.slug)).toEqual([
-      "systems-in-motion",
-      "title-sequence",
-      "type-in-motion",
+      "ai-agents-google",
+      "klaris",
+      "shapes-in-motion",
+      "growth-factors-deciem",
+      "cellixir",
+      "tribeca-film-festival-deciem",
+      "urban-decay",
+      "niod-deciem",
+      "good-form-rebrand",
+      "xylo-audio",
+      "lullavibes",
+      "cash-app-cash-flow",
+      "metaview",
+      "linksys",
+      "london-public-library",
       "motion-and-stills",
+      "personal",
     ]);
   });
 
@@ -76,8 +89,8 @@ describe("listWork", () => {
 });
 
 describe("getWork", () => {
-  it("reads the featured study and its tiles cover", () => {
-    expect(getWork(FEATURED_SLUG)?.cover).toBe("tiles");
+  it("reads the featured study and its window cover", () => {
+    expect(getWork(FEATURED_SLUG)?.cover).toBe("window");
     expect(getWork(FEATURED_SLUG)?.layout).toBe("reader");
   });
 
@@ -98,26 +111,43 @@ describe("getWork", () => {
   });
 });
 
+describe("year", () => {
+  it("keeps the year on dated studies", () => {
+    expect(getWork("klaris")?.year).toBe("2025");
+  });
+
+  it("omits the optional year when the study has none", () => {
+    const personal = getWork("personal");
+
+    expect(personal).not.toBeNull();
+    expect(personal && "year" in personal).toBe(false);
+  });
+});
+
 describe("nextWork", () => {
   it("returns the following study in reading order", () => {
-    expect(nextWork("systems-in-motion").slug).toBe("title-sequence");
+    expect(nextWork("ai-agents-google").slug).toBe("klaris");
   });
 
-  it("steps from the third study to the canvas study", () => {
-    expect(nextWork("type-in-motion").slug).toBe("motion-and-stills");
+  it("steps from the last 2D study to the canvas study", () => {
+    expect(nextWork("london-public-library").slug).toBe("motion-and-stills");
   });
 
-  it("skips the hidden study and wraps from the canvas study to the first", () => {
-    expect(nextWork("motion-and-stills").slug).toBe("systems-in-motion");
+  it("skips the hidden study between the canvas study and personal", () => {
+    expect(nextWork("motion-and-stills").slug).toBe("personal");
+  });
+
+  it("wraps from the last study back to the first", () => {
+    expect(nextWork("personal").slug).toBe("ai-agents-google");
   });
 
   it("treats a hidden slug as the end of the reading order", () => {
-    expect(nextWork("human-contact").slug).toBe("systems-in-motion");
+    expect(nextWork("human-contact").slug).toBe("ai-agents-google");
   });
 });
 
 describe("FEATURED_SLUG", () => {
   it("is the study with the homepage card", () => {
-    expect(FEATURED_SLUG).toBe("systems-in-motion");
+    expect(FEATURED_SLUG).toBe("ai-agents-google");
   });
 });

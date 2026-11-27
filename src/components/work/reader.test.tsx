@@ -38,10 +38,20 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-function featured() {
-  const meta = getWork("systems-in-motion");
+function workMeta(slug = "ai-agents-google") {
+  const meta = getWork(slug);
   if (!meta) throw new Error("missing fixture");
   return meta;
+}
+
+function renderReader(children: ReactNode, meta = workMeta()) {
+  return render(
+    <ThemeProvider>
+      <DrawerActionsProvider close={close} stepBack={stepBack} exit={vi.fn()}>
+        <Reader meta={meta}>{children}</Reader>
+      </DrawerActionsProvider>
+    </ThemeProvider>,
+  );
 }
 
 beforeEach(() => {
@@ -68,16 +78,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderReader(children: ReactNode) {
-  return render(
-    <ThemeProvider>
-      <DrawerActionsProvider close={close} stepBack={stepBack} exit={vi.fn()}>
-        <Reader meta={featured()}>{children}</Reader>
-      </DrawerActionsProvider>
-    </ThemeProvider>,
-  );
-}
-
 describe("reader content", () => {
   it("is content only: the drawer's panel owns the dialog", () => {
     renderReader(<p>Case-study body</p>);
@@ -88,19 +88,28 @@ describe("reader content", () => {
     expect(document.getElementById(READER_TITLE_ID)).toBeInTheDocument();
   });
 
+  it("renders the role alone when the study has no year", () => {
+    renderReader(<p>Case-study body</p>, workMeta("personal"));
+
+    const meta = document.querySelector(".wd-intro-meta");
+
+    expect(meta).toHaveTextContent("—");
+    expect(meta?.textContent).not.toContain("·");
+  });
+
   it("puts the shared Breadcrumb above the article, before the column", () => {
     renderReader(<p>Case-study body</p>);
 
     const nav = screen.getByRole("navigation", { name: "Breadcrumb" });
     const home = screen.getByRole("link", { name: "Home" });
     const work = screen.getByRole("link", { name: "Work" });
-    const title = screen.getByText("Systems in motion", {
+    const title = screen.getByText("AI AGENTS | GOOGLE", {
       selector: ".breadcrumb-current",
     });
     const row = document.querySelector(".wd-reader-back-row");
     const column = document.querySelector(".wd-reader-column");
 
-    expect(nav).toHaveTextContent("Home/Work/Systems in motion");
+    expect(nav).toHaveTextContent("Home/Work/AI AGENTS | GOOGLE");
     expect(home).toHaveAttribute("href", "/");
     expect(work).toHaveAttribute("href", "/work");
     expect(title).toHaveAttribute("aria-current", "page");
@@ -156,10 +165,10 @@ describe("reader content", () => {
     renderReader(<p>Case-study body</p>);
 
     const next = screen.getByRole("link", {
-      name: "Next project: The title sequence",
+      name: "Next project: KLARIS",
     });
 
-    expect(next).toHaveAttribute("href", "/work/title-sequence");
+    expect(next).toHaveAttribute("href", "/work/klaris");
     expect(next).toHaveAttribute("data-replace", "false");
   });
 
@@ -170,7 +179,7 @@ describe("reader content", () => {
     renderReader(<p>Case-study body</p>);
 
     const next = screen.getByRole("link", {
-      name: "Next project: The title sequence",
+      name: "Next project: KLARIS",
     });
     const click = createEvent.click(next);
     fireEvent(next, click);

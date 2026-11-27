@@ -62,7 +62,7 @@ export function Figure({
   media,
   children,
 }: {
-  caption: string;
+  caption?: string;
   aspect?: string;
   marginCaption?: boolean;
   wide?: boolean;
@@ -92,14 +92,35 @@ export function Figure({
   return (
     <figure className={classes}>
       {slot ?? <div className="wd-media" style={{ aspectRatio: aspect }} />}
-      <figcaption
-        className={["wd-caption", marginCaption && "wd-caption-margin"]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        {caption}
-      </figcaption>
+      {caption ? (
+        <figcaption
+          className={["wd-caption", marginCaption && "wd-caption-margin"]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {caption}
+        </figcaption>
+      ) : null}
     </figure>
+  );
+}
+
+/**
+ * A row of 2 or 3 figures, matching a live page's two- or three-up grid.
+ * The row breaks out to the same 880px measure as a wide figure on desktop
+ * and stacks to one column below 768px.
+ */
+export function Row({
+  cols = 2,
+  children,
+}: {
+  cols?: 2 | 3;
+  children: ReactNode;
+}) {
+  return (
+    <div className="wd-fig-row" data-cols={cols}>
+      {children}
+    </div>
   );
 }
 

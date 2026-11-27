@@ -5,4 +5,4 @@
  */
 
 /** The one study with a card on the homepage: every drawer's last-resort origin. */
-export const FEATURED_SLUG = "systems-in-motion";
+export const FEATURED_SLUG = "ai-agents-google";

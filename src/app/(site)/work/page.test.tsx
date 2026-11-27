@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { listWork } from "@/lib/work";
 import WorkIndexPage from "./page";
 
 vi.mock("next/navigation", () => ({
@@ -52,9 +53,11 @@ describe("work index page", () => {
       ),
     ];
 
-    expect(links).toHaveLength(4);
-    expect(links[0]).toHaveAttribute("href", "/work/systems-in-motion");
-    expect(links[3]).toHaveAttribute("href", "/work/motion-and-stills");
+    expect(links).toHaveLength(listWork().length);
+    expect(links[0]).toHaveAttribute("href", "/work/ai-agents-google");
+    expect(
+      links.some((link) => link.getAttribute("href") === "/work/motion-and-stills"),
+    ).toBe(true);
     expect(
       links.some((link) => link.getAttribute("href") === "/work/human-contact"),
     ).toBe(false);

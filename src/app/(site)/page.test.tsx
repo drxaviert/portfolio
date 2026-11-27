@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { listWork } from "@/lib/work";
 import Page from "./page";
 import SiteLayout from "./layout";
 import { ART_DATA_VERSION, getTodaysArt } from "@/lib/daily-art";
@@ -48,10 +49,12 @@ describe("home page", () => {
 
     // Below md the stacked card and from md the carousel card both render
     // (CSS picks one), so the featured study appears twice in the markup.
-    const cards = screen.getAllByRole("link", { name: "Systems in motion" });
+    const cards = screen.getAllByRole("link", {
+      name: "AI AGENTS | GOOGLE",
+    });
     expect(cards.length).toBeGreaterThan(0);
     for (const link of cards) {
-      expect(link).toHaveAttribute("href", "/work/systems-in-motion");
+      expect(link).toHaveAttribute("href", "/work/ai-agents-google");
     }
     // The nav itself is one element in the root layout; the page reserves its
     // slot and nothing else.
@@ -96,15 +99,15 @@ describe("home page", () => {
         .querySelector('[data-slot="0"] .car-host')
         ?.getAttribute("aria-label");
 
-    // Four visible studies and the placeholder that closes the row.
-    expect(slides).toHaveLength(5);
-    expect(front()).toBe("Systems in motion");
+    // Every visible study and the placeholder that closes the row.
+    expect(slides).toHaveLength(listWork().length + 1);
+    expect(front()).toBe("AI AGENTS | GOOGLE");
 
     fireEvent.keyDown(carousel, { key: "ArrowRight" });
-    expect(front()).toBe("The title sequence");
+    expect(front()).toBe("KLARIS");
 
     fireEvent.keyDown(carousel, { key: "ArrowLeft" });
-    expect(front()).toBe("Systems in motion");
+    expect(front()).toBe("AI AGENTS | GOOGLE");
   });
 
   it("does not render dev-only tools", async () => {

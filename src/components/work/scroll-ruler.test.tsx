@@ -191,7 +191,7 @@ afterEach(() => {
 describe("ScrollRuler", () => {
   it("draws the reference ruler's 17 ticks and one link per section", async () => {
     mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() =>
       expect(ruler().querySelectorAll(".wd-ruler-slot")).toHaveLength(
@@ -211,7 +211,7 @@ describe("ScrollRuler", () => {
 
   it("generates the heading ids the links point at", async () => {
     const { elements } = mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     const headings = elements.filter((el) => el.tagName === "H2");
 
@@ -317,7 +317,7 @@ describe("ScrollRuler", () => {
 
   it("sits 40px to the right of the text column", async () => {
     mountStudy({ blocks: fourSections(), room: 209 });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() =>
       expect(ruler()).toHaveAttribute("data-visible", "true"),
@@ -329,7 +329,7 @@ describe("ScrollRuler", () => {
 
   it("hides itself when the panel leaves no room beside the column", async () => {
     mountStudy({ blocks: fourSections(), room: 60 });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() =>
       expect(ruler()).toHaveAttribute("data-visible", "false"),
@@ -349,7 +349,7 @@ describe("ScrollRuler", () => {
     document.body.append(layer);
     layer.append(panel);
 
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     // The same fixture writes 95.5px while open (see the fit test above).
     await waitFor(() => expect(ruler()).toBeInTheDocument());
@@ -364,7 +364,7 @@ describe("ScrollRuler", () => {
   it("takes the ruler's width and clearance out of the fit", async () => {
     // 40px gap + 18px ruler + 16px clearance is the least it can hold.
     mountStudy({ blocks: fourSections(), room: 73 });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() =>
       expect(ruler()).toHaveAttribute("data-visible", "false"),
@@ -373,7 +373,7 @@ describe("ScrollRuler", () => {
 
   it("follows the column when it moves", async () => {
     const { column } = mountStudy({ blocks: fourSections(), room: 209 });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() =>
       expect(ruler()).toHaveAttribute("data-visible", "true"),
@@ -392,7 +392,7 @@ describe("ScrollRuler", () => {
 
   it("holds its tick until a section crosses the landing line", async () => {
     const { scroll } = mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() =>
       expect(ruler()).toHaveAttribute("data-visible", "true"),
@@ -419,7 +419,7 @@ describe("ScrollRuler", () => {
 
   it("takes the last section at the bottom of the article", async () => {
     const { scroll } = mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() =>
       expect(ruler()).toHaveAttribute("data-visible", "true"),
@@ -435,7 +435,7 @@ describe("ScrollRuler", () => {
 
   it("jumps to a section's heading when its tick is clicked", async () => {
     const { scroll } = mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
     fireEvent.click(screen.getByLabelText("The process"));
@@ -448,7 +448,7 @@ describe("ScrollRuler", () => {
 
   it("moves once to the clicked tick, not through the sections between", async () => {
     const { scroll } = mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
 
@@ -471,7 +471,7 @@ describe("ScrollRuler", () => {
 
   it("lands a plain tick's jump on the section that tick belongs to", async () => {
     const { scroll } = mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
 
@@ -489,7 +489,7 @@ describe("ScrollRuler", () => {
 
   it("jumps to the block at a plain tick, not only to sections", async () => {
     const { scroll } = mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
 
@@ -506,7 +506,7 @@ describe("ScrollRuler", () => {
   it("jumps instantly under reduced motion", async () => {
     stubMatchMedia(true);
     const { scroll } = mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
     fireEvent.click(screen.getByLabelText("The outcome"));
@@ -519,7 +519,7 @@ describe("ScrollRuler", () => {
 
   it("leaves a modified click to the browser", async () => {
     const { scroll } = mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
     fireEvent.click(screen.getByLabelText("The system"), { metaKey: true });
@@ -529,7 +529,7 @@ describe("ScrollRuler", () => {
 
   it("previews the section and the text at the hovered tick", async () => {
     mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
 
@@ -543,7 +543,7 @@ describe("ScrollRuler", () => {
 
   it("keeps one card open while scrubbing, swapping its text in place", async () => {
     mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
 
@@ -591,7 +591,7 @@ describe("ScrollRuler", () => {
 
   it("releases the preview when the pointer leaves", async () => {
     mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
 
@@ -604,7 +604,7 @@ describe("ScrollRuler", () => {
 
   it("keeps the preview while the pointer stays, even as focus moves away", async () => {
     mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
 
@@ -626,7 +626,7 @@ describe("ScrollRuler", () => {
 
   it("shows the preview for a focused section tick, so the keyboard gets it", async () => {
     mountStudy({ blocks: fourSections() });
-    renderRuler("systems-in-motion");
+    renderRuler("ai-agents-google");
 
     await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(4));
     fireEvent.focus(screen.getByLabelText("The system"));

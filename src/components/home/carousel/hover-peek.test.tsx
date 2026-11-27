@@ -11,9 +11,9 @@ import { HomeCarousel } from "./home-carousel";
 import type { CarouselItem } from "./home-carousel";
 
 const ITEMS: CarouselItem[] = [
-  { kind: "work", slug: "systems-in-motion", title: "Systems" },
-  { kind: "work", slug: "title-sequence", title: "Titles" },
-  { kind: "work", slug: "type-in-motion", title: "Type" },
+  { kind: "work", slug: "ai-agents-google", title: "Systems" },
+  { kind: "work", slug: "klaris", title: "Titles" },
+  { kind: "work", slug: "shapes-in-motion", title: "Type" },
   { kind: "placeholder", title: "More work soon" },
 ];
 
@@ -25,9 +25,9 @@ const SIX: CarouselItem[] = [
 
 /** Four work cards, so the peek's previous and right-most are both pictures. */
 const FOUR_WORKS: CarouselItem[] = [
-  { kind: "work", slug: "systems-in-motion", title: "Systems" },
-  { kind: "work", slug: "title-sequence", title: "Titles" },
-  { kind: "work", slug: "type-in-motion", title: "Type" },
+  { kind: "work", slug: "ai-agents-google", title: "Systems" },
+  { kind: "work", slug: "klaris", title: "Titles" },
+  { kind: "work", slug: "shapes-in-motion", title: "Type" },
   { kind: "work", slug: "fourth", title: "Fourth" },
 ];
 
@@ -1158,7 +1158,7 @@ describe("left hover peek", () => {
     fireEvent.click(host);
 
     // The reader's morph reads this at open and again at close.
-    const measured = findCard("systems-in-motion")!;
+    const measured = findCard("ai-agents-google")!;
     expect(measured.left).toBe(ROW.left + OPEN_X[0]);
     expect(measured.left).not.toBe(ROW.left + REST_X[0]);
   });
@@ -1190,7 +1190,7 @@ describe("left hover peek", () => {
         expect(layer.style.opacity).toBe("0");
       }
       // The close morph now finds the card at its rest box.
-      expect(findCard("systems-in-motion")!.left).toBe(ROW.left + REST_X[0]);
+      expect(findCard("ai-agents-google")!.left).toBe(ROW.left + REST_X[0]);
       unmount();
     }
   });
@@ -1225,7 +1225,7 @@ describe("left hover peek", () => {
         (r as unknown as { cancel: ReturnType<typeof vi.fn> }).cancel,
       ).toHaveBeenCalled();
     expect(row(container)).toHaveAttribute("data-stepping");
-    expect(findCard("title-sequence")!.left).toBe(ROW.left + 310);
+    expect(findCard("klaris")!.left).toBe(ROW.left + 310);
 
     // The reader's panel is in the page when it reports it has landed.
     const layer = document.createElement("div");
@@ -1314,7 +1314,7 @@ describe("held motion without a reader", () => {
 
   it("stays held on popstate while a reader is open", () => {
     const { container } = hold();
-    window.history.pushState({}, "", "/work/systems-in-motion");
+    window.history.pushState({}, "", "/work/ai-agents-google");
     const before = recorded.length;
 
     act(() => {

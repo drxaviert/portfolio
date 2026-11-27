@@ -53,7 +53,7 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-const STUDY = "/work/systems-in-motion";
+const STUDY = "/work/ai-agents-google";
 const PANEL: Box = { left: 0, top: 0, width: 1408, height: 868 };
 const CARD: Box = { left: 100, top: 200, width: 753, height: 416 };
 const CAPSULE: Box = { left: 800, top: 700, width: 56, height: 32 };
@@ -77,7 +77,7 @@ function layerElement() {
   return document.querySelector<HTMLElement>(".wd-expand-layer")!;
 }
 
-function placeCard(rect: Box = CARD, slug = "systems-in-motion") {
+function placeCard(rect: Box = CARD, slug = "ai-agents-google") {
   const card = document.createElement("a");
   card.href = `/work/${slug}`;
   card.dataset.workCard = slug;
@@ -120,7 +120,7 @@ function Index() {
       <h1 id="wd-index-title" tabIndex={-1}>
         Work
       </h1>
-      <a href="/work/systems-in-motion">Systems in motion</a>
+      <a href="/work/ai-agents-google">Systems in motion</a>
     </div>
   );
 }
@@ -206,7 +206,7 @@ function ScrolledIndex() {
         Work
       </h1>
       <div className="wd-index-scroll">
-        <a href="/work/systems-in-motion">Systems in motion</a>
+        <a href="/work/ai-agents-google">Systems in motion</a>
       </div>
     </div>
   );
@@ -756,7 +756,7 @@ describe("DrawerShell", () => {
     });
 
     expect(document.activeElement?.getAttribute("data-work-card")).toBe(
-      "systems-in-motion",
+      "ai-agents-google",
     );
   });
 
@@ -825,7 +825,7 @@ describe("DrawerShell", () => {
     const view = await renderOpen("/work");
 
     // index -> A -> B: two pushes above the entry the drawer opened on.
-    for (const route of [STUDY, "/work/title-sequence"]) {
+    for (const route of [STUDY, "/work/klaris"]) {
       mocks.pathname = route;
       window.history.replaceState({ workOverlay: true }, "", route);
       view.rerender(
@@ -845,7 +845,7 @@ describe("DrawerShell", () => {
     placeCard();
     const view = await renderOpen("/work");
 
-    for (const route of [STUDY, "/work/title-sequence"]) {
+    for (const route of [STUDY, "/work/klaris"]) {
       mocks.pathname = route;
       window.history.replaceState({ workOverlay: true }, "", route);
       view.rerender(
@@ -859,10 +859,10 @@ describe("DrawerShell", () => {
     window.history.replaceState(
       { workOverlay: true, workDepth: 0, workPrev: "index" },
       "",
-      "/work/type-in-motion",
+      "/work/shapes-in-motion",
     );
     fireEvent.popState(window);
-    mocks.pathname = "/work/type-in-motion";
+    mocks.pathname = "/work/shapes-in-motion";
     view.rerender(
       <DrawerShell>
         <Study />
@@ -898,7 +898,7 @@ describe("DrawerShell", () => {
     const view = await renderOpen("/work");
 
     // index -> A -> B: the entry behind B is A, not the index.
-    for (const route of [STUDY, "/work/title-sequence"]) {
+    for (const route of [STUDY, "/work/klaris"]) {
       mocks.pathname = route;
       window.history.replaceState({ workOverlay: true }, "", route);
       view.rerender(

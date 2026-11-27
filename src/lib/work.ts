@@ -15,11 +15,28 @@ export { FEATURED_SLUG };
 
 /** Reading order for the list and for the wrap-around next-study link. */
 const WORK_ORDER = [
-  "systems-in-motion",
-  "title-sequence",
-  "type-in-motion",
+  // 3D work, in the live site's order.
+  "ai-agents-google",
+  "klaris",
+  "shapes-in-motion",
+  "growth-factors-deciem",
+  "cellixir",
+  "tribeca-film-festival-deciem",
+  "urban-decay",
+  "niod-deciem",
+  "good-form-rebrand",
+  "xylo-audio",
+  "lullavibes",
+  // 2D work.
+  "cash-app-cash-flow",
+  "metaview",
+  "linksys",
+  "london-public-library",
+  // Studies built for this site.
   "motion-and-stills",
   "human-contact",
+  // The personal page.
+  "personal",
 ] as const;
 
 export type WorkSlug = (typeof WORK_ORDER)[number];
@@ -28,7 +45,8 @@ export type WorkMeta = {
   slug: WorkSlug;
   title: string;
   subtitle: string;
-  year: string;
+  /** Optional: the personal study has no year on the live site. */
+  year?: string;
   role: string;
   summary: string;
   cover: Cover;
@@ -99,7 +117,6 @@ function readWork(slug: WorkSlug): WorkMeta {
   const missing = [
     ["title", title],
     ["subtitle", subtitle],
-    ["year", year],
     ["role", role],
     ["summary", summary],
   ]
@@ -122,7 +139,7 @@ function readWork(slug: WorkSlug): WorkMeta {
     slug,
     title,
     subtitle,
-    year,
+    ...(year ? { year } : {}),
     role,
     summary,
     cover,

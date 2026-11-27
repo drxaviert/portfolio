@@ -24,7 +24,7 @@ describe("parseStatus", () => {
       "?? content/media/still-1234567890.json",
       " M src/app/page.tsx",
       "?? content/media/notes.txt",
-      " M content/work/systems-in-motion.mdx",
+      " M content/work/ai-agents-google.mdx",
     ].join("\n");
 
     const { media, other } = parseStatus(output);
@@ -33,7 +33,7 @@ describe("parseStatus", () => {
     expect(other).toEqual([
       "src/app/page.tsx",
       "content/media/notes.txt",
-      "content/work/systems-in-motion.mdx",
+      "content/work/ai-agents-google.mdx",
     ]);
   });
 

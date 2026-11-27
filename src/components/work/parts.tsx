@@ -51,7 +51,8 @@ export function Intro({
         {meta.subtitle}
       </p>
       <p className="wd-intro-meta" dir="auto">
-        {meta.role} · {meta.year}
+        {meta.role}
+        {meta.year ? <> · {meta.year}</> : null}
       </p>
     </header>
   );

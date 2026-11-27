@@ -10,10 +10,27 @@ export type WorkBody = { default: ComponentType<MDXProps> };
  * body through this map.
  */
 export const WORK_BODIES: Record<WorkSlug, () => Promise<WorkBody>> = {
-  "systems-in-motion": () => import("../../content/work/systems-in-motion.mdx"),
-  "title-sequence": () => import("../../content/work/title-sequence.mdx"),
-  "type-in-motion": () => import("../../content/work/type-in-motion.mdx"),
+  "ai-agents-google": () => import("../../content/work/ai-agents-google.mdx"),
+  klaris: () => import("../../content/work/klaris.mdx"),
+  "shapes-in-motion": () => import("../../content/work/shapes-in-motion.mdx"),
+  "growth-factors-deciem": () =>
+    import("../../content/work/growth-factors-deciem.mdx"),
+  cellixir: () => import("../../content/work/cellixir.mdx"),
+  "tribeca-film-festival-deciem": () =>
+    import("../../content/work/tribeca-film-festival-deciem.mdx"),
+  "urban-decay": () => import("../../content/work/urban-decay.mdx"),
+  "niod-deciem": () => import("../../content/work/niod-deciem.mdx"),
+  "good-form-rebrand": () => import("../../content/work/good-form-rebrand.mdx"),
+  "xylo-audio": () => import("../../content/work/xylo-audio.mdx"),
+  lullavibes: () => import("../../content/work/lullavibes.mdx"),
+  "cash-app-cash-flow": () =>
+    import("../../content/work/cash-app-cash-flow.mdx"),
+  metaview: () => import("../../content/work/metaview.mdx"),
+  linksys: () => import("../../content/work/linksys.mdx"),
+  "london-public-library": () =>
+    import("../../content/work/london-public-library.mdx"),
   "motion-and-stills": () =>
     import("../../content/work/motion-and-stills.mdx"),
   "human-contact": () => import("../../content/work/human-contact.mdx"),
+  personal: () => import("../../content/work/personal.mdx"),
 };

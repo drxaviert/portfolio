@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { READER_TITLE_ID } from "@/components/work/reader";
+import { listWork } from "@/lib/work";
 import WorkPage, { generateStaticParams } from "./page";
 
 const { notFound } = vi.hoisted(() => ({
@@ -13,7 +14,7 @@ const { notFound } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   notFound,
-  usePathname: () => "/work/systems-in-motion",
+  usePathname: () => "/work/ai-agents-google",
   useRouter: () => ({
     push: () => undefined,
     replace: () => undefined,
@@ -23,7 +24,7 @@ vi.mock("next/navigation", () => ({
 
 // Vitest has no MDX transform; the body is a placeholder here. The page test
 // checks the article's wiring, not the compiled prose.
-vi.mock("../../../../../content/work/systems-in-motion.mdx", () => ({
+vi.mock("../../../../../content/work/ai-agents-google.mdx", () => ({
   default: () => <p>Case-study body</p>,
 }));
 
@@ -44,7 +45,7 @@ vi.mock("@/components/work/canvas-reader", () => ({
 }));
 
 async function renderStudy(
-  slug = "systems-in-motion",
+  slug = "ai-agents-google",
   query: { [key: string]: string | string[] | undefined } = {},
 ) {
   render(
@@ -83,7 +84,7 @@ describe("work page", () => {
 
     // The homepage card has the same title; the article's is the one by id.
     const title = document.getElementById(READER_TITLE_ID);
-    expect(title).toHaveTextContent("Systems in motion");
+    expect(title).toHaveTextContent("AI AGENTS | GOOGLE");
     expect(screen.getByText("Case-study body")).toBeInTheDocument();
   });
 
@@ -105,8 +106,8 @@ describe("work page", () => {
     await renderStudy();
 
     expect(
-      screen.getByRole("link", { name: "Next project: The title sequence" }),
-    ).toHaveAttribute("href", "/work/title-sequence");
+      screen.getByRole("link", { name: "Next project: KLARIS" }),
+    ).toHaveAttribute("href", "/work/klaris");
   });
 
   it("calls notFound for the hidden study", async () => {
@@ -120,12 +121,8 @@ describe("work page", () => {
   it("does not statically generate the hidden study", () => {
     const slugs = generateStaticParams().map(({ slug }) => slug);
 
-    expect(slugs).toEqual([
-      "systems-in-motion",
-      "title-sequence",
-      "type-in-motion",
-      "motion-and-stills",
-    ]);
+    expect(slugs).toEqual(listWork().map((work) => work.slug));
+    expect(slugs).toContain("motion-and-stills");
     expect(slugs).not.toContain("human-contact");
   });
 
