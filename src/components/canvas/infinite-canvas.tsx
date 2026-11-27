@@ -838,7 +838,6 @@ export const InfiniteCanvas = forwardRef<
     const geometry = new THREE.PlaneGeometry(1, 1);
     const parallaxUniform = { value: new THREE.Vector2() };
     const introZoomUniform: { value: number } = { value: INTRO.zoomFrom };
-    const grayUniform: { value: number } = { value: 1 };
     const loader = new THREE.TextureLoader();
     const raycaster = new THREE.Raycaster();
     const ndc = new THREE.Vector2();
@@ -2181,7 +2180,9 @@ export const InfiniteCanvas = forwardRef<
               uParallax: parallaxUniform,
               uZoom: { value: TEXTURE_ZOOM },
               uZoomFactor: introZoomUniform,
-              uGray: grayUniform,
+              // Per-plane: each tile starts its colour reveal on its own
+              // opacity delay, not one global grayscale clock.
+              uGray: { value: 1 },
               uOpacity: { value: opacity },
               uDecodeVideo: { value: videoTexture ? 1 : 0 },
             },
@@ -3034,6 +3035,22 @@ export const InfiniteCanvas = forwardRef<
       halfX = (cols * pitchX) / 2;
       halfY = (rows * pitchY) / 2;
       placePlanes();
+
+      // The colour reveal is per plane: a tile starts grey at its own opacity
+      // delay and finishes 900ms later. After the intro every plane is colour.
+      for (const plane of planes) {
+        const gray = reduced
+          ? 0
+          : introElapsed < 0
+            ? 1
+            : introGray(introElapsed, plane.opacityDelay);
+
+        plane.material.uniforms.uGray.value = gray;
+      }
+
+      if (planes[0]) {
+        introGrayValue = planes[0].material.uniforms.uGray.value;
+      }
 
       const elapsed =
         transition.phase === "idle" ? 0 : now - transition.startedAt;
@@ -4133,7 +4150,6 @@ export const InfiniteCanvas = forwardRef<
             onIntroStartRef.current?.();
           }
         } else {
-          grayUniform.value = 1;
           introZoomUniform.value = INTRO.zoomFrom;
           return true;
         }
@@ -4152,13 +4168,11 @@ export const InfiniteCanvas = forwardRef<
       } else {
         introCamera = introCameraZ(introElapsed);
         introGap = introGapProgress(introElapsed);
-        introGrayValue = introGray(introElapsed);
         introZoomValue = introZoom(introElapsed);
         introVideos = introVideosReady(introElapsed);
         introEndedFlag = introEnded(introElapsed);
       }
 
-      grayUniform.value = introGrayValue;
       introZoomUniform.value = introZoomValue;
 
       if (introEndedFlag && !introAnnounced) {
