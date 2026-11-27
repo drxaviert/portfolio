@@ -215,6 +215,12 @@ const VIDEO_TUNING = {
 const MAX_PRELOADS = 6;
 /** The clicked tile's hold size while its full-res source loads. */
 const OPEN_PRESS_SCALE = 0.94;
+/**
+ * During a close the featured plane is the one leaving the focus. It must
+ * paint after every sibling for the whole shrink, or a sibling whose plane
+ * overlaps the large focus rect can cover the media being closed.
+ */
+const CLOSE_TARGET_RENDER_ORDER = 2;
 
 const VERTEX_SHADER = /* glsl */ `
   varying vec2 vUv;
@@ -3512,13 +3518,18 @@ export const InfiniteCanvas = forwardRef<
       }
 
       const intentPending = hoverIntentPlane !== null;
+      const closeTarget =
+        transition.phase === "closing" ? transition.target : null;
       let active = false;
 
       for (const plane of planes) {
         if (reduced) {
           plane.hoverLevel = 0;
           plane.hover = { from: 0, to: 0, startedAt: now, durationMs: 0 };
-          plane.mesh.renderOrder = 0;
+          plane.mesh.renderOrder =
+            closeTarget && plane === closeTarget
+              ? CLOSE_TARGET_RENDER_ORDER
+              : 0;
           continue;
         }
 
@@ -3531,8 +3542,13 @@ export const InfiniteCanvas = forwardRef<
           active = true;
         }
 
-        plane.mesh.renderOrder =
-          plane === hoveredPlane || plane.hoverLevel > 0.001 ? 1 : 0;
+        plane.mesh.renderOrder = closeTarget
+          ? plane === closeTarget
+            ? CLOSE_TARGET_RENDER_ORDER
+            : 0
+          : plane === hoveredPlane || plane.hoverLevel > 0.001
+            ? 1
+            : 0;
       }
 
       return active || intentPending;

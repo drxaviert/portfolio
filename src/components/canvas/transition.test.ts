@@ -99,7 +99,7 @@ describe("transition timeline", () => {
     expect(openComplete(TRANSITION.growDelayMs + TRANSITION.growMs)).toBe(true);
   });
 
-  it("cross-fades over 200ms and closes when the 600ms shrink lands", () => {
+  it("cross-fades over 200ms, lands the 600ms shrink at 800ms and closes after the sibling tail", () => {
     expect(handoffProgress(0)).toBe(0);
     expect(handoffProgress(100)).toBeCloseTo(0.5, 6);
     expect(handoffProgress(TRANSITION.handoffMs)).toBe(1);
@@ -119,44 +119,55 @@ describe("transition timeline", () => {
     expect(closeComplete(TRANSITION.closeTotalMs)).toBe(true);
   });
 
-  it("ends the shrink, lens, scroll and close on the same frame", () => {
+  it("lands the shrink, lens and scroll at 800ms, then finishes the grid tail before close", () => {
     const landing =
       TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs;
 
-    expect(TRANSITION.closeTotalMs).toBe(landing);
-    expect(
-      TRANSITION.closeCrossFadeMs +
-        TRANSITION.closeFadeDelayMs +
-        TRANSITION.closeFadeMs,
-    ).toBe(landing);
     expect(closeShrinkProgress(landing)).toBe(1);
     expect(closeFadeProgress(landing)).toBe(1);
     expect(closeScrollOffset(120, 940, landing)).toBe(120);
+    // The close is deliberately not complete when the tile lands any more:
+    // the sibling fade tail is still running behind it.
+    expect(TRANSITION.closeTotalMs).toBeGreaterThan(landing);
+    expect(TRANSITION.closeTotalMs).toBe(
+      TRANSITION.closeSiblingFadeDelayMs +
+        TRANSITION.closeSiblingFadeMs,
+    );
+    expect(closeComplete(landing)).toBe(false);
+    expect(closeComplete(TRANSITION.closeTotalMs)).toBe(true);
   });
 });
 
 describe("close sibling fade", () => {
-  it("starts with the close and finishes before the featured tile lands", () => {
+  it("holds the siblings until the tile is nearly home, then fades the grid in behind it", () => {
+    const shrinkStart = TRANSITION.closeCrossFadeMs;
+    const shrinkEnd = shrinkStart + TRANSITION.closeShrinkMs;
+    const fadeStart = TRANSITION.closeSiblingFadeDelayMs;
+    const fadeEnd = fadeStart + TRANSITION.closeSiblingFadeMs;
+
     expect(closeSiblingFadeProgress(0)).toBe(0);
-    expect(closeSiblingFadeProgress(50)).toBeGreaterThan(0);
-    expect(closeSiblingFadeProgress(150)).toBeCloseTo(0.5, 6);
-    // At the first shrink frame the siblings are already 85% back, not half.
-    expect(closeSiblingFadeProgress(TRANSITION.closeCrossFadeMs)).toBeGreaterThan(
-      0.8,
-    );
-    expect(
-      closeSiblingFadeProgress(
-        TRANSITION.closeSiblingFadeDelayMs + TRANSITION.closeSiblingFadeMs,
-      ),
-    ).toBe(1);
-    // Fully opaque well before the tile is halfway home (500ms) and before
-    // the 800ms landing, so the shrink never reveals a half-faded grid.
-    expect(
-      TRANSITION.closeSiblingFadeDelayMs + TRANSITION.closeSiblingFadeMs,
-    ).toBeLessThan(
-      TRANSITION.closeCrossFadeMs + TRANSITION.closeShrinkMs / 2,
-    );
+    expect(closeSiblingFadeProgress(fadeStart - 1)).toBe(0);
+    expect(closeSiblingFadeProgress(fadeStart)).toBe(0);
+    expect(closeSiblingFadeProgress(fadeStart + 150)).toBeCloseTo(0.5, 6);
+    expect(closeSiblingFadeProgress(fadeEnd)).toBe(1);
+
+    // The fade starts at 80-90% of the shrink, while the featured tile is
+    // still shrinking but within a few percent of its slot.
+    const startRatio = (fadeStart - shrinkStart) / TRANSITION.closeShrinkMs;
+    expect(startRatio).toBeGreaterThanOrEqual(0.8);
+    expect(startRatio).toBeLessThanOrEqual(0.9);
+
+    // The tile lands before the grid is done; only a sliver of the fade has
+    // played at the landing frame, so the grid fills in behind it.
+    expect(shrinkEnd).toBeLessThan(fadeEnd);
+    expect(closeSiblingFadeProgress(shrinkEnd)).toBeGreaterThan(0);
+    expect(closeSiblingFadeProgress(shrinkEnd)).toBeLessThan(0.2);
+
+    // The close total covers the sibling tail; the tile has landed by then.
+    expect(TRANSITION.closeTotalMs).toBe(fadeEnd);
     expect(closeSiblingFadeProgress(TRANSITION.closeTotalMs)).toBe(1);
+    expect(closeComplete(TRANSITION.closeTotalMs - 1)).toBe(false);
+    expect(closeComplete(TRANSITION.closeTotalMs)).toBe(true);
   });
 });
 

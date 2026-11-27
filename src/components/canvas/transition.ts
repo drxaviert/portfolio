@@ -42,16 +42,20 @@ export const TRANSITION = {
   closeFadeDelayMs: 0,
   closeFadeMs: 600,
   /**
-   * The sibling planes fade in from the first close frame, not after the
-   * 200ms cross-fade hold, and finish while the featured tile has barely
-   * started to shrink (85% by 200ms, fully back at 300ms). The featured tile
-   * then lands on a fully opaque grid instead of over half-faded siblings.
-   * The lens and scroll still return on the shrink's 200-800ms clock.
+   * The sibling planes stay hidden for the whole shrink. Their return starts
+   * at 85% of the shrink (200ms hold + 0.85 * 600ms = 710ms), when the
+   * featured tile is within 1.4% of its grid slot, and runs for 300ms. The
+   * featured tile lands first at 800ms with only the first 10.8% of that fade
+   * visible; the grid then fills in behind it until 1010ms.
    */
-  closeSiblingFadeDelayMs: 0,
+  closeSiblingFadeDelayMs: 710,
   closeSiblingFadeMs: 300,
-  /** 200ms cross-fade + 600ms return; ends with the shrink. */
-  closeTotalMs: 800,
+  /**
+   * The tile lands at 800ms, but the close is not finished until the sibling
+   * fade tail ends at 1010ms. The viewer chrome waits for this, so the grid is
+   * fully back when the close hands control back to idle.
+   */
+  closeTotalMs: 1010,
   reducedFadeMs: 200,
 } as const;
 
@@ -174,8 +178,9 @@ export function closeFadeProgress(elapsedMs: number): number {
 }
 
 /**
- * The non-featured planes' return. This runs from the close's first frame so
- * the grid is fully painted before the featured tile settles into it.
+ * The non-featured planes' return. They stay hidden until the featured tile
+ * is nearly home, then fade in behind it; by the time this ends the tile has
+ * already landed. The close's total includes this tail.
  */
 export function closeSiblingFadeProgress(elapsedMs: number): number {
   return power3InOut(
