@@ -318,16 +318,21 @@
  * part of the painting that has passed through the frame.
  *
  * `--shred-lip` is the frame edge plus the mount lip: the window's inset, so
- * the strips line up with the painting inside the frame. The extra 12px at the
- * bottom gives the rotated strips room without a flat machine-cut hem.
+ * the strips line up with the painting inside the frame. The slot is wider
+ * than the window by `--shred-bleed` on each side so the outer strips can curl
+ * past the painting edge without being cut off. The extra 12px at the bottom
+ * gives the hem room without a flat machine-cut line.
  */
 .painting-frame-shred {
   --shred-lip: calc(var(--frame-edge) + var(--frame-mount-pad));
+  --shred-bleed: 24px;
 
   position: absolute;
   top: 100%;
-  left: var(--shred-lip);
-  width: calc(100% - var(--shred-lip) * 2);
+  left: calc(var(--shred-lip) - var(--shred-bleed));
+  width: calc(
+    100% - var(--shred-lip) * 2 + var(--shred-bleed) * 2
+  );
   height: calc((100% - var(--shred-lip) * 2) / 2 + 12px);
   overflow: hidden;
   pointer-events: none;
@@ -335,7 +340,10 @@
 
 .shred-strips {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: var(--shred-bleed);
+  width: calc(100% - var(--shred-bleed) * 2);
+  height: 100%;
 }
 
 .shred-strip {

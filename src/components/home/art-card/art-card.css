@@ -168,6 +168,20 @@
   animation: art-card-shake 600ms linear 120ms 4;
 }
 
+/*
+ * The shred hangs past the card, so while it is out the card must paint above
+ * the rows below. The article is already a stacking context (ring-host
+ * isolation); the entrance body can become one during the first 1.7s, which
+ * would trap the article's z-index, so the cell is lifted too. The nav dock
+ * stays at z-index 60, above both.
+ */
+.art-card:has(.art-card-painting-button:not([data-shred-phase="idle"])),
+.entrance-cell:has(
+    .art-card-painting-button:not([data-shred-phase="idle"])
+  ) {
+  z-index: 2;
+}
+
 @keyframes art-card-shake {
   0%,
   100% {

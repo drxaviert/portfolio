@@ -18,17 +18,27 @@ function seeded(index: number, salt: number) {
   return value - Math.floor(value);
 }
 
+/** Outermost strips bend this far, in degrees; the centre ones stay straight. */
+const MAX_OUTWARD_BEND = 9;
+/** Outward drift of the outermost strips, in px. */
+const MAX_OUTWARD_SWAY = 3;
+
 /**
- * The strips' static geometry: a seeded sway (±2px) and rotation (±1–3°) per
- * strip. Exported so the WAAPI keyframes and the CSS end state share exactly
- * the same values — a re-render cannot make the strips jump.
+ * The strips' static geometry. Each strip bends outward from the centre about
+ * its top edge: left-half strips curl left (clockwise), right-half strips curl
+ * right, growing with distance from the centre, plus a little seeded jitter.
+ * Exported so the WAAPI keyframes and the CSS end state share exactly the same
+ * values — a re-render cannot make the strips jump.
  */
 export function shredStripMotion(
   count = SHRED_STRIP_COUNT,
 ): ShredStripMotion[] {
   return Array.from({ length: count }, (_, index) => {
-    const sway = (seeded(index, 1) * 2 - 1) * 2;
-    const rotation = (seeded(index, 2) * 2 - 1) * (1 + seeded(index, 3) * 2);
+    const half = Math.max(1, (count - 1) / 2);
+    const spread = (index - (count - 1) / 2) / half;
+    const sway = spread * MAX_OUTWARD_SWAY + (seeded(index, 1) * 2 - 1) * 0.8;
+    const rotation =
+      -spread * MAX_OUTWARD_BEND + (seeded(index, 2) * 2 - 1) * 0.8;
 
     return {
       index,
