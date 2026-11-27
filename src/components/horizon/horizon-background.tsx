@@ -31,6 +31,18 @@ function blobTint(blob: 1 | 2): string {
   return `color-mix(in srgb, var(--horizon-${blob}) calc(var(--horizon-${blob}-alpha) * var(--horizon-base-strength, 1) * 100%), transparent)`;
 }
 
+/**
+ * The listening layer is additive: it paints only the extra strength, so the
+ * base blob underneath keeps its own alpha and the two layers together equal
+ * the shader's boosted base. Painting the full boosted alpha on top would
+ * double the glow in the fallback.
+ */
+function listenTint(blob: 1 | 2, boost: number): string {
+  const extra = Math.max(0, boost - 1);
+
+  return `color-mix(in srgb, var(--horizon-${blob}) calc(var(--horizon-${blob}-alpha) * var(--horizon-base-strength, 1) * ${extra} * 100%), transparent)`;
+}
+
 /** 900x420 at -200/860 and 1000x460 at 700/820 in the 1440 frame. */
 function blobBox(blob: 1 | 2): CSSProperties {
   return {
@@ -41,9 +53,13 @@ function blobBox(blob: 1 | 2): CSSProperties {
   };
 }
 
-/** Blur is the 1440 token scaled down at smaller breakpoints. */
+/**
+ * Blur is the 1440 token scaled down at smaller breakpoints. The listening
+ * layer multiplies the same radius by its preset factor through
+ * --horizon-blob-blur-scale, so the two renderers bake the same extra softness.
+ */
 const BLOB_CLASS =
-  "absolute rounded-full blur-[calc(var(--horizon-blob-blur)*0.45)] md:blur-[calc(var(--horizon-blob-blur)*0.5333)] lg:blur-[calc(var(--horizon-blob-blur)*0.7111)] xl:blur-[var(--horizon-blob-blur)]";
+  "absolute rounded-full blur-[calc(var(--horizon-blob-blur)*0.45*var(--horizon-blob-blur-scale,1))] md:blur-[calc(var(--horizon-blob-blur)*0.5333*var(--horizon-blob-blur-scale,1))] lg:blur-[calc(var(--horizon-blob-blur)*0.7111*var(--horizon-blob-blur-scale,1))] xl:blur-[calc(var(--horizon-blob-blur)*var(--horizon-blob-blur-scale,1))]";
 
 export type HorizonMotionVariant =
   "none" | "drift" | "breathe" | "drift-breathe";
@@ -93,6 +109,35 @@ export const HORIZON_MOTION_DEFAULTS: Required<HorizonMotionTuning> = {
   intensityPeak: "core",
   baseIntensity: 1,
   nightBaseIntensity: 1,
+};
+
+/**
+ * The "listening" swell: the horizon grows, brightens and softens while the
+ * ambient track plays.
+ *
+ * The shader animates every value on its own clock. The CSS fallback paints the
+ * listening state as a second, pre-styled blob layer and only crossfades its
+ * opacity, so nothing here ever becomes a per-frame CSS transition.
+ */
+export type HorizonListeningTuning = {
+  /** Multiplier on the resting glow strength (1.35 = +35%). */
+  intensityBoost: number;
+  /** Breathe period while listening, in seconds. */
+  breathePeriod: number;
+  /** Breathe intensity swing while listening. */
+  intensityAmp: number;
+  /** Blob scale at full listen (1.25 = 25% wider). */
+  blobScale: number;
+  /** Upward lift at full listen, percent of the viewport height. */
+  blobLift: number;
+  /** Extra blur baked into the listening coverage texture (1.3 = 30% softer). */
+  blurScale: number;
+  /** Seconds to swell in when playback starts. */
+  inDuration: number;
+  /** Seconds to settle back when playback pauses. */
+  outDuration: number;
+  /** Crossfade length under prefers-reduced-motion, in seconds. */
+  reducedDuration: number;
 };
 
 /** How the static grain layer composites over the glow. */
@@ -241,10 +286,12 @@ function HorizonBlob({
   blob,
   motion,
   tuning,
+  listening,
 }: {
   blob: 1 | 2;
   motion: HorizonMotionVariant;
   tuning?: HorizonMotionTuning;
+  listening?: HorizonListeningTuning;
 }) {
   const pulseRef = useRef<HTMLDivElement | null>(null);
   const visual = (
@@ -262,7 +309,48 @@ function HorizonBlob({
 
   useBreatheClock(pulseRef, pulseOn);
 
-  if (motion === "none") return visual;
+  /*
+   * The CSS fallback's listening state: the same blob, with the preset's extra
+   * strength, blur and geometry, painted once and crossfaded by opacity under
+   * :root[data-listening]. It sits inside the drift/breathe wrappers, so it
+   * keeps the ambient motion; only opacity transitions (horizon-motion.css).
+   */
+  const listenLayer = listening ? (
+    <div
+      aria-hidden="true"
+      className="horizon-listen-layer absolute inset-0"
+      style={
+        {
+          "--horizon-listen-scale": `${listening.blobScale}`,
+          "--horizon-listen-lift": `${listening.blobLift}%`,
+          "--horizon-listen-in": `${listening.inDuration}s`,
+          "--horizon-listen-out": `${listening.outDuration}s`,
+          "--horizon-listen-reduced": `${listening.reducedDuration}s`,
+        } as CSSProperties
+      }
+    >
+      <div
+        data-horizon-blob=""
+        className={BLOB_CLASS}
+        style={
+          {
+            ...blobBox(blob),
+            backgroundColor: listenTint(blob, listening.intensityBoost),
+            "--horizon-blob-blur-scale": `${listening.blurScale}`,
+          } as CSSProperties
+        }
+      />
+    </div>
+  ) : null;
+
+  if (motion === "none") {
+    return (
+      <>
+        {visual}
+        {listenLayer}
+      </>
+    );
+  }
 
   /*
    * A second copy of the blob, on the breathe wrapper, whose opacity carries the
@@ -304,6 +392,7 @@ function HorizonBlob({
       >
         {visual}
         {pulse}
+        {listenLayer}
       </div>
     </div>
   );
@@ -315,12 +404,14 @@ export function HorizonBackground({
   tuning,
   dither,
   gradient = "srgb",
+  listening,
 }: {
   position?: "absolute" | "fixed";
   motion?: HorizonMotionVariant;
   tuning?: HorizonMotionTuning;
   dither?: HorizonDither;
   gradient?: HorizonGradientMode;
+  listening?: HorizonListeningTuning;
 }) {
   const placement = position === "fixed" ? "fixed" : "absolute";
   const grain = { ...HORIZON_DITHER_DEFAULTS, ...dither };
@@ -328,8 +419,18 @@ export function HorizonBackground({
 
   const blobs = (
     <>
-      <HorizonBlob blob={1} motion={motion} tuning={tuning} />
-      <HorizonBlob blob={2} motion={motion} tuning={tuning} />
+      <HorizonBlob
+        blob={1}
+        motion={motion}
+        tuning={tuning}
+        listening={listening}
+      />
+      <HorizonBlob
+        blob={2}
+        motion={motion}
+        tuning={tuning}
+        listening={listening}
+      />
     </>
   );
 

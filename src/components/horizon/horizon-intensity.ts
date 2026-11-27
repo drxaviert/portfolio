@@ -57,25 +57,35 @@ function easeInOut(value: number): number {
 }
 
 /**
+ * The value of an `alternate` CSS animation at a cycle position, where 1 is one
+ * full duration. 0 is the keyframe set's `from` (breathe: scale 1, opacity 1)
+ * and 1 is its `to` (breathe: scale max, opacity at its floor).
+ *
+ * Taking the cycle directly rather than time / period keeps the phase
+ * continuous when the period changes: the listening swell stretches the breath
+ * from 6s to 10s, and a plain divisor would make the phase jump every time it
+ * moved.
+ */
+export function alternateCycle(cycle: number): number {
+  const iteration = Math.floor(cycle);
+  const progress = cycle - iteration;
+  const eased = easeInOut(progress);
+
+  return iteration % 2 === 0 ? eased : 1 - eased;
+}
+
+/**
  * The value of an `alternate` CSS animation at `time` seconds. Each iteration
  * runs 0 -> 1 through the timing function, and every other iteration runs it
  * backwards; modelling it as one triangle over the duration would make the
  * shader twice as fast as the CSS it has to match.
- *
- * 0 is the keyframe set's `from` (breathe: scale 1, opacity 1) and 1 is its
- * `to` (breathe: scale max, opacity at its floor).
  */
 export function alternateProgress(
   time: number,
   period: number,
   delay: number,
 ): number {
-  const g = (time - delay) / period;
-  const iteration = Math.floor(g);
-  const progress = g - iteration;
-  const eased = easeInOut(progress);
-
-  return iteration % 2 === 0 ? eased : 1 - eased;
+  return alternateCycle((time - delay) / period);
 }
 
 /**

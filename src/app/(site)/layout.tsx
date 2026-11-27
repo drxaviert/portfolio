@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ListeningSync } from "@/components/horizon/listening-sync";
 import { SharedHorizon } from "@/components/horizon/shared-horizon";
 
 /**
@@ -20,6 +21,7 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <SharedHorizon />
+      <ListeningSync />
       {children}
     </>
   );

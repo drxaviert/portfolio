@@ -1,6 +1,7 @@
 import type {
   HorizonDither,
   HorizonGradientMode,
+  HorizonListeningTuning,
   HorizonMotionTuning,
 } from "./horizon-background";
 
@@ -35,6 +36,31 @@ export const HORIZON_HOME_MOTION: Required<HorizonMotionTuning> = {
   baseIntensity: 4,
   /** Rest strength at night. */
   nightBaseIntensity: 2.5,
+};
+
+/**
+ * The listening swell: while "Door to the Cosmos" plays, the glow grows upward
+ * and outward, softens, brightens and breathes slower and deeper.
+ *
+ * The shader runs these on its own rAF clock with an asymmetric ramp: a long
+ * 3.5s swell in on --ease-calm, then a 1.2s settle out so a pause feels
+ * immediate. A pause mid-swell retargets from the current value, so it reverses
+ * without a jump. Reduced motion keeps the brighter, larger state but only
+ * crossfades it over 400ms and freezes the breathe exactly where it was.
+ *
+ * Keep the CSS fallback in step: its extra tint uses intensityBoost - 1, its
+ * blur uses blurScale, and its static geometry uses blobScale / blobLift.
+ */
+export const HORIZON_HOME_LISTENING: HorizonListeningTuning = {
+  intensityBoost: 1.35,
+  breathePeriod: 10,
+  intensityAmp: 0.8,
+  blobScale: 1.25,
+  blobLift: 8,
+  blurScale: 1.3,
+  inDuration: 3.5,
+  outDuration: 1.2,
+  reducedDuration: 0.4,
 };
 
 /** CSS fallback grain: enough to break 8-bit steps, invisible as texture. */
