@@ -161,10 +161,15 @@
   transform: translate3d(0, 50%, 0);
 }
 
-.art-card-painting-button[data-shred-phase="shredding"] .art-card-canvas,
-.art-card-painting-button[data-shred-phase="exiting"] .art-card-canvas,
-.art-card-painting-button[data-shred-phase="shredding"] .shred-strip-track,
-.art-card-painting-button[data-shred-phase="exiting"] .shred-strip-track {
+/*
+ * Promoted for the whole life of the shred, `shredded` included. Dropping the
+ * layer when the descent ends re-rasterises the painting and the ribbons at
+ * pixel-snapped positions: a visible pop of sharpness and a sub-pixel shift
+ * exactly as the jam settles, though every transform value is identical.
+ */
+.art-card-painting-button:not([data-shred-phase="idle"]) .art-card-canvas,
+.art-card-painting-button:not([data-shred-phase="idle"]) .shred-strip-track,
+.art-card-painting-button:not([data-shred-phase="idle"]) .shred-strip-segment {
   will-change: transform;
 }
 
