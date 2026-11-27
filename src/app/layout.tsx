@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Work_Sans } from "next/font/google";
 import type { ReactNode } from "react";
 import { HUMAN_CONTACT_MOTION_CSS } from "@/components/human-contact/human-contact-motion";
+import { SmoothScroll } from "@/components/motion/smooth-scroll";
 import { NavDock } from "@/components/nav/nav-dock";
 import { PersistentPlayerProvider } from "@/components/player/persistent-player-provider";
 import { MobileGate } from "@/components/system/mobile-gate";
@@ -74,6 +75,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         </style>
       </head>
       <body>
+        <SmoothScroll />
         <ThemeProvider>
           <PersistentPlayerProvider>
             {children}

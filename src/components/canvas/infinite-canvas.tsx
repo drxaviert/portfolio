@@ -4505,6 +4505,7 @@ export const InfiniteCanvas = forwardRef<
       ref={containerRef}
       className="cv-surface"
       data-canvas-surface
+      data-lenis-prevent
       tabIndex={0}
       role="region"
       aria-label="WebGL media canvas. Drag or scroll to move, hold the arrow keys to pan, and press Enter to open the centred media."

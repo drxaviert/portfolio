@@ -139,6 +139,7 @@ export function ArtDialog({ art, open, onClose }: ArtDialogProps) {
     <dialog
       ref={dialogRef}
       className="art-dialog"
+      data-lenis-prevent
       aria-labelledby={titleId}
       aria-modal="true"
       onClose={handleNativeClose}
