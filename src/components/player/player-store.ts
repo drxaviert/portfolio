@@ -1,9 +1,15 @@
-import { NOW_PLAYING_TRACK } from "@/components/home/now-playing-track";
+import {
+  NOW_PLAYING_TRACK,
+  audioUrlFor,
+} from "@/components/home/now-playing-track";
 import {
   createYouTubePlayer,
   loadYouTubeApi,
 } from "@/components/home/now-playing-youtube";
 import type { YouTubeHandle } from "@/components/home/now-playing-youtube";
+import { createAudioPlayer } from "./audio-backend";
+import { audioBands } from "./audio-bands";
+import type { AudioBandsStore } from "./audio-bands";
 
 export type PlayerStatus = "idle" | "loading" | "playing" | "paused" | "error";
 
@@ -22,6 +28,11 @@ export type PlayerStatusSnapshot = Pick<
 export type PlayerStoreDeps = {
   loadApi: typeof loadYouTubeApi;
   createPlayer: typeof createYouTubePlayer;
+  /** Self-hosted backend; used instead of YouTube when `audioUrl` is set. */
+  createAudio: typeof createAudioPlayer;
+  /** The track file URL, or null to use the YouTube embed. */
+  audioUrl: string | null;
+  bands: AudioBandsStore;
 };
 
 export type PlayerStore = {
@@ -81,6 +92,10 @@ export function createPlayerStore(
 ): PlayerStore {
   const loadApi = deps.loadApi ?? loadYouTubeApi;
   const createPlayer = deps.createPlayer ?? createYouTubePlayer;
+  const createAudio = deps.createAudio ?? createAudioPlayer;
+  const audioUrl =
+    deps.audioUrl !== undefined ? deps.audioUrl : audioUrlFor(TRACK);
+  const bands = deps.bands ?? audioBands;
 
   const initial = initialSnapshot();
   const initialStatus = toStatus(initial);
@@ -110,6 +125,7 @@ export function createPlayerStore(
     const previousStatus = statusSnapshot;
 
     snapshot = next;
+    bands.setPlaying(next.status === "playing");
 
     const nextStatus = toStatus(next);
     const statusChanged =
@@ -300,10 +316,12 @@ export function createPlayerStore(
     if (!target || !target.isConnected) return null;
 
     playerPromise = (async (): Promise<YouTubeHandle | null> => {
-      try {
-        await loadApi();
-      } catch {
-        return null;
+      if (!audioUrl) {
+        try {
+          await loadApi();
+        } catch {
+          return null;
+        }
       }
 
       if (!target.isConnected) return null;
@@ -318,8 +336,8 @@ export function createPlayerStore(
         };
 
         try {
-          createPlayer(target, TRACK.videoId, {
-            onReady: (next, duration) => {
+          const callbacks = {
+            onReady: (next: YouTubeHandle, duration: number) => {
               const firstReady = handle === null;
 
               handle = next;
@@ -330,12 +348,16 @@ export function createPlayerStore(
 
               settle(next);
             },
-            onStateChange: (state, next) => onPlayerState(state, next),
+            onStateChange: (state: number, next: YouTubeHandle) =>
+              onPlayerState(state, next),
             onError: () => {
               settle(null);
               fail();
             },
-          });
+          };
+
+          if (audioUrl) createAudio(target, audioUrl, callbacks, bands);
+          else createPlayer(target, TRACK.videoId, callbacks);
         } catch {
           settle(null);
         }
@@ -353,6 +375,9 @@ export function createPlayerStore(
     const live = snapshot.status;
 
     if (live === "playing" || live === "loading") return;
+
+    // Runs inside the click, which is what lets the AudioContext start.
+    if (audioUrl) bands.prepare();
 
     const startAt = snapshot.currentTime;
 
@@ -458,6 +483,7 @@ export function createPlayerStore(
     handle = null;
     playerPromise = null;
     host = null;
+    bands.setPlaying(false);
     listeners.clear();
     statusListeners.clear();
   }

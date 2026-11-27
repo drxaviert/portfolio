@@ -15,6 +15,9 @@ describe("contentTypeFor", () => {
     expect(contentTypeFor("media/id/poster.avif")).toBe("image/avif");
     expect(contentTypeFor("media/id/w640.webp")).toBe("image/webp");
     expect(contentTypeFor("media/id/poster.jpg")).toBe("image/jpeg");
+    expect(contentTypeFor("media/id/audio.mp3")).toBe("audio/mpeg");
+    expect(contentTypeFor("media/id/audio.m4a")).toBe("audio/mp4");
+    expect(contentTypeFor("media/id/audio.ogg")).toBe("audio/ogg");
   });
 
   it("is case-insensitive and ignores a query string", () => {

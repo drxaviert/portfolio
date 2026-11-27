@@ -65,6 +65,8 @@ const IMAGE_EXTENSIONS = new Set([
   "tiff",
 ]);
 const VIDEO_EXTENSIONS = new Set(["mov", "mp4", "m4v", "webm", "mkv"]);
+/** Audio is stored as supplied (no re-encode): `media/<id>/audio.<ext>`. */
+const AUDIO_EXTENSIONS = new Set(["mp3", "m4a", "ogg"]);
 const IMAGE_WIDTHS = [640, 1280, 1920, 2560];
 
 const MP4_WARN_BYTES = 6 * 1024 * 1024;
@@ -128,7 +130,7 @@ interface Job {
   name: string;
   file: string;
   ext: string;
-  kind: "image" | "video";
+  kind: "image" | "video" | "audio";
   id: string;
 }
 
@@ -289,6 +291,9 @@ Options
   --study <slug>        Print snippets to paste into content/work/<slug>.mdx.
                         The slug must be an existing study; it does not filter.
   --audio               Keep audio in the encoded video (AAC 128k).
+                        (An .mp3, .m4a or .ogg in the inbox is a track, not a
+                        video: it is uploaded as supplied to
+                        media/<id>/audio.<ext>, with no manifest.)
   --webm                Also encode a VP9 WebM alongside the MP4.
   --hls                 Force an HLS ladder even for a clip under 20 s.
   --no-hls              Keep a single progressive MP4 even past 20 s.
@@ -1027,6 +1032,20 @@ async function processVideo(
 /* Alt text                                                                   */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Audio goes up byte-for-byte under `media/<id>/audio.<ext>`. There is no
+ * manifest: the player resolves the key itself, so the key is printed for
+ * pasting into the track definition.
+ */
+async function processAudio(job: Job, store: MediaStore): Promise<string> {
+  const key = `media/${job.id}/audio.${job.ext}`;
+  const body = await readFile(job.file);
+  const { url } = await store.put({ key, body });
+  console.log(`  audio    ${key} · ${formatBytes(body.byteLength)}`);
+  console.log(`  url      ${url}`);
+  return key;
+}
+
 async function collectAltText(
   names: string[],
   singleAlt: string | undefined,
@@ -1130,7 +1149,9 @@ async function run(): Promise<number> {
       ? "image"
       : VIDEO_EXTENSIONS.has(ext)
         ? "video"
-        : null;
+        : AUDIO_EXTENSIONS.has(ext)
+          ? "audio"
+          : null;
     if (!kind) {
       console.warn(`skip     ${name} — unsupported extension`);
       continue;
@@ -1139,7 +1160,11 @@ async function run(): Promise<number> {
     const file = path.join(INBOX_DIR, name);
     const id = await mediaId(file, name);
 
-    if (!options.force && existsSync(path.join(MANIFEST_DIR, `${id}.json`))) {
+    if (
+      kind !== "audio" &&
+      !options.force &&
+      existsSync(path.join(MANIFEST_DIR, `${id}.json`))
+    ) {
       console.log(`skip     ${name} — content/media/${id}.json already exists`);
       continue;
     }
@@ -1149,14 +1174,17 @@ async function run(): Promise<number> {
 
   if (jobs.length === 0) return 0;
 
-  const alts = await collectAltText(
-    jobs.map((job) => job.name),
+  const mediaJobs = jobs.filter((job) => job.kind !== "audio");
+  const mediaAlts = await collectAltText(
+    mediaJobs.map((job) => job.name),
     options.alt,
   );
+  const alts = jobs.map((job) => mediaAlts[mediaJobs.indexOf(job)] ?? "");
 
   const workRoot = await mkdtemp(path.join(tmpdir(), "media-post-"));
   const written: MediaManifest[] = [];
   let failures = 0;
+  let audioCount = 0;
 
   try {
     for (const [index, job] of jobs.entries()) {
@@ -1168,6 +1196,20 @@ async function run(): Promise<number> {
       try {
         const workDir = path.join(workRoot, job.id);
         await mkdir(workDir, { recursive: true });
+
+        if (job.kind === "audio") {
+          const key = await processAudio(job, store);
+
+          if (!options.dryRun && !options.noArchive) {
+            await rename(
+              job.file,
+              path.join(ARCHIVE_DIR, `${job.id}.${job.ext}`),
+            );
+          }
+          audioCount++;
+          console.log(`ok       ${job.name} → ${key}`);
+          continue;
+        }
 
         const manifest =
           job.kind === "image"
@@ -1226,11 +1268,13 @@ async function run(): Promise<number> {
   }
 
   if (failures > 0) {
-    console.error(`${failures} file(s) failed; ${written.length} succeeded.`);
+    console.error(
+      `${failures} file(s) failed; ${written.length + audioCount} succeeded.`,
+    );
     return 1;
   }
   console.log(
-    `${written.length} file(s) ingested${options.dryRun ? " (dry run)" : ""}.`,
+    `${written.length + audioCount} file(s) ingested${options.dryRun ? " (dry run)" : ""}.`,
   );
   return 0;
 }
