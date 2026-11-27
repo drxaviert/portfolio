@@ -8,6 +8,15 @@
   contain: strict;
 }
 
+/*
+ * The stars inside the viewport edge blur (z-index 40) paint just above it so
+ * the blur cannot erase them. The band is clamped to the empty content margin,
+ * and the reader (50) and nav dock (60) stay above this.
+ */
+.cosmic-sky--top {
+  z-index: 41;
+}
+
 .cosmic-sky-canvas {
   position: absolute;
   inset: 0;

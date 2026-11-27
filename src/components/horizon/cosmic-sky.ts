@@ -362,27 +362,17 @@ export function edgeBlurAt(y: number, edge: EdgeBlur): number {
   return edge.max * (1 - f) * (1 - f);
 }
 
-/** How much brighter than its resting alpha a compensated star may be drawn. */
-export const GLOW_ALPHA_MAX = 3;
-
 /**
- * Draw size for a star the backdrop blur is about to smear. A blurred point's
- * peak falls with the blur area, so alpha alone cannot hold it: widen the star
- * to a soft disc about half the blur radius and lift its alpha, which leaves a
- * glow close to the brightness of an unblurred star, just softer. Zero blur
- * returns the star as it is.
+ * The light treatment for stars painted above the edge blur: they keep their
+ * size and twinkle, but ease toward the very top edge with a slight alpha dip
+ * and up to ~0.5px of softening, so they still feel part of the blurred band.
+ * `blur` is the local edge blur from edgeBlurAt and `max` the band's peak.
  */
-export function blurredGlow(
-  radius: number,
-  sigma: number,
-): { radius: number; alpha: number } {
-  if (sigma <= 0) return { radius, alpha: 1 };
+export function edgeSoften(
+  blur: number,
+  max: number,
+): { alpha: number; soften: number } {
+  const k = max > 0 ? clamp(blur / max, 0, 1) : 0;
 
-  const drawn = radius + sigma * 0.34;
-  const area = (drawn * drawn + sigma * sigma) / (drawn * drawn);
-
-  return {
-    radius: drawn * 1.5,
-    alpha: clamp(area * 0.6, 1, GLOW_ALPHA_MAX),
-  };
+  return { alpha: 1 - 0.3 * k, soften: 0.5 * k };
 }

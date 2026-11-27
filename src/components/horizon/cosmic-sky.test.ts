@@ -5,7 +5,7 @@ import {
   SKY_PHASE_PRESET,
   SKY_TUNING_DEFAULTS,
   STAR_POOL_SIZE,
-  blurredGlow,
+  edgeSoften,
   createStarPool,
   easeCalm,
   edgeBlurAt,
@@ -146,16 +146,11 @@ describe("edge blur compensation", () => {
     expect(edgeBlurAt(0, { height: 0, max: 8 })).toBe(0);
   });
 
-  it("leaves unblurred stars alone and widens and lifts blurred ones", () => {
-    expect(blurredGlow(0.6, 0)).toEqual({ radius: 0.6, alpha: 1 });
-
-    const soft = blurredGlow(0.6, 8);
-    const heavy = blurredGlow(0.6, 32);
-
-    expect(soft.radius).toBeGreaterThan(2);
-    expect(heavy.radius).toBeGreaterThan(soft.radius);
-    expect(heavy.alpha).toBeGreaterThan(1);
-    expect(heavy.alpha).toBeLessThanOrEqual(3);
+  it("only lightly eases stars toward the very top edge", () => {
+    expect(edgeSoften(0, 32)).toEqual({ alpha: 1, soften: 0 });
+    expect(edgeSoften(32, 32).alpha).toBeCloseTo(0.7);
+    expect(edgeSoften(32, 32).soften).toBeLessThanOrEqual(0.5);
+    expect(edgeSoften(5, 0)).toEqual({ alpha: 1, soften: 0 });
   });
 });
 
