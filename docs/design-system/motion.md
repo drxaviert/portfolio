@@ -1,6 +1,6 @@
 # Design system motion — 2026-11-13
 
-The shipped motion of the theme toggle, the Day phase row, the home nav's Glide capsule and the Work drawer, recorded from the code (toggle and nav from PR #12, `5bbfba9` / `d574d89`; drawer at `98b6429`; the shipped drawer, its close rules and the index layout switch approved at `cb6785a`, 2026-11-19; the /work hover-thumbnail list approved 2026-11-22; the canvas open/close approved 2026-11-25 in PR #121 (`f0bc21a`) and the Human Contact embed <-> live route on the same motion in PR #119 (`1faa998`), both in the last two sections; the drawer close was later retuned to 300ms on `ease` in PR #80, and the nav motion blur added in PR #68). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
+The shipped motion of the theme toggle, the Day phase row, the home nav's Glide capsule and the Work drawer, recorded from the code (toggle and nav from PR #12, `5bbfba9` / `d574d89`; drawer at `98b6429`; the shipped drawer, its close rules and the index layout switch approved at `cb6785a`, 2026-11-19; the /work hover-thumbnail list approved 2026-11-22; the canvas open/close approved 2026-11-25 in PR #121 (`f0bc21a`) and the Human Contact embed <-> live route on the same motion in PR #119 (`1faa998`), both in the last two sections; the work reader's Lenis smooth scroll approved 2026-11-27 in PR #133; the drawer close was later retuned to 300ms on `ease` in PR #80, and the nav motion blur added in PR #68). Values here are the ones the app actually runs, so new components reuse them instead of re-inventing a curve or a stagger.
 
 ## Principles
 
@@ -1064,4 +1064,33 @@ Reduced motion returns the children with no `<ViewTransition>` at all when the p
 - `src/app/globals.css:229` — the open's root fade, 900ms
 - `src/app/globals.css:244` — the close's root fade-in, 600ms
 - `src/app/globals.css:262` — reduced motion forces every view-transition pseudo to 0s
+
+## Work reader — Lenis smooth scroll (2026-11-27)
+
+Approved 2026-11-27 (bd pf-9cv.18; trial merged in PR #133). The case-study reader inside the work drawer is the only surface with Lenis. The window, the index, the canvas and every overlay keep native scrolling. One `SmoothScroll` component is mounted in the root layout, but it binds a single Lenis to the live `#wd-reader-scroll` element: `wrapper`, `content` (`.wd-reader-column`) and `eventsTarget` are all the reader, so Lenis never sees a wheel outside it. The classes land on the reader, not `<html>`.
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Version | `lenis` 1.3.29 | the current stable 1.3.x |
+| `lerp` | 0.1 | the reference's smoothing; same value in the trial |
+| `autoRaf` | true | Lenis owns one rAF loop; no second clock |
+| `wheelMultiplier` | 1 | raw wheel delta, no acceleration |
+| `syncTouch` | false | touch is the browser's; no touch preventDefault path |
+| `allowNestedScroll` | false | never discover or adopt another nested scroll box |
+| Reduced motion | no instance; `.lenis` absent | native scrolling, not a slower lerp |
+
+- **Scope and binding.** `READER_SELECTOR` is `.wd-expand-layer:not([data-phase="closed"]) .wd-drawer-view:not([data-leave]) #wd-reader-scroll`. A `MutationObserver` watches child-list changes and the `data-phase` / `data-leave` attributes, then rebinds: a study swap destroys the old instance and binds the new reader; the index (`#wd-index-scroll`, not matched), the canvas (no `#wd-reader-scroll`) and a closing shell (phase `closed`) get no instance. This is the fix for the trial's `allowNestedScroll: "smooth"` caveat, which auto-adopted the index if it ever overflowed.
+- **Exclusions.** The WebGL canvas, its focus viewer and the art dialog carry `data-lenis-prevent` and sit outside this scoped instance. The attributes keep the exclusion explicit if a page-level instance is ever added. Drag, wheel zoom and pan in the canvas keep their own handlers.
+- **Native scroll wins.** A pointerdown or keydown inside the reader stops Lenis inertia before its next write (`scrollTo(actualScroll, { immediate: true, force: true })`). A native `scroll` event whose position leaves Lenis' last written value by 2px or more also yields. Without this, the reader's "↑ Top" clicked 120ms into a wheel was pulled back to the wheel's target; measured after the fix it lands at 0.
+- **Reduced motion.** The instance is destroyed and `.lenis` is removed; the reader keeps the browser's native scroll. The effect reads `matchMedia("(prefers-reduced-motion: reduce)")` directly as well as the `useReducedMotion` hook, so a reduced-motion load never constructs Lenis while the hook is still on its server snapshot.
+- **Hydration.** The first bind is deferred one animation frame and the live preference is checked first. Lenis adds its class to a server-rendered element; doing that during hydration produced an attribute mismatch before the deferral.
+- **Rebind evidence.** Live at 1440x900: reader 632 → 1398 over 17 sampled frames; an index forced to 2400px scrolls natively in one frame with no `.lenis`; the injected unrelated scroller never gets `.lenis`; reduced motion jumps 607 in one frame; a study swap leaves the new reader `.lenis` and top 0; the nav top stays 43.52px.
+- **Trial history.** The draft trial (PR #133, `fe51dec`) used `allowNestedScroll: "smooth"` on a window instance; reviewer pf-9cv.18 caught that it could adopt any nested scroller. This section records the shipped scoped form.
+
+- `src/components/motion/smooth-scroll.tsx` — the reader selector, one-frame first bind, MutationObserver rebind, the Lenis options, native-scroll yield and pointer/key inertia stop
+- `src/components/motion/smooth-scroll.css` — the standard Lenis rules and the `html.lenis` overscroll lock
+- `src/components/work/reader.tsx` — the reader scroller and `.wd-reader-column` the instance binds to
+- `src/components/canvas/infinite-canvas.tsx` / `focus-viewer.tsx`, `src/components/home/art-card/art-dialog.tsx` — `data-lenis-prevent` on the excluded surfaces
+- `src/app/layout.tsx` — the single `SmoothScroll` mount
+- `src/components/motion/smooth-scroll.test.tsx` — scope, rebind, reduced-motion, pointer/key stop, native-yield, CSS and exclusion coverage
 
