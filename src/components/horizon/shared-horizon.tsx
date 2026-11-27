@@ -1,3 +1,4 @@
+import { CosmicSky } from "./cosmic-sky-layer";
 import { HorizonLive } from "./horizon-live";
 
 /**
@@ -21,6 +22,7 @@ export function SharedHorizon() {
   return (
     <div data-horizon-shared="">
       <HorizonLive />
+      <CosmicSky />
     </div>
   );
 }

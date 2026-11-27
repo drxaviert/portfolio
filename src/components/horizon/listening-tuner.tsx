@@ -20,6 +20,7 @@ import {
   setListeningForced,
   useListeningForced,
 } from "./listening-tuning";
+import { SkyTunerSection } from "./sky-tuner-section";
 import type {
   ListeningTuningParams,
   ListeningTuningState,
@@ -367,6 +368,8 @@ export function ListeningTuner() {
           </details>
 
           <AudioBandBars />
+
+          <SkyTunerSection />
 
           <label className="flex items-center gap-2 text-base">
             <input
