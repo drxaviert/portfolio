@@ -56,9 +56,12 @@ type ViewerState = {
 export function CanvasReader({
   meta,
   items,
+  edgeBlur = true,
 }: {
   meta: WorkMeta;
   items: CanvasItem[];
+  /** `?edgeblur=off`: the prototype's A/B view without the effect. */
+  edgeBlur?: boolean;
 }) {
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const [viewerClosing, setViewerClosing] = useState(false);
@@ -72,9 +75,17 @@ export function CanvasReader({
   const canvasViewing = Boolean(shownViewer?.canvasOwned) && !viewerStepped;
 
   const openViewer = useCallback(
-    (index: number, startAt?: number, openRect?: Box, canvasOwned?: boolean) => {
+    (
+      index: number,
+      startAt?: number,
+      openRect?: Box,
+      canvasOwned?: boolean,
+    ) => {
       if (perfEnabled) {
-        markPerf("react-open-state", { index, canvasOwned: Boolean(canvasOwned) });
+        markPerf("react-open-state", {
+          index,
+          canvasOwned: Boolean(canvasOwned),
+        });
       }
       setViewerClosing(false);
       setViewerStepped(false);
@@ -138,9 +149,7 @@ export function CanvasReader({
       data-viewing={shownViewer && !viewerClosing ? "" : undefined}
       data-canvas-viewing={canvasViewing ? "" : undefined}
       data-closing={viewerClosing || undefined}
-      data-chrome={
-        items.length === 0 ? undefined : chromeIn ? "in" : "pending"
-      }
+      data-chrome={items.length === 0 ? undefined : chromeIn ? "in" : "pending"}
     >
       <h1 id={READER_TITLE_ID} tabIndex={-1} className="cv-reader__title">
         {meta.title}
@@ -154,6 +163,8 @@ export function CanvasReader({
           lens={LOCKED_LENS}
           breath={LOCKED_BREATH}
           hover={LOCKED_HOVER}
+          edgeBlur={edgeBlur}
+          edgeBlurSuppressed={shownViewer !== null}
           onOpen={openViewer}
           onCanvasOpened={markCanvasOpened}
           onIntroStart={markIntroStarted}

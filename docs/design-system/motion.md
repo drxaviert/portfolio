@@ -1189,3 +1189,33 @@ Final `HORIZON_HOME_LISTENING` values (the shipping preset at the panel's defaul
 - `src/components/edge-blur/viewport-edge-blur.css:68` — 3.5s in / 1.2s out on the edge stack
 - `src/components/edge-blur/viewport-edge-blur.css:79` — 400ms reduced-motion edge transition
 
+
+## Motion & Stills - canvas edge blur (2026-11-27)
+
+Approved 2026-11-27 (bd pf-9cv.20; PR #137). The Motion & Stills drag canvas blurs progressively toward its four edges: the centre stays fully sharp and the rim reaches a 16px CSS blur. It lives inside the canvas's three.js render, not in a CSS `backdrop-filter` overlay. The lens pass draws into a linear screen-space target; a half-resolution horizontal Gaussian pass feeds the vertical half in the composite; the composite mixes the blurred copy back by an eased screen-space mask, adds the theme tint, then does the one sRGB encode and the vignette. That is two extra draws, and no compositor layer is added over the WebGL surface.
+
+| Tunable | Value | Uniform |
+| --- | --- | --- |
+| Band depth | `clamp(56px, 9vw, 160px)`, the same on all four edges | `uEdgeDepth` |
+| Peak blur | 16px CSS at the very edge, DPR-aware | `uEdgeRadius` |
+| Tint | 8% of `--surface`, in linear space | `uEdgeTint` / `uEdgeTintStrength` |
+| Viewer fade | 200ms out while a tile is open or closing, back after the close lands | `uEdgeAmount` |
+
+- The mask is a smoothstep of the normalized distance to the nearest edge, so it is 1 on every edge and corner and 0 at the inner boundary. `edge-blur.test.ts` pins the centre, edges, corners and half-depth values.
+- Reduced motion: the blur is static and stays; the 200ms viewer dip snaps with no fade instead.
+- `?edgeblur=off`: the work page reads the query and passes `edgeBlur={false}`; the canvas draws the lens straight to the canvas and skips the screen and blur targets. The A/B view is a real no-effect path, not a zeroed uniform.
+- Resize and DPR: the screen target is canvas device pixels, the blur target is half of that, the depth is in screen UV and the radius is in blur-target pixels. All re-derive in the resize handler, so a live window resize needs no JS measuring.
+- Performance: at 165Hz on the RTX 4090, p50/p95 is 6.1/6.2ms with and without the effect at 1920x1080, 2560x1440 and 2560x1440 DPR2. With Chrome CPU 4x and live video at 2560 DPR2, it is 24.3/42.5ms on vs 24.2/42.5ms off; the 165Hz CPU4 frozen runs are frame-pacing limited and sit within one 6ms cadence step.
+
+- `src/components/canvas/edge-blur.ts:16` - `EDGE_BLUR`: depth clamp, 16px peak, 8% tint, 200ms fade
+- `src/components/canvas/edge-blur.ts:32` - `edgeBlurDepthPx`, the band depth
+- `src/components/canvas/edge-blur.ts:42` - `edgeBlurRadiusPx`, the DPR-aware peak radius
+- `src/components/canvas/edge-blur.ts:52` - `edgeBlurMask`, the eased mask the shaders mirror
+- `src/components/canvas/infinite-canvas.tsx:362` - `EDGE_H_FRAGMENT_SHADER`, the horizontal half and the 2x2 downsample
+- `src/components/canvas/infinite-canvas.tsx:405` - `COMPOSITE_FRAGMENT_SHADER`, vertical half, mask, tint, sRGB encode and vignette
+- `src/components/canvas/infinite-canvas.tsx:1119` - `renderScene`: scene, screen target, horizontal pass, composite
+- `src/components/canvas/infinite-canvas.tsx:4512` - `edgeBlurTarget` and the viewer suppression
+- `src/components/canvas/infinite-canvas.tsx:4521` - `updateEdgeBlur`, the 200ms fade and the reduced-motion snap
+- `src/components/canvas/infinite-canvas.tsx:4881` - `resize`: screen and blur target sizes, depth and radius
+- `src/components/work/canvas-reader.tsx:166` - passes `edgeBlur` / `edgeBlurSuppressed` to the canvas
+- `src/app/(site)/work/[slug]/page.tsx:60` - `?edgeblur=off` maps to `edgeBlur={false}`

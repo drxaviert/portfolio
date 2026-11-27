@@ -81,6 +81,7 @@ import {
   markPerf,
   perfEnabled,
 } from "./perf";
+import { EDGE_BLUR, edgeBlurDepthPx, edgeBlurRadiusPx } from "./edge-blur";
 import "./infinite-canvas.css";
 
 export type CanvasItem = {
@@ -142,6 +143,16 @@ export type InfiniteCanvasProps = {
   lens: LensSettings;
   breath: BreathSettings;
   hover: HoverSettings;
+  /**
+   * The in-canvas progressive edge blur. `?edgeblur=off` passes false, which
+   * leaves the render targets unmipmapped and the effect at zero.
+   */
+  edgeBlur?: boolean;
+  /**
+   * A focused tile owns the screen. The edge effect fades out over
+   * `EDGE_BLUR.fadeMs` and returns after the close lands.
+   */
+  edgeBlurSuppressed?: boolean;
   onOpen: (
     index: number,
     startAt?: number,
@@ -302,8 +313,12 @@ const POST_VERTEX_SHADER = /* glsl */ `
 
 /**
  * Full-screen globe lens. Reads the linear premultiplied scene target, samples
- * it through the barrel map, then encodes once into the sRGB canvas. The
- * vignette fades to the page background by lowering alpha.
+ * it through the barrel map, then encodes once into sRGB when it draws to the
+ * canvas. The vignette fades to the page background by lowering alpha.
+ *
+ * When the edge blur is on, this pass renders into a linear screen target and
+ * the composite pass below does the sRGB encode plus the edge mix. The same
+ * shader still draws straight to the canvas for `?edgeblur=off`.
  */
 const POST_FRAGMENT_SHADER = /* glsl */ `
   uniform sampler2D uScene;
@@ -329,11 +344,123 @@ const POST_FRAGMENT_SHADER = /* glsl */ `
 
     #include <colorspace_fragment>
 
-    // Premultiplied sRGB for the premultiplied canvas.
+    // Premultiplied for the canvas / the linear screen target.
     gl_FragColor.rgb *= gl_FragColor.a;
 
     float edge = smoothstep(0.72, 1.05, r);
     gl_FragColor *= 1.0 - uVignette * edge;
+  }
+`;
+
+/**
+ * The horizontal half of the separable edge blur, at half resolution. Each
+ * bilinear read of the full-resolution screen target also averages the 2x2
+ * block, so this pass doubles as the downsample. The screen-space edge mask
+ * scales the radius per fragment; the composite below finishes the vertical
+ * half against the same mask.
+ */
+const EDGE_H_FRAGMENT_SHADER = /* glsl */ `
+  uniform sampler2D uSource;
+  uniform vec2 uTexel;
+  uniform float uRadius;
+  uniform vec2 uEdgeDepth;
+  uniform float uWeights[7];
+
+  varying vec2 vUv;
+
+  void main() {
+    vec2 edgeDistance =
+      min(vUv, 1.0 - vUv) / max(uEdgeDepth, vec2(0.000001));
+    float edgeT = clamp(min(edgeDistance.x, edgeDistance.y), 0.0, 1.0);
+    float edge = 1.0 - edgeT;
+    edge = edge * edge * (3.0 - 2.0 * edge);
+
+    float radius = uRadius * edge;
+    vec4 sum = texture2D(uSource, vUv) * uWeights[0];
+    float total = uWeights[0];
+
+    for (int i = 1; i <= 6; i += 1) {
+      float offset = float(i) / 6.0;
+      vec2 d = vec2(uTexel.x, 0.0) * radius * offset;
+      vec4 a = texture2D(uSource, vUv + d);
+      vec4 b = texture2D(uSource, vUv - d);
+      float weight = uWeights[i];
+      sum += (a + b) * weight;
+      total += 2.0 * weight;
+    }
+
+    gl_FragColor = sum / total;
+  }
+`;
+
+/**
+ * The edge composite, used only when the effect is on. It reads the linear
+ * screen target (lens applied, premultiplied) and the horizontal half of the
+ * separable blur, applies the vertical half in this draw, mixes by the
+ * screen-space edge mask, adds the theme tint, then does the one sRGB encode
+ * and the vignette on the way to the canvas.
+ *
+ * The mask is exactly `edgeBlurMask()` in edge-blur.ts, which tests pin.
+ */
+const COMPOSITE_FRAGMENT_SHADER = /* glsl */ `
+  uniform sampler2D uScene;
+  uniform sampler2D uEdgeScene;
+  uniform vec2 uEdgeTexel;
+  uniform float uEdgeRadius;
+  uniform float uWeights[7];
+  uniform vec2 uEdgeDepth;
+  uniform float uEdgeAmount;
+  uniform vec3 uEdgeTint;
+  uniform float uEdgeTintStrength;
+  uniform float uVignette;
+  uniform float uAspect;
+
+  varying vec2 vUv;
+
+  void main() {
+    vec2 edgeDistance =
+      min(vUv, 1.0 - vUv) / max(uEdgeDepth, vec2(0.000001));
+    float edgeT = clamp(min(edgeDistance.x, edgeDistance.y), 0.0, 1.0);
+    float edge = 1.0 - edgeT;
+    edge = edge * edge * (3.0 - 2.0 * edge) * uEdgeAmount;
+
+    vec4 sharp = texture2D(uScene, vUv);
+    vec4 c = sharp;
+
+    if (edge > 0.0) {
+      // The horizontal pass already ran at half resolution; finish the
+      // separable Gaussian here with seven mirrored vertical taps.
+      float radius = uEdgeRadius * edge;
+      vec4 sum = texture2D(uEdgeScene, vUv) * uWeights[0];
+      float total = uWeights[0];
+
+      for (int i = 1; i <= 6; i += 1) {
+        float offset = float(i) / 6.0;
+        vec2 d = vec2(0.0, uEdgeTexel.y) * radius * offset;
+        vec4 a = texture2D(uEdgeScene, vUv + d);
+        vec4 b = texture2D(uEdgeScene, vUv - d);
+        float weight = uWeights[i];
+        sum += (a + b) * weight;
+        total += 2.0 * weight;
+      }
+
+      c = mix(sharp, sum / total, edge);
+    }
+
+    vec3 linear = c.a > 0.0001 ? c.rgb / c.a : c.rgb;
+    linear = mix(linear, uEdgeTint, uEdgeTintStrength * edge);
+
+    gl_FragColor = vec4(linear, c.a);
+
+    #include <colorspace_fragment>
+
+    // Premultiplied sRGB for the premultiplied canvas.
+    gl_FragColor.rgb *= gl_FragColor.a;
+
+    vec2 q = vUv * 2.0 - 1.0;
+    float r =
+      length(vec2(q.x * uAspect, q.y)) / length(vec2(uAspect, 1.0));
+    gl_FragColor *= 1.0 - uVignette * smoothstep(0.72, 1.05, r);
   }
 `;
 
@@ -454,6 +581,10 @@ type CanvasDebug = {
   rtWidth: number;
   rtHeight: number;
   rtSamples: number;
+  edgeBlur: boolean;
+  edgeBlurAmount: number;
+  edgeBlurRadius: number;
+  edgeBlurDepth: number;
   rects: {
     index: number;
     id: string;
@@ -631,20 +762,21 @@ function StaticFallback({ items }: { items: CanvasItem[] }) {
 export const InfiniteCanvas = forwardRef<
   InfiniteCanvasHandle,
   InfiniteCanvasProps
->(
-  function InfiniteCanvas(
-    {
-      items,
-      paused,
-      lens,
-      breath,
-      hover,
-      onOpen,
-      onCanvasOpened,
-      onIntroStart,
-    },
-    ref,
-  ) {
+>(function InfiniteCanvas(
+  {
+    items,
+    paused,
+    lens,
+    breath,
+    hover,
+    edgeBlur = true,
+    edgeBlurSuppressed = false,
+    onOpen,
+    onCanvasOpened,
+    onIntroStart,
+  },
+  ref,
+) {
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const hoverLabelRef = useRef<HTMLSpanElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
@@ -675,6 +807,7 @@ export const InfiniteCanvas = forwardRef<
   const onOpenRef = useRef(onOpen);
   const onCanvasOpenedRef = useRef(onCanvasOpened);
   const onIntroStartRef = useRef(onIntroStart);
+  const edgeBlurSuppressedRef = useRef(edgeBlurSuppressed);
 
   useImperativeHandle(ref, () => apiRef.current, []);
 
@@ -704,6 +837,11 @@ export const InfiniteCanvas = forwardRef<
     hoverRef.current = hover;
     wakeRef.current();
   }, [hover]);
+
+  useEffect(() => {
+    edgeBlurSuppressedRef.current = edgeBlurSuppressed;
+    wakeRef.current();
+  }, [edgeBlurSuppressed]);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -785,6 +923,9 @@ export const InfiniteCanvas = forwardRef<
     renderer.domElement.className = "cv-webgl";
     hostElement.appendChild(renderer.domElement);
 
+    const edgeBlurEnabled = edgeBlur;
+    let edgeAmount = edgeBlurEnabled && !edgeBlurSuppressedRef.current ? 1 : 0;
+
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 2000);
     camera.position.set(0, 0, CAMERA_Z);
@@ -809,9 +950,36 @@ export const InfiniteCanvas = forwardRef<
     renderTarget.texture.magFilter = THREE.LinearFilter;
     renderTarget.texture.generateMipmaps = false;
 
+    // The edge pipeline renders the lens pass into a linear screen target at
+    // canvas resolution, then runs the horizontal half of a separable blur into
+    // a half-resolution target. The composite finishes the vertical half in
+    // its own draw by the screen-space edge mask. Screen-space keeps the band
+    // depth exactly where it is measured, after the lens warp.
+    const screenTarget = edgeBlurEnabled
+      ? new THREE.WebGLRenderTarget(1, 1, {
+          depthBuffer: false,
+          stencilBuffer: false,
+        })
+      : null;
+    const edgeTargetA = edgeBlurEnabled
+      ? new THREE.WebGLRenderTarget(1, 1, {
+          depthBuffer: false,
+          stencilBuffer: false,
+        })
+      : null;
+
+    for (const target of [screenTarget, edgeTargetA]) {
+      if (!target) continue;
+      target.texture.colorSpace = THREE.NoColorSpace;
+      target.texture.minFilter = THREE.LinearFilter;
+      target.texture.magFilter = THREE.LinearFilter;
+      target.texture.generateMipmaps = false;
+    }
+
     const postScene = new THREE.Scene();
     const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const postGeometry = new THREE.PlaneGeometry(2, 2);
+    const edgeDepth = new THREE.Vector2(0.08, 0.08);
     const postMaterial = new THREE.ShaderMaterial({
       uniforms: {
         uScene: { value: renderTarget.texture },
@@ -831,6 +999,123 @@ export const InfiniteCanvas = forwardRef<
     const postQuad = new THREE.Mesh(postGeometry, postMaterial);
     postScene.add(postQuad);
 
+    // The separable Gaussian's seven mirrored weights: sigma is 1/3 of the
+    // radius, so the last tap is three sigmas out.
+    const edgeWeights = Array.from({ length: 7 }, (_, index) => {
+      const t = index / 6;
+      return Math.exp(-0.5 * Math.pow(t * 3, 2));
+    });
+
+    const edgeScene = new THREE.Scene();
+    const edgeHMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uSource: {
+          value: screenTarget?.texture ?? renderTarget.texture,
+        },
+        uTexel: { value: new THREE.Vector2() },
+        uRadius: { value: 1 },
+        uEdgeDepth: { value: edgeDepth },
+        uWeights: { value: edgeWeights },
+      },
+      vertexShader: POST_VERTEX_SHADER,
+      fragmentShader: EDGE_H_FRAGMENT_SHADER,
+      depthTest: false,
+      depthWrite: false,
+      transparent: false,
+      blending: THREE.NoBlending,
+      toneMapped: false,
+    });
+    const edgeQuad = new THREE.Mesh(postGeometry, edgeHMaterial);
+    edgeScene.add(edgeQuad);
+
+    const compositeMaterial = edgeBlurEnabled
+      ? new THREE.ShaderMaterial({
+          uniforms: {
+            uScene: {
+              value: screenTarget?.texture ?? renderTarget.texture,
+            },
+            uEdgeScene: {
+              value: edgeTargetA?.texture ?? renderTarget.texture,
+            },
+            uEdgeTexel: { value: new THREE.Vector2() },
+            uEdgeRadius: { value: 1 },
+            uWeights: { value: edgeWeights },
+            uEdgeDepth: { value: edgeDepth },
+            uEdgeAmount: { value: edgeAmount },
+            uEdgeTint: { value: new THREE.Color(0x000000) },
+            uEdgeTintStrength: { value: EDGE_BLUR.tintStrength },
+            uVignette: { value: 0 },
+            uAspect: { value: 1 },
+          },
+          vertexShader: POST_VERTEX_SHADER,
+          fragmentShader: COMPOSITE_FRAGMENT_SHADER,
+          depthTest: false,
+          depthWrite: false,
+          transparent: true,
+          premultipliedAlpha: true,
+          toneMapped: false,
+        })
+      : null;
+    const compositeScene = new THREE.Scene();
+    if (compositeMaterial) {
+      compositeScene.add(new THREE.Mesh(postGeometry, compositeMaterial));
+    }
+
+    /**
+     * The vignette lands in the composite when the edge blur is on, and in the
+     * lens pass when it is off (the direct-to-canvas path).
+     */
+    function setVignette(value: number): void {
+      postMaterial.uniforms.uVignette.value = edgeBlurEnabled ? 0 : value;
+      if (compositeMaterial) {
+        compositeMaterial.uniforms.uVignette.value = value;
+      }
+    }
+
+    /**
+     * The theme surface as a linear THREE.Color. The theme tokens are CSS
+     * custom properties (often oklch), so resolve the actual painted colour
+     * through a hidden probe and a 2D canvas rather than parsing CSS in JS.
+     */
+    function readSurfaceTint(): THREE.Color {
+      const probe = document.createElement("span");
+      probe.style.cssText =
+        "position:absolute;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;color:var(--surface)";
+      document.body.appendChild(probe);
+      const css = getComputedStyle(probe).color;
+      probe.remove();
+
+      const swatch = document.createElement("canvas");
+      swatch.width = 1;
+      swatch.height = 1;
+      const context2d = swatch.getContext("2d", { willReadFrequently: true });
+      if (!context2d) return new THREE.Color(0x000000);
+
+      context2d.fillStyle = css;
+      context2d.fillRect(0, 0, 1, 1);
+      const [r, g, b] = context2d.getImageData(0, 0, 1, 1).data;
+
+      return new THREE.Color().setRGB(
+        r / 255,
+        g / 255,
+        b / 255,
+        THREE.SRGBColorSpace,
+      );
+    }
+
+    compositeMaterial?.uniforms.uEdgeTint.value.copy(readSurfaceTint());
+
+    // Theme changes flip data-phase / data-mode / .dark on <html>; keep the
+    // tint in step without re-creating the canvas.
+    const themeObserver = new MutationObserver(() => {
+      compositeMaterial?.uniforms.uEdgeTint.value.copy(readSurfaceTint());
+      wake();
+    });
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-phase", "data-mode", "class"],
+    });
+
     function renderScene(): void {
       // The lens RT is a wider view of the same scene at the same position, so
       // the viewport part of the target matches the flat view 1:1.
@@ -838,6 +1123,25 @@ export const InfiniteCanvas = forwardRef<
       renderCamera.updateMatrixWorld();
       renderer.setRenderTarget(renderTarget);
       renderer.render(scene, renderCamera);
+
+      if (screenTarget && edgeTargetA && compositeMaterial) {
+        // Lens + barrel into a linear screen target.
+        renderer.setRenderTarget(screenTarget);
+        renderer.render(postScene, postCamera);
+
+        // Horizontal half of the separable blur, at half resolution. The
+        // bilinear reads of the screen target also do the 2x2 downsample.
+        edgeHMaterial.uniforms.uSource.value = screenTarget.texture;
+        renderer.setRenderTarget(edgeTargetA);
+        renderer.render(edgeScene, postCamera);
+
+        // The composite finishes the vertical half and the sRGB encode.
+        renderer.setRenderTarget(null);
+        renderer.render(compositeScene, postCamera);
+
+        return;
+      }
+
       renderer.setRenderTarget(null);
       renderer.render(postScene, postCamera);
     }
@@ -1004,6 +1308,10 @@ export const InfiniteCanvas = forwardRef<
             rtWidth: 0,
             rtHeight: 0,
             rtSamples: 0,
+            edgeBlur: edgeBlurEnabled,
+            edgeBlurAmount: edgeAmount,
+            edgeBlurRadius: 0,
+            edgeBlurDepth: 0,
             rects: [],
             breathActive: false,
             breathAmplitude: 0,
@@ -2262,6 +2570,12 @@ export const InfiniteCanvas = forwardRef<
       debug.rtWidth = renderTarget.width;
       debug.rtHeight = renderTarget.height;
       debug.rtSamples = renderTarget.samples;
+      debug.edgeBlur = edgeBlurEnabled;
+      debug.edgeBlurAmount = Number(edgeAmount.toFixed(3));
+      debug.edgeBlurRadius = Number(
+        (compositeMaterial?.uniforms.uEdgeRadius.value ?? 0).toFixed(2),
+      );
+      debug.edgeBlurDepth = Number(edgeDepth.x.toFixed(4));
       debug.rects = planes
         .filter((plane) => plane.mesh.visible && plane.opacity > 0.5)
         .map((plane) => {
@@ -2315,9 +2629,7 @@ export const InfiniteCanvas = forwardRef<
         transition.phase === "idle"
           ? null
           : { x: transition.toScrollX, y: transition.toScrollY };
-      debug.openBase = opened
-        ? { x: opened.baseX, y: opened.baseY }
-        : null;
+      debug.openBase = opened ? { x: opened.baseX, y: opened.baseY } : null;
       debug.openRect = opened ? projectPlaneWarped(opened) : null;
       debug.dragging = panIsDragging();
       debug.hidden = hiddenPlane !== null;
@@ -2341,8 +2653,8 @@ export const InfiniteCanvas = forwardRef<
         );
       }).length;
 
-      const focusEntry = focusVideos.values().next()
-        .value as FocusVideoEntry | undefined;
+      const focusEntry = focusVideos.values().next().value as
+        FocusVideoEntry | undefined;
       debug.focusVideo = focusEntry
         ? {
             index: focusEntry.index,
@@ -2358,8 +2670,8 @@ export const InfiniteCanvas = forwardRef<
             currentTime: Number(focusEntry.element.currentTime.toFixed(2)),
             bound: Boolean(
               transition.plane &&
-                transition.plane.material.uniforms.uTexture.value ===
-                  focusEntry.texture,
+              transition.plane.material.uniforms.uTexture.value ===
+                focusEntry.texture,
             ),
             version: focusEntry.texture.version,
             src: focusEntry.element.currentSrc.split("/").slice(-1)[0] ?? "",
@@ -2855,7 +3167,8 @@ export const InfiniteCanvas = forwardRef<
     }
 
     function openCentred(): void {
-      const plane = keyboardFocused && focusedPlane ? focusedPlane : centrePlane();
+      const plane =
+        keyboardFocused && focusedPlane ? focusedPlane : centrePlane();
       if (plane) void openPlane(plane);
     }
 
@@ -2999,8 +3312,7 @@ export const InfiniteCanvas = forwardRef<
       lensWanted = want;
 
       postMaterial.uniforms.uStrength.value = lensApplied;
-      postMaterial.uniforms.uVignette.value =
-        settings.mode === "globe" ? settings.vignette * factor : 0;
+      setVignette(settings.mode === "globe" ? settings.vignette * factor : 0);
 
       return (
         Math.abs(target - lensBase) > 0.0005 ||
@@ -3500,11 +3812,7 @@ export const InfiniteCanvas = forwardRef<
       }
 
       if (hoverIntentPlane) {
-        if (
-          !allowed ||
-          keyboard ||
-          hoverIntentPlane !== hoveredPlane
-        ) {
+        if (!allowed || keyboard || hoverIntentPlane !== hoveredPlane) {
           cancelHoverIntent();
         } else if (hoverIntentReady(hoverIntentAt, now)) {
           hoverIntentPlane = null;
@@ -3639,8 +3947,9 @@ export const InfiniteCanvas = forwardRef<
         lensApplied = strength;
         lensWanted = strength;
         postMaterial.uniforms.uStrength.value = strength;
-        postMaterial.uniforms.uVignette.value =
-          lensRef.current.mode === "globe" ? lensRef.current.vignette : 0;
+        setVignette(
+          lensRef.current.mode === "globe" ? lensRef.current.vignette : 0,
+        );
       }
 
       renderScene();
@@ -4200,6 +4509,38 @@ export const InfiniteCanvas = forwardRef<
       return !introEndedFlag;
     }
 
+    function edgeBlurTarget(): number {
+      return edgeBlurEnabled && !edgeBlurSuppressedRef.current ? 1 : 0;
+    }
+
+    function edgeBlurFading(): boolean {
+      return edgeAmount !== edgeBlurTarget();
+    }
+
+    /** Move the edge effect toward its target over EDGE_BLUR.fadeMs. */
+    function updateEdgeBlur(dtMs: number): boolean {
+      const target = edgeBlurTarget();
+      if (edgeAmount === target) return false;
+
+      if (reduced) {
+        edgeAmount = target;
+        if (compositeMaterial)
+          compositeMaterial.uniforms.uEdgeAmount.value = edgeAmount;
+
+        return true;
+      }
+
+      const step = dtMs / EDGE_BLUR.fadeMs;
+      edgeAmount =
+        target > edgeAmount
+          ? Math.min(target, edgeAmount + step)
+          : Math.max(target, edgeAmount - step);
+      if (compositeMaterial)
+        compositeMaterial.uniforms.uEdgeAmount.value = edgeAmount;
+
+      return true;
+    }
+
     function renderFrame(now: number): void {
       raf = 0;
 
@@ -4208,6 +4549,7 @@ export const InfiniteCanvas = forwardRef<
         return;
       }
 
+      const edgeFading = edgeBlurFading();
       const viewerWaitSettled =
         pausedRef.current &&
         transition.phase === "opening" &&
@@ -4220,7 +4562,12 @@ export const InfiniteCanvas = forwardRef<
         (transition.phase === "open" &&
           (transition.waitingForViewer || transition.handoffAt >= 0));
 
-      if (pausedRef.current && !transitionActive && !openVideoIsLive()) {
+      if (
+        pausedRef.current &&
+        !transitionActive &&
+        !openVideoIsLive() &&
+        !edgeFading
+      ) {
         last = 0;
         return;
       }
@@ -4230,6 +4577,7 @@ export const InfiniteCanvas = forwardRef<
       last = now;
 
       const introActive = updateIntro(now, dtMs);
+      const edgeUpdated = updateEdgeBlur(dtMs);
       const transitionRunning = updateTransition(now);
       const gliding = updateKeyGlide(now);
       const moving = panTick(now);
@@ -4260,7 +4608,8 @@ export const InfiniteCanvas = forwardRef<
         introActive ||
         transitionRunning ||
         transitionActive ||
-        hovering;
+        hovering ||
+        edgeUpdated;
 
       if (!viewerWaitSettled && (otherActive || breathing)) {
         raf = requestAnimationFrame(renderFrame);
@@ -4293,6 +4642,7 @@ export const InfiniteCanvas = forwardRef<
       if (
         pausedRef.current &&
         !openVideoIsLive() &&
+        !edgeBlurFading() &&
         (!transitionActive || viewerWaitSettled)
       ) {
         return;
@@ -4395,10 +4745,8 @@ export const InfiniteCanvas = forwardRef<
           resetPlaneToTile(plane);
 
           if (plane === t.plane) {
-            const w =
-              t.tileWidth + (t.focusWidth - t.tileWidth) * grow;
-            const h =
-              t.tileHeight + (t.focusHeight - t.tileHeight) * grow;
+            const w = t.tileWidth + (t.focusWidth - t.tileWidth) * grow;
+            const h = t.tileHeight + (t.focusHeight - t.tileHeight) * grow;
             plane.mesh.visible = true;
             plane.mesh.scale.set(w, h, 1);
             plane.material.uniforms.uPlaneSizes.value.set(w, h);
@@ -4460,10 +4808,8 @@ export const InfiniteCanvas = forwardRef<
           resetPlaneToTile(plane);
 
           if (plane === target) {
-            const w =
-              t.focusWidth + (t.restWidth - t.focusWidth) * shrink;
-            const h =
-              t.focusHeight + (t.restHeight - t.focusHeight) * shrink;
+            const w = t.focusWidth + (t.restWidth - t.focusWidth) * shrink;
+            const h = t.focusHeight + (t.restHeight - t.focusHeight) * shrink;
             plane.mesh.visible = true;
             plane.mesh.scale.set(w, h, 1);
             plane.material.uniforms.uPlaneSizes.value.set(w, h);
@@ -4584,6 +4930,39 @@ export const InfiniteCanvas = forwardRef<
 
       renderTarget.setSize(rtWidth, rtHeight);
       postMaterial.uniforms.uAspect.value = width / height;
+      if (compositeMaterial) {
+        compositeMaterial.uniforms.uAspect.value = width / height;
+      }
+
+      // The edge depth is the CSS clamp, in screen UV space. The screen target
+      // and its mip chain re-derive on every resize.
+      const depthPx = edgeBlurDepthPx(window.innerWidth);
+      edgeDepth.set(depthPx / width, depthPx / height);
+
+      if (screenTarget && edgeTargetA && compositeMaterial) {
+        const screenWidth = Math.max(1, Math.round(width * dpr));
+        const screenHeight = Math.max(1, Math.round(height * dpr));
+        const edgeWidth = Math.max(
+          1,
+          Math.round(screenWidth * EDGE_BLUR.targetScale),
+        );
+        const edgeHeight = Math.max(
+          1,
+          Math.round(screenHeight * EDGE_BLUR.targetScale),
+        );
+        const edgeRadius =
+          edgeBlurRadiusPx(EDGE_BLUR.maxBlurPx, dpr) * EDGE_BLUR.targetScale;
+
+        screenTarget.setSize(screenWidth, screenHeight);
+        edgeTargetA.setSize(edgeWidth, edgeHeight);
+        edgeHMaterial.uniforms.uTexel.value.set(1 / edgeWidth, 1 / edgeHeight);
+        edgeHMaterial.uniforms.uRadius.value = edgeRadius;
+        compositeMaterial.uniforms.uEdgeTexel.value.set(
+          1 / edgeWidth,
+          1 / edgeHeight,
+        );
+        compositeMaterial.uniforms.uEdgeRadius.value = edgeRadius;
+      }
 
       const transitionPlaneIndex = transition.plane?.itemIndex ?? null;
       const transitionTargetIndex = transition.target?.itemIndex ?? null;
@@ -4791,6 +5170,7 @@ export const InfiniteCanvas = forwardRef<
       resizeObserver.disconnect();
       document.removeEventListener("visibilitychange", onVisibilityChange);
       motionQuery.removeEventListener("change", onMotionChange);
+      themeObserver.disconnect();
       surface?.removeEventListener("pointerdown", onPreloadPointerDown);
       surface?.removeEventListener("focus", onPreloadFocus);
       surface?.removeEventListener("pointermove", onHoverPointerMove);
@@ -4830,8 +5210,12 @@ export const InfiniteCanvas = forwardRef<
       disposePlanes();
       geometry.dispose();
       renderTarget.dispose();
+      screenTarget?.dispose();
+      edgeTargetA?.dispose();
+      edgeHMaterial.dispose();
       postGeometry.dispose();
       postMaterial.dispose();
+      compositeMaterial?.dispose();
 
       for (const entry of textures.values()) {
         entry.texture.dispose();
@@ -4853,6 +5237,7 @@ export const InfiniteCanvas = forwardRef<
     };
   }, [
     items,
+    edgeBlur,
     panHalt,
     panIsDragging,
     panSpeed,

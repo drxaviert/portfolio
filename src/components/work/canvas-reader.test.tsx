@@ -22,6 +22,8 @@ vi.mock("@/components/canvas/infinite-canvas", async () => {
       {
         onOpen,
         onIntroStart,
+        edgeBlur = true,
+        edgeBlurSuppressed = false,
       }: {
         onOpen?: (
           index: number,
@@ -30,6 +32,8 @@ vi.mock("@/components/canvas/infinite-canvas", async () => {
           canvasOwned?: boolean,
         ) => void;
         onIntroStart?: () => void;
+        edgeBlur?: boolean;
+        edgeBlurSuppressed?: boolean;
       },
       ref: ForwardedRef<unknown>,
     ) {
@@ -48,7 +52,11 @@ vi.mock("@/components/canvas/infinite-canvas", async () => {
       );
 
       return (
-        <div data-canvas-stage>
+        <div
+          data-canvas-stage
+          data-edge-blur={edgeBlur ? "on" : "off"}
+          data-edge-blur-suppressed={edgeBlurSuppressed ? "" : undefined}
+        >
           <button
             type="button"
             onClick={() => onOpen?.(0, undefined, undefined, true)}
@@ -139,13 +147,13 @@ function renderViewerReader() {
   return reader;
 }
 
-function renderReader() {
+function renderReader({ edgeBlur }: { edgeBlur?: boolean } = {}) {
   const close = vi.fn();
   const stepBack = vi.fn();
 
   render(
     <DrawerActionsProvider close={close} stepBack={stepBack} exit={vi.fn()}>
-      <CanvasReader meta={meta} items={items} />
+      <CanvasReader meta={meta} items={items} edgeBlur={edgeBlur} />
     </DrawerActionsProvider>,
   );
 
@@ -253,7 +261,9 @@ describe("CanvasReader chrome entrance", () => {
 
     expect(reader).toHaveAttribute("data-chrome", "pending");
 
-    fireEvent.click(screen.getByRole("button", { name: "Simulate intro start" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Simulate intro start" }),
+    );
 
     expect(reader).toHaveAttribute("data-chrome", "in");
   });
@@ -344,5 +354,27 @@ describe("CanvasReader bottom bar stacking", () => {
     );
 
     expect(barZ).toBeGreaterThan(viewerZ);
+  });
+});
+
+describe("CanvasReader edge blur", () => {
+  it("passes the edge blur and viewer suppression to the canvas", () => {
+    renderReader();
+
+    const stage = document.querySelector("[data-canvas-stage]");
+    expect(stage).toHaveAttribute("data-edge-blur", "on");
+    expect(stage).not.toHaveAttribute("data-edge-blur-suppressed");
+
+    fireEvent.click(screen.getByRole("button", { name: "Simulate tile open" }));
+    expect(stage).toHaveAttribute("data-edge-blur-suppressed");
+  });
+
+  it("turns the canvas effect off for the edgeblur=off A/B view", () => {
+    renderReader({ edgeBlur: false });
+
+    expect(document.querySelector("[data-canvas-stage]")).toHaveAttribute(
+      "data-edge-blur",
+      "off",
+    );
   });
 });

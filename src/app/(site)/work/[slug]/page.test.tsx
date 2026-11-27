@@ -30,15 +30,29 @@ vi.mock("../../../../../content/work/systems-in-motion.mdx", () => ({
 // The live canvas branch is mocked here: the reader's WebGL lifecycle is
 // exercised in the browser, while this test only checks the layout switch.
 vi.mock("@/components/work/canvas-reader", () => ({
-  CanvasReader: ({ meta }: { meta: { title: string } }) => (
-    <div data-canvas-reader>{meta.title}</div>
+  CanvasReader: ({
+    meta,
+    edgeBlur = true,
+  }: {
+    meta: { title: string };
+    edgeBlur?: boolean;
+  }) => (
+    <div data-canvas-reader data-edge-blur={edgeBlur ? "on" : "off"}>
+      {meta.title}
+    </div>
   ),
 }));
 
-async function renderStudy(slug = "systems-in-motion") {
+async function renderStudy(
+  slug = "systems-in-motion",
+  query: { [key: string]: string | string[] | undefined } = {},
+) {
   render(
     <ThemeProvider>
-      {await WorkPage({ params: Promise.resolve({ slug }) })}
+      {await WorkPage({
+        params: Promise.resolve({ slug }),
+        searchParams: Promise.resolve(query),
+      })}
     </ThemeProvider>,
   );
 }
@@ -117,7 +131,10 @@ describe("work page", () => {
 
   it("calls notFound for an unknown slug", async () => {
     await expect(
-      WorkPage({ params: Promise.resolve({ slug: "nope" }) }),
+      WorkPage({
+        params: Promise.resolve({ slug: "nope" }),
+        searchParams: Promise.resolve({}),
+      }),
     ).rejects.toThrow("NEXT_NOT_FOUND");
 
     expect(notFound).toHaveBeenCalled();
@@ -128,6 +145,19 @@ describe("work page", () => {
 
     expect(document.querySelector("[data-canvas-reader]")).toHaveTextContent(
       "Motion & Stills",
+    );
+    expect(document.querySelector("[data-canvas-reader]")).toHaveAttribute(
+      "data-edge-blur",
+      "on",
+    );
+  });
+
+  it("passes edgeblur=off to the canvas reader's A/B view", async () => {
+    await renderStudy("motion-and-stills", { edgeblur: "off" });
+
+    expect(document.querySelector("[data-canvas-reader]")).toHaveAttribute(
+      "data-edge-blur",
+      "off",
     );
   });
 });
