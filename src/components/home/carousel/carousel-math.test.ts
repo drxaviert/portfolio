@@ -178,6 +178,59 @@ describe("wrap seam", () => {
     });
   });
 
+  it("queues the waiting main card with the seam copies", () => {
+    for (const k of [2, 3]) {
+      const planned = retarget(G, 5, 0, k, restEntities(G, 5, 0));
+      const entrants = planned
+        .filter((e) => e.item >= VISIBLE_SLOTS || e.ghost)
+        .sort((a, b) => a.to.x - b.to.x);
+
+      // The card waiting past the last slot lands first, so it leads the queue.
+      expect(entrants.map((e) => e.item)).toEqual(k === 2 ? [4, 0] : [4, 0, 1]);
+      entrants.forEach((e, index) => {
+        expect(e.from.x).toBe(offRight(G).x + index * (offRight(G).w + G.gap));
+        expect(e.from.w).toBe(offRight(G).w);
+      });
+    }
+  });
+
+  it("keeps every gap in the entering chain constant on a far step", () => {
+    const linear = (t: number) => t;
+
+    for (const k of [2, 3]) {
+      const planned = retarget(G, 5, 0, k, restEntities(G, 5, 0));
+      // The four cards that fill the slots after the step, in landing order:
+      // the clicked card, the cards already in front of it, then the entrants.
+      const chain = slotOrder(5, k)
+        .slice(0, VISIBLE_SLOTS)
+        .map((item, slot) =>
+          planned.find(
+            (e) =>
+              e.item === item &&
+              !e.edgeLeft &&
+              e.to.x === G.slots[slot].x &&
+              e.to.w === G.slots[slot].w,
+          )!,
+        );
+      const keys = chain.map(entityKey);
+
+      for (const p of [0, 0.2, 0.5, 0.8, 1]) {
+        const drawn = sampleEntities(planned, p * 1000, 1000, linear)
+          .filter((e) => keys.includes(entityKey(e)))
+          .sort((a, b) => a.from.x - b.from.x);
+        const gaps = drawn
+          .slice(1)
+          .map(
+            (e, index) =>
+              e.from.x - (drawn[index].from.x + drawn[index].from.w),
+          );
+
+        expect(gaps).toHaveLength(VISIBLE_SLOTS - 1);
+        for (const gap of gaps) expect(gap).toBeCloseTo(G.gap, 6);
+      }
+    }
+  });
+
   it("pushes a far step's leaving cards out as one group, gaps kept", () => {
     for (const k of [2, 3]) {
       const planned = retarget(G, 4, 0, k, restEntities(G, 4, 0));

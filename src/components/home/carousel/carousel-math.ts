@@ -304,23 +304,37 @@ export function retarget(
   const exit = k > 0 ? exitLeft(g) : offRight(g);
   const entry = k > 0 ? offRight(g) : exitLeft(g);
 
-  // A far step wraps several cards, each with a seam copy entering from the same
-  // point. On one start they would travel as a pile (their edges and shadows
-  // stacked, drawn twice) until they fan out. On a rightward run they queue
-  // instead, one column behind the other in landing order, so they keep the
-  // gap between them for the whole run. One copy (a step of one) is unchanged.
-  const entering = current
-    .map((e) => e.item)
-    .filter((item, index, all) => all.indexOf(item) === index)
-    .filter((item) => {
-      if (current.filter((e) => e.item === item).length >= 2) return false;
-      const unwrapped = slotOf(item, prevOffset, n) - k;
-      return (
-        (unwrapped < 0 || unwrapped >= n) && mod(unwrapped, n) < VISIBLE_SLOTS
-      );
-    })
-    .map((item) => mod(slotOf(item, prevOffset, n) - k, n))
-    .sort((a, b) => a - b);
+  // Every card that enters from the right starts at the same offRight point:
+  // the seam copies of a far step, and the waiting main card parked past the
+  // last slot. Left on that one point they pile up, and the card growing into a
+  // wide slot covers the one behind it for most of the run, because a growing
+  // card takes the gap to the next slot as it widens. Queue them in landing
+  // order instead, one entry column plus a gap apart, so the gap between them
+  // stays the same on every frame: the lead card's growth exactly matches the
+  // extra distance it travels. One entrant (a one-slot step) keeps the point.
+  const entrance = new Map<number, number>();
+  if (k > 0) {
+    current
+      .map((e) => e.item)
+      .filter((item, index, all) => all.indexOf(item) === index)
+      .filter((item) => current.filter((e) => e.item === item).length === 1)
+      .map((item) => {
+        const prevSlot = slotOf(item, prevOffset, n);
+        const unwrapped = prevSlot - k;
+        const dest = mod(unwrapped, n);
+        const wraps = unwrapped < 0 || unwrapped >= n;
+        const entering =
+          dest < VISIBLE_SLOTS && (wraps || prevSlot >= VISIBLE_SLOTS);
+
+        return entering ? { item, dest } : null;
+      })
+      .filter(
+        (candidate): candidate is { item: number; dest: number } =>
+          candidate !== null,
+      )
+      .sort((a, b) => a.dest - b.dest)
+      .forEach((candidate, index) => entrance.set(candidate.item, index));
+  }
 
   // The cards a rightward step pushes out through the left end leave as one
   // group: each moves by the same distance, the one that takes the last of them
@@ -370,7 +384,25 @@ export function retarget(
     const main = ents[0];
 
     if (!wraps) {
-      out.push(retargetTo(main, destPose));
+      // A main card waiting past the last slot enters from its place in the
+      // right-hand queue (see `entrance`), not from the raw offRight point.
+      const queued = entrance.get(item);
+      if (k > 0 && queued !== undefined && prevSlot >= VISIBLE_SLOTS) {
+        out.push(
+          retargetTo(
+            {
+              ...main,
+              from: {
+                x: entry.x + queued * (entry.w + g.gap),
+                w: main.from.w,
+              },
+            },
+            destPose,
+          ),
+        );
+      } else {
+        out.push(retargetTo(main, destPose));
+      }
       continue;
     }
 
@@ -388,7 +420,7 @@ export function retarget(
     }
 
     if (visible) {
-      const queued = k > 0 ? entering.indexOf(dest) : 0;
+      const queued = k > 0 ? (entrance.get(item) ?? 0) : 0;
       out.push({
         item,
         ghost: true,

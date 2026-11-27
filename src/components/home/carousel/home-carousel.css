@@ -590,10 +590,8 @@
  *   drawn edge until it starts to cross and closes onto the column's edge over
  *   the same onset the melt uses, so nothing pops; top, bottom and left stay
  *   open by the ring's reach.
- * - the shadow moves off the host onto the frame's ::before (the drawn box), so
- *   it is cropped with the card. It carries the same melt as the face: left
- *   unmasked its 1px ring line crossed the faded end and read as a stray
- *   hairline from the card to the column's edge (bd pf-bw7).
+ * - the shadow moves off the host onto the frame's ::before (the drawn box,
+ *   unmasked), so it is cropped with the card and never faded.
  * - the host carries the melt: the same column-anchored ramp, in the host's
  *   own box (its right end is the drawn edge, so there is no crop to take
  *   out). The fill, ring, content and the progressive blur copy fade on it.
@@ -622,31 +620,6 @@
   );
 }
 
-/*
- * The face's fade values live on the frame so the shadow pseudo below shares
- * them: the shadow is painted on the frame, outside the host that carries the
- * fade, so on its own it outlived the faded face as a stray 1px ring line from
- * the card to the column's edge. The frame is `box - --car-r` wide, the same as
- * the host and the pseudo, so one set of lengths fits all three.
- */
-.car-row[data-stepping]:not([data-peeking])
-  .car-slide[data-cross-right]:not(
-    .car-peek-edge,
-    [data-peek-fade],
-    [data-edge-blur],
-    [data-edge-left]
-  )
-  .car-frame {
-  --car-xk: clamp(
-    0px,
-    100% - 24px - var(--car-cross-r),
-    var(--peek-fade-right, 33px)
-  );
-  --car-xe: calc(
-    12px + var(--car-cross-r) + max(0px, var(--car-shadow-pad) - var(--car-xk))
-  );
-}
-
 .car-row[data-stepping]:not([data-peeking])
   .car-slide[data-cross-right]:not(
     .car-peek-edge,
@@ -661,22 +634,6 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   pointer-events: none;
-  /* The same melt as the host's face (below), so the shadow leaves with the
-     face instead of drawing a crisp line across the faded end. */
-  -webkit-mask-image: linear-gradient(
-    to right,
-    #000 calc(var(--car-xe) - var(--car-xk)),
-    transparent var(--car-xe)
-  );
-  mask-image: linear-gradient(
-    to right,
-    #000 calc(var(--car-xe) - var(--car-xk)),
-    transparent var(--car-xe)
-  );
-  mask-repeat: no-repeat;
-  mask-size: calc(100% + 24px) calc(100% + 24px);
-  mask-position: -12px -12px;
-  mask-clip: no-clip;
 }
 
 .car-row[data-stepping]:not([data-peeking])
@@ -687,6 +644,15 @@
     [data-edge-left]
   )
   .car-host {
+  --car-xk: clamp(
+    0px,
+    100% - 24px - var(--car-cross-r),
+    var(--peek-fade-right, 33px)
+  );
+  --car-xe: calc(
+    12px + var(--car-cross-r) + max(0px, var(--car-shadow-pad) - var(--car-xk))
+  );
+
   box-shadow: none;
   -webkit-mask-image: linear-gradient(
     to right,
