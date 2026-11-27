@@ -27,7 +27,6 @@ export const TRANSITION = {
   growMs: 600,
   /** The canvas plane cross-fades with the DOM viewer at the grown size. */
   handoffMs: 200,
-  captionDelayMs: 200,
   /** Close: caption/controls out, then the same 200ms handoff reversed. */
   closeCaptionMs: 150,
   closeCrossFadeMs: 200,
