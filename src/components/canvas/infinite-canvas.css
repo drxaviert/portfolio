@@ -31,8 +31,8 @@
 }
 
 /*
- * The pointer's tile affordance: a pill naming the tile's project (the viewer
- * chip's label). It waits out HOVER.intentMs (200ms) before showing, so a fast
+ * The pointer's tile affordance: a pill naming the tile's project, sized like
+ * the viewer chip (.cv-viewer__chip: 13px / 1.5, 8px 12px, --radius-lg). It waits out HOVER.intentMs (200ms) before showing, so a fast
  * pass across the grid never flickers a label or a pointer cursor. Position is
  * written with a compositor-only transform from the last pointer event;
  * opacity is the only animated property. Touch never shows it: the pointer
@@ -43,16 +43,14 @@
   top: 0;
   left: 0;
   z-index: 3;
-  height: 24px;
   max-width: 240px;
-  padding: 0 9px;
+  padding: 8px 12px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-lg);
   background: var(--surface-container-low);
-  color: var(--on-surface-variant);
-  font-size: 11px;
-  line-height: 24px;
-  letter-spacing: 0.01em;
+  color: var(--on-surface);
+  font-size: 13px;
+  line-height: 1.5;
   white-space: nowrap;
   text-overflow: ellipsis;
   box-shadow: var(--shadow-card);
