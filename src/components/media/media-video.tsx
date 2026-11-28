@@ -42,10 +42,8 @@ export function MediaVideo({
    */
   viewerOwned?: boolean;
   /**
-   * The canvas viewer contract: loop it, keep it muted, hide controls and
-   * start it as soon as a frame is available. A clip with an HLS ladder
-   * streams it, attached at once: its MP4 is only the 480p fallback rung, too
-   * soft for a fullscreen view (pf-3xh.11). Other clips play the MP4.
+   * The canvas viewer contract: use the progressive MP4, loop it, keep it
+   * muted, hide controls and start it as soon as a frame is available.
    */
   loopMuted?: boolean;
   /**
@@ -151,7 +149,7 @@ export function MediaVideo({
   }, [deferPlayback, loopMuted, media.id]);
 
   useEffect(() => {
-    if (!hlsUrl) return;
+    if (!hlsUrl || loopMuted) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -187,18 +185,7 @@ export function MediaVideo({
         if (cancelled) return;
 
         if (Hls.isSupported()) {
-          // The viewer is the full-quality view: start on the top (1080p) rung
-          // whatever the box size, and let ABR step down only when measured
-          // bandwidth cannot hold it. hls.js's 500 kbps default estimate would
-          // otherwise open every clip on a low rung.
-          const instance = new Hls(
-            loopMuted ? { abrEwmaDefaultEstimate: 8_000_000 } : undefined,
-          );
-          if (loopMuted) {
-            instance.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
-              instance.startLevel = data.levels.length - 1;
-            });
-          }
+          const instance = new Hls();
           instance.loadSource(hlsUrl);
           instance.attachMedia(video);
           hls = instance;
@@ -206,21 +193,10 @@ export function MediaVideo({
         }
       }
 
-      // Older iOS: the element plays HLS itself, starting on the first variant
-      // in master.m3u8, which is the 1080p rung. Everything else keeps the mp4.
+      // Older iOS: the element plays HLS itself. Everything else keeps the mp4.
       if (nativeHls) video.src = hlsUrl;
-      else if (viewerOwned || loopMuted) video.src = media.mp4.url;
+      else if (viewerOwned) video.src = media.mp4.url;
     };
-
-    // The viewer has already chosen this clip and its open flight waits on the
-    // first frame, so there is no viewport to wait for.
-    if (loopMuted) {
-      void attach();
-      return () => {
-        cancelled = true;
-        hls?.destroy();
-      };
-    }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -287,7 +263,7 @@ export function MediaVideo({
         onPause={() => setPlaying(false)}
       >
         {loopMuted ? (
-          hlsUrl ? null : <source src={media.mp4.url} type="video/mp4" />
+          <source src={media.mp4.url} type="video/mp4" />
         ) : !streaming || !viewerOwned ? (
           <>
             {media.webm ? (

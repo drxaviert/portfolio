@@ -20,7 +20,11 @@ import {
 import * as THREE from "three";
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
-import type { ImageMedia, MediaManifest } from "@/lib/media-types";
+import {
+  fullResSource,
+  type ImageMedia,
+  type MediaManifest,
+} from "@/lib/media-types";
 import type { Box } from "@/components/work/morph";
 import {
   gridMetrics,
@@ -2939,14 +2943,10 @@ export const InfiniteCanvas = forwardRef<
         return ready;
       }
 
-      const largest = (format: "avif" | "webp") =>
-        media.sources
-          .filter((source) => source.format === format)
-          .sort((a, b) => b.width - a.width)[0];
-      const sources = [largest("avif"), largest("webp")].filter(
-        (source): source is NonNullable<typeof source> => Boolean(source),
-      );
-      if (sources.length === 0) return Promise.resolve(false);
+      // Warm exactly the file the opened MediaImage (fullRes) will draw.
+      const top = fullResSource(media.sources);
+      if (!top) return Promise.resolve(false);
+      const sources = [top];
 
       const key = `image:${media.id}`;
       const existing = preloaded.get(key);
@@ -2959,8 +2959,8 @@ export const InfiniteCanvas = forwardRef<
         return image;
       });
 
-      // Both formats are warmed; the viewer picks AVIF where it is supported.
-      const ready = Promise.all(
+      const ready
+ = Promise.all(
         images.map((image) =>
           image.decode().then(
             () => true,
