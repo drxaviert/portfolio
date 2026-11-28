@@ -1,0 +1,43 @@
+{
+  "id": "22-01-sh01-dt-a01-rs-camera-b0c9fd584b",
+  "kind": "image",
+  "width": 1920,
+  "height": 2560,
+  "alt": "Red cherry with a long stem on a lilac gradient",
+  "caption": "Cherry study",
+  "createdAt": "2026-11-28T01:00:08.239Z",
+  "original": "22-01_SH01_DT_a01_RS_Camera.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/22-01-sh01-dt-a01-rs-camera-b0c9fd584b/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/22-01-sh01-dt-a01-rs-camera-b0c9fd584b/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/22-01-sh01-dt-a01-rs-camera-b0c9fd584b/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/22-01-sh01-dt-a01-rs-camera-b0c9fd584b/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/22-01-sh01-dt-a01-rs-camera-b0c9fd584b/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/22-01-sh01-dt-a01-rs-camera-b0c9fd584b/w1920.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRqIAAABXRUJQVlA4IJYAAADQAwCdASoQABUAPtFWpkuoJKOhsAgBABoJbAC06GlENGU+U77Zg8AA/vkpzhMpDTcSRdjR0qjeb61uhS9zZnz1yMRbrWBJlPVXhPf6k0z+Dx9G3rq5cqvbZZfv4p7+SXfh0Tgm6tCb/stKOYsOW56om8T2cl8100z3gnOVVUd5n4XIZhaOwiez3awuC4Njf6bUolGCAAA="
+}

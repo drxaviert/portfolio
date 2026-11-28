@@ -1,0 +1,53 @@
+{
+  "id": "06-02-sh01-dt-a01-rs-camera-8de6bf3171",
+  "kind": "image",
+  "width": 2250,
+  "height": 2500,
+  "alt": "Green leafy sculpture on a white plinth under a blue sky",
+  "caption": "Topiary study",
+  "createdAt": "2026-11-28T01:00:02.496Z",
+  "original": "06-02_SH01_DT_a01_RS_Camera.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/06-02-sh01-dt-a01-rs-camera-8de6bf3171/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/06-02-sh01-dt-a01-rs-camera-8de6bf3171/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/06-02-sh01-dt-a01-rs-camera-8de6bf3171/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/06-02-sh01-dt-a01-rs-camera-8de6bf3171/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/06-02-sh01-dt-a01-rs-camera-8de6bf3171/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/06-02-sh01-dt-a01-rs-camera-8de6bf3171/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2250,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/06-02-sh01-dt-a01-rs-camera-8de6bf3171/w2250.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2250,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/06-02-sh01-dt-a01-rs-camera-8de6bf3171/w2250.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRnwAAABXRUJQVlA4IHAAAADQAwCdASoQABIAPtFUo0uoJKMhsAgBABoJYgCw7BSjcicZqZ2GXUQA+0eF4BGRoUFKfcOHuNXj8jiBpArFx8y5vJVWDJL0gqGc0CM8xqghFat1RmGbOfsKbtemQps2tXTqgxjmzbZajTSzKfDwkAAA"
+}

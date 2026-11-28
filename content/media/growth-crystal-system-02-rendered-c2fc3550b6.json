@@ -1,0 +1,24 @@
+{
+  "id": "growth-crystal-system-02-rendered-c2fc3550b6",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "NIOD growth crystal system render",
+  "caption": "NIOD",
+  "createdAt": "2026-11-28T00:54:46.980Z",
+  "original": "Growth_Crystal_System_02_RENDERED.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/growth-crystal-system-02-rendered-c2fc3550b6/video.mp4",
+    "bytes": 3671462
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/growth-crystal-system-02-rendered-c2fc3550b6/canvas.mp4",
+    "bytes": 407073
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/growth-crystal-system-02-rendered-c2fc3550b6/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/growth-crystal-system-02-rendered-c2fc3550b6/poster.jpg"
+  },
+  "duration": 11.29,
+  "hasAudio": false
+}

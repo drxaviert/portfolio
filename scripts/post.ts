@@ -98,6 +98,21 @@ export function hlsCapFor(name: string): number {
   return HLS_MAX_BYTES_BY_NAME[name] ?? HLS_MAX_BYTES;
 }
 
+/**
+ * Per-file exceptions to the 10 MB MP4 cap, keyed on the original inbox
+ * filename. These short, high-motion clips encode to 10-14 MB at CRF 20 and are
+ * shipped as curated (pf-3xh.10); every other file keeps the 10 MB cap.
+ */
+const MP4_MAX_BYTES_BY_NAME: Readonly<Record<string, number>> = {
+  "NIOD_CAIL_a01_DT_Front_1_0064.mp4": 15 * 1024 * 1024,
+  "NIOD_Cell04_Anim_v03_FINAL.mp4": 15 * 1024 * 1024,
+  "xylo-Branding-Good-Form.mp4": 15 * 1024 * 1024,
+};
+
+export function mp4CapFor(name: string): number {
+  return MP4_MAX_BYTES_BY_NAME[name] ?? MP4_MAX_BYTES;
+}
+
 /** One rung of the adaptive ladder: a height cap and the bitrate that caps it. */
 export interface HlsRung {
   height: number;
@@ -849,9 +864,10 @@ async function processVideo(
   // The cap guards a full-size MP4 a reader downloads whole. An HLS fallback is
   // already at the lowest rung, and the ladder has its own budget below.
   if (!useHls) {
-    if (mp4.byteLength > MP4_MAX_BYTES) {
+    const mp4Cap = mp4CapFor(job.name);
+    if (mp4.byteLength > mp4Cap) {
       throw new Error(
-        `the MP4 is ${formatBytes(mp4.byteLength)}, over the 10 MB cap. Re-encode with a higher CRF or use a shorter clip.`,
+        `the MP4 is ${formatBytes(mp4.byteLength)}, over the ${formatBytes(mp4Cap)} cap. Re-encode with a higher CRF or use a shorter clip.`,
       );
     }
     if (mp4.byteLength > MP4_WARN_BYTES) {

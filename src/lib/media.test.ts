@@ -22,11 +22,11 @@ describe("getMedia", () => {
     const media = getMedia(IMAGE_ID);
 
     expect(media.kind).toBe("image");
-    expect(media.width).toBe(3840);
+    expect(media.width).toBe(2560);
     if (media.kind !== "image") return;
 
     expect(media.sources.map((source) => source.width)).toEqual([
-      640, 640, 1280, 1280, 1920, 1920, 2560, 2560, 3840, 3840,
+      640, 640, 1280, 1280, 1920, 1920, 2560, 2560,
     ]);
     expect(media.lqip.startsWith("data:image/webp;base64,")).toBe(true);
   });
@@ -143,7 +143,7 @@ describe("coverImageFor", () => {
     expect(cover.avif).toMatch(/w1280\.avif$/);
     expect(cover.fallback).toMatch(/w1280\.webp$/);
     expect(cover.fallbackType).toBe("image/webp");
-    expect(cover.width).toBe(3840);
+    expect(cover.width).toBe(2560);
     expect(cover.lqip).toMatch(/^data:image\//);
   });
 

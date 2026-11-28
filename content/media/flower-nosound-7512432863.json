@@ -1,0 +1,24 @@
+{
+  "id": "flower-nosound-7512432863",
+  "kind": "video",
+  "width": 864,
+  "height": 1080,
+  "alt": "Pink poppies blooming on curling green stems against black",
+  "caption": "Flower redshift",
+  "createdAt": "2026-11-28T01:00:59.364Z",
+  "original": "Flower-NoSound.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/flower-nosound-7512432863/video.mp4",
+    "bytes": 2429347
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/flower-nosound-7512432863/canvas.mp4",
+    "bytes": 424586
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/flower-nosound-7512432863/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/flower-nosound-7512432863/poster.jpg"
+  },
+  "duration": 19.42,
+  "hasAudio": false
+}

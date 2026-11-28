@@ -1,0 +1,24 @@
+{
+  "id": "shapes-in-motion-v02-05-9e6a544319",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Shapes in Motion loop, part 5",
+  "caption": "Shapes in Motion",
+  "createdAt": "2026-11-28T00:53:24.812Z",
+  "original": "Shapes_In_Motion_v02_05.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/shapes-in-motion-v02-05-9e6a544319/video.mp4",
+    "bytes": 1434762
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/shapes-in-motion-v02-05-9e6a544319/canvas.mp4",
+    "bytes": 177039
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/shapes-in-motion-v02-05-9e6a544319/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/shapes-in-motion-v02-05-9e6a544319/poster.jpg"
+  },
+  "duration": 5.42,
+  "hasAudio": false
+}

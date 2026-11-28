@@ -1,0 +1,53 @@
+{
+  "id": "thumbnail-bcd52f89ab",
+  "kind": "image",
+  "width": 2560,
+  "height": 1440,
+  "alt": "NIOD campaign thumbnail",
+  "caption": "NIOD",
+  "createdAt": "2026-11-28T00:54:45.083Z",
+  "original": "Thumbnail.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/thumbnail-bcd52f89ab/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/thumbnail-bcd52f89ab/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/thumbnail-bcd52f89ab/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/thumbnail-bcd52f89ab/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/thumbnail-bcd52f89ab/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/thumbnail-bcd52f89ab/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2560,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/thumbnail-bcd52f89ab/w2560.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2560,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/thumbnail-bcd52f89ab/w2560.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRkQAAABXRUJQVlA4IDgAAABQAQCdASoQAAkAAsBMJZwABAAAAP73qHgV9ufJo//Z22HNoja7LZD29qqUs3swOctvmkgDx04AAA=="
+}

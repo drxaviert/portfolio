@@ -1,0 +1,24 @@
+{
+  "id": "ud-lip-toy-hero-visual-2-v07h-976f696ea2",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Urban Decay Lip Toy hero animation",
+  "caption": "Urban Decay",
+  "createdAt": "2026-11-28T00:54:19.686Z",
+  "original": "UD_Lip_Toy_Hero_Visual_2_v07h.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-lip-toy-hero-visual-2-v07h-976f696ea2/video.mp4",
+    "bytes": 1725537
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-lip-toy-hero-visual-2-v07h-976f696ea2/canvas.mp4",
+    "bytes": 317744
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-lip-toy-hero-visual-2-v07h-976f696ea2/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-lip-toy-hero-visual-2-v07h-976f696ea2/poster.jpg"
+  },
+  "duration": 7.5,
+  "hasAudio": false
+}

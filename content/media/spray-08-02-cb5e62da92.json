@@ -1,0 +1,53 @@
+{
+  "id": "spray-08-02-cb5e62da92",
+  "kind": "image",
+  "width": 2048,
+  "height": 2560,
+  "alt": "Aesop spray bottle casting a long shadow",
+  "caption": "Aesop spray study",
+  "createdAt": "2026-11-28T01:00:56.944Z",
+  "original": "Spray_08_02.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-08-02-cb5e62da92/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-08-02-cb5e62da92/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-08-02-cb5e62da92/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-08-02-cb5e62da92/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-08-02-cb5e62da92/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-08-02-cb5e62da92/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2048,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-08-02-cb5e62da92/w2048.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2048,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-08-02-cb5e62da92/w2048.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRmwAAABXRUJQVlA4IGAAAADwAwCdASoQABQAPtFapEwoJSOiMAgBABoJZQDG9CHfRFzww4TfV5aAAP71Ztyj+HwtcBalRIMZX81AmmAtMV3DCdoVYPMmW8HeIuwn5dBtY+TKtIXyux287HZLYLwOmAA="
+}

@@ -1,0 +1,53 @@
+{
+  "id": "spray-01-fc09595632",
+  "kind": "image",
+  "width": 2048,
+  "height": 2560,
+  "alt": "Amber Aesop spray bottle on a dark shelf",
+  "caption": "Aesop spray study",
+  "createdAt": "2026-11-28T01:00:46.035Z",
+  "original": "Spray_01.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-01-fc09595632/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-01-fc09595632/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-01-fc09595632/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-01-fc09595632/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-01-fc09595632/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-01-fc09595632/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2048,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-01-fc09595632/w2048.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2048,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-01-fc09595632/w2048.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAAAQBACdASoQABQAPtFWpEuoJKOhsAgBABoJZQDDNCFTNjaonORl7EMu4AD+9W/US7wRj2+WemiY2za6kVAz7hKMLHo8vmtbe8966bNpF5fJN+Y6SqIQMnSdKcTP/zXQ+Pf+El0MsfjLrU0HTgAAAA=="
+}

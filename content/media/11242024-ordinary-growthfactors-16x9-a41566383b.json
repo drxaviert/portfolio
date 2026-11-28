@@ -1,0 +1,38 @@
+{
+  "id": "11242024-ordinary-growthfactors-16x9-a41566383b",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Ordinary motion piece",
+  "caption": "Ordinary",
+  "createdAt": "2026-11-28T00:53:43.999Z",
+  "original": "11242024_Ordinary_GrowthFactors_16x9.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/11242024-ordinary-growthfactors-16x9-a41566383b/video.mp4",
+    "bytes": 5744873
+  },
+  "hls": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/11242024-ordinary-growthfactors-16x9-a41566383b/hls/master.m3u8",
+    "bytes": 39523410,
+    "levels": [
+      {
+        "height": 1080,
+        "bandwidth": 5640800
+      },
+      {
+        "height": 720,
+        "bandwidth": 3220800
+      },
+      {
+        "height": 480,
+        "bandwidth": 1460800
+      }
+    ]
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/11242024-ordinary-growthfactors-16x9-a41566383b/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/11242024-ordinary-growthfactors-16x9-a41566383b/poster.jpg"
+  },
+  "duration": 37.5,
+  "hasAudio": true
+}

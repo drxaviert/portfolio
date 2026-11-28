@@ -1,0 +1,53 @@
+{
+  "id": "cellixir-02-v01a-184ce4b886",
+  "kind": "image",
+  "width": 2560,
+  "height": 1440,
+  "alt": "Celixir still",
+  "caption": "Celixir",
+  "createdAt": "2026-11-28T00:53:50.731Z",
+  "original": "Cellixir_02_v01a.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-02-v01a-184ce4b886/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-02-v01a-184ce4b886/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-02-v01a-184ce4b886/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-02-v01a-184ce4b886/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-02-v01a-184ce4b886/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-02-v01a-184ce4b886/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2560,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-02-v01a-184ce4b886/w2560.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2560,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-02-v01a-184ce4b886/w2560.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAADwAQCdASoQAAkAAsBMJZQCdADiWMJoJ+AA/DWv1TSgpKJHCafvU9bVF2QB034Iky5jF2ooPOB/5bEXaQ5eqIKwFgdRAt8bPq2Ke0gpqiO1e+/AAAA="
+}

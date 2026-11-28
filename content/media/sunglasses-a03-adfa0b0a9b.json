@@ -1,0 +1,53 @@
+{
+  "id": "sunglasses-a03-adfa0b0a9b",
+  "kind": "image",
+  "width": 2048,
+  "height": 2560,
+  "alt": "Close-up of black sunglasses lit with a blue edge glow",
+  "caption": "Sunglasses study",
+  "createdAt": "2026-11-28T00:59:54.599Z",
+  "original": "Sunglasses_a03.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a03-adfa0b0a9b/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a03-adfa0b0a9b/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a03-adfa0b0a9b/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a03-adfa0b0a9b/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a03-adfa0b0a9b/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a03-adfa0b0a9b/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2048,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a03-adfa0b0a9b/w2048.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2048,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a03-adfa0b0a9b/w2048.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAAAQAwCdASoQABQAPtFUo0uoJKMhsAgBABoJYgAAUcg9hQAA/vXaOdo+rjNM153m6eqKVeXNIjMUZG/aFvKHWOwWkylFz1deGhEfS3MPDT/HILciG6UdiAAA"
+}

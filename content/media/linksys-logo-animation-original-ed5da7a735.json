@@ -1,0 +1,24 @@
+{
+  "id": "linksys-logo-animation-original-ed5da7a735",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Linksys logo mark animating on black",
+  "caption": "Linksys logo",
+  "createdAt": "2026-11-28T00:59:29.795Z",
+  "original": "Linksys_Logo_Animation.original.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-logo-animation-original-ed5da7a735/video.mp4",
+    "bytes": 112252
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-logo-animation-original-ed5da7a735/canvas.mp4",
+    "bytes": 41073
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-logo-animation-original-ed5da7a735/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-logo-animation-original-ed5da7a735/poster.jpg"
+  },
+  "duration": 6.61,
+  "hasAudio": false
+}

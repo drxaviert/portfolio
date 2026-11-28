@@ -1,0 +1,24 @@
+{
+  "id": "linksys-cloud-9e9fa67d4e",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Linksys logo over a grid of blue sky images",
+  "caption": "Linksys Cloud",
+  "createdAt": "2026-11-28T00:59:27.371Z",
+  "original": "Linksys_Cloud.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-cloud-9e9fa67d4e/video.mp4",
+    "bytes": 4973845
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-cloud-9e9fa67d4e/canvas.mp4",
+    "bytes": 871121
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-cloud-9e9fa67d4e/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-cloud-9e9fa67d4e/poster.jpg"
+  },
+  "duration": 14.8,
+  "hasAudio": false
+}

@@ -1,0 +1,24 @@
+{
+  "id": "niod-cell03-anim-v02-745039b846",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "NIOD cell animation, part 3",
+  "caption": "NIOD",
+  "createdAt": "2026-11-28T00:54:40.017Z",
+  "original": "NIOD_Cell03_Anim_v02.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell03-anim-v02-745039b846/video.mp4",
+    "bytes": 3941820
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell03-anim-v02-745039b846/canvas.mp4",
+    "bytes": 467674
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell03-anim-v02-745039b846/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell03-anim-v02-745039b846/poster.jpg"
+  },
+  "duration": 10.04,
+  "hasAudio": false
+}

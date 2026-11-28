@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 /**
- * Delete the seven R2 media prefixes that the 2026-11-24 replacement retired.
+ * Delete the R2 media prefixes that the media replacements retired: seven from
+ * 2026-11-24 (pf-3xh.8) and 88 from the Optimized-folder rebuild (pf-3xh.10).
  *
  * This is the only destructive R2 command in the repo. It is deliberately
  * narrow: the prefixes are hard-coded, every listed key must sit under one of
- * them, and `--apply` refuses to run while one of the old manifests is still in
+ * them, music is never touched (`audio.*` keys and the now-playing track id),
+ * and `--apply` refuses to run while one of the old manifests is still in
  * `content/media/`. The default is a read-only dry run.
  *
  * Usage:
@@ -22,6 +24,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { r2Endpoint } from "./lib/media-store.ts";
 import { loadR2Env } from "./lib/r2-env.ts";
+import { STALE_MEDIA_IDS } from "./lib/stale-media-ids.ts";
 
 const ROOT = process.cwd();
 
@@ -34,7 +37,18 @@ export const RETIRED_MEDIA_IDS = [
   "metaview-f75404f877",
   "platform-explainer-2026-v05c-w-music-32981d3544",
   "pub-eroxon-15s-hero-2ba3427fdb",
+  ...STALE_MEDIA_IDS,
 ] as const;
+
+/** Music lives in the bucket too; nothing here may ever delete it. */
+export const PROTECTED_MEDIA_IDS = ["door-to-the-cosmos-601b1958e1"] as const;
+
+const protectedListed = RETIRED_MEDIA_IDS.filter((id) =>
+  (PROTECTED_MEDIA_IDS as readonly string[]).includes(id),
+);
+if (protectedListed.length > 0) {
+  throw new Error(`protected id in the retired list: ${protectedListed.join(", ")}`);
+}
 
 const PREFIXES = RETIRED_MEDIA_IDS.map((id) => `media/${id}/`);
 
@@ -82,18 +96,19 @@ function parseArgs(argv: string[]): CliOptions {
 }
 
 function printHelp(): void {
-  console.log(`pnpm media:delete-r2 - retire the seven replaced R2 prefixes
+  console.log(`pnpm media:delete-r2 - retire the replaced R2 media prefixes
 
 Usage
   pnpm media:delete-r2            Dry run: list the objects, delete nothing.
   pnpm media:delete-r2 --apply    Delete the objects.
 
-The script only ever touches these prefixes:
-${PREFIXES.map((prefix) => `  ${prefix}`).join("\n")}
+The script only ever touches the ${PREFIXES.length} media/<id>/ prefixes listed in
+scripts/delete-r2-prefixes.ts and scripts/lib/stale-media-ids.ts.
 
 Guards
-  - every key must start with one of the prefixes above;
-  - --apply refuses while any of the seven manifests is still in
+  - every key must start with one of the listed prefixes;
+  - audio.* keys and the now-playing track id are always refused;
+  - --apply refuses while any retired manifest is still in
     content/media/ (merge and deploy the replacement PR first);
   - after deleting, the script lists the prefixes again and fails if any
     object remains.
@@ -114,9 +129,15 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(1)} ${unit}`;
 }
 
-function assertAllowed(key: string): void {
+export function assertAllowed(key: string): void {
   if (!PREFIXES.some((prefix) => key.startsWith(prefix))) {
-    throw new Error(`refusing key outside the 7 approved prefixes: ${key}`);
+    throw new Error(`refusing key outside the ${PREFIXES.length} approved prefixes: ${key}`);
+  }
+  if (key.slice(key.lastIndexOf("/") + 1).startsWith("audio.")) {
+    throw new Error(`refusing music key: ${key}`);
+  }
+  if (PROTECTED_MEDIA_IDS.some((id) => key.startsWith(`media/${id}/`))) {
+    throw new Error(`refusing protected id: ${key}`);
   }
 }
 

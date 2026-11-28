@@ -1,0 +1,43 @@
+{
+  "id": "comestic-rnd-01a-scene-02-00000-eab1e778d9",
+  "kind": "image",
+  "width": 1472,
+  "height": 1840,
+  "alt": "Black dropper bottle against a gray backdrop",
+  "caption": "Cosmetic R&D, scene 02",
+  "createdAt": "2026-11-28T01:00:33.469Z",
+  "original": "Comestic_RnD_01a_Scene_02_00000.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-02-00000-eab1e778d9/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-02-00000-eab1e778d9/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-02-00000-eab1e778d9/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-02-00000-eab1e778d9/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1472,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-02-00000-eab1e778d9/w1472.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1472,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-02-00000-eab1e778d9/w1472.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRmwAAABXRUJQVlA4IGAAAADQAwCdASoQABQAPtFUpEuoJKOhsAgBABoJaQAAW9M+BzUGHpV2xBAA/vangkZmb10DChKi4Dmhiwv7p/gdKu7BjhWGZYSHh8j0m2J49of7UT+0KYi2289bcGTQsoq80AA="
+}

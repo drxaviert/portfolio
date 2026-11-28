@@ -1,0 +1,38 @@
+{
+  "id": "lullavibes-instrumental-lullabies-rendit-a5e3dd48fa",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Animated reindeer asleep on a crescent moon in a starry sky",
+  "caption": "Feliz Navidad lullaby",
+  "createdAt": "2026-11-28T00:56:58.079Z",
+  "original": "Lullavibes-Instrumental-Lullabies-｜-Rendition-of-Wiz-Khalifa’s-&-Charlie-Puth's.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lullavibes-instrumental-lullabies-rendit-a5e3dd48fa/video.mp4",
+    "bytes": 10096254
+  },
+  "hls": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lullavibes-instrumental-lullabies-rendit-a5e3dd48fa/hls/master.m3u8",
+    "bytes": 64229105,
+    "levels": [
+      {
+        "height": 1080,
+        "bandwidth": 5640800
+      },
+      {
+        "height": 720,
+        "bandwidth": 3220800
+      },
+      {
+        "height": 480,
+        "bandwidth": 1460800
+      }
+    ]
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lullavibes-instrumental-lullabies-rendit-a5e3dd48fa/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lullavibes-instrumental-lullabies-rendit-a5e3dd48fa/poster.jpg"
+  },
+  "duration": 249.18,
+  "hasAudio": true
+}

@@ -1,0 +1,24 @@
+{
+  "id": "comestic-rnd-01c-scene-02-c89de39ff4",
+  "kind": "video",
+  "width": 864,
+  "height": 1080,
+  "alt": "Black dropper bottle on a gray set",
+  "caption": "Cosmetic R&D motion, scene 02",
+  "createdAt": "2026-11-28T01:00:30.791Z",
+  "original": "Comestic_RnD_01c_Scene_02.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01c-scene-02-c89de39ff4/video.mp4",
+    "bytes": 275079
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01c-scene-02-c89de39ff4/canvas.mp4",
+    "bytes": 40198
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01c-scene-02-c89de39ff4/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01c-scene-02-c89de39ff4/poster.jpg"
+  },
+  "duration": 4,
+  "hasAudio": false
+}

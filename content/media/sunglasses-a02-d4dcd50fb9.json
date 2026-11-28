@@ -1,0 +1,53 @@
+{
+  "id": "sunglasses-a02-d4dcd50fb9",
+  "kind": "image",
+  "width": 2048,
+  "height": 2560,
+  "alt": "Ray-Ban sunglasses lit in blue",
+  "caption": "Sunglasses study",
+  "createdAt": "2026-11-28T00:59:51.974Z",
+  "original": "Sunglasses_a02.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a02-d4dcd50fb9/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a02-d4dcd50fb9/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a02-d4dcd50fb9/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a02-d4dcd50fb9/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a02-d4dcd50fb9/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a02-d4dcd50fb9/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2048,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a02-d4dcd50fb9/w2048.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2048,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a02-d4dcd50fb9/w2048.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAACwAwCdASoQABQAPtFUo0uoJKMhsAgBABoJagC7ACHgVT3GlnlNKAD+9B7BNAZh3u3Z+sjcEAMoORor6Zqp43OZf/eMe2yUfvGPbhUdPAAAAA=="
+}
