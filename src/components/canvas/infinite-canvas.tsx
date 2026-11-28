@@ -71,6 +71,7 @@ import {
 import type { BreathSettings } from "./breathing";
 import { hoverIntentReady, hoverValue, retargetHover } from "./hover";
 import type { HoverSettings, HoverTween } from "./hover";
+import { projectLabel } from "./items";
 import { adjacentCell, keyboardGlideProgress } from "./keyboard-nav";
 import { usePan } from "./use-pan";
 import { centrePlaneScroll, planePosition } from "./wrap";
@@ -777,6 +778,7 @@ export const InfiniteCanvas = forwardRef<
 ) {
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const hoverLabelRef = useRef<HTMLSpanElement | null>(null);
+  const hoverProjectRef = useRef<HTMLSpanElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const [introReady, setIntroReady] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
@@ -3646,16 +3648,41 @@ export const InfiniteCanvas = forwardRef<
       else delete surface.dataset.tileFocus;
     }
 
-    function setHoverLabel(visible: boolean): void {
+    /** The project pill's width, measured when its text changes. */
+    let hoverProjectWidth = 0;
+
+    /**
+     * Show or hide the pointer tag. Showing names the plane's project (the
+     * viewer chip's label) and re-clamps, since the name sets the tag's width.
+     */
+    function setHoverLabel(visible: boolean, plane?: Plane | null): void {
       const label = hoverLabelRef.current;
 
       if (!label) return;
 
-      if (visible) label.dataset.visible = "true";
-      else delete label.dataset.visible;
+      if (!visible) {
+        delete label.dataset.visible;
+        return;
+      }
+
+      const project = hoverProjectRef.current;
+      const item = plane ? items[plane.itemIndex] : undefined;
+      if (project && item) {
+        const text = projectLabel(item.project);
+        if (project.textContent !== text) {
+          project.textContent = text;
+          hoverProjectWidth = project.offsetWidth;
+        }
+      }
+      if (hoverPoint) positionHoverLabel(hoverPoint.x, hoverPoint.y);
+      label.dataset.visible = "true";
     }
 
-    /** Move the label with the pointer, clamped inside the canvas surface. */
+    /**
+     * Move the tag with the pointer, clamped inside the canvas surface. The
+     * tag's origin is the pointer column: the project pill ends 14px left of
+     * it and the View pill starts 14px right of it.
+     */
     function positionHoverLabel(clientX: number, clientY: number): void {
       const surface = containerRef.current;
       const label = hoverLabelRef.current;
@@ -3664,8 +3691,8 @@ export const InfiniteCanvas = forwardRef<
 
       const rect = surface.getBoundingClientRect();
       const x = Math.min(
-        Math.max(0, clientX - rect.left + 14),
-        Math.max(0, rect.width - 56),
+        Math.max(hoverProjectWidth + 14, clientX - rect.left),
+        Math.max(0, rect.width - 70),
       );
       const y = Math.min(
         Math.max(0, clientY - rect.top + 18),
@@ -3837,7 +3864,7 @@ export const InfiniteCanvas = forwardRef<
         } else if (hoverIntentReady(hoverIntentAt, now)) {
           hoverIntentPlane = null;
           setHoverCursor(true);
-          setHoverLabel(true);
+          setHoverLabel(true, hoveredPlane);
 
           if (perfEnabled) {
             markPerf("cursor-change", { hover: true });
@@ -5301,8 +5328,12 @@ export const InfiniteCanvas = forwardRef<
     >
       <div ref={canvasHostRef} className="cv-webgl-host" aria-hidden="true" />
 
-      <span ref={hoverLabelRef} className="cv-hover-label" aria-hidden="true">
-        View
+      <span ref={hoverLabelRef} className="cv-hover-tag" aria-hidden="true">
+        <span
+          ref={hoverProjectRef}
+          className="cv-hover-label cv-hover-label--project"
+        />
+        <span className="cv-hover-label cv-hover-label--view">View</span>
       </span>
 
       {webglFailed ? <StaticFallback items={items} /> : null}

@@ -35,35 +35,65 @@
  * showing, so a fast pass across the grid never flickers a label or a pointer
  * cursor. Position is written with a compositor-only transform from the last
  * pointer event; opacity is the only animated property.
+ *
+ * The tag is a zero-width anchor on the pointer column. The project pill
+ * (the viewer chip's label) hangs to its left and the View pill to its right,
+ * so both fade as one element. Touch never shows it: the pointer handler only
+ * listens to mice, and `hover: none` removes it outright.
  */
-.cv-hover-label {
+.cv-hover-tag {
   position: absolute;
   top: 0;
   left: 0;
   z-index: 3;
-  display: inline-flex;
-  align-items: center;
+  width: 0;
   height: 24px;
-  padding: 0 9px;
-  border-radius: 999px;
-  background: var(--surface-container-low);
-  color: var(--on-surface-variant);
-  font-size: 11px;
-  line-height: 1;
-  letter-spacing: 0.01em;
-  box-shadow: var(--shadow-card);
   opacity: 0;
   pointer-events: none;
+  user-select: none;
   transition: opacity 150ms var(--ease-decelerate);
   will-change: transform;
 }
 
-.cv-hover-label[data-visible] {
+.cv-hover-tag[data-visible] {
   opacity: 1;
 }
 
+.cv-hover-label {
+  position: absolute;
+  top: 0;
+  height: 24px;
+  max-width: 240px;
+  padding: 0 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  line-height: 24px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  box-shadow: var(--shadow-card);
+  -webkit-font-smoothing: antialiased;
+}
+
+.cv-hover-label--project {
+  right: 14px;
+}
+
+.cv-hover-label--view {
+  left: 14px;
+}
+
+@media (hover: none) {
+  .cv-hover-tag {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .cv-hover-label {
+  .cv-hover-tag {
     transition-duration: 0ms;
   }
 }
