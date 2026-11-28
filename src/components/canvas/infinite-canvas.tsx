@@ -234,6 +234,8 @@ const VIDEO_TUNING = {
 
 /** Hovering across the grid must not start 88 downloads. */
 const MAX_PRELOADS = 6;
+/** Gap the hover tag keeps from the canvas's right and bottom edges. */
+const HOVER_LABEL_INSET = 12;
 /** The clicked tile's hold size while its full-res source loads. */
 const OPEN_PRESS_SCALE = 0.94;
 /**
@@ -3647,8 +3649,9 @@ export const InfiniteCanvas = forwardRef<
       else delete surface.dataset.tileFocus;
     }
 
-    /** The tag's width, measured when its text changes. */
+    /** The tag's size, measured when its text changes. */
     let hoverLabelWidth = 0;
+    let hoverLabelHeight = 0;
 
     /**
      * Show or hide the pointer tag. Showing names the plane's project (the
@@ -3670,6 +3673,7 @@ export const InfiniteCanvas = forwardRef<
         if (label.textContent !== text) {
           label.textContent = text;
           hoverLabelWidth = label.offsetWidth;
+          hoverLabelHeight = label.offsetHeight;
         }
       }
       if (hoverPoint) positionHoverLabel(hoverPoint.x, hoverPoint.y);
@@ -3686,11 +3690,11 @@ export const InfiniteCanvas = forwardRef<
       const rect = surface.getBoundingClientRect();
       const x = Math.min(
         Math.max(0, clientX - rect.left + 14),
-        Math.max(0, rect.width - hoverLabelWidth),
+        Math.max(0, rect.width - hoverLabelWidth - HOVER_LABEL_INSET),
       );
       const y = Math.min(
         Math.max(0, clientY - rect.top + 18),
-        Math.max(0, rect.height - 36),
+        Math.max(0, rect.height - hoverLabelHeight - HOVER_LABEL_INSET),
       );
 
       label.style.transform = `translate3d(${x}px, ${y}px, 0)`;
