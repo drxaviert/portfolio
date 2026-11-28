@@ -1,4 +1,10 @@
-import { createEvent, fireEvent, render, screen } from "@testing-library/react";
+import {
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -127,7 +133,89 @@ describe("work index breadcrumb", () => {
     expect(home).toHaveClass("focus-visible:outline-primary");
     expect(document.querySelector(".nav-glide")).not.toBeNull();
     expect(list).toMatch(
-      /\.wd-work-column\[data-work-anim="on"\] \.wd-breadcrumb \{\s*animation: wd-work-soft 700ms/,
+      /\.wd-work-column\[data-work-anim="on"\] \.wd-breadcrumb,\s*\.wd-work-column\[data-work-anim="on"\] \.wd-work-pill \{\s*animation: wd-work-soft 700ms/,
     );
+  });
+});
+
+describe("work index Motion/3D pill", () => {
+  it("starts on and, turned off, keeps only Motion & Stills of the Motion/3D work", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <ThemeProvider>
+        <DrawerActionsProvider
+          close={vi.fn()}
+          stepBack={vi.fn()}
+          exit={vi.fn()}
+        >
+          <WorkIndex works={works} />
+        </DrawerActionsProvider>
+      </ThemeProvider>,
+    );
+    const rows = () =>
+      [...container.querySelectorAll<HTMLAnchorElement>(".wd-work-row")].map(
+        (row) => row.getAttribute("href"),
+      );
+    const pill = screen.getByRole("button", { name: "Motion/3D" });
+
+    expect(pill).toHaveAttribute("aria-pressed", "true");
+    expect(rows()).toHaveLength(works.length);
+
+    await user.click(pill);
+
+    expect(pill).toHaveAttribute("aria-pressed", "false");
+    // Leaving rows stay mounted and inert while they rise and fade.
+    expect(
+      container.querySelectorAll('[data-work-filter="out"]').length,
+    ).toBeGreaterThan(0);
+    await waitFor(() =>
+      expect(rows()).toEqual(
+        works
+          .filter(
+            (w) => w.slug === "motion-and-stills" || w.role !== "Motion/3D",
+          )
+          .map((w) => `/work/${w.slug}`),
+      ),
+    );
+    expect(rows()).toContain("/work/motion-and-stills");
+
+    await user.click(pill);
+
+    expect(rows()).toHaveLength(works.length);
+  });
+});
+
+describe("work index filter memory", () => {
+  it("keeps the pill's state when the index is mounted again", async () => {
+    const user = userEvent.setup();
+    const mount = () =>
+      render(
+        <ThemeProvider>
+          <DrawerActionsProvider
+            close={vi.fn()}
+            stepBack={vi.fn()}
+            exit={vi.fn()}
+          >
+            <WorkIndex works={works} />
+          </DrawerActionsProvider>
+        </ThemeProvider>,
+      );
+
+    const first = mount();
+    await user.click(screen.getByRole("button", { name: "Motion/3D" }));
+    first.unmount();
+
+    const second = mount();
+    const pill = screen.getByRole("button", { name: "Motion/3D" });
+
+    expect(pill).toHaveAttribute("aria-pressed", "false");
+    expect(second.container.querySelectorAll(".wd-work-row")).toHaveLength(
+      works.filter(
+        (w) => w.slug === "motion-and-stills" || w.role !== "Motion/3D",
+      ).length,
+    );
+
+    // Leave the module's memory as the other tests expect it.
+    await user.click(pill);
   });
 });

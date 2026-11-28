@@ -10,7 +10,9 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  /* Both edges: a right-only gutter pulled the centred column left by half the
+     scrollbar's width, off the panel's and the nav's centre. */
+  scrollbar-gutter: stable both-edges;
   container-type: inline-size;
 }
 
@@ -46,5 +48,70 @@
   .wd-expand-layer[data-reveal="on"]:not([data-phase="closing"])
     .wd-index-scroll {
     transition: opacity var(--wd-fade-reduced);
+  }
+}
+
+/*
+ * The index's top row: the Breadcrumb on the left, the Motion/3D filter pill on
+ * the right, both on the breadcrumb's 32px line.
+ */
+.wd-work-controls {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/*
+ * A toggle pill: outlined and quiet while off, filled with the ink while on.
+ * 32px tall to share the breadcrumb's line; the 8px right margin matches the
+ * breadcrumb's left overhang.
+ */
+.wd-work-pill {
+  flex: none;
+  height: 32px;
+  margin: 0 8px 12px 0;
+  padding: 0 14px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--on-surface-variant);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-short-4) var(--ease-standard),
+    border-color var(--duration-short-4) var(--ease-standard),
+    color var(--duration-short-4) var(--ease-standard),
+    transform var(--duration-short-2) var(--ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .wd-work-pill:hover {
+    border-color: var(--outline);
+    color: var(--on-surface);
+  }
+}
+
+.wd-work-pill[aria-pressed="true"] {
+  border-color: var(--on-surface);
+  background: var(--on-surface);
+  color: var(--surface);
+}
+
+.wd-work-pill:active {
+  transform: scale(0.97);
+}
+
+.wd-work-pill:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-work-pill {
+    transition: none;
   }
 }

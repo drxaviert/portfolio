@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import type {
+  CSSProperties,
   FocusEvent as ReactFocusEvent,
   PointerEvent as ReactPointerEvent,
   ReactNode,
@@ -18,6 +19,7 @@ import {
 import { Cover } from "@/components/work/cover";
 import type { WorkMeta } from "@/lib/work";
 import { BlurStack } from "./blur-stack";
+import type { RowMotion } from "./work-filter";
 import { INDEX_SCROLL_ID, INDEX_TITLE_ID } from "./work-index-ids";
 import "./work-list.css";
 
@@ -98,8 +100,11 @@ const getServerSnapshot = () => false;
 export function WorkList({
   works,
   topControl,
+  rowMotion,
 }: {
   works: WorkMeta[];
+  /** Rows leaving or arriving on a filter change, by slug (work-index.tsx). */
+  rowMotion?: Record<string, RowMotion>;
   /** Chrome above the rows (the shared Breadcrumb), part of the column. */
   topControl?: ReactNode;
 }) {
@@ -312,6 +317,18 @@ export function WorkList({
 
     return () => window.removeEventListener("resize", onResize);
   }, [measurePanel, resetHover, scheduleThumb]);
+
+  // A filter swaps the rows: indices now name other studies, so drop the hover,
+  // the thumbnail's images and the refs past the new end.
+  const shownRef = useRef(works);
+  useLayoutEffect(() => {
+    if (shownRef.current === works) return;
+
+    shownRef.current = works;
+    rowRefs.current.length = works.length;
+    resetHover();
+    setSlots({ front: 1, items: [null, null] });
+  }, [works, resetHover]);
 
   // Size and place the parked panel while it is idle, so its first hover cannot
   // paint a zero-sized frame for a frame.
@@ -753,6 +770,17 @@ export function WorkList({
                     className="wd-work-row-item"
                     data-work-index={index}
                     data-work-current={currentRow === index ? "" : undefined}
+                    data-work-filter={rowMotion?.[work.slug]?.kind}
+                    inert={
+                      rowMotion?.[work.slug]?.kind === "out" ? true : undefined
+                    }
+                    style={
+                      rowMotion?.[work.slug]
+                        ? ({
+                            "--work-filter-i": rowMotion[work.slug].i,
+                          } as CSSProperties)
+                        : undefined
+                    }
                   >
                     <Link
                       href={`/work/${work.slug}`}

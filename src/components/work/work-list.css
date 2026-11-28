@@ -257,12 +257,15 @@
     animation-delay: calc(var(--work-enter-i, 0) * 40ms);
   }
 
-  /* The shared Breadcrumb is the list's first entrance beat, with no delay. */
-  .wd-expand-layer[data-phase="opening"] .wd-work-column .wd-breadcrumb {
+  /* The shared Breadcrumb and the Motion/3D pill beside it are the list's
+     first entrance beat, together, with no delay. */
+  .wd-expand-layer[data-phase="opening"] .wd-work-column .wd-breadcrumb,
+  .wd-expand-layer[data-phase="opening"] .wd-work-column .wd-work-pill {
     opacity: 0;
   }
 
-  .wd-work-column[data-work-anim="on"] .wd-breadcrumb {
+  .wd-work-column[data-work-anim="on"] .wd-breadcrumb,
+  .wd-work-column[data-work-anim="on"] .wd-work-pill {
     animation: wd-work-soft 700ms var(--ease-calm) backwards;
   }
 }
@@ -398,5 +401,70 @@
 @media (forced-colors: active) {
   .wd-work-thumb-in {
     border: 1px solid CanvasText;
+  }
+}
+
+/*
+ * The Motion/3D filter (work-index.tsx). Out mirrors the case-study entrance:
+ * the row rises 10px first and the fade and blur trail it, so it reads as
+ * "move up, then go". 360ms, quicker than the way in, on an accelerating curve
+ * because it is leaving. In is the list's own entrance (wd-work-soft). Both
+ * stagger by --work-filter-i: out bottom-up from the last visible row, so the
+ * wave climbs; in top-down (work-index.tsx assigns it; work-filter.ts caps it
+ * at 10 and owns the timings the JS waits on). The selectors (0,5,0) outrank
+ * the drawer's entrance rule (.wd-work-column[data-work-anim="on"]
+ * .wd-work-row-item[data-work-enter], 0,4,0), whose attributes stay on the
+ * first-viewport rows until the drawer closes.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .wd-work-column
+    .wd-work-list-column
+    .wd-work-row-item[data-work-filter="out"] {
+    animation: wd-work-filter-out 360ms cubic-bezier(0.4, 0, 1, 1) both;
+    animation-delay: calc(var(--work-filter-i, 0) * 24ms);
+  }
+
+  .wd-work-column
+    .wd-work-list-column
+    .wd-work-row-item[data-work-filter="in"] {
+    animation: wd-work-soft 700ms var(--ease-calm) backwards;
+    animation-delay: calc(var(--work-filter-i, 0) * 40ms);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-work-column
+    .wd-work-list-column
+    .wd-work-row-item[data-work-filter="out"] {
+    animation: wd-work-filter-fade 150ms ease-out reverse both;
+  }
+
+  .wd-work-column
+    .wd-work-list-column
+    .wd-work-row-item[data-work-filter="in"] {
+    animation: wd-work-filter-fade 150ms ease-out backwards;
+  }
+}
+
+@keyframes wd-work-filter-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: none;
+  }
+  30% {
+    opacity: 1;
+    filter: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+    filter: blur(8px);
+  }
+}
+
+@keyframes wd-work-filter-fade {
+  from {
+    opacity: 0;
   }
 }

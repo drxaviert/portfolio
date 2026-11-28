@@ -18,7 +18,9 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  /* Both edges, as the index: a right-only gutter pulls the centred column
+     left by half the scrollbar's width, off the panel's and the nav's centre. */
+  scrollbar-gutter: stable both-edges;
   container-type: inline-size;
 }
 

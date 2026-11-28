@@ -44,7 +44,7 @@ function renderPage() {
 }
 
 describe("work index page", () => {
-  it("renders one list row per study, in the order the homepage leads with", () => {
+  it("renders one list row per study, Motion & Stills first, then the featured study", () => {
     const { container } = renderPage();
 
     const links = [
@@ -54,7 +54,8 @@ describe("work index page", () => {
     ];
 
     expect(links).toHaveLength(listWork().length);
-    expect(links[0]).toHaveAttribute("href", "/work/ai-agents-google");
+    expect(links[0]).toHaveAttribute("href", "/work/motion-and-stills");
+    expect(links[1]).toHaveAttribute("href", "/work/ai-agents-google");
     expect(
       links.some((link) => link.getAttribute("href") === "/work/motion-and-stills"),
     ).toBe(true);
