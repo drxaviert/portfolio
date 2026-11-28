@@ -7,27 +7,17 @@
   "caption": "Klaris",
   "createdAt": "2026-11-28T00:53:11.879Z",
   "original": "Klaris_Side_Shot_03_v01a.mp4",
+  "source": {
+    "bytes": 2495222,
+    "sha256": "62da8fcfc3fe2110dba63b6ddd551e5771146558b54a515552d1278e166eb21e"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-03-v01a-62da8fcfc3/video.mp4",
-    "bytes": 327419
+    "bytes": 2495222
   },
-  "hls": {
-    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-03-v01a-62da8fcfc3/hls/master.m3u8",
-    "bytes": 3383164,
-    "levels": [
-      {
-        "height": 1080,
-        "bandwidth": 5500000
-      },
-      {
-        "height": 720,
-        "bandwidth": 3080000
-      },
-      {
-        "height": 480,
-        "bandwidth": 1320000
-      }
-    ]
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-03-v01a-62da8fcfc3/canvas.mp4",
+    "bytes": 228995
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-03-v01a-62da8fcfc3/poster.avif",

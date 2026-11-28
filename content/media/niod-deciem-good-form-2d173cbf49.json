@@ -7,27 +7,17 @@
   "caption": "NIOD",
   "createdAt": "2026-11-28T00:54:57.508Z",
   "original": "NIOD-Deciem-Good-Form.mp4",
+  "source": {
+    "bytes": 15961236,
+    "sha256": "2d173cbf49f1e24082c553df6b9d9200c9679dc6f8ec792531863c35fa8fb382"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-deciem-good-form-2d173cbf49/video.mp4",
-    "bytes": 2981012
+    "bytes": 15961236
   },
-  "hls": {
-    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-deciem-good-form-2d173cbf49/hls/master.m3u8",
-    "bytes": 19320002,
-    "levels": [
-      {
-        "height": 1080,
-        "bandwidth": 5640800
-      },
-      {
-        "height": 720,
-        "bandwidth": 3220800
-      },
-      {
-        "height": 480,
-        "bandwidth": 1460800
-      }
-    ]
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-deciem-good-form-2d173cbf49/canvas.mp4",
+    "bytes": 1499107
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-deciem-good-form-2d173cbf49/poster.avif",

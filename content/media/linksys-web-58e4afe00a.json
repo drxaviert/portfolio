@@ -7,9 +7,13 @@
   "caption": "Linksys web",
   "createdAt": "2026-11-28T00:59:22.517Z",
   "original": "Linksys_Web.mp4",
+  "source": {
+    "bytes": 647583,
+    "sha256": "58e4afe00a66ea0c5a06d39aa839ef67dd83ed06061b9b2bad60b7086fd14ada"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-web-58e4afe00a/video.mp4",
-    "bytes": 326089
+    "bytes": 647583
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-web-58e4afe00a/canvas.mp4",
@@ -20,5 +24,5 @@
     "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-web-58e4afe00a/poster.jpg"
   },
   "duration": 7.02,
-  "hasAudio": false
+  "hasAudio": true
 }

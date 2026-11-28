@@ -7,9 +7,13 @@
   "caption": "Klaris",
   "createdAt": "2026-11-28T00:53:01.479Z",
   "original": "Klaris_Main.mp4",
+  "source": {
+    "bytes": 3792850,
+    "sha256": "3a8b6c894aeb2cd6293d0c6920bb05325b216c76403230f4d813378d6039dd48"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-main-3a8b6c894a/video.mp4",
-    "bytes": 3622599
+    "bytes": 3792850
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-main-3a8b6c894a/canvas.mp4",

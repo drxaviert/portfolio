@@ -7,9 +7,13 @@
   "caption": "Klaris",
   "createdAt": "2026-11-28T00:53:04.125Z",
   "original": "Klaris_Side_Shot_01_v01a.mp4",
+  "source": {
+    "bytes": 1112128,
+    "sha256": "136d66d1106858bd747b1c0ea938cd160d1f6daae32cab21597eb447415b17de"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-01-v01a-136d66d110/video.mp4",
-    "bytes": 1023500
+    "bytes": 1112128
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/klaris-side-shot-01-v01a-136d66d110/canvas.mp4",

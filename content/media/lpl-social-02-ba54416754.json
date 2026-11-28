@@ -7,9 +7,13 @@
   "caption": "Halloween trivia post",
   "createdAt": "2026-11-28T00:59:37.486Z",
   "original": "LPL_Social_02.mp4",
+  "source": {
+    "bytes": 885037,
+    "sha256": "ba54416754a2eae673df60c63cd7cf40f47adc77c880a7fb97a42d4fa964ea3d"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lpl-social-02-ba54416754/video.mp4",
-    "bytes": 655606
+    "bytes": 885037
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lpl-social-02-ba54416754/canvas.mp4",

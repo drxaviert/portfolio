@@ -7,13 +7,17 @@
   "caption": "Cash App",
   "createdAt": "2026-11-28T00:58:48.759Z",
   "original": "Cash-Flow.mp4",
+  "source": {
+    "bytes": 7601353,
+    "sha256": "6562f7a5669f2e880f239b3af96128d99fbce91e9084235c289dee54ea948fd5"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cash-flow-6562f7a566/video.mp4",
-    "bytes": 6626586
+    "bytes": 7601353
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cash-flow-6562f7a566/canvas.mp4",
-    "bytes": 735431
+    "bytes": 736160
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cash-flow-6562f7a566/poster.avif",

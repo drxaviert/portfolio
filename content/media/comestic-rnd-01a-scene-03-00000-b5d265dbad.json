@@ -29,15 +29,14 @@
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-03-00000-b5d265dbad/w1280.webp"
     },
     {
-      "format": "avif",
-      "width": 1472,
-      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-03-00000-b5d265dbad/w1472.avif"
-    },
-    {
       "format": "webp",
       "width": 1472,
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01a-scene-03-00000-b5d265dbad/w1472.webp"
     }
   ],
-  "lqip": "data:image/webp;base64,UklGRmwAAABXRUJQVlA4IGAAAADwAwCdASoQABQAPtFUo0uoJKMhsAgBABoJZwAAXedIqfphTqM43jIAAP72kzd04qeFQ1b1tDQEWte98dmV6j8Wc4/AA10gBBOLjOGuMfzU5QICH4lVPdDfslwh6kFAAAA="
+  "lqip": "data:image/webp;base64,UklGRmwAAABXRUJQVlA4IGAAAADwAwCdASoQABQAPtFUo0uoJKMhsAgBABoJZwAAXedIqfphTqM43jIAAP72kzd04qeFQ1b1tDQEWte98dmV6j8Wc4/AA10gBBOLjOGuMfzU5QICH4lVPdDfslwh6kFAAAA=",
+  "source": {
+    "bytes": 159626,
+    "sha256": "b5d265dbad804d9e59329e041783ce6713516932d575b2aeed4531a571130a73"
+  }
 }

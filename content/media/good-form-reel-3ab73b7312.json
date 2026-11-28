@@ -7,27 +7,17 @@
   "caption": "Good Form Rebrand",
   "createdAt": "2026-11-28T00:56:02.368Z",
   "original": "Good-Form-Reel.mp4",
+  "source": {
+    "bytes": 238858917,
+    "sha256": "3ab73b731270ce7c8dd2b3ab76b0fc9c09320648d5231ccf0c177121618ab947"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/good-form-reel-3ab73b7312/video.mp4",
-    "bytes": 14560056
+    "bytes": 238858917
   },
-  "hls": {
-    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/good-form-reel-3ab73b7312/hls/master.m3u8",
-    "bytes": 163363423,
-    "levels": [
-      {
-        "height": 1080,
-        "bandwidth": 5500000
-      },
-      {
-        "height": 720,
-        "bandwidth": 3080000
-      },
-      {
-        "height": 480,
-        "bandwidth": 1320000
-      }
-    ]
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/good-form-reel-3ab73b7312/canvas.mp4",
+    "bytes": 8793764
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/good-form-reel-3ab73b7312/poster.avif",

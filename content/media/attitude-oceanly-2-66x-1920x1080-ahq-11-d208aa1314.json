@@ -7,13 +7,17 @@
   "caption": "Attitude",
   "createdAt": "2026-11-28T01:01:05.471Z",
   "original": "Attitude-Oceanly_2.66x_1920x1080_ahq-11.mp4",
+  "source": {
+    "bytes": 10390515,
+    "sha256": "d208aa131433d4a98b8fbbcdbdaeb0b4dbfd20e918ea8e4cebf066146689bd32"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/attitude-oceanly-2-66x-1920x1080-ahq-11-d208aa1314/video.mp4",
-    "bytes": 8952415
+    "bytes": 10390515
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/attitude-oceanly-2-66x-1920x1080-ahq-11-d208aa1314/canvas.mp4",
-    "bytes": 1066374
+    "bytes": 1064962
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/attitude-oceanly-2-66x-1920x1080-ahq-11-d208aa1314/poster.avif",

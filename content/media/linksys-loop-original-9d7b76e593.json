@@ -7,9 +7,13 @@
   "caption": "Linksys loop",
   "createdAt": "2026-11-28T00:59:32.136Z",
   "original": "Linksys_Loop.original.mp4",
+  "source": {
+    "bytes": 670431,
+    "sha256": "9d7b76e593ac5c32497a800e0efcb3abfe93c4d2af7f25826721d61a79706ea0"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-loop-original-9d7b76e593/video.mp4",
-    "bytes": 299383
+    "bytes": 670431
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-loop-original-9d7b76e593/canvas.mp4",
@@ -20,5 +24,5 @@
     "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-loop-original-9d7b76e593/poster.jpg"
   },
   "duration": 9.83,
-  "hasAudio": false
+  "hasAudio": true
 }

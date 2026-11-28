@@ -29,15 +29,14 @@
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-bodytoy-v03g-00000-5c48ddf12c/w1280.webp"
     },
     {
-      "format": "avif",
-      "width": 1920,
-      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-bodytoy-v03g-00000-5c48ddf12c/w1920.avif"
-    },
-    {
       "format": "webp",
       "width": 1920,
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-bodytoy-v03g-00000-5c48ddf12c/w1920.webp"
     }
   ],
-  "lqip": "data:image/webp;base64,UklGRm4AAABXRUJQVlA4IGIAAABQAgCdASoQABAAAsBMJbACdLoAAs21cXez6AAA/un9PrlmJPskIGsQEFWAXsUq0SrD2HZ+kF+gbWPogiNjXZb6/5/5SvAJ/0wr+7gEoTqzmZc9/4h8XhT9zBM3aeBKzH9sAA=="
+  "lqip": "data:image/webp;base64,UklGRm4AAABXRUJQVlA4IGIAAABQAgCdASoQABAAAsBMJbACdLoAAs21cXez6AAA/un9PrlmJPskIGsQEFWAXsUq0SrD2HZ+kF+gbWPogiNjXZb6/5/5SvAJ/0wr+7gEoTqzmZc9/4h8XhT9zBM3aeBKzH9sAA==",
+  "source": {
+    "bytes": 126034,
+    "sha256": "5c48ddf12c6ce6e9e5e61a272496c3a5aec29b2551f1a609a0fabd944dce0fc4"
+  }
 }

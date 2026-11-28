@@ -7,9 +7,13 @@
   "caption": "Infiniti Horizon",
   "createdAt": "2026-11-28T00:59:43.100Z",
   "original": "INFINITI_Horizon.mp4",
+  "source": {
+    "bytes": 1710178,
+    "sha256": "4062a00416c94b3b2d59bde7cd58785db16c215d6b9b2712bcb097d33a7ba10f"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/infiniti-horizon-4062a00416/video.mp4",
-    "bytes": 1314609
+    "bytes": 1710178
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/infiniti-horizon-4062a00416/canvas.mp4",

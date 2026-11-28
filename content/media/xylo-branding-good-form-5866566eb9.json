@@ -7,13 +7,17 @@
   "caption": "Xylo Audio",
   "createdAt": "2026-11-28T01:01:52.347Z",
   "original": "xylo-Branding-Good-Form.mp4",
+  "source": {
+    "bytes": 13374631,
+    "sha256": "5866566eb98f63452ce24ceaf59b457676fd10c377890c7255e4f67de51c60bc"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/xylo-branding-good-form-5866566eb9/video.mp4",
-    "bytes": 11900165
+    "bytes": 13374631
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/xylo-branding-good-form-5866566eb9/canvas.mp4",
-    "bytes": 879885
+    "bytes": 883412
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/xylo-branding-good-form-5866566eb9/poster.avif",

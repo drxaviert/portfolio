@@ -19,15 +19,14 @@
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/24-01-sh01-dt-a01-rs-camera-86f4333ba5/w640.webp"
     },
     {
-      "format": "avif",
-      "width": 1128,
-      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/24-01-sh01-dt-a01-rs-camera-86f4333ba5/w1128.avif"
-    },
-    {
       "format": "webp",
       "width": 1128,
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/24-01-sh01-dt-a01-rs-camera-86f4333ba5/w1128.webp"
     }
   ],
-  "lqip": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAACQAwCdASoQABYALplotFoiqCgoCACYSgC/OEO+oU8nIce1ccl4AP77bChN/nBuv9q6lb7u1LryX28qYqIDp69H8yIO+lt8VSekaprKkgom//bIEHy1WVEMmhBF5I0b/0z85xvKD2yncdVTkpAAAA=="
+  "lqip": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAACQAwCdASoQABYALplotFoiqCgoCACYSgC/OEO+oU8nIce1ccl4AP77bChN/nBuv9q6lb7u1LryX28qYqIDp69H8yIO+lt8VSekaprKkgom//bIEHy1WVEMmhBF5I0b/0z85xvKD2yncdVTkpAAAA==",
+  "source": {
+    "bytes": 109102,
+    "sha256": "86f4333ba564ce96ec4410b17f59f88b5503fe8c7e592d3404d47d3375f57b73"
+  }
 }

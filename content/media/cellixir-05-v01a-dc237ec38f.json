@@ -39,15 +39,14 @@
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-05-v01a-dc237ec38f/w1920.webp"
     },
     {
-      "format": "avif",
-      "width": 2560,
-      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-05-v01a-dc237ec38f/w2560.avif"
-    },
-    {
       "format": "webp",
       "width": 2560,
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cellixir-05-v01a-dc237ec38f/w2560.webp"
     }
   ],
-  "lqip": "data:image/webp;base64,UklGRkwAAABXRUJQVlA4IEAAAADQAQCdASoQAAkAAsBMJYwCdADGSXk0oAD+mnNcBJXlTJ/vbZt3rFPmQy9C6TWCDb/CNic1lygFjaYFl0HxXwAA"
+  "lqip": "data:image/webp;base64,UklGRkwAAABXRUJQVlA4IEAAAADQAQCdASoQAAkAAsBMJYwCdADGSXk0oAD+mnNcBJXlTJ/vbZt3rFPmQy9C6TWCDb/CNic1lygFjaYFl0HxXwAA",
+  "source": {
+    "bytes": 62308,
+    "sha256": "dc237ec38fbc80ff723bb3f324a0f3641403f3242e03a9c2908236d581f00f2b"
+  }
 }

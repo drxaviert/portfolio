@@ -39,15 +39,14 @@
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sun-retouched-scaled-4c943982f7/w1920.webp"
     },
     {
-      "format": "avif",
-      "width": 2558,
-      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sun-retouched-scaled-4c943982f7/w2558.avif"
-    },
-    {
       "format": "webp",
       "width": 2558,
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sun-retouched-scaled-4c943982f7/w2558.webp"
     }
   ],
-  "lqip": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAAAwAgCdASoQAAcAAsBMJbACdLoAAglU5oTgAAD+zX6h0pFi66Pi8961L+pZ0/YL2K5KtdKHsq9dAfrx8ecGNtkSNktfmZfgjmi16nIsPfAAAA=="
+  "lqip": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAAAwAgCdASoQAAcAAsBMJbACdLoAAglU5oTgAAD+zX6h0pFi66Pi8961L+pZ0/YL2K5KtdKHsq9dAfrx8ecGNtkSNktfmZfgjmi16nIsPfAAAA==",
+  "source": {
+    "bytes": 49448,
+    "sha256": "4c943982f7af0ab2e681c64934e150ba8c0d6a28b1bdb979496e7f6d7a654b53"
+  }
 }

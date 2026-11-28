@@ -7,9 +7,13 @@
   "caption": "Shapes in Motion",
   "createdAt": "2026-11-28T00:53:19.848Z",
   "original": "Shapes_In_Motion_v02_03.mp4",
+  "source": {
+    "bytes": 1028432,
+    "sha256": "b8e056ffc38483fdb3b2a9c911f215d9a38d6297342c5885cdacbbfb1abca7b3"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/shapes-in-motion-v02-03-b8e056ffc3/video.mp4",
-    "bytes": 956374
+    "bytes": 1028432
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/shapes-in-motion-v02-03-b8e056ffc3/canvas.mp4",

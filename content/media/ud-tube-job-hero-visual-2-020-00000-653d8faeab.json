@@ -29,15 +29,14 @@
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-tube-job-hero-visual-2-020-00000-653d8faeab/w1280.webp"
     },
     {
-      "format": "avif",
-      "width": 1600,
-      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-tube-job-hero-visual-2-020-00000-653d8faeab/w1600.avif"
-    },
-    {
       "format": "webp",
       "width": 1600,
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-tube-job-hero-visual-2-020-00000-653d8faeab/w1600.webp"
     }
   ],
-  "lqip": "data:image/webp;base64,UklGRqQAAABXRUJQVlA4IJgAAAAwBACdASoQABQAPtFUo0uoJKMhsAgBABoJYwC7G1/AU12AXRCV2c3WvgAA/rB0fbO7V1HybU6unSSOcyFiMr/SrbFZfBMx/Yapm5jq//bj8+kidz8QuDwMuBbELk6cbk/zi2Brir5ACaSZHshM6bcGlKEelz3R47BY5GFaLVEWJIZoREMnRIvJnz+VYY0i39rY+AzWQAAAAA=="
+  "lqip": "data:image/webp;base64,UklGRqQAAABXRUJQVlA4IJgAAAAwBACdASoQABQAPtFUo0uoJKMhsAgBABoJYwC7G1/AU12AXRCV2c3WvgAA/rB0fbO7V1HybU6unSSOcyFiMr/SrbFZfBMx/Yapm5jq//bj8+kidz8QuDwMuBbELk6cbk/zi2Brir5ACaSZHshM6bcGlKEelz3R47BY5GFaLVEWJIZoREMnRIvJnz+VYY0i39rY+AzWQAAAAA==",
+  "source": {
+    "bytes": 114992,
+    "sha256": "653d8faeab103d096e04f5a1c0ab6659dde00030291787e7fe0dc88fe0e1a708"
+  }
 }

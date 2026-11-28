@@ -7,13 +7,17 @@
   "caption": "Cash App",
   "createdAt": "2026-11-28T00:58:52.293Z",
   "original": "CashApp_Gio_Snippet.mp4",
+  "source": {
+    "bytes": 3833149,
+    "sha256": "bf054a7e03de59a85b3218999cd8f4268c012fae72b5aefbd3852701ec37e469"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cashapp-gio-snippet-bf054a7e03/video.mp4",
-    "bytes": 3180333
+    "bytes": 3833149
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cashapp-gio-snippet-bf054a7e03/canvas.mp4",
-    "bytes": 359508
+    "bytes": 356606
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cashapp-gio-snippet-bf054a7e03/poster.avif",

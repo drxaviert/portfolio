@@ -39,15 +39,14 @@
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a03-adfa0b0a9b/w1920.webp"
     },
     {
-      "format": "avif",
-      "width": 2048,
-      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a03-adfa0b0a9b/w2048.avif"
-    },
-    {
       "format": "webp",
       "width": 2048,
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-a03-adfa0b0a9b/w2048.webp"
     }
   ],
-  "lqip": "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAAAQAwCdASoQABQAPtFUo0uoJKMhsAgBABoJYgAAUcg9hQAA/vXaOdo+rjNM153m6eqKVeXNIjMUZG/aFvKHWOwWkylFz1deGhEfS3MPDT/HILciG6UdiAAA"
+  "lqip": "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAAAQAwCdASoQABQAPtFUo0uoJKMhsAgBABoJYgAAUcg9hQAA/vXaOdo+rjNM153m6eqKVeXNIjMUZG/aFvKHWOwWkylFz1deGhEfS3MPDT/HILciG6UdiAAA",
+  "source": {
+    "bytes": 47870,
+    "sha256": "adfa0b0a9b2d88466a7c75451116ab9ddae07796791b87dd969584677e6fb1db"
+  }
 }

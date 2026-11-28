@@ -39,15 +39,14 @@
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-lip-toy-hero-visual-2-alt-still-v07i-d222f7c08c/w1920.webp"
     },
     {
-      "format": "avif",
-      "width": 2560,
-      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-lip-toy-hero-visual-2-alt-still-v07i-d222f7c08c/w2560.avif"
-    },
-    {
       "format": "webp",
       "width": 2560,
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-lip-toy-hero-visual-2-alt-still-v07i-d222f7c08c/w2560.webp"
     }
   ],
-  "lqip": "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAADQAQCdASoQABAAAsBMJZAC7ADFCWq2AAD+7Z6YCarOz0rymAn1ActMMAcI+IZGQlHPuXe9ExTMNBaV7zCdPRSS2BDk5o87aAAzMxJKWoYoGh69o7yRQAAA"
+  "lqip": "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAADQAQCdASoQABAAAsBMJZAC7ADFCWq2AAD+7Z6YCarOz0rymAn1ActMMAcI+IZGQlHPuXe9ExTMNBaV7zCdPRSS2BDk5o87aAAzMxJKWoYoGh69o7yRQAAA",
+  "source": {
+    "bytes": 105438,
+    "sha256": "d222f7c08c7e175368f620a31a747642fa5a8a10ac9ba3b4660bf5f06024a582"
+  }
 }

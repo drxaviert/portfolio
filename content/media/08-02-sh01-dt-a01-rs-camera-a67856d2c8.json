@@ -39,15 +39,14 @@
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/08-02-sh01-dt-a01-rs-camera-a67856d2c8/w1920.webp"
     },
     {
-      "format": "avif",
-      "width": 2000,
-      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/08-02-sh01-dt-a01-rs-camera-a67856d2c8/w2000.avif"
-    },
-    {
       "format": "webp",
       "width": 2000,
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/08-02-sh01-dt-a01-rs-camera-a67856d2c8/w2000.webp"
     }
   ],
-  "lqip": "data:image/webp;base64,UklGRmYAAABXRUJQVlA4IFoAAACwAwCdASoQABQAPtFUo0uoJKMhsAgBABoJaAC2yBVMZEoUHprHgAD9EcmvXNhS5QTLzmFXc+5bwVRGTsb4JaPy4/DQtNLH3QI0J4aHwfhCEeDvIqmBIPa74AA="
+  "lqip": "data:image/webp;base64,UklGRmYAAABXRUJQVlA4IFoAAACwAwCdASoQABQAPtFUo0uoJKMhsAgBABoJaAC2yBVMZEoUHprHgAD9EcmvXNhS5QTLzmFXc+5bwVRGTsb4JaPy4/DQtNLH3QI0J4aHwfhCEeDvIqmBIPa74AA=",
+  "source": {
+    "bytes": 115284,
+    "sha256": "a67856d2c82731955590ec7937dc1b9d935c475dfba1eca3506f4c5d2a2fba64"
+  }
 }

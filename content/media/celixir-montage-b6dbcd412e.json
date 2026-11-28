@@ -7,9 +7,13 @@
   "caption": "Celixir",
   "createdAt": "2026-11-28T00:53:59.477Z",
   "original": "Celixir_Montage_.mp4",
+  "source": {
+    "bytes": 1110111,
+    "sha256": "b6dbcd412e03af167f6a5b4efc0b34ff9b19a865f604a04f358fe0d0ab976aad"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/celixir-montage-b6dbcd412e/video.mp4",
-    "bytes": 1071864
+    "bytes": 1110111
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/celixir-montage-b6dbcd412e/canvas.mp4",

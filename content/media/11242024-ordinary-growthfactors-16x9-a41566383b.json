@@ -7,27 +7,17 @@
   "caption": "Ordinary",
   "createdAt": "2026-11-28T00:53:43.999Z",
   "original": "11242024_Ordinary_GrowthFactors_16x9.mp4",
+  "source": {
+    "bytes": 35282608,
+    "sha256": "a41566383b5e15d73535c4725443c61e68e3f4af03f4690aacf16672d952a7e6"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/11242024-ordinary-growthfactors-16x9-a41566383b/video.mp4",
-    "bytes": 5744873
+    "bytes": 35282608
   },
-  "hls": {
-    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/11242024-ordinary-growthfactors-16x9-a41566383b/hls/master.m3u8",
-    "bytes": 39523410,
-    "levels": [
-      {
-        "height": 1080,
-        "bandwidth": 5640800
-      },
-      {
-        "height": 720,
-        "bandwidth": 3220800
-      },
-      {
-        "height": 480,
-        "bandwidth": 1460800
-      }
-    ]
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/11242024-ordinary-growthfactors-16x9-a41566383b/canvas.mp4",
+    "bytes": 2803573
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/11242024-ordinary-growthfactors-16x9-a41566383b/poster.avif",

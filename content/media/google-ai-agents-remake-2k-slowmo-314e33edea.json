@@ -7,13 +7,17 @@
   "caption": "Google",
   "createdAt": "2026-11-28T00:52:57.621Z",
   "original": "Google_AI_Agents_Remake_2K_Slowmo.mp4",
+  "source": {
+    "bytes": 4041769,
+    "sha256": "314e33edea3e4183c51b8b0337a6ce92166c5859ff94cde4ad89cd657607f1b1"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/google-ai-agents-remake-2k-slowmo-314e33edea/video.mp4",
-    "bytes": 3064807
+    "bytes": 4041769
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/google-ai-agents-remake-2k-slowmo-314e33edea/canvas.mp4",
-    "bytes": 662754
+    "bytes": 662539
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/google-ai-agents-remake-2k-slowmo-314e33edea/poster.avif",
