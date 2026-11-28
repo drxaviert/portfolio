@@ -778,7 +778,6 @@ export const InfiniteCanvas = forwardRef<
 ) {
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const hoverLabelRef = useRef<HTMLSpanElement | null>(null);
-  const hoverProjectRef = useRef<HTMLSpanElement | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const [introReady, setIntroReady] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
@@ -3648,8 +3647,8 @@ export const InfiniteCanvas = forwardRef<
       else delete surface.dataset.tileFocus;
     }
 
-    /** The project pill's width, measured when its text changes. */
-    let hoverProjectWidth = 0;
+    /** The tag's width, measured when its text changes. */
+    let hoverLabelWidth = 0;
 
     /**
      * Show or hide the pointer tag. Showing names the plane's project (the
@@ -3665,24 +3664,19 @@ export const InfiniteCanvas = forwardRef<
         return;
       }
 
-      const project = hoverProjectRef.current;
       const item = plane ? items[plane.itemIndex] : undefined;
-      if (project && item) {
+      if (item) {
         const text = projectLabel(item.project);
-        if (project.textContent !== text) {
-          project.textContent = text;
-          hoverProjectWidth = project.offsetWidth;
+        if (label.textContent !== text) {
+          label.textContent = text;
+          hoverLabelWidth = label.offsetWidth;
         }
       }
       if (hoverPoint) positionHoverLabel(hoverPoint.x, hoverPoint.y);
       label.dataset.visible = "true";
     }
 
-    /**
-     * Move the tag with the pointer, clamped inside the canvas surface. The
-     * tag's origin is the pointer column: the project pill ends 14px left of
-     * it and the View pill starts 14px right of it.
-     */
+    /** Move the tag with the pointer, clamped inside the canvas surface. */
     function positionHoverLabel(clientX: number, clientY: number): void {
       const surface = containerRef.current;
       const label = hoverLabelRef.current;
@@ -3691,8 +3685,8 @@ export const InfiniteCanvas = forwardRef<
 
       const rect = surface.getBoundingClientRect();
       const x = Math.min(
-        Math.max(hoverProjectWidth + 14, clientX - rect.left),
-        Math.max(0, rect.width - 70),
+        Math.max(0, clientX - rect.left + 14),
+        Math.max(0, rect.width - hoverLabelWidth),
       );
       const y = Math.min(
         Math.max(0, clientY - rect.top + 18),
@@ -5328,13 +5322,7 @@ export const InfiniteCanvas = forwardRef<
     >
       <div ref={canvasHostRef} className="cv-webgl-host" aria-hidden="true" />
 
-      <span ref={hoverLabelRef} className="cv-hover-tag" aria-hidden="true">
-        <span
-          ref={hoverProjectRef}
-          className="cv-hover-label cv-hover-label--project"
-        />
-        <span className="cv-hover-label cv-hover-label--view">View</span>
-      </span>
+      <span ref={hoverLabelRef} className="cv-hover-tag" aria-hidden="true" />
 
       {webglFailed ? <StaticFallback items={items} /> : null}
 

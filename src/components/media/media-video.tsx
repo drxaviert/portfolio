@@ -187,11 +187,18 @@ export function MediaVideo({
         if (cancelled) return;
 
         if (Hls.isSupported()) {
-          // In the viewer the focus box is the player size, so a narrow
-          // window keeps a smaller rung instead of fetching unseen 1080p.
+          // The viewer is the full-quality view: start on the top (1080p) rung
+          // whatever the box size, and let ABR step down only when measured
+          // bandwidth cannot hold it. hls.js's 500 kbps default estimate would
+          // otherwise open every clip on a low rung.
           const instance = new Hls(
-            loopMuted ? { capLevelToPlayerSize: true } : undefined,
+            loopMuted ? { abrEwmaDefaultEstimate: 8_000_000 } : undefined,
           );
+          if (loopMuted) {
+            instance.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
+              instance.startLevel = data.levels.length - 1;
+            });
+          }
           instance.loadSource(hlsUrl);
           instance.attachMedia(video);
           hls = instance;
@@ -199,7 +206,8 @@ export function MediaVideo({
         }
       }
 
-      // Older iOS: the element plays HLS itself. Everything else keeps the mp4.
+      // Older iOS: the element plays HLS itself, starting on the first variant
+      // in master.m3u8, which is the 1080p rung. Everything else keeps the mp4.
       if (nativeHls) video.src = hlsUrl;
       else if (viewerOwned || loopMuted) video.src = media.mp4.url;
     };

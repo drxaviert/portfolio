@@ -31,37 +31,18 @@
 }
 
 /*
- * The pointer's tile affordance. It waits out HOVER.intentMs (200ms) before
- * showing, so a fast pass across the grid never flickers a label or a pointer
- * cursor. Position is written with a compositor-only transform from the last
- * pointer event; opacity is the only animated property.
- *
- * The tag is a zero-width anchor on the pointer column. The project pill
- * (the viewer chip's label) hangs to its left and the View pill to its right,
- * so both fade as one element. Touch never shows it: the pointer handler only
- * listens to mice, and `hover: none` removes it outright.
+ * The pointer's tile affordance: a pill naming the tile's project (the viewer
+ * chip's label). It waits out HOVER.intentMs (200ms) before showing, so a fast
+ * pass across the grid never flickers a label or a pointer cursor. Position is
+ * written with a compositor-only transform from the last pointer event;
+ * opacity is the only animated property. Touch never shows it: the pointer
+ * handler only listens to mice, and `hover: none` removes it outright.
  */
 .cv-hover-tag {
   position: absolute;
   top: 0;
   left: 0;
   z-index: 3;
-  width: 0;
-  height: 24px;
-  opacity: 0;
-  pointer-events: none;
-  user-select: none;
-  transition: opacity 150ms var(--ease-decelerate);
-  will-change: transform;
-}
-
-.cv-hover-tag[data-visible] {
-  opacity: 1;
-}
-
-.cv-hover-label {
-  position: absolute;
-  top: 0;
   height: 24px;
   max-width: 240px;
   padding: 0 9px;
@@ -76,14 +57,15 @@
   text-overflow: ellipsis;
   box-shadow: var(--shadow-card);
   -webkit-font-smoothing: antialiased;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 150ms var(--ease-decelerate);
+  will-change: transform;
 }
 
-.cv-hover-label--project {
-  right: 14px;
-}
-
-.cv-hover-label--view {
-  left: 14px;
+.cv-hover-tag[data-visible] {
+  opacity: 1;
 }
 
 @media (hover: none) {
