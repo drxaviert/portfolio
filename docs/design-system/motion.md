@@ -1308,3 +1308,20 @@ Approved 2026-11-27 (bd pf-9cv.20; PR #137). The Motion & Stills drag canvas blu
 - `src/components/canvas/infinite-canvas.tsx:4881` - `resize`: screen and blur target sizes, depth and radius
 - `src/components/work/canvas-reader.tsx:166` - passes `edgeBlur` / `edgeBlurSuppressed` to the canvas
 - `src/app/(site)/work/[slug]/page.tsx:60` - `?edgeblur=off` maps to `edgeBlur={false}`
+
+## Work index — Motion/3D filter
+
+Approved 2026-11-28 (pf-3x9.9). Rows leave by rising then fading, the case-study entrance run
+backwards, and return on the list's own entrance. Leaving is quicker than arriving.
+
+| Trigger | Property | Duration | Delay | Easing | From → to |
+| --- | --- | --- | --- | --- | --- |
+| Pill off (rows leave) | transform | 360ms | i × 24ms, bottom-up over visible rows, cap 10 | `cubic-bezier(0.4, 0, 1, 1)` | `translateY(0)` → `translateY(-10px)` |
+| Pill off (rows leave) | opacity, filter | 360ms, held to 30% | same | same | 1, none → 0, `blur(8px)` |
+| Pill on (rows return) | opacity, transform, filter (`wd-work-soft`) | 700ms | i × 40ms, top-down, cap 10 | `--ease-calm` | 0, `translateY(7px)`, `blur(8px)` → rest |
+| Drawer opens on /work | pill, with the breadcrumb (`wd-work-soft`) | 700ms | 0 | `--ease-calm` | as above |
+| Reduced motion | opacity | 150ms | 0 | ease-out | fade only |
+
+- `src/components/work/work-filter.ts` — the timings the JS waits on
+- `src/components/work/work-index.tsx` — the stagger order and the mount/unmount handoff
+- `src/components/work/work-list.css` — `wd-work-filter-out`, the in rule, the pill entrance
