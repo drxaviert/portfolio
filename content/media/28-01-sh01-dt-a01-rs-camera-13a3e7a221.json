@@ -1,0 +1,43 @@
+{
+  "id": "28-01-sh01-dt-a01-rs-camera-13a3e7a221",
+  "kind": "image",
+  "width": 1896,
+  "height": 2560,
+  "alt": "Dark red grapes on a black background",
+  "caption": "Grape study",
+  "createdAt": "2026-11-28T01:00:22.468Z",
+  "original": "28-01_SH01_DT_a01_RS_Camera.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/28-01-sh01-dt-a01-rs-camera-13a3e7a221/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/28-01-sh01-dt-a01-rs-camera-13a3e7a221/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/28-01-sh01-dt-a01-rs-camera-13a3e7a221/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/28-01-sh01-dt-a01-rs-camera-13a3e7a221/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1896,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/28-01-sh01-dt-a01-rs-camera-13a3e7a221/w1896.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1896,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/28-01-sh01-dt-a01-rs-camera-13a3e7a221/w1896.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRnQAAABXRUJQVlA4IGgAAABwAwCdASoQABYAPtFUo0uoJKMhsAgBABoJQApgAPAqElmmtgAA/vaSLqE/44BVKUh+EG4kQ1NcLshNgjDdMgXyoN17eqL7lkbCInXzhKzQ8o2+WUNXUIlX33Y7126ZqAkAb5hbtIgAAA=="
+}

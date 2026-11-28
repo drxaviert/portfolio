@@ -1,0 +1,24 @@
+{
+  "id": "comestic-rnd-01c-scene-01-e87380e521",
+  "kind": "video",
+  "width": 864,
+  "height": 1080,
+  "alt": "Glossy black cosmetic tube on a black set",
+  "caption": "Cosmetic R&D motion, scene 01",
+  "createdAt": "2026-11-28T01:00:38.958Z",
+  "original": "Comestic_RnD_01c_Scene_01.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01c-scene-01-e87380e521/video.mp4",
+    "bytes": 395431
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01c-scene-01-e87380e521/canvas.mp4",
+    "bytes": 49664
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01c-scene-01-e87380e521/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/comestic-rnd-01c-scene-01-e87380e521/poster.jpg"
+  },
+  "duration": 4,
+  "hasAudio": false
+}

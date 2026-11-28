@@ -1,0 +1,38 @@
+{
+  "id": "lullavibes-instrumental-lullabies-rendit-73c6198514",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Animated reindeer asleep on a crescent moon in a starry sky",
+  "caption": "Feliz Navidad lullaby",
+  "createdAt": "2026-11-28T00:58:43.995Z",
+  "original": "Lullavibes-Instrumental-Lullabies-｜-Rendition-of-Shawn-Mendes’s-”Treat-You-Bette.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lullavibes-instrumental-lullabies-rendit-73c6198514/video.mp4",
+    "bytes": 9818675
+  },
+  "hls": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lullavibes-instrumental-lullabies-rendit-73c6198514/hls/master.m3u8",
+    "bytes": 66986925,
+    "levels": [
+      {
+        "height": 1080,
+        "bandwidth": 5640800
+      },
+      {
+        "height": 720,
+        "bandwidth": 3220800
+      },
+      {
+        "height": 480,
+        "bandwidth": 1460800
+      }
+    ]
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lullavibes-instrumental-lullabies-rendit-73c6198514/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lullavibes-instrumental-lullabies-rendit-73c6198514/poster.jpg"
+  },
+  "duration": 274.33,
+  "hasAudio": true
+}

@@ -1,0 +1,24 @@
+{
+  "id": "linksys-loop-original-9d7b76e593",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Linksys logo loop on a black field",
+  "caption": "Linksys loop",
+  "createdAt": "2026-11-28T00:59:32.136Z",
+  "original": "Linksys_Loop.original.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-loop-original-9d7b76e593/video.mp4",
+    "bytes": 299383
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-loop-original-9d7b76e593/canvas.mp4",
+    "bytes": 107007
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-loop-original-9d7b76e593/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-loop-original-9d7b76e593/poster.jpg"
+  },
+  "duration": 9.83,
+  "hasAudio": false
+}

@@ -1,0 +1,53 @@
+{
+  "id": "23-01-sh01-dt-a01-rs-camera-54609386f4",
+  "kind": "image",
+  "width": 2064,
+  "height": 2559,
+  "alt": "Terracotta jug on a brown surface",
+  "caption": "Jug study",
+  "createdAt": "2026-11-28T01:00:11.080Z",
+  "original": "23-01_SH01_DT_a01_RS_Camera.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/23-01-sh01-dt-a01-rs-camera-54609386f4/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/23-01-sh01-dt-a01-rs-camera-54609386f4/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/23-01-sh01-dt-a01-rs-camera-54609386f4/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/23-01-sh01-dt-a01-rs-camera-54609386f4/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/23-01-sh01-dt-a01-rs-camera-54609386f4/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/23-01-sh01-dt-a01-rs-camera-54609386f4/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2064,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/23-01-sh01-dt-a01-rs-camera-54609386f4/w2064.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2064,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/23-01-sh01-dt-a01-rs-camera-54609386f4/w2064.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAADwAwCdASoQABQAPtFWo0uoJKMhsAgBABoJQBOmUABp1kedVISdT2FAAP72jjaG394kkB8sRYIvVzZb5QHSL9kHOlYzM3TW3NFle5UWQeuJGzyaSIRO7Axn8e+L3svlSiMSLcMvPl5MwV3WvwAAAA=="
+}

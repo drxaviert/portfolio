@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, animate, motion } from "motion/react";
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -14,8 +15,9 @@ import { MediaImage } from "@/components/media/media-image";
 import { MediaVideo } from "@/components/media/media-video";
 import type { Box } from "@/components/work/morph";
 import type { CanvasItem, CloseTarget } from "./infinite-canvas";
-import { projectLabel } from "./items";
+import { projectHref, projectLabel } from "./items";
 import { TRANSITION, fitBox } from "./transition";
+import { PAN_TUNING } from "./use-pan";
 import "./focus-viewer.css";
 
 const FOCUSABLE =
@@ -74,6 +76,43 @@ function videoInSlide(
  * immediately; the canvas prepares the tile in parallel and only reveals it
  * on the landing frame.
  */
+/**
+ * The opened view's project chip: a link to the case study, or a plain label
+ * for projects without one (Infiniti, Attitude). A press that travels past the
+ * pan's click threshold is a drag, so it does not navigate.
+ */
+function ProjectChip({ project }: { project: string }) {
+  const href = projectHref(project);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const label = projectLabel(project);
+
+  if (!href) return <span className="cv-viewer__chip">{label}</span>;
+
+  return (
+    <Link
+      href={href}
+      className="cv-viewer__chip"
+      data-link=""
+      onPointerDown={(event) => {
+        start.current = { x: event.clientX, y: event.clientY };
+      }}
+      onClick={(event) => {
+        const from = start.current;
+        start.current = null;
+        if (
+          from &&
+          Math.hypot(event.clientX - from.x, event.clientY - from.y) >
+            PAN_TUNING.click.maxDistancePx
+        ) {
+          event.preventDefault();
+        }
+      }}
+    >
+      {label}
+    </Link>
+  );
+}
+
 export function FocusViewer({
   items,
   initialIndex,
@@ -911,7 +950,7 @@ export function FocusViewer({
               ease: "easeOut",
             }}
           >
-            {projectLabel(item.project)}
+            <ProjectChip project={item.project} />
           </motion.p>
         ) : (
           <p
@@ -931,7 +970,7 @@ export function FocusViewer({
                 closing || reduce ? "0ms" : `${TRANSITION.growDelayMs}ms`,
             }}
           >
-            {projectLabel(item.project)}
+            <ProjectChip project={item.project} />
           </p>
         )}
       </div>

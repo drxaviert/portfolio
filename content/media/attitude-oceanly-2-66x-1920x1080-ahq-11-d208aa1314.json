@@ -1,0 +1,24 @@
+{
+  "id": "attitude-oceanly-2-66x-1920x1080-ahq-11-d208aa1314",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Attitude motion piece",
+  "caption": "Attitude",
+  "createdAt": "2026-11-28T01:01:05.471Z",
+  "original": "Attitude-Oceanly_2.66x_1920x1080_ahq-11.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/attitude-oceanly-2-66x-1920x1080-ahq-11-d208aa1314/video.mp4",
+    "bytes": 8952415
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/attitude-oceanly-2-66x-1920x1080-ahq-11-d208aa1314/canvas.mp4",
+    "bytes": 1066374
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/attitude-oceanly-2-66x-1920x1080-ahq-11-d208aa1314/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/attitude-oceanly-2-66x-1920x1080-ahq-11-d208aa1314/poster.jpg"
+  },
+  "duration": 14.99,
+  "hasAudio": true
+}

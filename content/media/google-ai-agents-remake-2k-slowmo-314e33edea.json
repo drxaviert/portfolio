@@ -1,0 +1,24 @@
+{
+  "id": "google-ai-agents-remake-2k-slowmo-314e33edea",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Google motion piece",
+  "caption": "Google",
+  "createdAt": "2026-11-28T00:52:57.621Z",
+  "original": "Google_AI_Agents_Remake_2K_Slowmo.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/google-ai-agents-remake-2k-slowmo-314e33edea/video.mp4",
+    "bytes": 3064807
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/google-ai-agents-remake-2k-slowmo-314e33edea/canvas.mp4",
+    "bytes": 662754
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/google-ai-agents-remake-2k-slowmo-314e33edea/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/google-ai-agents-remake-2k-slowmo-314e33edea/poster.jpg"
+  },
+  "duration": 9.38,
+  "hasAudio": false
+}

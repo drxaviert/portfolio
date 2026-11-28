@@ -1,0 +1,24 @@
+{
+  "id": "linksys-phone-02-original-c73a8a8b95",
+  "kind": "video",
+  "width": 956,
+  "height": 1080,
+  "alt": "Phone mockup showing the Linksys Hydra Pro 6 product page",
+  "caption": "Linksys Hydra Pro 6",
+  "createdAt": "2026-11-28T00:59:20.355Z",
+  "original": "Linksys_Phone_02.original.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-phone-02-original-c73a8a8b95/video.mp4",
+    "bytes": 725571
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-phone-02-original-c73a8a8b95/canvas.mp4",
+    "bytes": 120031
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-phone-02-original-c73a8a8b95/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-phone-02-original-c73a8a8b95/poster.jpg"
+  },
+  "duration": 7.55,
+  "hasAudio": false
+}

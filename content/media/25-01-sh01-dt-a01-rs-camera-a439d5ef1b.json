@@ -1,0 +1,53 @@
+{
+  "id": "25-01-sh01-dt-a01-rs-camera-a439d5ef1b",
+  "kind": "image",
+  "width": 2560,
+  "height": 2560,
+  "alt": "Iridescent glass cube on a rainbow gradient",
+  "caption": "Glass cube study",
+  "createdAt": "2026-11-28T01:00:17.524Z",
+  "original": "25-01_SH01_DT_a01_RS_Camera.webp",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/25-01-sh01-dt-a01-rs-camera-a439d5ef1b/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/25-01-sh01-dt-a01-rs-camera-a439d5ef1b/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/25-01-sh01-dt-a01-rs-camera-a439d5ef1b/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/25-01-sh01-dt-a01-rs-camera-a439d5ef1b/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/25-01-sh01-dt-a01-rs-camera-a439d5ef1b/w1920.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1920,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/25-01-sh01-dt-a01-rs-camera-a439d5ef1b/w1920.webp"
+    },
+    {
+      "format": "avif",
+      "width": 2560,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/25-01-sh01-dt-a01-rs-camera-a439d5ef1b/w2560.avif"
+    },
+    {
+      "format": "webp",
+      "width": 2560,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/25-01-sh01-dt-a01-rs-camera-a439d5ef1b/w2560.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRmoAAABXRUJQVlA4IF4AAAAwAgCdASoQABAAAsBMJbACdADdsbZqeFzN4AD+b8PeC+2KV4JwyM22kQcUvPhYlb4kllyKCIJ7CfsNIGfhZ0oBe3pgCc+LxAHk37C36/MoLgrMi3UCOlrDe/ZNvMgA"
+}

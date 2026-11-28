@@ -1,0 +1,24 @@
+{
+  "id": "lpl-social-01-f3146c9f71",
+  "kind": "video",
+  "width": 1080,
+  "height": 1080,
+  "alt": "London Public Library survey post on a yellow background",
+  "caption": "Library survey post",
+  "createdAt": "2026-11-28T00:59:34.135Z",
+  "original": "LPL_Social_01.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lpl-social-01-f3146c9f71/video.mp4",
+    "bytes": 912816
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lpl-social-01-f3146c9f71/canvas.mp4",
+    "bytes": 39475
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lpl-social-01-f3146c9f71/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lpl-social-01-f3146c9f71/poster.jpg"
+  },
+  "duration": 4,
+  "hasAudio": false
+}

@@ -1,0 +1,24 @@
+{
+  "id": "linksys-phone-01-original-bec7ee254c",
+  "kind": "video",
+  "width": 956,
+  "height": 1080,
+  "alt": "Phone mockup showing the Linksys Atlas Max 6E product page",
+  "caption": "Linksys Atlas Max 6E",
+  "createdAt": "2026-11-28T00:59:18.302Z",
+  "original": "Linksys_Phone_01.original.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-phone-01-original-bec7ee254c/video.mp4",
+    "bytes": 952533
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-phone-01-original-bec7ee254c/canvas.mp4",
+    "bytes": 226697
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-phone-01-original-bec7ee254c/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/linksys-phone-01-original-bec7ee254c/poster.jpg"
+  },
+  "duration": 7.51,
+  "hasAudio": false
+}

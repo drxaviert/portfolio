@@ -3,36 +3,31 @@ import {
   CANVAS_MEDIA,
   CANVAS_MEDIA_COUNT,
   CANVAS_MEDIA_IDS,
+  FEATURED_PROJECTS,
+  projectHref,
   projectLabel,
 } from "./items";
+import { listWork } from "@/lib/work";
 
 const PROJECT_COUNTS: Record<string, number> = {
-  Attitdue: 1,
-  Base: 1,
+  Attitude: 1,
   "Cash App": 1,
-  Celixir: 6,
+  Celixir: 5,
   "Good Form Rebrand": 1,
   Google: 1,
-  Infiniti: 2,
+  Infiniti: 1,
   Klaris: 5,
-  Linksys: 6,
+  Linksys: 4,
   "London Public Library": 3,
-  Lullavibes: 3,
-  NIOD: 6,
-  Ordinary: 2,
-  Personal: 41,
-  "Shapes In Motion": 1,
-  "Urban Decay": 4,
-  Xylo: 4,
+  Lullavibes: 1,
+  NIOD: 5,
+  Ordinary: 1,
+  Personal: 26,
+  "Shapes In Motion": 5,
+  "Tribeca Film Festival": 1,
+  "Urban Decay": 5,
+  Xylo: 1,
 };
-
-const CENTRE_PROJECTS = new Set([
-  "Google",
-  "Cash App",
-  "Ordinary",
-  "NIOD",
-  "Shapes In Motion",
-]);
 
 function projectRuns() {
   const runs: { project: string; start: number; end: number }[] = [];
@@ -47,10 +42,10 @@ function projectRuns() {
 }
 
 describe("canvas media order", () => {
-  it("lists every current manifest once", () => {
-    expect(CANVAS_MEDIA_IDS).toHaveLength(88);
-    expect(new Set(CANVAS_MEDIA_IDS).size).toBe(88);
-    expect(CANVAS_MEDIA_COUNT).toBe(88);
+  it("lists every canvas file in the Optimized folder once", () => {
+    expect(CANVAS_MEDIA_IDS).toHaveLength(67);
+    expect(new Set(CANVAS_MEDIA_IDS).size).toBe(67);
+    expect(CANVAS_MEDIA_COUNT).toBe(67);
   });
 
   it("maps every id to its source project", () => {
@@ -64,33 +59,18 @@ describe("canvas media order", () => {
     expect(counts).toEqual(PROJECT_COUNTS);
   });
 
-  it("starts with the five matched centre projects", () => {
-    const first = new Set(
-      CANVAS_MEDIA.slice(0, 11).map((item) => item.project),
-    );
+  it("opens with the featured projects, in order", () => {
+    const first = projectRuns()
+      .slice(0, FEATURED_PROJECTS.length)
+      .map((run) => run.project);
 
-    expect(first).toEqual(CENTRE_PROJECTS);
-    expect(CANVAS_MEDIA[0].project).toBe("Google");
+    expect(first).toEqual([...FEATURED_PROJECTS]);
   });
 
-  it("keeps whole-project groups, splitting only Personal", () => {
-    const runs = projectRuns();
-    const split = [
-      ...new Set(
-        runs
-          .map((run) => run.project)
-          .filter(
-            (project, index, all) =>
-              all.indexOf(project) !== all.lastIndexOf(project),
-          ),
-      ),
-    ];
-    const personal = runs
-      .filter((run) => run.project === "Personal")
-      .map((run) => run.end - run.start + 1);
+  it("keeps every project in one contiguous run", () => {
+    const projects = projectRuns().map((run) => run.project);
 
-    expect(split).toEqual(["Personal"]);
-    expect(personal).toEqual([14, 14, 13]);
+    expect(new Set(projects).size).toBe(projects.length);
   });
 
   it("does not butt the same project across the infinite repeat", () => {
@@ -103,5 +83,18 @@ describe("canvas media order", () => {
     expect(projectLabel("Attitdue")).toBe("Attitude");
     expect(projectLabel("Shapes In Motion")).toBe("Shapes In Motion");
     expect(projectLabel("Cash App")).toBe("Cash App");
+  });
+
+  it("links every project with a case study to an existing page", () => {
+    const pages = new Set(listWork().map((work) => `/work/${work.slug}`));
+    const unlinked: string[] = [];
+
+    for (const project of Object.keys(PROJECT_COUNTS)) {
+      const href = projectHref(project);
+      if (href === null) unlinked.push(project);
+      else expect(pages).toContain(href);
+    }
+
+    expect(unlinked.sort()).toEqual(["Attitude", "Infiniti"]);
   });
 });

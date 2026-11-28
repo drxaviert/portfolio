@@ -1,0 +1,24 @@
+{
+  "id": "cashapp-gio-snippet-bf054a7e03",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Cash App Cash Flow snippet featuring Gio",
+  "caption": "Cash App",
+  "createdAt": "2026-11-28T00:58:52.293Z",
+  "original": "CashApp_Gio_Snippet.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cashapp-gio-snippet-bf054a7e03/video.mp4",
+    "bytes": 3180333
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cashapp-gio-snippet-bf054a7e03/canvas.mp4",
+    "bytes": 359508
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cashapp-gio-snippet-bf054a7e03/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cashapp-gio-snippet-bf054a7e03/poster.jpg"
+  },
+  "duration": 10.71,
+  "hasAudio": true
+}

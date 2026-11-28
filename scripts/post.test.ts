@@ -3,7 +3,9 @@ import {
   CANVAS_MAX_HEIGHT,
   canvasTargetSize,
   HLS_MIN_DURATION,
+  hlsCapFor,
   hlsRungs,
+  mp4CapFor,
   selectInbox,
   shouldUseHls,
 } from "./post.ts";
@@ -109,5 +111,39 @@ describe("canvasTargetSize", () => {
       width: 220,
       height: 480,
     });
+  });
+});
+
+describe("hlsCapFor", () => {
+  const MB = 1024 * 1024;
+
+  it("keeps the 150 MB cap for ordinary files", () => {
+    expect(hlsCapFor("Cash-Flow.mp4")).toBe(150 * MB);
+  });
+
+  it("allows Good-Form-Reel.mp4 a larger ladder", () => {
+    expect(hlsCapFor("Good-Form-Reel.mp4")).toBe(400 * MB);
+  });
+
+  it("matches the exact filename only", () => {
+    expect(hlsCapFor("good-form-reel.mp4")).toBe(150 * MB);
+  });
+});
+
+describe("mp4CapFor", () => {
+  const MB = 1024 * 1024;
+
+  it("keeps the 10 MB cap for ordinary files", () => {
+    expect(mp4CapFor("Cash-Flow.mp4")).toBe(10 * MB);
+  });
+
+  it("allows the three curated high-motion clips 15 MB", () => {
+    for (const name of [
+      "NIOD_CAIL_a01_DT_Front_1_0064.mp4",
+      "NIOD_Cell04_Anim_v03_FINAL.mp4",
+      "xylo-Branding-Good-Form.mp4",
+    ]) {
+      expect(mp4CapFor(name)).toBe(15 * MB);
+    }
   });
 });

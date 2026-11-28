@@ -1,0 +1,38 @@
+{
+  "id": "niod-deciem-good-form-2d173cbf49",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "NIOD motion piece",
+  "caption": "NIOD",
+  "createdAt": "2026-11-28T00:54:57.508Z",
+  "original": "NIOD-Deciem-Good-Form.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-deciem-good-form-2d173cbf49/video.mp4",
+    "bytes": 2981012
+  },
+  "hls": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-deciem-good-form-2d173cbf49/hls/master.m3u8",
+    "bytes": 19320002,
+    "levels": [
+      {
+        "height": 1080,
+        "bandwidth": 5640800
+      },
+      {
+        "height": 720,
+        "bandwidth": 3220800
+      },
+      {
+        "height": 480,
+        "bandwidth": 1460800
+      }
+    ]
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-deciem-good-form-2d173cbf49/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-deciem-good-form-2d173cbf49/poster.jpg"
+  },
+  "duration": 30.08,
+  "hasAudio": true
+}

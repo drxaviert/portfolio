@@ -1,0 +1,24 @@
+{
+  "id": "isometric-22dc902537",
+  "kind": "video",
+  "width": 1920,
+  "height": 1080,
+  "alt": "Shapes In Motion motion piece",
+  "caption": "Shapes In Motion",
+  "createdAt": "2026-11-28T00:53:27.810Z",
+  "original": "Isometric.mp4",
+  "mp4": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/isometric-22dc902537/video.mp4",
+    "bytes": 1073114
+  },
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/isometric-22dc902537/canvas.mp4",
+    "bytes": 148378
+  },
+  "poster": {
+    "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/isometric-22dc902537/poster.avif",
+    "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/isometric-22dc902537/poster.jpg"
+  },
+  "duration": 14.72,
+  "hasAudio": false
+}

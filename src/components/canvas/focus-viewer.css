@@ -134,18 +134,60 @@
   bottom: max(16px, env(safe-area-inset-bottom));
   left: 50%;
   max-width: min(88vw, 720px);
-  padding: 8px 12px;
   margin: 0;
-  border-radius: var(--radius-lg);
-  background: var(--surface-container-low);
-  color: var(--on-surface);
   font-size: 13px;
   line-height: 1.5;
   text-align: center;
   text-wrap: pretty;
-  box-shadow: var(--shadow-card);
   pointer-events: auto;
   transform: translateX(-50%);
+}
+
+.cv-viewer__chip {
+  display: block;
+  padding: 8px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.cv-viewer__chip[data-link] {
+  /* 37px tall chip; the pseudo-element tops the hit area up to 44px. */
+  position: relative;
+  text-decoration: none;
+  transition:
+    background-color 150ms var(--ease-decelerate),
+    transform 120ms var(--ease-decelerate);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cv-viewer__chip[data-link]::before {
+  position: absolute;
+  inset: -4px 0;
+  content: "";
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cv-viewer__chip[data-link]:hover {
+    background: var(--surface-container);
+  }
+}
+
+.cv-viewer__chip[data-link]:active {
+  transform: scale(0.97);
+}
+
+.cv-viewer__chip[data-link]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-viewer__chip[data-link] {
+    transition: none;
+  }
 }
 
 .cv-viewer__close {
