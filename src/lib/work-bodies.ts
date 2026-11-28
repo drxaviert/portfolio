@@ -15,7 +15,7 @@ export const WORK_BODIES: Record<WorkSlug, () => Promise<WorkBody>> = {
   "shapes-in-motion": () => import("../../content/work/shapes-in-motion.mdx"),
   "growth-factors-deciem": () =>
     import("../../content/work/growth-factors-deciem.mdx"),
-  cellixir: () => import("../../content/work/cellixir.mdx"),
+  celixir: () => import("../../content/work/celixir.mdx"),
   "tribeca-film-festival-deciem": () =>
     import("../../content/work/tribeca-film-festival-deciem.mdx"),
   "urban-decay": () => import("../../content/work/urban-decay.mdx"),

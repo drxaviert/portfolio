@@ -47,17 +47,17 @@ Source: https://dattran.design/work/growth-factors-deciem
 | --- | --- | --- | --- | --- |
 | `growth-factors-deciem-hero` | full | Video (MP4) | Growth Factors explainer film. | https://dattran.design/wp-content/uploads/2025/01/11242024_Ordinary_GrowthFactors_16x9.mp4 |
 
-## CELLIXIR — `/work/cellixir`
+## CELIXIR — `/work/celixir`
 
 Source: https://dattran.design/work/cellixir
 
 | Id | Layout | Image/video | What it shows | Original source URL |
 | --- | --- | --- | --- | --- |
-| `cellixir-hero` | full | Image (JPG) | Hero still: Cellixir bottle on a minimal set. | https://dattran.design/wp-content/uploads/2025/10/Cellixir_01_v01a.jpg |
-| `cellixir-01` | 2-up | Image (JPG) | Still 02: glass and lighting study. | https://dattran.design/wp-content/uploads/2025/10/Cellixir_02_v01a.jpg |
-| `cellixir-02` | 2-up | Image (JPG) | Still 03. | https://dattran.design/wp-content/uploads/2025/10/Cellixir_03_v01a.jpg |
-| `cellixir-03` | 2-up | Image (JPG) | Still 04. | https://dattran.design/wp-content/uploads/2025/10/Cellixir_04_v01b_00000.jpg |
-| `cellixir-04` | 2-up | Image (JPG) | Still 05. | https://dattran.design/wp-content/uploads/2025/10/Cellixir_05_v01a.jpg |
+| `celixir-hero` | full | Image (JPG) | Hero still: Celixir bottle on a minimal set. | https://dattran.design/wp-content/uploads/2025/10/Cellixir_01_v01a.jpg |
+| `celixir-01` | 2-up | Image (JPG) | Still 02: glass and lighting study. | https://dattran.design/wp-content/uploads/2025/10/Cellixir_02_v01a.jpg |
+| `celixir-02` | 2-up | Image (JPG) | Still 03. | https://dattran.design/wp-content/uploads/2025/10/Cellixir_03_v01a.jpg |
+| `celixir-03` | 2-up | Image (JPG) | Still 04. | https://dattran.design/wp-content/uploads/2025/10/Cellixir_04_v01b_00000.jpg |
+| `celixir-04` | 2-up | Image (JPG) | Still 05. | https://dattran.design/wp-content/uploads/2025/10/Cellixir_05_v01a.jpg |
 
 ## TRIBECA FILM FESTIVAL | DECIEM — `/work/tribeca-film-festival-deciem`
 

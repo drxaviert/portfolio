@@ -10,9 +10,9 @@ import {
 } from "./delete-r2-prefixes";
 
 describe("delete-r2-prefixes guards", () => {
-  it("lists 95 unique retired ids", () => {
-    expect(RETIRED_MEDIA_IDS).toHaveLength(95);
-    expect(new Set(RETIRED_MEDIA_IDS).size).toBe(95);
+  it("lists 100 unique retired ids", () => {
+    expect(RETIRED_MEDIA_IDS).toHaveLength(100);
+    expect(new Set(RETIRED_MEDIA_IDS).size).toBe(100);
   });
 
   it("never lists a protected or live id", () => {

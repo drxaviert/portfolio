@@ -78,6 +78,12 @@ const nextConfig: NextConfig = {
   // Lets Dat test dev servers from a laptop on the LAN (Next 16 blocks
   // cross-origin dev requests, so the page never hydrates without this).
   allowedDevOrigins: ["192.168.2.33", "192.168.2.28"],
+  // The study was renamed Cellixir → Celixir; keep old links working.
+  async redirects() {
+    return [
+      { source: "/work/cellixir", destination: "/work/celixir", permanent: true },
+    ];
+  },
 };
 
 const withMDX = createMDX({
