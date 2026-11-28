@@ -133,7 +133,7 @@ describe("work index breadcrumb", () => {
     expect(home).toHaveClass("focus-visible:outline-primary");
     expect(document.querySelector(".nav-glide")).not.toBeNull();
     expect(list).toMatch(
-      /\.wd-work-column\[data-work-anim="on"\] \.wd-breadcrumb \{\s*animation: wd-work-soft 700ms/,
+      /\.wd-work-column\[data-work-anim="on"\] \.wd-breadcrumb,\s*\.wd-work-column\[data-work-anim="on"\] \.wd-work-pill \{\s*animation: wd-work-soft 700ms/,
     );
   });
 });

@@ -411,26 +411,37 @@
  * because it is leaving. In is the list's own entrance (wd-work-soft). Both
  * stagger by --work-filter-i: out bottom-up from the last visible row, so the
  * wave climbs; in top-down (work-index.tsx assigns it; work-filter.ts caps it
- * at 10 and owns the timings the JS waits on).
+ * at 10 and owns the timings the JS waits on). The selectors (0,5,0) outrank
+ * the drawer's entrance rule (.wd-work-column[data-work-anim="on"]
+ * .wd-work-row-item[data-work-enter], 0,4,0), whose attributes stay on the
+ * first-viewport rows until the drawer closes.
  */
 @media (prefers-reduced-motion: no-preference) {
-  .wd-work-row-item[data-work-filter="out"] {
+  .wd-work-column
+    .wd-work-list-column
+    .wd-work-row-item[data-work-filter="out"] {
     animation: wd-work-filter-out 360ms cubic-bezier(0.4, 0, 1, 1) both;
     animation-delay: calc(var(--work-filter-i, 0) * 24ms);
   }
 
-  .wd-work-row-item[data-work-filter="in"] {
+  .wd-work-column
+    .wd-work-list-column
+    .wd-work-row-item[data-work-filter="in"] {
     animation: wd-work-soft 700ms var(--ease-calm) backwards;
     animation-delay: calc(var(--work-filter-i, 0) * 40ms);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wd-work-row-item[data-work-filter="out"] {
+  .wd-work-column
+    .wd-work-list-column
+    .wd-work-row-item[data-work-filter="out"] {
     animation: wd-work-filter-fade 150ms ease-out reverse both;
   }
 
-  .wd-work-row-item[data-work-filter="in"] {
+  .wd-work-column
+    .wd-work-list-column
+    .wd-work-row-item[data-work-filter="in"] {
     animation: wd-work-filter-fade 150ms ease-out backwards;
   }
 }
