@@ -26,6 +26,10 @@ import "./work-list.css";
 
 const THUMB_WIDTH = 480;
 const THUMB_HEIGHT = 360;
+/** The box's height over its width when a study has no measured media. */
+const DEFAULT_ASPECT = THUMB_HEIGHT / THUMB_WIDTH;
+/** The panel's air from the viewport's bottom when tall media caps it. */
+const PANEL_BOTTOM_GAP = 16;
 const ENTRANCE_MAX = 12;
 const FAST_SCROLL_PX_PER_MS = 1.5;
 /** The panel's air from the reading surface's left edge. */
@@ -39,6 +43,18 @@ const PANEL_MAX_WIDTH = 600;
 
 /** The list keeps its place while a study takes the panel. */
 let listScroll = 0;
+
+/**
+ * A study's thumbnail at its own ratio (height over width): the hover video's,
+ * else the thumb still's or the cover image's, else the old 4:3 box.
+ */
+function aspectOf(work: WorkMeta | undefined): number {
+  const media = work?.thumbVideo ?? work?.thumbImage ?? work?.coverImage;
+
+  return media && media.width > 0 && media.height > 0
+    ? media.height / media.width
+    : DEFAULT_ASPECT;
+}
 
 function canHover(): boolean {
   return (
@@ -186,6 +202,12 @@ export function WorkList({
   const lastScrollRef = useRef({ top: 0, time: 0 });
   const velocityRef = useRef(0);
   const frameRef = useRef(0);
+  /** The front slot's ratio, which sizes both treatments. */
+  const aspectRef = useRef(DEFAULT_ASPECT);
+  /** Set when a row-to-row swap changes the ratio of a showing panel. */
+  const reshapeRef = useRef(false);
+  /** Whether the thumbnail was showing at the last commit. */
+  const wasActiveRef = useRef(false);
 
   /**
    * The panel's gate is a measurement, not a breakpoint: from the reading
@@ -229,8 +251,11 @@ export function WorkList({
    * plus 16px starts it and the list's left edge minus 32px ends it, so its
    * width is whatever the centred list leaves. Past 600px it stops growing and
    * right-aligns to the list (it keeps hugging the list) rather than drifting
-   * away from it. Height is the thumb's 4:3; the top is the first row's top and
-   * sticks under the nav.
+   * away from it. The top-right corner is the anchor: the top is the first
+   * row's top and sticks under the nav, the right is the list's edge less the
+   * gap. Height follows the current study's own ratio, so nothing is cropped;
+   * media too tall for the viewport shrinks (keeping its ratio) toward that
+   * corner. Only a ratio change animates the box.
    */
   const placePanel = useCallback(() => {
     const panel = panelRef.current;
@@ -251,10 +276,23 @@ export function WorkList({
 
     if (available < PANEL_MIN_WIDTH) return;
 
-    const width = Math.min(PANEL_MAX_WIDTH, available);
-    const height = width * (THUMB_HEIGHT / THUMB_WIDTH);
-    const x = (width < available ? right - width : left) - clipRect.left;
-    const y = Math.max(firstRowRect.top, visibleTop(scrollRect)) - clipRect.top;
+    const aspect = aspectRef.current;
+    const top = Math.max(firstRowRect.top, visibleTop(scrollRect));
+    const maxHeight = Math.max(
+      PANEL_MIN_WIDTH * aspect,
+      window.innerHeight - PANEL_BOTTOM_GAP - top,
+    );
+    const width = Math.min(PANEL_MAX_WIDTH, available, maxHeight / aspect);
+    const height = width * aspect;
+    const x = right - width - clipRect.left;
+    const y = top - clipRect.top;
+
+    // Only a row-to-row ratio change animates; a resize, a scroll or a fresh
+    // hover lands at once.
+    if (reshapeRef.current) {
+      reshapeRef.current = false;
+      panel.setAttribute("data-work-reshape", "");
+    }
 
     panel.style.width = `${width}px`;
     panel.style.height = `${height}px`;
@@ -282,12 +320,16 @@ export function WorkList({
     if (!thumb) return;
 
     const clipRect = clip.getBoundingClientRect();
+    // The cursor thumbnail keeps its 480px width and takes the study's ratio.
+    // It snaps: it is already moving with the pointer.
+    const thumbHeight = THUMB_WIDTH * aspectRef.current;
+    thumb.style.height = `${thumbHeight}px`;
     let x: number;
     let y: number;
 
     if (hoveredRef.current !== null && point) {
       x = point.x - clipRect.left - THUMB_WIDTH / 2;
-      y = point.y - clipRect.top - THUMB_HEIGHT / 2;
+      y = point.y - clipRect.top - thumbHeight / 2;
     } else if (focusedRef.current !== null) {
       const row = rowRefs.current[focusedRef.current];
       const scroll = scrollRef.current;
@@ -306,7 +348,7 @@ export function WorkList({
       y =
         Math.max(
           minTop,
-          Math.min(rowRect.top, scrollRect.bottom - THUMB_HEIGHT - 12),
+          Math.min(rowRect.top, scrollRect.bottom - thumbHeight - 12),
         ) - clipRect.top;
     } else {
       return;
@@ -327,7 +369,10 @@ export function WorkList({
 
   useEffect(() => {
     return () => {
+      // Reset too: a cancelled frame left in the ref blocks every later
+      // schedule (dev re-runs effects, and Activity re-runs them on reveal).
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      frameRef.current = 0;
     };
   }, []);
 
@@ -375,6 +420,24 @@ export function WorkList({
     resetHover();
     setSlots({ front: 1, items: [null, null] });
   }, [works, resetHover]);
+
+  // The front slot's study sizes the box, in the frame its crossfade starts.
+  const frontIndex = slots.items[slots.front];
+  const thumbShowing = hovered !== null || focused !== null;
+  useLayoutEffect(() => {
+    const aspect = aspectOf(
+      frontIndex === null ? undefined : works[frontIndex],
+    );
+
+    reshapeRef.current =
+      wasActiveRef.current && thumbShowing && aspect !== aspectRef.current;
+    // Leaving mid-reshape cancels the transition (no transitionend), so drop
+    // the flag here or the next fresh hover and every scroll would animate.
+    if (!thumbShowing) panelRef.current?.removeAttribute("data-work-reshape");
+    wasActiveRef.current = thumbShowing;
+    aspectRef.current = aspect;
+    scheduleThumb();
+  }, [frontIndex, thumbShowing, works, scheduleThumb]);
 
   // Size and place the parked panel while it is idle, so its first hover cannot
   // paint a zero-sized frame for a frame.
@@ -779,6 +842,14 @@ export function WorkList({
       className="wd-work-panel"
       ref={panelRef}
       aria-hidden="true"
+      onTransitionEnd={(event) => {
+        if (
+          event.target === event.currentTarget &&
+          (event.propertyName === "height" || event.propertyName === "width")
+        ) {
+          event.currentTarget.removeAttribute("data-work-reshape");
+        }
+      }}
       data-work-active={thumbActive ? "" : undefined}
     >
       {mediaSlots}

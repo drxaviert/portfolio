@@ -55,7 +55,7 @@ describe("parseFrontmatter", () => {
 
 describe("listWork", () => {
   it("returns the visible case studies", () => {
-    expect(listWork()).toHaveLength(17);
+    expect(listWork()).toHaveLength(18);
   });
 
   it("gives every study a known cover", () => {
@@ -77,6 +77,7 @@ describe("listWork", () => {
       "urban-decay",
       "niod-deciem",
       "good-form-rebrand",
+      "attitude",
       "xylo-audio",
       "lullavibes",
       "cash-app-cash-flow",

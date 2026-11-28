@@ -95,6 +95,6 @@ describe("canvas media order", () => {
       else expect(pages).toContain(href);
     }
 
-    expect(unlinked.sort()).toEqual(["Attitude", "Infiniti"]);
+    expect(unlinked.sort()).toEqual(["Infiniti"]);
   });
 });

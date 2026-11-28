@@ -258,7 +258,8 @@ describe("work list", () => {
 
     // 680px of margin -> capped at 600, right-aligned to the list (744 - 32).
     await waitFor(() => expect(panel.style.width).toBe("600px"));
-    expect(panel.style.height).toBe("450px");
+    // Row 1's media is 16:9, so the box takes that ratio rather than 4:3.
+    expect(panel.style.height).toBe("337.5px");
     expect(panel.style.transform).toBe("translate3d(112px, 221px, 0px)");
 
     const firstFront = front();
@@ -288,7 +289,7 @@ describe("work list", () => {
     hoverRow(container, 1, 500);
 
     await waitFor(() =>
-      expect(thumb.style.transform).toBe("translate3d(460px, 320px, 0px)"),
+      expect(thumb.style.transform).toBe("translate3d(460px, 365px, 0px)"),
     );
     expect(group).toHaveAttribute("data-work-dim");
     expect(group).toHaveAttribute("data-work-pointer");

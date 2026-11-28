@@ -25,6 +25,7 @@ const WORK_ORDER = [
   "urban-decay",
   "niod-deciem",
   "good-form-rebrand",
+  "attitude",
   "xylo-audio",
   "lullavibes",
   // 2D work.
