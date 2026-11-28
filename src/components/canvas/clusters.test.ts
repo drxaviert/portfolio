@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_PULL, clusterLayout, projectGroups, wrapDelta } from "./clusters";
+import { clusterLayout, projectGroups, wrapDelta } from "./clusters";
 import { gridMetrics } from "./grid";
 import { CANVAS_MEDIA, FEATURED_PROJECTS } from "./items";
 
@@ -51,16 +51,23 @@ describe("clusterLayout", () => {
     expect(placed.size).toBe(Math.min(projects.length, cols * rows));
   });
 
-  it("keeps each project's first blob 4-connected", () => {
-    const firstBlob = new Map<string, number>();
+  it.each([
+    [1440, 900],
+    [1024, 768],
+    [390, 844],
+    [2560, 1440],
+  ])("keeps every blob to one project, 4-connected, at %ix%i", (w, h) => {
+    const { grid, layout } = layoutAt(w, h);
+    const { cols, rows } = grid;
+    const blobProject = new Map<number, string>();
     for (let cell = 0; cell < cols * rows; cell += 1) {
       const project = projects[layout.items[cell]];
-      const blob = layout.blobs[cell];
-      const seen = firstBlob.get(project);
-      if (seen === undefined || blob < seen) firstBlob.set(project, blob);
+      const seen = blobProject.get(layout.blobs[cell]);
+      if (seen !== undefined) expect(project).toBe(seen);
+      blobProject.set(layout.blobs[cell], project);
     }
 
-    for (const blob of firstBlob.values()) {
+    for (const blob of blobProject.keys()) {
       const cells: number[] = [];
       for (let cell = 0; cell < cols * rows; cell += 1) {
         if (layout.blobs[cell] === blob) cells.push(cell);
@@ -106,11 +113,8 @@ describe("clusterLayout", () => {
     for (const project of FEATURED_PROJECTS) expect(near).toContain(project);
   });
 
-  it("never pulls a tile far enough to close a gap", () => {
-    for (let cell = 0; cell < cols * rows; cell += 1) {
-      expect(Math.abs(layout.pullX[cell])).toBeLessThanOrEqual(MAX_PULL + 1e-6);
-      expect(Math.abs(layout.pullY[cell])).toBeLessThanOrEqual(MAX_PULL + 1e-6);
-    }
+  it("sits every tile on its grid cell, with no offset", () => {
+    expect(Object.keys(layout).sort()).toEqual(["blobs", "items"]);
   });
 
   it("returns an empty layout for an empty grid", () => {

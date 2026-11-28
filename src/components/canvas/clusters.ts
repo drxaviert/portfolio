@@ -7,11 +7,9 @@
  * viewport centre, so the first projects open the first view. When every
  * project is placed the list repeats until the grid is full.
  *
- * Every cell holds a tile, so the gallery keeps its density. The clusters read
- * as groups because each tile is pulled toward its blob's centre by part of
- * the gap: the gap inside a blob narrows and the gap between two blobs widens.
- * A pull never exceeds `MAX_PULL` of the gap, so two tiles moving toward each
- * other can never close it.
+ * Every cell holds a tile and every tile sits on its cell with the uniform
+ * gutter: no offsets, no empty cells. A project reads as one patch only
+ * because its items take adjacent cells.
  *
  * "Nearest the viewport centre" is measured in viewport units, not cells: a
  * landscape window shows more columns than rows, so a cell two columns out is
@@ -19,19 +17,18 @@
  * visible cell span, so the order follows the window as it is resized.
  */
 
-/** Pull toward the blob centre, in gaps per cell of distance. */
-export const CLUSTER_PULL = 0.6;
-/** The largest pull on one axis, in gaps. */
-export const MAX_PULL = 0.45;
+const NEIGHBOURS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
 
 export type ClusterLayout = {
   /** Item index per cell (`row * cols + col`). */
   items: Int32Array;
   /** Which blob fragment holds the cell; fragments of one project differ. */
   blobs: Int32Array;
-  /** Offset toward the blob centre, in gaps (multiply by the current gap). */
-  pullX: Float32Array;
-  pullY: Float32Array;
 };
 
 /** Item indices grouped by project, in order of each project's first item. */
@@ -64,8 +61,6 @@ export function clusterLayout(
   const layout: ClusterLayout = {
     items: new Int32Array(total),
     blobs: new Int32Array(total).fill(-1),
-    pullX: new Float32Array(total),
-    pullY: new Float32Array(total),
   };
   if (total === 0 || projects.length === 0) return layout;
 
@@ -89,7 +84,7 @@ export function clusterLayout(
   });
 
   const { items, blobs } = layout;
-  const seeds: number[] = [];
+  let blobCount = 0;
   let free = total;
   let cursor = 0;
   const nextFree = () => {
@@ -105,8 +100,13 @@ export function clusterLayout(
 
       let blob = -1;
       let frontier = new Set<number>();
+      // Running centre of the fragment, relative to its seed so a fragment
+      // that straddles the wrap seam still averages correctly.
       let seedCol = 0;
       let seedRow = 0;
+      let sumX = 0;
+      let sumY = 0;
+      let size = 0;
 
       for (const itemIndex of group) {
         if (free === 0) break;
@@ -114,10 +114,17 @@ export function clusterLayout(
         let cell = -1;
         let best = Infinity;
         for (const candidate of frontier) {
-          const dx = wrapDelta((candidate % cols) - seedCol, cols) / spanX;
-          const dy =
-            wrapDelta(Math.floor(candidate / cols) - seedRow, rows) / spanY;
-          const score = dx * dx + dy * dy;
+          const col = candidate % cols;
+          const row = Math.floor(candidate / cols);
+          const dx = wrapDelta(col - seedCol, cols) - sumX / size;
+          const dy = wrapDelta(row - seedRow, rows) - sumY / size;
+          let touching = 0;
+          for (const [nx, ny] of NEIGHBOURS) {
+            const near =
+              ((row + ny + rows) % rows) * cols + ((col + nx + cols) % cols);
+            if (blobs[near] === blob) touching += 1;
+          }
+          const score = dx * dx + dy * dy - touching;
           if (
             score < best ||
             (score === best && rank[candidate] < rank[cell])
@@ -131,11 +138,14 @@ export function clusterLayout(
         // fragment at the free cell nearest the centre.
         if (cell === -1) {
           cell = nextFree();
-          blob = seeds.length;
-          seeds.push(cell);
+          blob = blobCount;
+          blobCount += 1;
           frontier = new Set();
           seedCol = cell % cols;
           seedRow = Math.floor(cell / cols);
+          sumX = 0;
+          sumY = 0;
+          size = 0;
         }
 
         blobs[cell] = blob;
@@ -145,51 +155,16 @@ export function clusterLayout(
 
         const col = cell % cols;
         const row = Math.floor(cell / cols);
-        for (const [dx, dy] of [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1],
-        ]) {
+        sumX += wrapDelta(col - seedCol, cols);
+        sumY += wrapDelta(row - seedRow, rows);
+        size += 1;
+        for (const [dx, dy] of NEIGHBOURS) {
           const near =
             ((row + dy + rows) % rows) * cols + ((col + dx + cols) % cols);
           if (blobs[near] === -1) frontier.add(near);
         }
       }
     }
-  }
-
-  // Each fragment's centre, from offsets relative to its seed so a blob that
-  // straddles the wrap seam still averages correctly.
-  const sumX = new Float64Array(seeds.length);
-  const sumY = new Float64Array(seeds.length);
-  const count = new Int32Array(seeds.length);
-  const offsetX = new Float64Array(total);
-  const offsetY = new Float64Array(total);
-
-  for (let cell = 0; cell < total; cell += 1) {
-    const blob = blobs[cell];
-    const seed = seeds[blob];
-    offsetX[cell] = wrapDelta((cell % cols) - (seed % cols), cols);
-    offsetY[cell] = wrapDelta(
-      Math.floor(cell / cols) - Math.floor(seed / cols),
-      rows,
-    );
-    sumX[blob] += offsetX[cell];
-    sumY[blob] += offsetY[cell];
-    count[blob] += 1;
-  }
-
-  const clamp = (value: number) =>
-    Math.max(-MAX_PULL, Math.min(MAX_PULL, value));
-  for (let cell = 0; cell < total; cell += 1) {
-    const blob = blobs[cell];
-    layout.pullX[cell] = clamp(
-      (sumX[blob] / count[blob] - offsetX[cell]) * CLUSTER_PULL,
-    );
-    layout.pullY[cell] = clamp(
-      (sumY[blob] / count[blob] - offsetY[cell]) * CLUSTER_PULL,
-    );
   }
 
   return layout;
