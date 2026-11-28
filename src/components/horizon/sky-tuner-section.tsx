@@ -33,15 +33,18 @@ const LABELS: Record<SkyNumericKey, string> = {
  * store the canvas reads every frame, so dragging never re-renders the sky.
  */
 export function SkyTunerSection() {
-  const [state, setState] = useState<SkyTuning>(SKY_TUNING_DEFAULTS);
+  // ListeningTuner renders this only after hydration (its server snapshot is
+  // off), so reading localStorage in the initializer cannot cause a mismatch.
+  const [state, setState] = useState<SkyTuning>(() =>
+    typeof window === "undefined" ? SKY_TUNING_DEFAULTS : loadStoredSkyTuning(),
+  );
+
+  // Keep the live sky store the canvas reads in step with the panel.
+  useEffect(() => {
+    setSkyTuning(state);
+  }, [state]);
 
   useEffect(() => {
-    // Hydrate after mount so the server and first client render agree.
-    const stored = loadStoredSkyTuning();
-
-    setState(stored);
-    setSkyTuning(stored);
-
     return () => setSkyTuning(SKY_TUNING_DEFAULTS);
   }, []);
 
@@ -49,7 +52,6 @@ export function SkyTunerSection() {
     setState((previous) => {
       const next = { ...previous, ...patch };
 
-      setSkyTuning(next);
       saveStoredSkyTuning(next);
       return next;
     });
