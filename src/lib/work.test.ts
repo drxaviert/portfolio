@@ -67,7 +67,7 @@ describe("listWork", () => {
       "klaris",
       "shapes-in-motion",
       "growth-factors-deciem",
-      "cellixir",
+      "celixir",
       "tribeca-film-festival-deciem",
       "urban-decay",
       "niod-deciem",

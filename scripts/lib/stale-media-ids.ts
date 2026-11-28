@@ -5,6 +5,9 @@
  * 0bf58e8, and none overlaps the rebuilt ids. Music (`audio.*` keys and
  * door-to-the-cosmos-601b1958e1) is excluded and guarded in
  * delete-r2-prefixes.ts.
+ *
+ * Plus 5 cellixir-* ids from the Cellixir → Celixir rename (pf-3xh.13): the
+ * same bytes were re-posted as celixir-*, so 93 ids in all.
  */
 export const STALE_MEDIA_IDS = [
   "003-21-01-sh01-dt-a02-rs-camera-1bd9c62f31",
@@ -36,6 +39,12 @@ export const STALE_MEDIA_IDS = [
   "cellixir-03-v01a-6c85e817b3",
   "cellixir-04-v01b-00000-8fab808305",
   "cellixir-05-v01a-a403160841",
+  // pf-3xh.13: renamed to celixir-*.
+  "cellixir-01-v01a-7b1743d192",
+  "cellixir-02-v01a-184ce4b886",
+  "cellixir-03-v01a-e332bef5ef",
+  "cellixir-04-v01b-00000-50982c176c",
+  "cellixir-05-v01a-dc237ec38f",
   "comestic-rnd-01a-scene-01-00000-ce53bb5176",
   "comestic-rnd-01a-scene-02-00000-b0e52c9586",
   "comestic-rnd-01a-scene-03-00000-b53726405e",
