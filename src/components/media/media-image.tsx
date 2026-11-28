@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
-import type { ImageMedia } from "@/lib/media-types";
+import { fullResSource, type ImageMedia } from "@/lib/media-types";
+
 import { sourceSet } from "./source-set";
 
 /**
@@ -27,13 +28,16 @@ export function MediaImage({
   fullRes?: boolean;
   sizes?: string;
 }) {
-  const largest = (sources: typeof media.sources) =>
-    [...sources].sort((a, b) => b.width - a.width).slice(0, 1);
+  // Full-size draws only the widest variant across both formats, so an
+  // --original WebP is not passed over for a smaller AVIF.
 
-  const avifAll = media.sources.filter((source) => source.format === "avif");
-  const webpAll = media.sources.filter((source) => source.format === "webp");
-  const avif = fullRes ? largest(avifAll) : avifAll;
-  const webp = fullRes ? largest(webpAll) : webpAll;
+  const topWidth = fullResSource(media.sources)?.width;
+  const pool = fullRes
+    ? media.sources.filter((source) => source.width === topWidth)
+    : media.sources;
+  const avif = pool.filter((source) => source.format === "avif");
+  const webp = pool.filter((source) => source.format === "webp");
+
   // The `src` is only read by browsers without srcSet support; give them the
   // smallest file rather than the full-size original.
   const fallback = webp[0] ?? avif[0];

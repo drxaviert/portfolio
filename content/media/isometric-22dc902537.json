@@ -7,9 +7,13 @@
   "caption": "Shapes In Motion",
   "createdAt": "2026-11-28T00:53:27.810Z",
   "original": "Isometric.mp4",
+  "source": {
+    "bytes": 1939402,
+    "sha256": "22dc90253764e63a85bbd715a0664bae192db4aecaa8dd8800c28e481cd23d17"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/isometric-22dc902537/video.mp4",
-    "bytes": 1073114
+    "bytes": 1939402
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/isometric-22dc902537/canvas.mp4",
@@ -20,5 +24,5 @@
     "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/isometric-22dc902537/poster.jpg"
   },
   "duration": 14.72,
-  "hasAudio": false
+  "hasAudio": true
 }

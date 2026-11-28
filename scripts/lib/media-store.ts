@@ -6,7 +6,8 @@
  * the S3 API. The same interface covers dry runs and local-output runs, which
  * is what keeps `--dry-run` network-free.
  */
-import { mkdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   HeadObjectCommand,
@@ -28,6 +29,15 @@ export interface MediaUpload {
   /** Object key, e.g. `media/<id>/video.mp4`. */
   key: string;
   body: Buffer;
+  /**
+   * Hex SHA-256 of `body`. R2 checks it on PUT and stores it, so
+   * `storedSha256` can later prove the object is these exact bytes.
+   */
+  sha256?: string;
+}
+
+export function sha256Hex(body: Buffer): string {
+  return createHash("sha256").update(body).digest("hex");
 }
 
 export interface MediaStore {
@@ -41,6 +51,12 @@ export interface MediaStore {
    * the same public URL is returned, which makes a migration re-run safe.
    */
   put(upload: MediaUpload): Promise<{ url: string; skipped: boolean }>;
+  /**
+   * The hex SHA-256 the store holds for a key: R2's stored checksum (sent with
+   * the PUT), or the hash of the local file. Null when the store has none,
+   * which a dry run always returns.
+   */
+  storedSha256(key: string): Promise<string | null>;
 }
 
 /** The subset of `S3Client.send` the store needs; tests pass a fake. */
@@ -120,7 +136,18 @@ export function createR2Store(
     kind: "r2",
     urlFor: (key) => uploadUrl(env.publicBaseUrl, key),
     head,
-    async put({ key, body }) {
+    async storedSha256(key) {
+      const result = (await client.send(
+        new HeadObjectCommand({
+          Bucket: env.bucket,
+          Key: key,
+          ChecksumMode: "ENABLED",
+        }),
+      )) as { ChecksumSHA256?: string } | undefined;
+      const stored = result?.ChecksumSHA256;
+      return stored ? Buffer.from(stored, "base64").toString("hex") : null;
+    },
+    async put({ key, body, sha256 }) {
       const url = uploadUrl(env.publicBaseUrl, key);
       if (options.skipExisting && (await head(key))) {
         console.log(`  skip     ${key} (already in R2)`);
@@ -137,6 +164,9 @@ export function createR2Store(
           Body: body,
           ContentType: contentTypeFor(key),
           CacheControl: MEDIA_CACHE_CONTROL,
+          ...(sha256
+            ? { ChecksumSHA256: Buffer.from(sha256, "hex").toString("base64") }
+            : {}),
         }),
       );
       console.log(`  upload   ${key} (${formatBytes(body.byteLength)})`);
@@ -159,6 +189,7 @@ export function createDryRunStore(): MediaStore {
     kind: "dry-run",
     urlFor: (key) => uploadUrl(base, key),
     head: async () => false,
+    storedSha256: async () => null,
     async put({ key, body }) {
       console.log(
         `  dry-run  would upload ${key} (${contentTypeFor(key)}, ${formatBytes(body.byteLength)})`,
@@ -188,6 +219,10 @@ export function createLocalStore({
     kind: "local",
     urlFor: (key) => uploadUrl(publicBaseUrl, key),
     head: async () => false,
+    async storedSha256(key) {
+      const file = path.join(localRoot, ...key.split("/"));
+      return sha256Hex(await readFile(file));
+    },
     async put({ key, body }) {
       await writeLocalObject(localRoot, key, body);
       console.log(`  local    ${key} (${formatBytes(body.byteLength)})`);

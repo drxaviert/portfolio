@@ -7,9 +7,13 @@
   "caption": "Cash App",
   "createdAt": "2026-11-28T00:58:55.100Z",
   "original": "CashApp_Kiran_Snippet.mp4",
+  "source": {
+    "bytes": 1740240,
+    "sha256": "3e4b4e565ad92a5b62fc691d5dd9dc842f2091a0cadef9c3467a081c49fc5ef2"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cashapp-kiran-snippet-3e4b4e565a/video.mp4",
-    "bytes": 1571564
+    "bytes": 1740240
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cashapp-kiran-snippet-3e4b4e565a/canvas.mp4",

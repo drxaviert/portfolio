@@ -7,13 +7,17 @@
   "caption": "NIOD",
   "createdAt": "2026-11-28T01:01:40.546Z",
   "original": "NIOD_CAIL_a01_DT_Front_1_0064.mp4",
+  "source": {
+    "bytes": 18410056,
+    "sha256": "c282a2d91565dc93f0dba1ed7b8d157b03761cc2f5bb2759a871e2f7402fbf9e"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cail-a01-dt-front-1-0064-c282a2d915/video.mp4",
-    "bytes": 14030183
+    "bytes": 18410056
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cail-a01-dt-front-1-0064-c282a2d915/canvas.mp4",
-    "bytes": 776823
+    "bytes": 775355
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cail-a01-dt-front-1-0064-c282a2d915/poster.avif",

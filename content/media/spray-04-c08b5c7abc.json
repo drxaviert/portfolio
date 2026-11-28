@@ -39,15 +39,14 @@
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-04-c08b5c7abc/w1920.webp"
     },
     {
-      "format": "avif",
-      "width": 2048,
-      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-04-c08b5c7abc/w2048.avif"
-    },
-    {
       "format": "webp",
       "width": 2048,
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/spray-04-c08b5c7abc/w2048.webp"
     }
   ],
-  "lqip": "data:image/webp;base64,UklGRm4AAABXRUJQVlA4IGIAAACQAwCdASoQABQAPtFYpEwoJSOiMAgBABoJZwDGfCG8EIA/blnAAP71b5ncYM2khePhgnKEUodzwYvi73C0F82um44i9upg7pmvgBpGluVBaKvti/Kc15goYVUPCrJ5FCAAAA=="
+  "lqip": "data:image/webp;base64,UklGRm4AAABXRUJQVlA4IGIAAACQAwCdASoQABQAPtFYpEwoJSOiMAgBABoJZwDGfCG8EIA/blnAAP71b5ncYM2khePhgnKEUodzwYvi73C0F82um44i9upg7pmvgBpGluVBaKvti/Kc15goYVUPCrJ5FCAAAA==",
+  "source": {
+    "bytes": 60834,
+    "sha256": "c08b5c7abcce01b20225288fc0563ca3a2982d147b5cadfbffca21cbb31c4c22"
+  }
 }

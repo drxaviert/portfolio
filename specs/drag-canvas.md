@@ -25,3 +25,6 @@ Route: `/work/motion-and-stills` (`CanvasReader` -> `InfiniteCanvas`; dev proto 
 
 ## States
 - Chip: hover (hover-capable pointers only), press scale 0.97, focus-visible ring, 44px hit area.
+- Hover tag (`.cv-hover-tag`): after 200ms a pill names the tile's project; `pointer-events: none`, hidden on touch.
+- Media: tiles play `canvas.mp4`; the viewer plays the full-size `video.mp4` / widest image (`fullResSource`).
+  `pnpm post --original` uploads that file byte-for-byte (SHA-256 verified), with no HLS or size caps.

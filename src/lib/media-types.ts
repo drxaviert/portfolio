@@ -52,6 +52,11 @@ interface MediaBase {
   createdAt: string;
   /** The archived original's filename, e.g. `clip.mov`. */
   original: string;
+  /**
+   * Set when `pnpm post --original` served the source file byte-for-byte as the
+   * full-size asset; `sha256` is what R2 verified after the upload.
+   */
+  source?: { bytes: number; sha256: string };
 }
 
 export interface ImageMedia extends MediaBase {
@@ -87,4 +92,19 @@ export function isImageMedia(media: MediaManifest): media is ImageMedia {
 
 export function isVideoMedia(media: MediaManifest): media is VideoMedia {
   return media.kind === "video";
+}
+
+/**
+ * The one variant a full-size view draws: the widest across both formats, so an
+ * `--original` WebP beats the smaller AVIFs encoded beside it. On a tie AVIF
+ * wins, being the smaller file at the same width.
+ */
+export function fullResSource(
+  sources: readonly MediaSource[],
+): MediaSource | undefined {
+  return [...sources].sort(
+    (a, b) =>
+      b.width - a.width ||
+      (a.format === b.format ? 0 : a.format === "avif" ? -1 : 1),
+  )[0];
 }

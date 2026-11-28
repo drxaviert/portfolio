@@ -39,15 +39,14 @@
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-01-a02-retouched-4820f51800/w1920.webp"
     },
     {
-      "format": "avif",
-      "width": 2048,
-      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-01-a02-retouched-4820f51800/w2048.avif"
-    },
-    {
       "format": "webp",
       "width": 2048,
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/sunglasses-01-a02-retouched-4820f51800/w2048.webp"
     }
   ],
-  "lqip": "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAADQAwCdASoQABQAPtFUo0uoJKMhsAgBABoJZACdACHhdi0XGTDcHAAA/vDRN3OexvgAeW2MfiqKWyDoW2IdJ7s9iIfUA6VNLIYoKvizLL/IDqucMVzOAAAA"
+  "lqip": "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAADQAwCdASoQABQAPtFUo0uoJKMhsAgBABoJZACdACHhdi0XGTDcHAAA/vDRN3OexvgAeW2MfiqKWyDoW2IdJ7s9iIfUA6VNLIYoKvizLL/IDqucMVzOAAAA",
+  "source": {
+    "bytes": 53870,
+    "sha256": "4820f5180041c044748efd339c6eee432f96ca35c77c45a74b12b40a2602adc1"
+  }
 }

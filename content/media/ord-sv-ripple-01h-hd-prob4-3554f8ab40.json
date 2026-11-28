@@ -7,32 +7,22 @@
   "caption": "Ordinary",
   "createdAt": "2026-11-28T00:54:14.236Z",
   "original": "ORD_SV_Ripple_01h_HD_prob4.mp4",
+  "source": {
+    "bytes": 17894976,
+    "sha256": "3554f8ab40017eac11b67ef0a014e977fc2780c08e17b0c6840e4a880bf51543"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ord-sv-ripple-01h-hd-prob4-3554f8ab40/video.mp4",
-    "bytes": 3809049
+    "bytes": 17894976
   },
-  "hls": {
-    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ord-sv-ripple-01h-hd-prob4-3554f8ab40/hls/master.m3u8",
-    "bytes": 27309603,
-    "levels": [
-      {
-        "height": 1080,
-        "bandwidth": 5500000
-      },
-      {
-        "height": 720,
-        "bandwidth": 3080000
-      },
-      {
-        "height": 480,
-        "bandwidth": 1320000
-      }
-    ]
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ord-sv-ripple-01h-hd-prob4-3554f8ab40/canvas.mp4",
+    "bytes": 2528127
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ord-sv-ripple-01h-hd-prob4-3554f8ab40/poster.avif",
     "jpg": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ord-sv-ripple-01h-hd-prob4-3554f8ab40/poster.jpg"
   },
   "duration": 60.04,
-  "hasAudio": false
+  "hasAudio": true
 }

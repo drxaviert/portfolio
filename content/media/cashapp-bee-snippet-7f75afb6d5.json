@@ -7,13 +7,17 @@
   "caption": "Cash App",
   "createdAt": "2026-11-28T00:58:57.949Z",
   "original": "CashApp_Bee_Snippet.mp4",
+  "source": {
+    "bytes": 2032372,
+    "sha256": "7f75afb6d5365a3ed327497e5ef64ab4dcec212d929b395d6a0b1e786885e94d"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cashapp-bee-snippet-7f75afb6d5/video.mp4",
-    "bytes": 1815643
+    "bytes": 2032372
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cashapp-bee-snippet-7f75afb6d5/canvas.mp4",
-    "bytes": 171476
+    "bytes": 171608
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/cashapp-bee-snippet-7f75afb6d5/poster.avif",

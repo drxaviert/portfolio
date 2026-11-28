@@ -20,7 +20,11 @@ import {
 import * as THREE from "three";
 import { useReducedMotion } from "@/components/home/use-reduced-motion";
 import { MediaImage } from "@/components/media/media-image";
-import type { ImageMedia, MediaManifest } from "@/lib/media-types";
+import {
+  fullResSource,
+  type ImageMedia,
+  type MediaManifest,
+} from "@/lib/media-types";
 import type { Box } from "@/components/work/morph";
 import {
   gridMetrics,
@@ -71,6 +75,7 @@ import {
 import type { BreathSettings } from "./breathing";
 import { hoverIntentReady, hoverValue, retargetHover } from "./hover";
 import type { HoverSettings, HoverTween } from "./hover";
+import { projectLabel } from "./items";
 import { adjacentCell, keyboardGlideProgress } from "./keyboard-nav";
 import { usePan } from "./use-pan";
 import { centrePlaneScroll, planePosition } from "./wrap";
@@ -2938,14 +2943,10 @@ export const InfiniteCanvas = forwardRef<
         return ready;
       }
 
-      const largest = (format: "avif" | "webp") =>
-        media.sources
-          .filter((source) => source.format === format)
-          .sort((a, b) => b.width - a.width)[0];
-      const sources = [largest("avif"), largest("webp")].filter(
-        (source): source is NonNullable<typeof source> => Boolean(source),
-      );
-      if (sources.length === 0) return Promise.resolve(false);
+      // Warm exactly the file the opened MediaImage (fullRes) will draw.
+      const top = fullResSource(media.sources);
+      if (!top) return Promise.resolve(false);
+      const sources = [top];
 
       const key = `image:${media.id}`;
       const existing = preloaded.get(key);
@@ -2958,8 +2959,8 @@ export const InfiniteCanvas = forwardRef<
         return image;
       });
 
-      // Both formats are warmed; the viewer picks AVIF where it is supported.
-      const ready = Promise.all(
+      const ready
+ = Promise.all(
         images.map((image) =>
           image.decode().then(
             () => true,
@@ -3646,16 +3647,36 @@ export const InfiniteCanvas = forwardRef<
       else delete surface.dataset.tileFocus;
     }
 
-    function setHoverLabel(visible: boolean): void {
+    /** The tag's width, measured when its text changes. */
+    let hoverLabelWidth = 0;
+
+    /**
+     * Show or hide the pointer tag. Showing names the plane's project (the
+     * viewer chip's label) and re-clamps, since the name sets the tag's width.
+     */
+    function setHoverLabel(visible: boolean, plane?: Plane | null): void {
       const label = hoverLabelRef.current;
 
       if (!label) return;
 
-      if (visible) label.dataset.visible = "true";
-      else delete label.dataset.visible;
+      if (!visible) {
+        delete label.dataset.visible;
+        return;
+      }
+
+      const item = plane ? items[plane.itemIndex] : undefined;
+      if (item) {
+        const text = projectLabel(item.project);
+        if (label.textContent !== text) {
+          label.textContent = text;
+          hoverLabelWidth = label.offsetWidth;
+        }
+      }
+      if (hoverPoint) positionHoverLabel(hoverPoint.x, hoverPoint.y);
+      label.dataset.visible = "true";
     }
 
-    /** Move the label with the pointer, clamped inside the canvas surface. */
+    /** Move the tag with the pointer, clamped inside the canvas surface. */
     function positionHoverLabel(clientX: number, clientY: number): void {
       const surface = containerRef.current;
       const label = hoverLabelRef.current;
@@ -3665,7 +3686,7 @@ export const InfiniteCanvas = forwardRef<
       const rect = surface.getBoundingClientRect();
       const x = Math.min(
         Math.max(0, clientX - rect.left + 14),
-        Math.max(0, rect.width - 56),
+        Math.max(0, rect.width - hoverLabelWidth),
       );
       const y = Math.min(
         Math.max(0, clientY - rect.top + 18),
@@ -3837,7 +3858,7 @@ export const InfiniteCanvas = forwardRef<
         } else if (hoverIntentReady(hoverIntentAt, now)) {
           hoverIntentPlane = null;
           setHoverCursor(true);
-          setHoverLabel(true);
+          setHoverLabel(true, hoveredPlane);
 
           if (perfEnabled) {
             markPerf("cursor-change", { hover: true });
@@ -5301,9 +5322,7 @@ export const InfiniteCanvas = forwardRef<
     >
       <div ref={canvasHostRef} className="cv-webgl-host" aria-hidden="true" />
 
-      <span ref={hoverLabelRef} className="cv-hover-label" aria-hidden="true">
-        View
-      </span>
+      <span ref={hoverLabelRef} className="cv-hover-tag" aria-hidden="true" />
 
       {webglFailed ? <StaticFallback items={items} /> : null}
 

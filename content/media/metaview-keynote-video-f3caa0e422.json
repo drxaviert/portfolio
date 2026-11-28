@@ -7,27 +7,17 @@
   "caption": "Metaview",
   "createdAt": "2026-11-28T00:59:16.009Z",
   "original": "Metaview_Keynote_Video.mp4",
+  "source": {
+    "bytes": 14453522,
+    "sha256": "f3caa0e4229d1d6c0e5c70864463332b8c56dc06fbe7b01b3394933a5dc6ced3"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/metaview-keynote-video-f3caa0e422/video.mp4",
-    "bytes": 3961668
+    "bytes": 14453522
   },
-  "hls": {
-    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/metaview-keynote-video-f3caa0e422/hls/master.m3u8",
-    "bytes": 24862347,
-    "levels": [
-      {
-        "height": 1080,
-        "bandwidth": 5640800
-      },
-      {
-        "height": 720,
-        "bandwidth": 3220800
-      },
-      {
-        "height": 480,
-        "bandwidth": 1460800
-      }
-    ]
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/metaview-keynote-video-f3caa0e422/canvas.mp4",
+    "bytes": 1967681
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/metaview-keynote-video-f3caa0e422/poster.avif",

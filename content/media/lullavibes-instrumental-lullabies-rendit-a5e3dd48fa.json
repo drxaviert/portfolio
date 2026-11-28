@@ -7,27 +7,17 @@
   "caption": "Feliz Navidad lullaby",
   "createdAt": "2026-11-28T00:56:58.079Z",
   "original": "Lullavibes-Instrumental-Lullabies-｜-Rendition-of-Wiz-Khalifa’s-&-Charlie-Puth's.mp4",
+  "source": {
+    "bytes": 37453191,
+    "sha256": "a5e3dd48fac0dcbaa91d626385a11ad2a69254664a8f1b4ad468a0137d49d61f"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lullavibes-instrumental-lullabies-rendit-a5e3dd48fa/video.mp4",
-    "bytes": 10096254
+    "bytes": 37453191
   },
-  "hls": {
-    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lullavibes-instrumental-lullabies-rendit-a5e3dd48fa/hls/master.m3u8",
-    "bytes": 64229105,
-    "levels": [
-      {
-        "height": 1080,
-        "bandwidth": 5640800
-      },
-      {
-        "height": 720,
-        "bandwidth": 3220800
-      },
-      {
-        "height": 480,
-        "bandwidth": 1460800
-      }
-    ]
+  "canvas": {
+    "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lullavibes-instrumental-lullabies-rendit-a5e3dd48fa/canvas.mp4",
+    "bytes": 3903302
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lullavibes-instrumental-lullabies-rendit-a5e3dd48fa/poster.avif",

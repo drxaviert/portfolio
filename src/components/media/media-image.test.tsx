@@ -58,4 +58,26 @@ describe("MediaImage", () => {
     expect(avif?.getAttribute("srcset")).toContain("w2560.avif");
     expect(avif?.getAttribute("srcset")).not.toContain("w640.avif");
   });
+
+  it("fullRes draws an --original WebP over a smaller AVIF", () => {
+    const original = {
+      ...media,
+      sources: [
+        ...media.sources.filter((source) => source.width < 2560),
+        {
+          format: "webp" as const,
+          width: 2560,
+          url: "https://m.test/w2560.webp",
+        },
+      ],
+    };
+    const { container } = render(
+      <MediaImage media={original} alt={original.alt} fullRes />,
+    );
+
+    expect(container.querySelector('source[type="image/avif"]')).toBeNull();
+    expect(container.querySelector("img")?.getAttribute("srcset")).toBe(
+      "https://m.test/w2560.webp 2560w",
+    );
+  });
 });

@@ -26,7 +26,7 @@ describe("getMedia", () => {
     if (media.kind !== "image") return;
 
     expect(media.sources.map((source) => source.width)).toEqual([
-      640, 640, 1280, 1280, 1920, 1920, 2560, 2560,
+      640, 640, 1280, 1280, 1920, 1920, 2560,
     ]);
     expect(media.lqip.startsWith("data:image/webp;base64,")).toBe(true);
   });

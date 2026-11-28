@@ -1,11 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { type MediaStore, sha256Hex } from "./lib/media-store.ts";
 import {
   CANVAS_MAX_HEIGHT,
   canvasTargetSize,
   HLS_MIN_DURATION,
   hlsCapFor,
   hlsRungs,
+  assertOriginalServable,
   mp4CapFor,
+  originalImageWidths,
+  parseArgs,
+  putOriginal,
   selectInbox,
   shouldUseHls,
 } from "./post.ts";
@@ -145,5 +150,82 @@ describe("mp4CapFor", () => {
     ]) {
       expect(mp4CapFor(name)).toBe(15 * MB);
     }
+  });
+});
+
+describe("--original", () => {
+  it("parses the flag and refuses re-encode flags beside it", () => {
+    expect(parseArgs(["--original"]).original).toBe(true);
+    expect(parseArgs([]).original).toBe(false);
+    expect(() => parseArgs(["--original", "--hls"])).toThrow(/--original/);
+    expect(() => parseArgs(["--original", "--webm"])).toThrow(/--original/);
+  });
+
+  it("encodes only the standard widths below the source", () => {
+    expect(originalImageWidths(2400)).toEqual([640, 1280, 1920]);
+    expect(originalImageWidths(2560)).toEqual([640, 1280, 1920]);
+    expect(originalImageWidths(3000)).toEqual([640, 1280, 1920, 2560]);
+    expect(originalImageWidths(600)).toEqual([]);
+  });
+
+  it("serves only formats a browser plays as is", () => {
+    expect(() => assertOriginalServable("video", "mp4")).not.toThrow();
+    expect(() => assertOriginalServable("video", "MP4")).not.toThrow();
+    expect(() => assertOriginalServable("video", "mov")).toThrow(/\.mov/);
+    expect(() => assertOriginalServable("image", "webp")).not.toThrow();
+    expect(() => assertOriginalServable("image", "avif")).not.toThrow();
+    expect(() => assertOriginalServable("image", "png")).toThrow(/\.png/);
+  });
+});
+
+describe("putOriginal", () => {
+  const body = Buffer.from("original bytes");
+  const digest = sha256Hex(body);
+
+  function fakeStore(
+    kind: MediaStore["kind"],
+    stored: string | null,
+  ): { store: MediaStore; put: ReturnType<typeof vi.fn> } {
+    const put = vi.fn(async ({ key }: { key: string }) => ({
+      url: `https://media.test/${key}`,
+      skipped: false,
+    }));
+    return {
+      put,
+      store: {
+        kind,
+        urlFor: (key) => `https://media.test/${key}`,
+        head: async () => true,
+        storedSha256: async () => stored,
+        put,
+      },
+    };
+  }
+
+  it("sends the digest and passes when the store holds the same bytes", async () => {
+    const { store, put } = fakeStore("r2", digest);
+    const result = await putOriginal(store, "media/a/video.mp4", body);
+    expect(put.mock.calls[0][0]).toMatchObject({ sha256: digest, body });
+    expect(result).toEqual({
+      url: "https://media.test/media/a/video.mp4",
+      bytes: body.byteLength,
+      sha256: digest,
+    });
+  });
+
+  it("fails on a mismatched or missing stored checksum", async () => {
+    await expect(
+      putOriginal(fakeStore("r2", "0".repeat(64)).store, "k", body),
+    ).rejects.toThrow(/failed verification/);
+    await expect(
+      putOriginal(fakeStore("r2", null).store, "k", body),
+    ).rejects.toThrow(/\(none\)/);
+  });
+
+  it("skips the comparison on a dry run", async () => {
+    const { store } = fakeStore("dry-run", null);
+    await expect(putOriginal(store, "k", body)).resolves.toMatchObject({
+      sha256: digest,
+    });
   });
 });

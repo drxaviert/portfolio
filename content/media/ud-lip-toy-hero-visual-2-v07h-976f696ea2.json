@@ -7,9 +7,13 @@
   "caption": "Urban Decay",
   "createdAt": "2026-11-28T00:54:19.686Z",
   "original": "UD_Lip_Toy_Hero_Visual_2_v07h.mp4",
+  "source": {
+    "bytes": 1729650,
+    "sha256": "976f696ea2c0aeb713603f5d9639c7107c310ada2a5727f00d2de2c8e81decc3"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-lip-toy-hero-visual-2-v07h-976f696ea2/video.mp4",
-    "bytes": 1725537
+    "bytes": 1729650
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/ud-lip-toy-hero-visual-2-v07h-976f696ea2/canvas.mp4",

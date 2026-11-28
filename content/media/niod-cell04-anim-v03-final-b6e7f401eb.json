@@ -1,19 +1,23 @@
 {
   "id": "niod-cell04-anim-v03-final-b6e7f401eb",
   "kind": "video",
-  "width": 1080,
-  "height": 1080,
+  "width": 1920,
+  "height": 1920,
   "alt": "NIOD motion piece",
   "caption": "NIOD",
   "createdAt": "2026-11-28T01:01:45.254Z",
   "original": "NIOD_Cell04_Anim_v03_FINAL.mp4",
+  "source": {
+    "bytes": 32698389,
+    "sha256": "b6e7f401eb6e83c65b17856ba9e79034fdae4f2e5cb1d6f0bd52be67696639cd"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell04-anim-v03-final-b6e7f401eb/video.mp4",
-    "bytes": 10705343
+    "bytes": 32698389
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell04-anim-v03-final-b6e7f401eb/canvas.mp4",
-    "bytes": 841180
+    "bytes": 840243
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell04-anim-v03-final-b6e7f401eb/poster.avif",

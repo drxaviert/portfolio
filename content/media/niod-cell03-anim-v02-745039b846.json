@@ -7,9 +7,13 @@
   "caption": "NIOD",
   "createdAt": "2026-11-28T00:54:40.017Z",
   "original": "NIOD_Cell03_Anim_v02.mp4",
+  "source": {
+    "bytes": 5954013,
+    "sha256": "745039b846cc43b6180a9cb94feffee45c6f11eb3f1597b8ede350faba88231b"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell03-anim-v02-745039b846/video.mp4",
-    "bytes": 3941820
+    "bytes": 5954013
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/niod-cell03-anim-v02-745039b846/canvas.mp4",

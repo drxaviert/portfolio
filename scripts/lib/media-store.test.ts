@@ -10,6 +10,7 @@ import {
   MEDIA_CACHE_CONTROL,
   r2Endpoint,
   type S3Sender,
+  sha256Hex,
 } from "./media-store.ts";
 import type { R2Env } from "./r2-env.ts";
 
@@ -38,6 +39,43 @@ describe("r2Endpoint", () => {
 });
 
 describe("createR2Store", () => {
+  it("sends a given SHA-256 as the base64 ChecksumSHA256", async () => {
+    const { client, send } = sender(async () => ({}));
+    const store = createR2Store(env, { client });
+    const body = Buffer.from("original");
+    const sha256 = sha256Hex(body);
+
+    await store.put({ key: "media/id/video.mp4", body, sha256 });
+
+    const command = send.mock.calls[0][0] as PutObjectCommand;
+    expect(command.input.ChecksumSHA256).toBe(
+      Buffer.from(sha256, "hex").toString("base64"),
+    );
+  });
+
+  it("reads the stored checksum back as hex, or null when absent", async () => {
+    const sha256 = sha256Hex(Buffer.from("original"));
+    const { client, send } = sender(async () => ({
+      ChecksumSHA256: Buffer.from(sha256, "hex").toString("base64"),
+    }));
+    const store = createR2Store(env, { client });
+
+    await expect(store.storedSha256("media/id/video.mp4")).resolves.toBe(
+      sha256,
+    );
+    const command = send.mock.calls[0][0] as HeadObjectCommand;
+    expect(command).toBeInstanceOf(HeadObjectCommand);
+    expect(command.input).toMatchObject({
+      Key: "media/id/video.mp4",
+      ChecksumMode: "ENABLED",
+    });
+
+    const bare = createR2Store(env, {
+      client: sender(async () => ({})).client,
+    });
+    await expect(bare.storedSha256("media/id/video.mp4")).resolves.toBeNull();
+  });
+
   it("PUTs the key with the mapped content type and immutable cache", async () => {
     const { client, send } = sender(async () => ({}));
     const store = createR2Store(env, { client });

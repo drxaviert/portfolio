@@ -7,9 +7,13 @@
   "caption": "Library survey post",
   "createdAt": "2026-11-28T00:59:34.135Z",
   "original": "LPL_Social_01.mp4",
+  "source": {
+    "bytes": 1153542,
+    "sha256": "f3146c9f7137c61a4c2a67a0c4e15b00125d7d5510f65e8395765f5a1f713cfe"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lpl-social-01-f3146c9f71/video.mp4",
-    "bytes": 912816
+    "bytes": 1153542
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/lpl-social-01-f3146c9f71/canvas.mp4",

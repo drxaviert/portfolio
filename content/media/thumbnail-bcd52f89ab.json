@@ -39,15 +39,14 @@
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/thumbnail-bcd52f89ab/w1920.webp"
     },
     {
-      "format": "avif",
-      "width": 2560,
-      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/thumbnail-bcd52f89ab/w2560.avif"
-    },
-    {
       "format": "webp",
       "width": 2560,
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/thumbnail-bcd52f89ab/w2560.webp"
     }
   ],
-  "lqip": "data:image/webp;base64,UklGRkQAAABXRUJQVlA4IDgAAABQAQCdASoQAAkAAsBMJZwABAAAAP73qHgV9ufJo//Z22HNoja7LZD29qqUs3swOctvmkgDx04AAA=="
+  "lqip": "data:image/webp;base64,UklGRkQAAABXRUJQVlA4IDgAAABQAQCdASoQAAkAAsBMJZwABAAAAP73qHgV9ufJo//Z22HNoja7LZD29qqUs3swOctvmkgDx04AAA==",
+  "source": {
+    "bytes": 150890,
+    "sha256": "bcd52f89ab1fda347bd62d63dd9ab125b83ba33955990e811282a46d4b6d0bae"
+  }
 }

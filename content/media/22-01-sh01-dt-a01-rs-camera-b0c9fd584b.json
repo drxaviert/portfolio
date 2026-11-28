@@ -29,15 +29,14 @@
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/22-01-sh01-dt-a01-rs-camera-b0c9fd584b/w1280.webp"
     },
     {
-      "format": "avif",
-      "width": 1920,
-      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/22-01-sh01-dt-a01-rs-camera-b0c9fd584b/w1920.avif"
-    },
-    {
       "format": "webp",
       "width": 1920,
       "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/22-01-sh01-dt-a01-rs-camera-b0c9fd584b/w1920.webp"
     }
   ],
-  "lqip": "data:image/webp;base64,UklGRqIAAABXRUJQVlA4IJYAAADQAwCdASoQABUAPtFWpkuoJKOhsAgBABoJbAC06GlENGU+U77Zg8AA/vkpzhMpDTcSRdjR0qjeb61uhS9zZnz1yMRbrWBJlPVXhPf6k0z+Dx9G3rq5cqvbZZfv4p7+SXfh0Tgm6tCb/stKOYsOW56om8T2cl8100z3gnOVVUd5n4XIZhaOwiez3awuC4Njf6bUolGCAAA="
+  "lqip": "data:image/webp;base64,UklGRqIAAABXRUJQVlA4IJYAAADQAwCdASoQABUAPtFWpkuoJKOhsAgBABoJbAC06GlENGU+U77Zg8AA/vkpzhMpDTcSRdjR0qjeb61uhS9zZnz1yMRbrWBJlPVXhPf6k0z+Dx9G3rq5cqvbZZfv4p7+SXfh0Tgm6tCb/stKOYsOW56om8T2cl8100z3gnOVVUd5n4XIZhaOwiez3awuC4Njf6bUolGCAAA=",
+  "source": {
+    "bytes": 584682,
+    "sha256": "b0c9fd584b3dea5ed1f346c258138cc122d301340393c0292e7e29ebac964782"
+  }
 }

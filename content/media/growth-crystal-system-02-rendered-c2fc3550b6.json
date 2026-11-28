@@ -7,13 +7,17 @@
   "caption": "NIOD",
   "createdAt": "2026-11-28T00:54:46.980Z",
   "original": "Growth_Crystal_System_02_RENDERED.mp4",
+  "source": {
+    "bytes": 6125553,
+    "sha256": "c2fc3550b6987b528c914d6bc9c65104fe822936f49c9634e799d89e5847e4f6"
+  },
   "mp4": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/growth-crystal-system-02-rendered-c2fc3550b6/video.mp4",
-    "bytes": 3671462
+    "bytes": 6125553
   },
   "canvas": {
     "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/growth-crystal-system-02-rendered-c2fc3550b6/canvas.mp4",
-    "bytes": 407073
+    "bytes": 406176
   },
   "poster": {
     "avif": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/growth-crystal-system-02-rendered-c2fc3550b6/poster.avif",

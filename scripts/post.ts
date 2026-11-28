@@ -31,6 +31,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import sharp from "sharp";
 import type {
+  ImageFormat,
   ImageMedia,
   MediaManifest,
   MediaSource,
@@ -44,6 +45,7 @@ import {
   createLocalStore,
   createR2Store,
   type MediaStore,
+  sha256Hex,
 } from "./lib/media-store.ts";
 import { loadR2Env } from "./lib/r2-env.ts";
 
@@ -151,6 +153,11 @@ interface CliOptions {
   mirrorLocal: boolean;
   /** Leave the inbox original in place instead of renaming it into media/archive/. */
   noArchive: boolean;
+  /**
+   * Upload the source file byte-for-byte as the full-size asset (checksum
+   * verified) and only encode the small tile renditions. No HLS, no size caps.
+   */
+  original: boolean;
   help: boolean;
 }
 
@@ -160,6 +167,8 @@ interface Job {
   ext: string;
   kind: "image" | "video" | "audio";
   id: string;
+  /** The manifest a `--force` re-ingest replaces; its alt, caption and date carry over. */
+  previous?: MediaManifest;
 }
 
 interface ProbeResult {
@@ -190,7 +199,7 @@ export function assertStudySlug(slug: string): void {
 /* CLI                                                                        */
 /* -------------------------------------------------------------------------- */
 
-function parseArgs(argv: string[]): CliOptions {
+export function parseArgs(argv: string[]): CliOptions {
   const options: CliOptions = {
     audio: false,
     webm: false,
@@ -203,6 +212,7 @@ function parseArgs(argv: string[]): CliOptions {
     local: false,
     mirrorLocal: false,
     noArchive: false,
+    original: false,
     help: false,
   };
 
@@ -273,6 +283,9 @@ function parseArgs(argv: string[]): CliOptions {
       case "--no-archive":
         options.noArchive = true;
         break;
+      case "--original":
+        options.original = true;
+        break;
       case "--help":
       case "-h":
         options.help = true;
@@ -294,6 +307,11 @@ function parseArgs(argv: string[]): CliOptions {
   }
   if (options.hls && options.noHls) {
     throw new UsageError("--hls and --no-hls contradict each other");
+  }
+  if (options.original && (options.hls || options.webm)) {
+    throw new UsageError(
+      "--original serves the source file as is; it cannot be combined with --hls or --webm",
+    );
   }
 
   return options;
@@ -333,6 +351,13 @@ Options
   --mirror-local        Upload to R2 and also copy every object to media/local/.
   --no-archive          Leave the inbox original in place (the R2 migration
                         cleans up its own staging copy).
+  --original            Serve the source file byte-for-byte as the full-size
+                        asset (SHA-256 verified after upload). Videos must be
+                        .mp4, images .webp or .avif. Only the small renditions
+                        are encoded (canvas.mp4, posters, image widths below the
+                        source); no HLS ladder and no size caps. With --force,
+                        an existing manifest keeps its alt, caption and date.
+
   --help, -h            Show this help.
 
 Video
@@ -443,15 +468,71 @@ async function publishAll(
  * original keeps a 1600px variant. Never upscales.
  */
 function imageWidths(sourceWidth: number): number[] {
-  const widths = IMAGE_WIDTHS.filter((width) => width < sourceWidth);
+  const widths = originalImageWidths(sourceWidth);
   widths.push(sourceWidth);
   return widths;
+}
+
+/**
+ * The widths `--original` encodes: every standard width below the source. The
+ * source width itself is the original file, so it is never re-encoded.
+ */
+export function originalImageWidths(sourceWidth: number): number[] {
+  return IMAGE_WIDTHS.filter((width) => width < sourceWidth);
+}
+
+const ORIGINAL_EXTENSIONS: Readonly<Record<Job["kind"], readonly string[]>> = {
+  image: ["webp", "avif"],
+  video: ["mp4"],
+  audio: [],
+};
+
+/** `--original` serves the file as is, so it must already be a web format. */
+export function assertOriginalServable(kind: Job["kind"], ext: string): void {
+  const allowed = ORIGINAL_EXTENSIONS[kind];
+  if (!allowed.includes(ext.toLowerCase())) {
+    throw new Error(
+      `--original serves the file as is; a ${kind} must be ${allowed.join(" or ") || "encoded"}, not .${ext}`,
+    );
+  }
+}
+
+/**
+ * Uploads a source file unchanged and proves the store holds those exact bytes.
+ * Only a dry run, which stores nothing, skips the comparison; anywhere else a
+ * missing checksum (an object `--skip-existing` left alone, say) fails.
+ */
+export async function putOriginal(
+  store: MediaStore,
+  key: string,
+  body: Buffer,
+): Promise<{ url: string; bytes: number; sha256: string }> {
+  const sha256 = sha256Hex(body);
+  const { url } = await store.put({ key, body, sha256 });
+  if (store.kind === "dry-run") {
+    console.log(
+      `  dry-run  original ${key} · ${formatBytes(body.byteLength)} · sha256 not checked`,
+    );
+    return { url, bytes: body.byteLength, sha256 };
+  }
+  const stored = await store.storedSha256(key);
+  if (stored !== sha256) {
+    throw new Error(
+      `${key} failed verification: stored SHA-256 ${stored ?? "(none)"} does not match ${sha256}`,
+    );
+  }
+  console.log(
+    `  info     original ${key} · ${formatBytes(body.byteLength)} · sha256 verified`,
+  );
+
+  return { url, bytes: body.byteLength, sha256 };
 }
 
 async function processImage(
   job: Job,
   alt: string,
   caption: string,
+  options: CliOptions,
   store: MediaStore,
 ): Promise<ImageMedia> {
   const metadata = await sharp(job.file).metadata();
@@ -464,9 +545,22 @@ async function processImage(
   const width = rotated ? metadata.height : metadata.width;
   const height = rotated ? metadata.width : metadata.height;
 
+  if (options.original) {
+    assertOriginalServable("image", job.ext);
+    // The smaller widths bake the rotation in; the served original would not,
+    // so a rotated source would display differently per width.
+    if ((metadata.orientation ?? 1) !== 1) {
+      throw new Error(
+        "--original cannot serve an image with an EXIF rotation; bake it in first",
+      );
+    }
+  }
+
   const sources: MediaSource[] = [];
 
-  for (const targetWidth of imageWidths(width)) {
+  for (const targetWidth of options.original
+    ? originalImageWidths(width)
+    : imageWidths(width)) {
     const resized = sharp(job.file)
       .rotate()
       .resize({ width: targetWidth, withoutEnlargement: true });
@@ -501,6 +595,19 @@ async function processImage(
     });
   }
 
+  let source: { bytes: number; sha256: string } | undefined;
+  if (options.original) {
+    const format: ImageFormat =
+      job.ext.toLowerCase() === "avif" ? "avif" : "webp";
+    const uploaded = await putOriginal(
+      store,
+      `media/${job.id}/w${width}.${format}`,
+      await readFile(job.file),
+    );
+    sources.push({ format, width, url: uploaded.url });
+    source = { bytes: uploaded.bytes, sha256: uploaded.sha256 };
+  }
+
   const lqipBuffer = await sharp(job.file)
     .rotate()
     .resize({ width: 16 })
@@ -518,6 +625,7 @@ async function processImage(
     original: job.name,
     sources,
     lqip: `data:image/webp;base64,${lqipBuffer.toString("base64")}`,
+    ...(source ? { source } : {}),
   };
 }
 
@@ -808,6 +916,17 @@ async function processVideo(
   store: MediaStore,
 ): Promise<VideoMedia> {
   const probe = await probeVideo(job.file);
+  if (options.original) {
+    return processVideoOriginal(
+      job,
+      alt,
+      caption,
+      options,
+      probe,
+      workDir,
+      store,
+    );
+  }
   const useHls = shouldUseHls(probe.duration, options);
   const rungs = useHls ? hlsRungs(probe.height) : [];
   const ladderSize =
@@ -1058,6 +1177,135 @@ async function processVideo(
   };
 }
 
+/**
+ * `--original`: the source MP4 is the full-size file, uploaded unchanged and
+ * checksum-verified. Only the tile rendition and the posters are encoded, so
+ * there is no HLS ladder and no size cap, and the manifest records the
+ * source's own dimensions and audio.
+ */
+async function processVideoOriginal(
+  job: Job,
+  alt: string,
+  caption: string,
+  options: CliOptions,
+  probe: ProbeResult,
+  workDir: string,
+  store: MediaStore,
+): Promise<VideoMedia> {
+  assertOriginalServable("video", job.ext);
+  if (options.posterAt >= probe.duration) {
+    throw new Error(
+      `--poster-at ${options.posterAt} is past the ${probe.duration.toFixed(2)}s duration`,
+    );
+  }
+
+  const posterSize = videoTargetSize(probe.width, probe.height);
+  const canvasSize = canvasTargetSize(probe.width, probe.height, probe.height);
+  console.log(
+    `  info     ${probe.width}x${probe.height} · ${probe.duration.toFixed(2)}s · audio: ${probe.hasAudio ? "yes" : "no"} → original`,
+  );
+
+  let canvasBuffer: Buffer | undefined;
+  if (canvasSize) {
+    const canvasPath = path.join(workDir, "canvas.mp4");
+    await runFfmpeg([
+      "-i",
+      job.file,
+      "-vf",
+      scaleFilter(canvasSize),
+      "-c:v",
+      "libx264",
+      "-crf",
+      "24",
+      "-maxrate",
+      CANVAS_MAXRATE,
+      "-bufsize",
+      CANVAS_BUFSIZE,
+      "-preset",
+      "slow",
+      "-pix_fmt",
+      "yuv420p",
+      "-an",
+      "-movflags",
+      "+faststart",
+      canvasPath,
+    ]);
+    canvasBuffer = await readFile(canvasPath);
+    console.log(
+      `  info     canvas ${canvasSize.width}x${canvasSize.height} · ${formatBytes(canvasBuffer.byteLength)}`,
+    );
+  }
+
+  const posterPng = path.join(workDir, "poster.png");
+  await runFfmpeg([
+    "-ss",
+    String(options.posterAt),
+    "-i",
+    job.file,
+    "-frames:v",
+    "1",
+    "-vf",
+    scaleFilter(posterSize),
+    "-update",
+    "1",
+    posterPng,
+  ]);
+  const poster = sharp(posterPng);
+  const [posterAvif, posterJpg] = await Promise.all([
+    poster.clone().avif({ quality: 55 }).toBuffer(),
+    poster.clone().jpeg({ quality: 82 }).toBuffer(),
+  ]);
+
+  const mp4 = await putOriginal(
+    store,
+    `media/${job.id}/video.mp4`,
+    await readFile(job.file),
+  );
+
+  return {
+    id: job.id,
+    kind: "video",
+    width: probe.width,
+    height: probe.height,
+    alt,
+    caption,
+    createdAt: new Date().toISOString(),
+    original: job.name,
+    source: { bytes: mp4.bytes, sha256: mp4.sha256 },
+    mp4: { url: mp4.url, bytes: mp4.bytes },
+    ...(canvasBuffer
+      ? {
+          canvas: {
+            url: (
+              await store.put({
+                key: `media/${job.id}/canvas.mp4`,
+                body: canvasBuffer,
+              })
+            ).url,
+            bytes: canvasBuffer.byteLength,
+          },
+        }
+      : {}),
+    poster: {
+      avif: (
+        await store.put({
+          key: `media/${job.id}/poster.avif`,
+          body: posterAvif,
+        })
+      ).url,
+      jpg: (
+        await store.put({
+          key: `media/${job.id}/poster.jpg`,
+          body: posterJpg,
+        })
+      ).url,
+    },
+    duration: Number(probe.duration.toFixed(2)),
+    // The original is served unchanged, so its audio stream is too.
+    hasAudio: probe.hasAudio,
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 /* Alt text                                                                   */
 /* -------------------------------------------------------------------------- */
@@ -1189,13 +1437,19 @@ async function run(): Promise<number> {
 
     const file = path.join(INBOX_DIR, name);
     const id = await mediaId(file, name);
+    const existingPath = path.join(MANIFEST_DIR, `${id}.json`);
 
-    if (
-      kind !== "audio" &&
-      !options.force &&
-      existsSync(path.join(MANIFEST_DIR, `${id}.json`))
-    ) {
-      console.log(`skip     ${name} — content/media/${id}.json already exists`);
+    if (kind !== "audio" && existsSync(existingPath)) {
+      if (!options.force) {
+        console.log(
+          `skip     ${name} — content/media/${id}.json already exists`,
+        );
+        continue;
+      }
+      const previous = JSON.parse(
+        await readFile(existingPath, "utf8"),
+      ) as MediaManifest;
+      jobs.push({ name, file, ext, kind, id, previous });
       continue;
     }
 
@@ -1204,12 +1458,20 @@ async function run(): Promise<number> {
 
   if (jobs.length === 0) return 0;
 
+  // A re-ingest keeps the alt text already written; only new files are asked.
   const mediaJobs = jobs.filter((job) => job.kind !== "audio");
-  const mediaAlts = await collectAltText(
-    mediaJobs.map((job) => job.name),
-    options.alt,
+  const freshJobs = mediaJobs.filter((job) => !job.previous);
+  const freshAlts = await collectAltText(
+    freshJobs.map((job) => job.name),
+    freshJobs.length === mediaJobs.length ? options.alt : undefined,
   );
-  const alts = jobs.map((job) => mediaAlts[mediaJobs.indexOf(job)] ?? "");
+  const singleAlt = mediaJobs.length === 1 ? options.alt : undefined;
+  const alts = jobs.map(
+    (job) =>
+      (job.previous
+        ? (singleAlt ?? job.previous.alt)
+        : freshAlts[freshJobs.indexOf(job)]) ?? "",
+  );
 
   const workRoot = await mkdtemp(path.join(tmpdir(), "media-post-"));
   const written: MediaManifest[] = [];
@@ -1221,7 +1483,8 @@ async function run(): Promise<number> {
       const alt = alts[index] ?? "";
       // `--post` is a caption plus a post file; `--caption` sets the manifest
       // only, which is what the dev library needs.
-      const caption = options.post ?? options.caption ?? "";
+      const caption =
+        options.post ?? options.caption ?? job.previous?.caption ?? "";
 
       try {
         const workDir = path.join(workRoot, job.id);
@@ -1243,8 +1506,9 @@ async function run(): Promise<number> {
 
         const manifest =
           job.kind === "image"
-            ? await processImage(job, alt, caption, store)
+            ? await processImage(job, alt, caption, options, store)
             : await processVideo(job, alt, caption, options, workDir, store);
+        if (job.previous) manifest.createdAt = job.previous.createdAt;
 
         const manifestPath = path.join(MANIFEST_DIR, `${job.id}.json`);
 
