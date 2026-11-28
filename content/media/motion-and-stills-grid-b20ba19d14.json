@@ -1,0 +1,43 @@
+{
+  "id": "motion-and-stills-grid-b20ba19d14",
+  "kind": "image",
+  "width": 1493,
+  "height": 1120,
+  "alt": "",
+  "caption": "",
+  "createdAt": "2026-11-28T06:27:18.888Z",
+  "original": "Motion-and-Stills-Grid.png",
+  "sources": [
+    {
+      "format": "avif",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/motion-and-stills-grid-b20ba19d14/w640.avif"
+    },
+    {
+      "format": "webp",
+      "width": 640,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/motion-and-stills-grid-b20ba19d14/w640.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/motion-and-stills-grid-b20ba19d14/w1280.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1280,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/motion-and-stills-grid-b20ba19d14/w1280.webp"
+    },
+    {
+      "format": "avif",
+      "width": 1493,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/motion-and-stills-grid-b20ba19d14/w1493.avif"
+    },
+    {
+      "format": "webp",
+      "width": 1493,
+      "url": "https://pub-45d68b9ea40441aeb7424d6b1a80a7c7.r2.dev/media/motion-and-stills-grid-b20ba19d14/w1493.webp"
+    }
+  ],
+  "lqip": "data:image/webp;base64,UklGRloAAABXRUJQVlA4IE4AAADwAQCdASoQAAwAAsBMJaQAAxf30EYSgAAA/vbDgHJ9iPocIOJgqhVozmNAZwfe7C5e3i24fcZdkuYX343eL9cM0v6+30AapezPIiIAAAA="
+}

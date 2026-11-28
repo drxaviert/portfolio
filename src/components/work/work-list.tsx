@@ -747,8 +747,8 @@ export function WorkList({
           />
         ) : work ? (
           <Cover
-            scene={work.cover ?? "tiles"}
-            coverImage={work.coverImage}
+            scene={work.thumbImage ? `media:${work.slug}` : work.cover}
+            coverImage={work.thumbImage ?? work.coverImage}
             fit="cover"
           />
         ) : null}

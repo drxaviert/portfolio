@@ -111,6 +111,9 @@ describe("getWork", () => {
     for (const work of listWork()) {
       if (work.slug === "motion-and-stills") {
         expect(work.thumbVideo).toBeUndefined();
+        expect(work.thumbImage?.avif).toContain(
+          "motion-and-stills-grid-b20ba19d14",
+        );
         continue;
       }
 

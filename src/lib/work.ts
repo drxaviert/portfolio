@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { coverImageFor, thumbVideoFor } from "./media";
+import { coverImageFor, getMedia, thumbVideoFor } from "./media";
 import type { CoverImage, ThumbVideo } from "./media";
 import { FEATURED_SLUG } from "./work-order";
 
@@ -54,8 +54,12 @@ export type WorkMeta = {
   layout?: WorkLayout;
   /** Set when `cover` is a media id: the picture the cover slots draw. */
   coverImage?: CoverImage;
-  /** `thumb: media:<id>` in frontmatter: the video the /work hover plays. */
+  /**
+   * `thumb: media:<id>` in frontmatter: what the /work hover shows instead of
+   * the cover. A video id plays its canvas encode; an image id is a still.
+   */
   thumbVideo?: ThumbVideo;
+  thumbImage?: CoverImage;
   /**
    * `hidden: true` in the file's frontmatter: the study stays in the repo and
    * in `WORK_BODIES`, but every listing filters it out and its routes 404.
@@ -158,7 +162,11 @@ function readWork(slug: WorkSlug): WorkMeta {
     ...(cover.startsWith("media:")
       ? { coverImage: coverImageFor(cover.slice("media:".length)) }
       : {}),
-    ...(thumbId ? { thumbVideo: thumbVideoFor(thumbId) } : {}),
+    ...(thumbId
+      ? getMedia(thumbId).kind === "video"
+        ? { thumbVideo: thumbVideoFor(thumbId) }
+        : { thumbImage: coverImageFor(thumbId) }
+      : {}),
   };
 }
 
