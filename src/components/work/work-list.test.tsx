@@ -186,7 +186,7 @@ describe("work list", () => {
     });
   });
 
-  it("leaves no year cell or separator when a study has no year", () => {
+  it("shows Current in the year cell for an ongoing study", () => {
     const { container } = renderList();
     const personal = works.find((work) => work.slug === "personal");
 
@@ -196,10 +196,11 @@ describe("work list", () => {
     );
 
     expect(link).not.toBeNull();
-    expect(link).toHaveAttribute("data-work-no-year", "");
-    expect(link).toHaveAccessibleName(`${personal!.title}, ${personal!.role}`);
-    expect(link?.querySelector(".wd-work-year")).toBeNull();
-    expect(link?.textContent).not.toContain("·");
+    expect(link).not.toHaveAttribute("data-work-no-year");
+    expect(link).toHaveAccessibleName(
+      `${personal!.title}, Current, ${personal!.role}`,
+    );
+    expect(link?.querySelector(".wd-work-year")).toHaveTextContent("Current");
   });
 
   it("keeps the drawer's scroll and title ids on the new list", () => {

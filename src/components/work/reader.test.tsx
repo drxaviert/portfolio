@@ -88,13 +88,12 @@ describe("reader content", () => {
     expect(document.getElementById(READER_TITLE_ID)).toBeInTheDocument();
   });
 
-  it("renders the role alone when the study has no year", () => {
+  it("renders the role and a Current year for an ongoing study", () => {
     renderReader(<p>Case-study body</p>, workMeta("personal"));
 
     const meta = document.querySelector(".wd-intro-meta");
 
-    expect(meta).toHaveTextContent("—");
-    expect(meta?.textContent).not.toContain("·");
+    expect(meta).toHaveTextContent("Motion/3D · Current");
   });
 
   it("puts the shared Breadcrumb above the article, before the column", () => {
