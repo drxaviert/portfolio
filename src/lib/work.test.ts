@@ -116,11 +116,9 @@ describe("year", () => {
     expect(getWork("klaris")?.year).toBe("2025");
   });
 
-  it("omits the optional year when the study has none", () => {
-    const personal = getWork("personal");
-
-    expect(personal).not.toBeNull();
-    expect(personal && "year" in personal).toBe(false);
+  it("reads ongoing studies as Current", () => {
+    expect(getWork("personal")?.year).toBe("Current");
+    expect(getWork("motion-and-stills")?.year).toBe("Current");
   });
 });
 
