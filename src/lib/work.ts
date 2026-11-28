@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { coverImageFor } from "./media";
-import type { CoverImage } from "./media";
+import { coverImageFor, thumbVideoFor } from "./media";
+import type { CoverImage, ThumbVideo } from "./media";
 import { FEATURED_SLUG } from "./work-order";
 
 export type CoverScene = "tiles" | "window" | "phone";
@@ -54,6 +54,8 @@ export type WorkMeta = {
   layout?: WorkLayout;
   /** Set when `cover` is a media id: the picture the cover slots draw. */
   coverImage?: CoverImage;
+  /** `thumb: media:<id>` in frontmatter: the video the /work hover plays. */
+  thumbVideo?: ThumbVideo;
   /**
    * `hidden: true` in the file's frontmatter: the study stays in the repo and
    * in `WORK_BODIES`, but every listing filters it out and its routes 404.
@@ -112,7 +114,7 @@ export function parseFrontmatter(source: string): Record<string, string> {
 function readWork(slug: WorkSlug): WorkMeta {
   const file = path.join(CONTENT_DIR, `${slug}.mdx`);
   const fields = parseFrontmatter(fs.readFileSync(file, "utf8"));
-  const { title, subtitle, year, role, summary, cover, layout, hidden } =
+  const { title, subtitle, year, role, summary, cover, thumb, layout, hidden } =
     fields;
   const missing = [
     ["title", title],
@@ -135,6 +137,14 @@ function readWork(slug: WorkSlug): WorkMeta {
     );
   }
 
+  const thumbId = thumb ? MEDIA_COVER.exec(thumb)?.[1] : undefined;
+
+  if (thumb && !thumbId) {
+    throw new Error(
+      `content/work/${slug}.mdx has thumb "${thumb}"; expected media:<id>`,
+    );
+  }
+
   return {
     slug,
     title,
@@ -148,6 +158,7 @@ function readWork(slug: WorkSlug): WorkMeta {
     ...(cover.startsWith("media:")
       ? { coverImage: coverImageFor(cover.slice("media:".length)) }
       : {}),
+    ...(thumbId ? { thumbVideo: thumbVideoFor(thumbId) } : {}),
   };
 }
 

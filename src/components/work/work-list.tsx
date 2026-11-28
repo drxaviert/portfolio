@@ -17,6 +17,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { Cover } from "@/components/work/cover";
+import type { ThumbVideo } from "@/lib/media";
 import type { WorkMeta } from "@/lib/work";
 import { BlurStack } from "./blur-stack";
 import type { RowMotion } from "./work-filter";
@@ -65,6 +66,51 @@ function visibleTop(scrollRect: DOMRect): number {
     : scrollRect.top + 92;
 
   return Math.max(scrollRect.top + 8, navBottom + 12);
+}
+
+/**
+ * A row's hover video. It plays only while it is the visible front slot and
+ * rewinds when it leaves, so every hover starts the piece from the top. Under
+ * reduced motion it never plays and the poster is the thumbnail.
+ */
+function HoverVideo({
+  video,
+  playing,
+}: {
+  video: ThumbVideo;
+  playing: boolean;
+}) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    if (playing && !prefersReducedMotion()) {
+      // A play() the browser refuses leaves the poster up; nothing to recover.
+      Promise.resolve(element.play()).catch(() => {});
+    } else {
+      element.pause();
+      element.currentTime = 0;
+    }
+  }, [playing]);
+
+  return (
+    <div className="relative h-full w-full overflow-hidden rounded-[12px] bg-surface-container">
+      <video
+        ref={ref}
+        className="absolute inset-0 h-full w-full object-cover"
+        src={video.src}
+        poster={video.poster}
+        width={video.width}
+        height={video.height}
+        muted
+        loop
+        playsInline
+        preload="auto"
+      />
+    </div>
+  );
 }
 
 type Slots = { front: 0 | 1; items: [number | null, number | null] };
@@ -693,7 +739,13 @@ export function WorkList({
         className="wd-work-thumb-img"
         data-front={slots.front === slot ? "" : undefined}
       >
-        {work ? (
+        {work?.thumbVideo ? (
+          <HoverVideo
+            key={work.slug}
+            video={work.thumbVideo}
+            playing={thumbActive && slots.front === slot}
+          />
+        ) : work ? (
           <Cover
             scene={work.cover ?? "tiles"}
             coverImage={work.coverImage}
