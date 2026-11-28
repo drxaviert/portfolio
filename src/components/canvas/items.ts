@@ -2,10 +2,10 @@
  * The real media shown on the WebGL canvas, in the order the grid cycles it.
  *
  * Every file in the 11-27 `Optimized` folder except the per-project
- * `not-canvas` subfolders (pf-3xh.10), mapped to its source project. The
- * first six projects are the initial centre: Google, Cash App, Ordinary,
- * Tribeca Film Festival, NIOD and Shapes In Motion. The rest fill outward in
- * whole-project groups; Personal is the only project large enough to split.
+ * `not-canvas` subfolders (pf-3xh.10), mapped to its source project. Each
+ * project is one contiguous group, and the group order is the placement order
+ * of the canvas clusters (`clusters.ts`): the first five are the featured
+ * projects that open the first view (pf-9cv.23), the rest fill outward.
  * Shared by the live Motion & Stills study and the dev prototype.
  */
 
@@ -16,20 +16,20 @@ export type CanvasMediaEntry = {
 
 export const CANVAS_MEDIA = [
   { id: "google-ai-agents-remake-2k-slowmo-314e33edea", project: "Google" },
-  { id: "cash-flow-6562f7a566", project: "Cash App" },
-  {
-    id: "11242024-ordinary-growthfactors-16x9-a41566383b",
-    project: "Ordinary",
-  },
-  {
-    id: "ord-sv-ripple-01h-hd-prob4-3554f8ab40",
-    project: "Tribeca Film Festival",
-  },
   { id: "niod-cail-a01-dt-front-1-0064-c282a2d915", project: "NIOD" },
   { id: "niod-cell01-anim-v03-final-rev-6ecfbdec88", project: "NIOD" },
   { id: "niod-cell02-anim-v03-final-de3d5e5d08", project: "NIOD" },
   { id: "niod-cell03-anim-v02-745039b846", project: "NIOD" },
   { id: "niod-cell04-anim-v03-final-b6e7f401eb", project: "NIOD" },
+  {
+    id: "ord-sv-ripple-01h-hd-prob4-3554f8ab40",
+    project: "Tribeca Film Festival",
+  },
+  {
+    id: "11242024-ordinary-growthfactors-16x9-a41566383b",
+    project: "Ordinary",
+  },
+  { id: "cash-flow-6562f7a566", project: "Cash App" },
   { id: "shapes-in-motion-v02-06-cbfe7000dd", project: "Shapes In Motion" },
   { id: "shapes-in-motion-v02-03-b8e056ffc3", project: "Shapes In Motion" },
   { id: "shapes-in-motion-v02-04-b48c336d9d", project: "Shapes In Motion" },
@@ -62,6 +62,19 @@ export const CANVAS_MEDIA = [
   { id: "25-01-sh01-dt-a01-rs-camera-a439d5ef1b", project: "Personal" },
   { id: "26-01-sh01-dt-a01-rs-camera-c930d8099f", project: "Personal" },
   { id: "28-01-sh01-dt-a01-rs-camera-13a3e7a221", project: "Personal" },
+  { id: "30-01-sh01-dt-a03-rs-camera-7aebdf44a5", project: "Personal" },
+  { id: "sun-retouched-scaled-4c943982f7", project: "Personal" },
+  { id: "comestic-rnd-01c-scene-02-c89de39ff4", project: "Personal" },
+  { id: "comestic-rnd-01a-scene-02-00000-eab1e778d9", project: "Personal" },
+  { id: "comestic-rnd-01a-scene-03-00000-b5d265dbad", project: "Personal" },
+  { id: "comestic-rnd-01a-scene-04-00000-7518673e45", project: "Personal" },
+  { id: "comestic-rnd-01c-scene-01-e87380e521", project: "Personal" },
+  { id: "spray-09-04-72c2d407b9", project: "Personal" },
+  { id: "spray-01-fc09595632", project: "Personal" },
+  { id: "spray-04-c08b5c7abc", project: "Personal" },
+  { id: "spray-07-06-retouched-8ede0dc72e", project: "Personal" },
+  { id: "spray-08-02-cb5e62da92", project: "Personal" },
+  { id: "flower-nosound-7512432863", project: "Personal" },
   {
     id: "ud-lip-toy-hero-visual-2-alt-still-v07i-d222f7c08c",
     project: "Urban Decay",
@@ -87,19 +100,6 @@ export const CANVAS_MEDIA = [
     project: "Attitude",
   },
   { id: "good-form-reel-3ab73b7312", project: "Good Form Rebrand" },
-  { id: "30-01-sh01-dt-a03-rs-camera-7aebdf44a5", project: "Personal" },
-  { id: "sun-retouched-scaled-4c943982f7", project: "Personal" },
-  { id: "comestic-rnd-01c-scene-02-c89de39ff4", project: "Personal" },
-  { id: "comestic-rnd-01a-scene-02-00000-eab1e778d9", project: "Personal" },
-  { id: "comestic-rnd-01a-scene-03-00000-b5d265dbad", project: "Personal" },
-  { id: "comestic-rnd-01a-scene-04-00000-7518673e45", project: "Personal" },
-  { id: "comestic-rnd-01c-scene-01-e87380e521", project: "Personal" },
-  { id: "spray-09-04-72c2d407b9", project: "Personal" },
-  { id: "spray-01-fc09595632", project: "Personal" },
-  { id: "spray-04-c08b5c7abc", project: "Personal" },
-  { id: "spray-07-06-retouched-8ede0dc72e", project: "Personal" },
-  { id: "spray-08-02-cb5e62da92", project: "Personal" },
-  { id: "flower-nosound-7512432863", project: "Personal" },
 ] as const;
 
 export const CANVAS_MEDIA_IDS = CANVAS_MEDIA.map((item) => item.id);
@@ -113,4 +113,42 @@ const PROJECT_LABELS: Record<string, string> = {
 /** Display name for the opened-view chip; the key stays the folder name. */
 export function projectLabel(project: string): string {
   return PROJECT_LABELS[project] ?? project;
+}
+
+/** The projects that open the first view, in placement order. */
+export const FEATURED_PROJECTS = [
+  "Google",
+  "NIOD",
+  "Tribeca Film Festival",
+  "Ordinary",
+  "Cash App",
+] as const;
+
+/**
+ * The case study (`content/work/<slug>.mdx`) behind each project folder.
+ * Infiniti and Attitude have no study, so their chip stays a plain label.
+ */
+const PROJECT_SLUGS: Record<string, string> = {
+  Google: "ai-agents-google",
+  NIOD: "niod-deciem",
+  "Tribeca Film Festival": "tribeca-film-festival-deciem",
+  Ordinary: "growth-factors-deciem",
+  "Cash App": "cash-app-cash-flow",
+  "Shapes In Motion": "shapes-in-motion",
+  Celixir: "cellixir",
+  Klaris: "klaris",
+  Linksys: "linksys",
+  Personal: "personal",
+  "Urban Decay": "urban-decay",
+  Xylo: "xylo-audio",
+  Lullavibes: "lullavibes",
+  "London Public Library": "london-public-library",
+  "Good Form Rebrand": "good-form-rebrand",
+};
+
+/** The chip's link, or null when the project has no case study. */
+export function projectHref(project: string): string | null {
+  const slug = PROJECT_SLUGS[project];
+
+  return slug ? `/work/${slug}` : null;
 }

@@ -26,8 +26,8 @@ import {
   gridMetrics,
   INTRO_GAP,
   orientationRatio,
-  centreOutCellOrder,
 } from "./grid";
+import { clusterLayout } from "./clusters";
 import {
   INTRO,
   introCameraZ,
@@ -474,6 +474,9 @@ type Plane = {
   itemIndex: number;
   col: number;
   row: number;
+  /** Offset toward its project cluster centre, in gaps (`clusters.ts`). */
+  pullX: number;
+  pullY: number;
   /** Staggered start for the intro opacity, 500-1250ms. */
   opacityDelay: number;
   /** Cell centre in screen px relative to the viewport centre, before scroll. */
@@ -2476,14 +2479,20 @@ export const InfiniteCanvas = forwardRef<
       halfY = (rows * pitchY) / 2;
 
       const urls = items.map((item) => textureUrl(item.media));
-      const rank = new Int32Array(cols * rows);
-      centreOutCellOrder(cols, rows).forEach((cell, index) => {
-        rank[cell] = index;
-      });
+      const layout = clusterLayout(
+        items.map((item) => item.project),
+        cols,
+        rows,
+        width / grid.pitchX,
+        height / grid.pitchY,
+      );
 
       for (let row = 0; row < rows; row += 1) {
         for (let col = 0; col < cols; col += 1) {
-          const itemIndex = rank[row * cols + col] % items.length;
+          const cellIndex = row * cols + col;
+          const itemIndex = layout.items[cellIndex];
+          const pullX = layout.pullX[cellIndex];
+          const pullY = layout.pullY[cellIndex];
           const media = items[itemIndex].media;
           const aspect = media.width / Math.max(1, media.height);
           const planeWidth = baseWidth;
@@ -2527,8 +2536,8 @@ export const InfiniteCanvas = forwardRef<
             toneMapped: false,
           });
 
-          const baseX = (col - (cols - 1) / 2) * pitchX;
-          const baseY = (row - (rows - 1) / 2) * pitchY;
+          const baseX = (col - (cols - 1) / 2) * pitchX + pullX * gap;
+          const baseY = (row - (rows - 1) / 2) * pitchY + pullY * gap;
           const mesh = new THREE.Mesh(geometry, material);
           mesh.scale.set(planeWidth, planeHeight, 1);
           mesh.position.set(baseX, -baseY, 0);
@@ -2544,6 +2553,8 @@ export const InfiniteCanvas = forwardRef<
             opacityDelay,
             baseX,
             baseY,
+            pullX,
+            pullY,
             tileWidth: planeWidth,
             tileHeight: planeHeight,
             hover: { from: 0, to: 0, startedAt: 0, durationMs: 0 },
@@ -3193,8 +3204,9 @@ export const InfiniteCanvas = forwardRef<
       const scroll = scrollRef.current;
 
       for (const plane of planes) {
-        plane.baseX = (plane.col - (cols - 1) / 2) * pitchX;
-        plane.baseY = (plane.row - (rows - 1) / 2) * pitchY;
+        const gap = pitchX - baseWidth;
+        plane.baseX = (plane.col - (cols - 1) / 2) * pitchX + plane.pullX * gap;
+        plane.baseY = (plane.row - (rows - 1) / 2) * pitchY + plane.pullY * gap;
 
         const x = planePosition(plane.baseX, scroll.x, halfX);
         const y = planePosition(plane.baseY, scroll.y, halfY);
@@ -3711,17 +3723,16 @@ export const InfiniteCanvas = forwardRef<
     function startKeyGlide(dx: number, dy: number): void {
       if (!focusedPlane) return;
 
-      const cell = adjacentCell(
-        { col: focusedPlane.col, row: focusedPlane.row },
-        dx,
-        dy,
-        cols,
-        rows,
-      );
-      const next =
-        planes.find(
-          (plane) => plane.col === cell.col && plane.row === cell.row,
-        ) ?? null;
+      // Gap cells between clusters hold no plane; step over them.
+      let cell = { col: focusedPlane.col, row: focusedPlane.row };
+      let next: Plane | null = null;
+      for (let step = 0; step < Math.max(cols, rows) && !next; step += 1) {
+        cell = adjacentCell(cell, dx, dy, cols, rows);
+        next =
+          planes.find(
+            (plane) => plane.col === cell.col && plane.row === cell.row,
+          ) ?? null;
+      }
 
       if (!next) return;
 
