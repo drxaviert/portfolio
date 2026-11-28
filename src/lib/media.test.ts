@@ -10,8 +10,8 @@ import {
 } from "./media";
 import { sourceSet } from "@/components/media/source-set";
 
-const IMAGE_ID = "cellixir-01-v01a-cf03dc7d17";
-const VIDEO_ID = "isometric-784845539a";
+const IMAGE_ID = "cellixir-01-v01a-7b1743d192";
+const VIDEO_ID = "isometric-22dc902537";
 
 afterEach(() => {
   vi.unstubAllEnvs();

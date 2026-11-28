@@ -103,7 +103,7 @@ const meta = {
   year: "2026",
   role: "",
   summary: "",
-  cover: "media:good-form-reel-4c969cc977",
+  cover: "media:good-form-reel-3ab73b7312",
   hidden: false,
 } as WorkMeta;
 

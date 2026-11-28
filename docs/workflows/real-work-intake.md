@@ -76,7 +76,7 @@ are skipped. A failure exits `1`, a usage error `2`.
 `media` id. For the study hero and the featured card, set the frontmatter:
 
 ```yaml
-cover: "media:isometric-784845539a"
+cover: "media:isometric-22dc902537"
 ```
 
 An unknown id, or a manifest that does not validate, fails the build — see

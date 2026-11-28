@@ -7,29 +7,30 @@ import {
 } from "./items";
 
 const PROJECT_COUNTS: Record<string, number> = {
-  Attitdue: 1,
-  Base: 1,
+  Attitude: 1,
   "Cash App": 1,
-  Celixir: 6,
+  Celixir: 5,
   "Good Form Rebrand": 1,
   Google: 1,
-  Infiniti: 2,
+  Infiniti: 1,
   Klaris: 5,
-  Linksys: 6,
+  Linksys: 4,
   "London Public Library": 3,
-  Lullavibes: 3,
-  NIOD: 6,
-  Ordinary: 2,
-  Personal: 41,
-  "Shapes In Motion": 1,
-  "Urban Decay": 4,
-  Xylo: 4,
+  Lullavibes: 1,
+  NIOD: 5,
+  Ordinary: 1,
+  Personal: 26,
+  "Shapes In Motion": 5,
+  "Tribeca Film Festival": 1,
+  "Urban Decay": 5,
+  Xylo: 1,
 };
 
 const CENTRE_PROJECTS = new Set([
   "Google",
   "Cash App",
   "Ordinary",
+  "Tribeca Film Festival",
   "NIOD",
   "Shapes In Motion",
 ]);
@@ -47,10 +48,10 @@ function projectRuns() {
 }
 
 describe("canvas media order", () => {
-  it("lists every current manifest once", () => {
-    expect(CANVAS_MEDIA_IDS).toHaveLength(88);
-    expect(new Set(CANVAS_MEDIA_IDS).size).toBe(88);
-    expect(CANVAS_MEDIA_COUNT).toBe(88);
+  it("lists every canvas file in the Optimized folder once", () => {
+    expect(CANVAS_MEDIA_IDS).toHaveLength(67);
+    expect(new Set(CANVAS_MEDIA_IDS).size).toBe(67);
+    expect(CANVAS_MEDIA_COUNT).toBe(67);
   });
 
   it("maps every id to its source project", () => {
@@ -64,9 +65,9 @@ describe("canvas media order", () => {
     expect(counts).toEqual(PROJECT_COUNTS);
   });
 
-  it("starts with the five matched centre projects", () => {
+  it("starts with the six centre projects", () => {
     const first = new Set(
-      CANVAS_MEDIA.slice(0, 11).map((item) => item.project),
+      CANVAS_MEDIA.slice(0, 14).map((item) => item.project),
     );
 
     expect(first).toEqual(CENTRE_PROJECTS);
@@ -90,7 +91,7 @@ describe("canvas media order", () => {
       .map((run) => run.end - run.start + 1);
 
     expect(split).toEqual(["Personal"]);
-    expect(personal).toEqual([14, 14, 13]);
+    expect(personal).toEqual([13, 13]);
   });
 
   it("does not butt the same project across the infinite repeat", () => {

@@ -98,7 +98,7 @@ describe("getWork", () => {
     const work = getWork("motion-and-stills");
 
     expect(work?.layout).toBe("canvas");
-    expect(work?.cover).toBe("media:good-form-reel-4c969cc977");
+    expect(work?.cover).toBe("media:good-form-reel-3ab73b7312");
     expect(work?.coverImage?.width).toBeGreaterThan(0);
   });
 

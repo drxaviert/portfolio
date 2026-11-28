@@ -3,6 +3,7 @@ import {
   CANVAS_MAX_HEIGHT,
   canvasTargetSize,
   HLS_MIN_DURATION,
+  hlsCapFor,
   hlsRungs,
   selectInbox,
   shouldUseHls,
@@ -109,5 +110,21 @@ describe("canvasTargetSize", () => {
       width: 220,
       height: 480,
     });
+  });
+});
+
+describe("hlsCapFor", () => {
+  const MB = 1024 * 1024;
+
+  it("keeps the 150 MB cap for ordinary files", () => {
+    expect(hlsCapFor("Cash-Flow.mp4")).toBe(150 * MB);
+  });
+
+  it("allows Good-Form-Reel.mp4 a larger ladder", () => {
+    expect(hlsCapFor("Good-Form-Reel.mp4")).toBe(400 * MB);
+  });
+
+  it("matches the exact filename only", () => {
+    expect(hlsCapFor("good-form-reel.mp4")).toBe(150 * MB);
   });
 });
