@@ -21,6 +21,7 @@ export const WORK_BODIES: Record<WorkSlug, () => Promise<WorkBody>> = {
   "urban-decay": () => import("../../content/work/urban-decay.mdx"),
   "niod-deciem": () => import("../../content/work/niod-deciem.mdx"),
   "good-form-rebrand": () => import("../../content/work/good-form-rebrand.mdx"),
+  attitude: () => import("../../content/work/attitude.mdx"),
   "xylo-audio": () => import("../../content/work/xylo-audio.mdx"),
   lullavibes: () => import("../../content/work/lullavibes.mdx"),
   "cash-app-cash-flow": () =>
@@ -29,8 +30,7 @@ export const WORK_BODIES: Record<WorkSlug, () => Promise<WorkBody>> = {
   linksys: () => import("../../content/work/linksys.mdx"),
   "london-public-library": () =>
     import("../../content/work/london-public-library.mdx"),
-  "motion-and-stills": () =>
-    import("../../content/work/motion-and-stills.mdx"),
+  "motion-and-stills": () => import("../../content/work/motion-and-stills.mdx"),
   "human-contact": () => import("../../content/work/human-contact.mdx"),
   personal: () => import("../../content/work/personal.mdx"),
 };

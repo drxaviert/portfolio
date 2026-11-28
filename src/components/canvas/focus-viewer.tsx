@@ -78,7 +78,7 @@ function videoInSlide(
  */
 /**
  * The opened view's project chip: a link to the case study, or a plain label
- * for projects without one (Infiniti, Attitude). A press that travels past the
+ * for projects without one (Infiniti). A press that travels past the
  * pan's click threshold is a drag, so it does not navigate.
  */
 function ProjectChip({ project }: { project: string }) {

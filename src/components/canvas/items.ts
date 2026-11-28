@@ -126,7 +126,7 @@ export const FEATURED_PROJECTS = [
 
 /**
  * The case study (`content/work/<slug>.mdx`) behind each project folder.
- * Infiniti and Attitude have no study, so their chip stays a plain label.
+ * Infiniti has no study, so its chip stays a plain label.
  */
 const PROJECT_SLUGS: Record<string, string> = {
   Google: "ai-agents-google",
@@ -144,6 +144,7 @@ const PROJECT_SLUGS: Record<string, string> = {
   Lullavibes: "lullavibes",
   "London Public Library": "london-public-library",
   "Good Form Rebrand": "good-form-rebrand",
+  Attitude: "attitude",
 };
 
 /** The chip's link, or null when the project has no case study. */

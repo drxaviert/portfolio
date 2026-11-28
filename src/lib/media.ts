@@ -383,3 +383,30 @@ export function coverImageFor(id: string): CoverImage {
     lqip: media.lqip,
   };
 }
+
+/**
+ * A /work row's hover video: the small canvas encode, never the full mp4, with
+ * the poster as the still it shows before it plays and under reduced motion.
+ */
+export type ThumbVideo = {
+  src: string;
+  poster: string;
+  width: number;
+  height: number;
+};
+
+/** The video a study's `thumb: "media:<id>"` resolves to. */
+export function thumbVideoFor(id: string): ThumbVideo {
+  const media = getMedia(id);
+
+  if (media.kind !== "video" || !media.canvas) {
+    throw new Error(`thumb media "${id}" must be a video with a canvas encode`);
+  }
+
+  return {
+    src: media.canvas.url,
+    poster: media.poster.jpg,
+    width: media.width,
+    height: media.height,
+  };
+}

@@ -19,11 +19,16 @@ describe("parseFrontmatter", () => {
   });
 
   it("reads the canvas layout and rejects an unknown one", () => {
-    const CANVAS = BODY.replace("---\n\n# Body", "layout: canvas\n---\n\n# Body");
+    const CANVAS = BODY.replace(
+      "---\n\n# Body",
+      "layout: canvas\n---\n\n# Body",
+    );
 
     expect(parseFrontmatter(CANVAS).layout).toBe("canvas");
     expect(() =>
-      parseFrontmatter(BODY.replace("---\n\n# Body", "layout: sheet\n---\n\n# Body")),
+      parseFrontmatter(
+        BODY.replace("---\n\n# Body", "layout: sheet\n---\n\n# Body"),
+      ),
     ).toThrow(/Unknown layout/);
   });
 
@@ -50,7 +55,7 @@ describe("parseFrontmatter", () => {
 
 describe("listWork", () => {
   it("returns the visible case studies", () => {
-    expect(listWork()).toHaveLength(17);
+    expect(listWork()).toHaveLength(18);
   });
 
   it("gives every study a known cover", () => {
@@ -72,6 +77,7 @@ describe("listWork", () => {
       "urban-decay",
       "niod-deciem",
       "good-form-rebrand",
+      "attitude",
       "xylo-audio",
       "lullavibes",
       "cash-app-cash-flow",
@@ -100,6 +106,30 @@ describe("getWork", () => {
     expect(work?.layout).toBe("canvas");
     expect(work?.cover).toBe("media:good-form-reel-3ab73b7312");
     expect(work?.coverImage?.width).toBeGreaterThan(0);
+  });
+
+  it("gives every study but Motion & Stills a hover video from its canvas encode", () => {
+    for (const work of listWork()) {
+      if (work.slug === "motion-and-stills") {
+        expect(work.thumbVideo).toBeUndefined();
+        expect(work.thumbImage?.avif).toContain(
+          "motion-and-stills-grid-b20ba19d14",
+        );
+        continue;
+      }
+
+      expect(work.thumbVideo?.src, work.slug).toMatch(/\/canvas\.mp4$/);
+      expect(work.thumbVideo?.poster, work.slug).toMatch(/\/poster\.jpg$/);
+    }
+  });
+
+  it("plays the named video for each study", () => {
+    expect(getWork("tribeca-film-festival-deciem")?.thumbVideo?.src).toContain(
+      "ord-sv-ripple-01h-hd-prob4-3554f8ab40",
+    );
+    expect(getWork("personal")?.thumbVideo?.src).toContain(
+      "flower-nosound-7512432863",
+    );
   });
 
   it("returns null for an unknown slug", () => {
