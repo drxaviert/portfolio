@@ -44,9 +44,27 @@ beforeEach(() => {
 });
 
 describe("MediaVideo", () => {
-  it("loopMuted ignores HLS and renders a silent looping MP4 without controls", () => {
+  it("loopMuted streams the HLS ladder, not the 480p fallback MP4", () => {
     const { container } = render(
       <MediaVideo media={media} alt={media.alt} loopMuted viewerOwned />,
+    );
+    const video = container.querySelector("video");
+
+    expect(video?.muted).toBe(true);
+    expect(video?.loop).toBe(true);
+    expect(video?.controls).toBe(false);
+    expect(container.querySelectorAll("source")).toHaveLength(0);
+  });
+
+  it("loopMuted without HLS renders a silent looping MP4 without controls", () => {
+    const progressive = { ...media, hls: undefined };
+    const { container } = render(
+      <MediaVideo
+        media={progressive}
+        alt={media.alt}
+        loopMuted
+        viewerOwned
+      />,
     );
     const video = container.querySelector("video");
     const sources = [...container.querySelectorAll("source")];
